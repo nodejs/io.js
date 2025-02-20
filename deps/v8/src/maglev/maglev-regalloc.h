@@ -267,6 +267,9 @@ class StraightForwardRegisterAllocator {
   bool IsInRegister(MergePointRegisterState& target_state, ValueNode* incoming);
   bool IsForwardReachable(BasicBlock* start_block, NodeIdT first_id,
                           NodeIdT last_id);
+  bool AllUsedRegistersLiveAt(ConditionalControlNode* control_node,
+                              BasicBlock* target);
+  bool AllUsedRegistersLiveAt(BasicBlock* target);
 #endif
 
   template <typename RegisterT>

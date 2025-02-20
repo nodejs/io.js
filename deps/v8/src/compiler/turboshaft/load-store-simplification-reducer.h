@@ -141,8 +141,6 @@ class LoadStoreSimplificationReducer : public Next,
   void SimplifyLoadStore(OpIndex& base, OptionalOpIndex& index,
                          LoadOp::Kind& kind, int32_t& offset,
                          uint8_t& element_size_log2) {
-    if (!lowering_enabled_) return;
-
     if (element_size_log2 > kMaxElementSizeLog2) {
       DCHECK(index.valid());
       index = __ WordPtrShiftLeft(index.value(), element_size_log2);
@@ -186,23 +184,6 @@ class LoadStoreSimplificationReducer : public Next,
     }
   }
 
-  bool is_wasm_ = __ data() -> is_wasm();
-  // TODO(12783): Remove this flag once the Turbofan instruction selection has
-  // been replaced.
-#if defined(V8_TARGET_ARCH_X64) || defined(V8_TARGET_ARCH_ARM64) ||      \
-    defined(V8_TARGET_ARCH_ARM) || defined(V8_TARGET_ARCH_IA32) ||       \
-    defined(V8_TARGET_ARCH_PPC64) || defined(V8_TARGET_ARCH_S390X) ||    \
-    defined(V8_TARGET_ARCH_LOONG64) || defined(V8_TARGET_ARCH_MIPS64) || \
-    defined(V8_TARGET_ARCH_RISCV64) || defined(V8_TARGET_ARCH_RISCV32)
-  bool lowering_enabled_ =
-      (is_wasm_ && v8_flags.turboshaft_wasm_instruction_selection_staged) ||
-      (!is_wasm_ && v8_flags.turboshaft_instruction_selection);
-#else
-  bool lowering_enabled_ =
-      (is_wasm_ &&
-       v8_flags.turboshaft_wasm_instruction_selection_experimental) ||
-      (!is_wasm_ && v8_flags.turboshaft_instruction_selection);
-#endif
   OperationMatcher matcher_{__ output_graph()};
 };
 

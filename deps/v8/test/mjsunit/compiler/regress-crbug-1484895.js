@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-future --no-maglev --jit-fuzzing
+// Flags: --allow-natives-syntax --no-maglev --jit-fuzzing
 
 const v0 = `tan`;
 const v3 = new Float64Array(3270);

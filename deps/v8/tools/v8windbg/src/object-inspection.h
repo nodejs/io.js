@@ -189,12 +189,12 @@ class V8ObjectDataModel
 
     // See if the cached object is already present
     WRL::ComPtr<IUnknown> sp_context;
-    HRESULT hr = context_object->GetContextForDataModel(sp_parent_model.Get(),
-                                                        &sp_context);
+    HRESULT status = context_object->GetContextForDataModel(
+        sp_parent_model.Get(), &sp_context);
 
     WRL::ComPtr<IV8CachedObject> sp_v8_cached_object;
 
-    if (SUCCEEDED(hr)) {
+    if (SUCCEEDED(status)) {
       RETURN_IF_FAIL(sp_context.As(&sp_v8_cached_object));
     } else {
       RETURN_IF_FAIL(

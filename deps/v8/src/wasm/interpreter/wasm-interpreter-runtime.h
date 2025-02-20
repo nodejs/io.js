@@ -31,14 +31,11 @@ class WasmInterpreterRuntime {
   WasmInterpreterRuntime(const WasmModule* module, Isolate* isolate,
                          Handle<WasmInstanceObject> instance_object,
                          WasmInterpreter::CodeMap* codemap);
-  ~WasmInterpreterRuntime();
-
-  void Reset();
 
   inline WasmBytecode* GetFunctionBytecode(uint32_t func_index);
 
   std::vector<WasmInterpreterStackEntry> GetInterpretedStack(
-      Address frame_pointer) const;
+      Address frame_pointer);
 
   int GetFunctionIndex(Address frame_pointer, int index) const;
 
@@ -67,6 +64,9 @@ class WasmInterpreterRuntime {
   int32_t AtomicNotify(uint64_t effective_index, int32_t val);
   int32_t I32AtomicWait(uint64_t effective_index, int32_t val, int64_t timeout);
   int32_t I64AtomicWait(uint64_t effective_index, int64_t val, int64_t timeout);
+
+  inline bool WasmStackCheck(const uint8_t* current_bytecode,
+                             const uint8_t*& code);
 
   bool TableGet(const uint8_t*& current_code, uint32_t table_index,
                 uint32_t entry_index, Handle<Object>* result);
@@ -97,11 +97,17 @@ class WasmInterpreterRuntime {
   inline void DataDrop(uint32_t index);
   inline void ElemDrop(uint32_t index);
 
+  inline const WasmTag& GetWasmTag(uint32_t tag_index) const {
+    return module_->tags[tag_index];
+  }
+  Handle<WasmExceptionPackage> CreateWasmExceptionPackage(
+      uint32_t tag_index) const;
   void UnpackException(uint32_t* sp, const WasmTag& tag,
                        Handle<Object> exception_object,
                        uint32_t first_param_slot_index,
                        uint32_t first_param_ref_stack_index);
-  void ThrowException(const uint8_t*& code, uint32_t* sp, uint32_t tag_index);
+  void ThrowException(const uint8_t*& code, uint32_t* sp,
+                      Tagged<Object> exception_object);
   void RethrowException(const uint8_t*& code, uint32_t* sp,
                         uint32_t catch_block_index);
 
@@ -115,7 +121,8 @@ class WasmInterpreterRuntime {
                                uint32_t current_stack_size,
                                uint32_t ref_stack_fp_offset,
                                uint32_t slot_offset,
-                               uint32_t return_slot_offset);
+                               uint32_t return_slot_offset,
+                               bool is_tail_call = false);
 
   void PrepareTailCall(const uint8_t*& code, uint32_t func_index,
                        uint32_t current_stack_size,
@@ -230,7 +237,7 @@ class WasmInterpreterRuntime {
                                             Handle<Object> object_ref,
                                             const FunctionSig* sig,
                                             uint32_t* sp,
-                                            uint32_t current_stack_slot);
+                                            uint32_t return_slot_offset);
 
   inline Address EffectiveAddress(uint64_t index) const;
 
@@ -249,13 +256,12 @@ class WasmInterpreterRuntime {
   bool CheckIndirectCallSignature(uint32_t table_index, uint32_t entry_index,
                                   uint32_t sig_index) const;
 
-  void EnsureRefStackSpace(size_t new_size);
-  void ClearRefStackValues(size_t index, size_t count);
-
-  void StoreRefArgsIntoStackSlots(uint8_t* sp, uint32_t ref_stack_fp_index,
+  void StoreRefArgsIntoStackSlots(uint8_t* sp, uint32_t ref_stack_fp_offset,
                                   const FunctionSig* sig);
-  void StoreRefResultsIntoRefStack(uint8_t* sp, uint32_t ref_stack_fp_index,
+  void StoreRefResultsIntoRefStack(uint8_t* sp, uint32_t ref_stack_fp_offset,
                                    const FunctionSig* sig);
+
+  void InitializeRefLocalsRefs(const WasmBytecode* target_function);
 
   WasmInterpreterThread::ExceptionHandlingResult HandleException(
       uint32_t* sp, const uint8_t*& current_code);
@@ -270,6 +276,10 @@ class WasmInterpreterRuntime {
     return current_thread_;
   }
   WasmInterpreterThread::State state() const { return thread()->state(); }
+
+  Handle<FixedArray> reference_stack() const {
+    return thread()->reference_stack();
+  }
 
   void CallWasmToJSBuiltin(Isolate* isolate, Handle<Object> object_ref,
                            Address packed_args, const FunctionSig* sig);
@@ -288,22 +298,9 @@ class WasmInterpreterRuntime {
   int trap_function_index_;
   pc_t trap_pc_;
 
-  // References are kept on an on-heap stack. It would not be any good to store
-  // reference object pointers into stack slots because the pointers obviously
-  // could be invalidated if the object moves in a GC. Furthermore we need to
-  // make sure that the reference objects in the Wasm stack are marked as alive
-  // for GC. This is why in each Wasm thread we instantiate a FixedArray that
-  // contains all the reference objects present in the execution stack.
-  // Only while calling JS functions or Wasm functions in a separate instance we
-  // need to store temporarily the reference objects pointers into stack slots,
-  // and in this case we need to make sure to temporarily disallow GC and avoid
-  // object allocation while the reference arguments are being passed to the
-  // callee and while the reference return values are being passed back to the
-  // caller.
-  Handle<FixedArray> reference_stack_;
-  size_t current_ref_stack_size_;
-
   WasmInterpreterThread* current_thread_;
+
+  base::TimeTicks fuzzer_start_time_;
 
   uint8_t* memory_start_;
 
@@ -327,14 +324,15 @@ class WasmInterpreterRuntime {
     IndirectCallValue()
         : mode(Mode::kInvalid),
           func_index(kInvalidFunctionIndex),
-          sig_index(kInlineSignatureSentinel),
+          sig_index({kInlineSignatureSentinel}),
           signature(nullptr) {}
-    IndirectCallValue(uint32_t func_index_, uint32_t sig_index)
+    IndirectCallValue(uint32_t func_index_, wasm::CanonicalTypeIndex sig_index)
         : mode(Mode::kInternalCall),
           func_index(func_index_),
           sig_index(sig_index),
           signature(nullptr) {}
-    IndirectCallValue(const FunctionSig* signature_, uint32_t sig_index)
+    IndirectCallValue(const FunctionSig* signature_,
+                      wasm::CanonicalTypeIndex sig_index)
         : mode(Mode::kExternalCall),
           func_index(kInvalidFunctionIndex),
           sig_index(sig_index),
@@ -344,7 +342,7 @@ class WasmInterpreterRuntime {
 
     Mode mode;
     uint32_t func_index;
-    uint32_t sig_index;
+    wasm::CanonicalTypeIndex sig_index;
     const FunctionSig* signature;
   };
   typedef std::vector<IndirectCallValue> IndirectCallTable;

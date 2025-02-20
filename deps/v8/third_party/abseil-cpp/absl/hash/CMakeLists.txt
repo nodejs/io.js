@@ -68,18 +68,13 @@ absl_cc_test(
   COPTS
     ${ABSL_TEST_COPTS}
   DEPS
-    absl::btree
+    absl::bits
     absl::cord_test_helpers
-    absl::core_headers
-    absl::flat_hash_map
     absl::flat_hash_set
     absl::hash
     absl::hash_testing
-    absl::int128
     absl::memory
     absl::meta
-    absl::node_hash_map
-    absl::node_hash_set
     absl::optional
     absl::spy_hash_state
     absl::string_view

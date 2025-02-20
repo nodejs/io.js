@@ -74,18 +74,15 @@ namespace internal {
 
 namespace {
 
-class UnifiedHeapSnapshotTest : public UnifiedHeapTest {
+template <typename TMixin>
+class WithUnifiedHeapSnapshot : public TMixin {
  public:
-  UnifiedHeapSnapshotTest() = default;
-  explicit UnifiedHeapSnapshotTest(
-      std::vector<std::unique_ptr<cppgc::CustomSpaceBase>> custom_spaces)
-      : UnifiedHeapTest(std::move(custom_spaces)) {}
   const v8::HeapSnapshot* TakeHeapSnapshot(
       cppgc::EmbedderStackState stack_state =
           cppgc::EmbedderStackState::kMayContainHeapPointers,
       v8::HeapProfiler::HeapSnapshotMode snapshot_mode =
           v8::HeapProfiler::HeapSnapshotMode::kExposeInternals) {
-    v8::HeapProfiler* heap_profiler = v8_isolate()->GetHeapProfiler();
+    v8::HeapProfiler* heap_profiler = TMixin::v8_isolate()->GetHeapProfiler();
 
     v8::HeapProfiler::HeapSnapshotOptions options;
     options.control = nullptr;
@@ -99,6 +96,8 @@ class UnifiedHeapSnapshotTest : public UnifiedHeapTest {
  protected:
   void TestMergedWrapperNode(v8::HeapProfiler::HeapSnapshotMode snapshot_mode);
 };
+
+using UnifiedHeapSnapshotTest = WithUnifiedHeapSnapshot<UnifiedHeapTest>;
 
 bool IsValidSnapshot(const v8::HeapSnapshot* snapshot, int depth = 3) {
   const HeapSnapshot* heap_snapshot =
@@ -207,6 +206,34 @@ constexpr const char* GetExpectedName() {
   }
 }
 
+size_t GetExtraNativeBytes(const v8::HeapSnapshot* snapshot) {
+  return reinterpret_cast<const HeapSnapshot*>(snapshot)->extra_native_bytes();
+}
+
+template <typename Callback>
+void ForEachEntryWithName(const v8::HeapSnapshot* snapshot, const char* name,
+                          Callback callback) {
+  const HeapSnapshot* heap_snapshot =
+      reinterpret_cast<const HeapSnapshot*>(snapshot);
+  for (const HeapEntry& entry : heap_snapshot->entries()) {
+    if (strcmp(entry.name(), name) == 0) {
+      callback(entry);
+    }
+  }
+}
+
+void CheckSize(const v8::HeapSnapshot* snapshot, const char* name,
+               size_t size) {
+  ForEachEntryWithName(snapshot, name, [size](const HeapEntry& entry) {
+    EXPECT_EQ(size, entry.self_size());
+  });
+}
+
+template <typename T>
+size_t GetCppSize(T* object) {
+  return cppgc::internal::HeapObjectHeader::FromObject(object).AllocatedSize();
+}
+
 }  // namespace
 
 TEST_F(UnifiedHeapSnapshotTest, EmptySnapshot) {
@@ -239,7 +266,8 @@ TEST_F(UnifiedHeapSnapshotTest, ConsistentId) {
   EXPECT_EQ(ids1[0], ids2[0]);
 }
 
-class UnifiedHeapWithCustomSpaceSnapshotTest : public UnifiedHeapSnapshotTest {
+template <typename TMixin>
+class WithCppHeapWithCustomSpace : public TMixin {
  public:
   static std::vector<std::unique_ptr<cppgc::CustomSpaceBase>>
   GetCustomSpaces() {
@@ -248,8 +276,39 @@ class UnifiedHeapWithCustomSpaceSnapshotTest : public UnifiedHeapSnapshotTest {
         std::make_unique<cppgc::CompactableCustomSpace>());
     return custom_spaces;
   }
-  UnifiedHeapWithCustomSpaceSnapshotTest()
-      : UnifiedHeapSnapshotTest(GetCustomSpaces()) {}
+
+  WithCppHeapWithCustomSpace() {
+    IsolateWrapper::set_cpp_heap_for_next_isolate(v8::CppHeap::Create(
+        V8::GetCurrentPlatform(), CppHeapCreateParams{GetCustomSpaces()}));
+  }
+};
+
+class UnifiedHeapWithCustomSpaceSnapshotTest
+    : public WithUnifiedHeap<                                //
+          WithContextMixin<                                  //
+              WithHeapInternals<                             //
+                  WithInternalIsolateMixin<                  //
+                      WithIsolateScopeMixin<                 //
+                          WithIsolateMixin<                  //
+                              WithCppHeapWithCustomSpace<    //
+                                  WithDefaultPlatformMixin<  //
+                                      ::testing::Test>>>>>>>> {
+ public:
+  const v8::HeapSnapshot* TakeHeapSnapshot(
+      cppgc::EmbedderStackState stack_state =
+          cppgc::EmbedderStackState::kMayContainHeapPointers,
+      v8::HeapProfiler::HeapSnapshotMode snapshot_mode =
+          v8::HeapProfiler::HeapSnapshotMode::kExposeInternals) {
+    v8::HeapProfiler* heap_profiler = v8_isolate()->GetHeapProfiler();
+
+    v8::HeapProfiler::HeapSnapshotOptions options;
+    options.control = nullptr;
+    options.global_object_name_resolver = nullptr;
+    options.snapshot_mode = snapshot_mode;
+    options.numerics_mode = v8::HeapProfiler::NumericsMode::kHideNumericValues;
+    options.stack_state = stack_state;
+    return heap_profiler->TakeHeapSnapshot(options);
+  }
 };
 
 TEST_F(UnifiedHeapWithCustomSpaceSnapshotTest, ConsistentIdAfterCompaction) {
@@ -329,6 +388,9 @@ TEST_F(UnifiedHeapSnapshotTest, RetainingUnnamedTypeWithInternalDetails) {
   EXPECT_TRUE(IsValidSnapshot(snapshot));
   EXPECT_TRUE(ContainsRetainingPath(
       *snapshot, {kExpectedCppRootsName, GetExpectedName<BaseWithoutName>()}));
+  CheckSize(snapshot, GetExpectedName<BaseWithoutName>(),
+            GetCppSize(base_without_name.Get()));
+  EXPECT_EQ(0u, GetExtraNativeBytes(snapshot));
 }
 
 TEST_F(UnifiedHeapSnapshotTest, RetainingUnnamedTypeWithoutInternalDetails) {
@@ -342,6 +404,7 @@ TEST_F(UnifiedHeapSnapshotTest, RetainingUnnamedTypeWithoutInternalDetails) {
       *snapshot, {kExpectedCppRootsName, cppgc::NameProvider::kHiddenName}));
   EXPECT_FALSE(ContainsRetainingPath(
       *snapshot, {kExpectedCppRootsName, GetExpectedName<BaseWithoutName>()}));
+  EXPECT_EQ(GetCppSize(base_without_name.Get()), GetExtraNativeBytes(snapshot));
 }
 
 TEST_F(UnifiedHeapSnapshotTest, RetainingNamedThroughUnnamed) {
@@ -356,6 +419,10 @@ TEST_F(UnifiedHeapSnapshotTest, RetainingNamedThroughUnnamed) {
   EXPECT_TRUE(ContainsRetainingPath(
       *snapshot, {kExpectedCppRootsName, cppgc::NameProvider::kHiddenName,
                   GetExpectedName<GCed>()}));
+  CheckSize(snapshot, cppgc::NameProvider::kHiddenName, 0);
+  CheckSize(snapshot, GetExpectedName<GCed>(),
+            GetCppSize(base_without_name->next.Get()));
+  EXPECT_EQ(GetCppSize(base_without_name.Get()), GetExtraNativeBytes(snapshot));
 }
 
 TEST_F(UnifiedHeapSnapshotTest, PendingCallStack) {
@@ -385,6 +452,10 @@ TEST_F(UnifiedHeapSnapshotTest, PendingCallStack) {
   EXPECT_TRUE(ContainsRetainingPath(
       *snapshot, {kExpectedCppRootsName, cppgc::NameProvider::kHiddenName,
                   cppgc::NameProvider::kHiddenName, GetExpectedName<GCed>()}));
+  CheckSize(snapshot, cppgc::NameProvider::kHiddenName, 0);
+  CheckSize(snapshot, GetExpectedName<GCed>(), GetCppSize(third));
+  EXPECT_EQ(GetCppSize(first) + GetCppSize(second),
+            GetExtraNativeBytes(snapshot));
 }
 
 TEST_F(UnifiedHeapSnapshotTest, ReferenceToFinishedSCC) {
@@ -485,18 +556,6 @@ cppgc::Persistent<GCedWithJSRef> SetupWrapperWrappablePair(
   return gc_w_js_ref;
 }
 
-template <typename Callback>
-void ForEachEntryWithName(const v8::HeapSnapshot* snapshot, const char* needle,
-                          Callback callback) {
-  const HeapSnapshot* heap_snapshot =
-      reinterpret_cast<const HeapSnapshot*>(snapshot);
-  for (const HeapEntry& entry : heap_snapshot->entries()) {
-    if (strcmp(entry.name(), needle) == 0) {
-      callback(entry);
-    }
-  }
-}
-
 }  // namespace
 
 TEST_F(UnifiedHeapSnapshotTest, JSReferenceForcesVisibleObject) {
@@ -518,18 +577,19 @@ TEST_F(UnifiedHeapSnapshotTest, JSReferenceForcesVisibleObject) {
       true));
 }
 
-void UnifiedHeapSnapshotTest::TestMergedWrapperNode(
+template <typename TMixin>
+void WithUnifiedHeapSnapshot<TMixin>::TestMergedWrapperNode(
     v8::HeapProfiler::HeapSnapshotMode snapshot_mode) {
   // Test ensures that the snapshot sets a wrapper node for C++->JS references
   // that have a valid back reference and that object nodes are merged. In
   // practice, the C++ node is merged into the existing JS node.
-  JsTestingScope testing_scope(v8_isolate());
+  JsTestingScope testing_scope(TMixin::v8_isolate());
   cppgc::Persistent<GCedWithJSRef> gc_w_js_ref = SetupWrapperWrappablePair(
-      testing_scope, allocation_handle(), "MergedObject");
+      testing_scope, TMixin::allocation_handle(), "MergedObject");
   v8::Local<v8::Object> next_object = WrapperHelper::CreateWrapper(
       testing_scope.context(), nullptr, "NextObject");
   v8::Local<v8::Object> wrapper_object =
-      gc_w_js_ref->wrapper().Get(v8_isolate());
+      gc_w_js_ref->wrapper().Get(TMixin::v8_isolate());
   // Chain another object to `wrapper_object`. Since `wrapper_object` should be
   // merged into `GCedWithJSRef`, the additional object must show up as direct
   // child from `GCedWithJSRef`.
@@ -553,18 +613,10 @@ void UnifiedHeapSnapshotTest::TestMergedWrapperNode(
        "NextObject"}));
   const size_t js_size = Utils::OpenDirectHandle(*wrapper_object)->Size();
   if (snapshot_mode == v8::HeapProfiler::HeapSnapshotMode::kExposeInternals) {
-    const size_t cpp_size =
-        cppgc::internal::HeapObjectHeader::FromObject(gc_w_js_ref.Get())
-            .AllocatedSize();
-    ForEachEntryWithName(snapshot, kExpectedName,
-                         [cpp_size, js_size](const HeapEntry& entry) {
-                           EXPECT_EQ(cpp_size + js_size, entry.self_size());
-                         });
+    const size_t cpp_size = GetCppSize(gc_w_js_ref.Get());
+    CheckSize(snapshot, kExpectedName, cpp_size + js_size);
   } else {
-    ForEachEntryWithName(snapshot, kExpectedName,
-                         [js_size](const HeapEntry& entry) {
-                           EXPECT_EQ(js_size, entry.self_size());
-                         });
+    CheckSize(snapshot, kExpectedName, js_size);
   }
 }
 

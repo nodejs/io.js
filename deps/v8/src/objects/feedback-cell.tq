@@ -4,6 +4,6 @@
 
 extern class FeedbackCell extends Struct {
   value: Undefined|FeedbackVector|ClosureFeedbackCellArray;
-  @if(V8_ENABLE_LEAPTIERING) dispatch_handle: int32;
+  dispatch_handle: int32;
   interrupt_budget: int32;
 }

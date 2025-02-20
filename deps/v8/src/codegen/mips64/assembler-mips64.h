@@ -150,6 +150,10 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // own buffer. Otherwise it takes ownership of the provided buffer.
   explicit Assembler(const AssemblerOptions&,
                      std::unique_ptr<AssemblerBuffer> = {});
+  // For compatibility with assemblers that require a zone.
+  Assembler(const MaybeAssemblerZone&, const AssemblerOptions& options,
+            std::unique_ptr<AssemblerBuffer> buffer = {})
+      : Assembler(options, std::move(buffer)) {}
 
   virtual ~Assembler() {}
 
@@ -249,9 +253,9 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // The isolate argument is unused (and may be nullptr) when skipping flushing.
   static Address target_address_at(Address pc);
   V8_INLINE static void set_target_address_at(
-      Address pc, Address target,
+      Address pc, Address target, WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED) {
-    set_target_value_at(pc, target, icache_flush_mode);
+    set_target_value_at(pc, target, jit_allocation, icache_flush_mode);
   }
   // On MIPS there is no Constant Pool so we skip that parameter.
   V8_INLINE static Address target_address_at(Address pc,
@@ -260,21 +264,17 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   }
   V8_INLINE static void set_target_address_at(
       Address pc, Address constant_pool, Address target,
+      WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED) {
-    set_target_address_at(pc, target, icache_flush_mode);
+    set_target_address_at(pc, target, jit_allocation, icache_flush_mode);
   }
 
   static void set_target_value_at(
       Address pc, uint64_t target,
+      WritableJitAllocation* jit_allocation = nullptr,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   static void JumpLabelToJumpRegister(Address pc);
-
-  // This sets the branch destination (which gets loaded at the call address).
-  // This is for calls and branches within generated code.  The serializer
-  // has already deserialized the lui/ori instructions etc.
-  inline static void deserialization_set_special_target_at(
-      Address instruction_payload, Tagged<Code> code, Address target);
 
   // Get the size of the special target encoded at 'instruction_payload'.
   inline static int deserialization_special_target_size(
@@ -282,13 +282,14 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
 
   // This sets the internal reference at the pc.
   inline static void deserialization_set_target_internal_reference_at(
-      Address pc, Address target,
+      Address pc, Address target, WritableJitAllocation& jit_allocation,
       RelocInfo::Mode mode = RelocInfo::INTERNAL_REFERENCE);
 
   // Read/modify the uint32 constant used at pc.
   static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
   static inline void set_uint32_constant_at(
       Address pc, Address constant_pool, uint32_t new_constant,
+      WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Difference between address of current opcode and target address offset.
@@ -1459,8 +1460,9 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   void RecordDeoptReason(DeoptimizeReason reason, uint32_t node_id,
                          SourcePosition position, int id);
 
-  static int RelocateInternalReference(RelocInfo::Mode rmode, Address pc,
-                                       intptr_t pc_delta);
+  static int RelocateInternalReference(
+      RelocInfo::Mode rmode, Address pc, intptr_t pc_delta,
+      WritableJitAllocation* jit_allocation = nullptr);
 
   // Writes a single byte or word of data in the code stream.  Used for
   // inline tables, e.g., jump-tables.
@@ -1486,14 +1488,18 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
 
   // Read/patch instructions.
   static Instr instr_at(Address pc) { return *reinterpret_cast<Instr*>(pc); }
-  static void instr_at_put(Address pc, Instr instr) {
-    *reinterpret_cast<Instr*>(pc) = instr;
+  static void instr_at_put(Address pc, Instr instr,
+                           WritableJitAllocation* jit_allocation = nullptr) {
+    Instruction* i = reinterpret_cast<Instruction*>(pc);
+    i->SetInstructionBits(instr, jit_allocation);
   }
   Instr instr_at(int pos) {
     return *reinterpret_cast<Instr*>(buffer_start_ + pos);
   }
-  void instr_at_put(int pos, Instr instr) {
-    *reinterpret_cast<Instr*>(buffer_start_ + pos) = instr;
+  void instr_at_put(int pos, Instr instr,
+                    WritableJitAllocation* jit_allocation = nullptr) {
+    Instruction* i = reinterpret_cast<Instruction*>(buffer_start_ + pos);
+    i->SetInstructionBits(instr, jit_allocation);
   }
 
   // Check if an instruction is a branch of some kind.
@@ -1586,8 +1592,8 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
       OffsetAccessType access_type = OffsetAccessType::SINGLE_ACCESS,
       int second_access_add_to_offset = 4);
 
-  inline static void set_target_internal_reference_encoded_at(Address pc,
-                                                              Address target);
+  inline static void set_target_internal_reference_encoded_at(
+      Address pc, Address target, WritableJitAllocation& jit_allocation);
 
   int64_t buffer_space() const { return reloc_info_writer.pos() - pc_; }
 

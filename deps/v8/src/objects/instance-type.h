@@ -100,7 +100,7 @@ constexpr uint32_t kStringRepresentationEncodingAndSharedMask =
 // non-flat internalized strings, so we do not shortcut them thereby
 // avoiding turning internalized strings into strings. The bit-masks
 // below contain the internalized bit as additional safety.
-// See heap.cc, mark-compact.cc and objects-visiting.cc.
+// See heap.cc, mark-compact.cc and heap-visitor.cc.
 const uint32_t kShortcutTypeMask =
     kIsNotStringMask | kIsNotInternalizedMask | kStringRepresentationMask;
 const uint32_t kShortcutTypeTag = kConsStringTag | kNotInternalizedTag;
@@ -192,6 +192,10 @@ enum InstanceType : uint16_t {
   FIRST_TYPE = FIRST_HEAP_OBJECT_TYPE,
   LAST_TYPE = LAST_HEAP_OBJECT_TYPE,
   BIGINT_TYPE = BIG_INT_BASE_TYPE,
+
+  // TODO(ishell): define a dedicated instance type for DependentCode to
+  // simplify CodeSerializer.
+  DEPENDENT_CODE_TYPE = WEAK_ARRAY_LIST_TYPE,
 };
 
 // This constant is defined outside of the InstanceType enum because the
@@ -263,6 +267,8 @@ static_assert(LAST_TYPE < 1 << 15);
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
                                            InstanceType instance_type);
 
+V8_EXPORT_PRIVATE std::string ToString(InstanceType instance_type);
+
 // This list must contain only maps that are shared by all objects of their
 // instance type AND respective object must not represent a parent class for
 // multiple instance types (e.g. DescriptorArray has a unique map, but it has
@@ -305,20 +311,20 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
 
 // This list must contain only maps that are shared by all objects of their
 // instance type.
-#define UNIQUE_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                     \
-  UNIQUE_LEAF_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                      \
-  V(_, ByteArrayMap, byte_array_map, ByteArray)                           \
-  V(_, NameDictionaryMap, name_dictionary_map, NameDictionary)            \
-  V(_, OrderedNameDictionaryMap, ordered_name_dictionary_map,             \
-    OrderedNameDictionary)                                                \
-  V(_, GlobalDictionaryMap, global_dictionary_map, GlobalDictionary)      \
-  V(_, GlobalPropertyCellMap, global_property_cell_map, PropertyCell)     \
-  V(_, GlobalConstTrackingLetCellMap, global_const_tracking_let_cell_map, \
-    ConstTrackingLetCell)                                                 \
-  V(_, HeapNumberMap, heap_number_map, HeapNumber)                        \
-  V(_, WeakFixedArrayMap, weak_fixed_array_map, WeakFixedArray)           \
-  V(_, ScopeInfoMap, scope_info_map, ScopeInfo)                           \
-  V(_, WeakArrayListMap, weak_array_list_map, WeakArrayList)              \
+#define UNIQUE_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                 \
+  UNIQUE_LEAF_INSTANCE_TYPE_MAP_LIST_GENERATOR(V, _)                  \
+  V(_, ByteArrayMap, byte_array_map, ByteArray)                       \
+  V(_, NameDictionaryMap, name_dictionary_map, NameDictionary)        \
+  V(_, OrderedNameDictionaryMap, ordered_name_dictionary_map,         \
+    OrderedNameDictionary)                                            \
+  V(_, GlobalDictionaryMap, global_dictionary_map, GlobalDictionary)  \
+  V(_, GlobalPropertyCellMap, global_property_cell_map, PropertyCell) \
+  V(_, GlobalContextSidePropertyCellMap,                              \
+    global_context_side_property_cell_map, ContextSidePropertyCell)   \
+  V(_, HeapNumberMap, heap_number_map, HeapNumber)                    \
+  V(_, WeakFixedArrayMap, weak_fixed_array_map, WeakFixedArray)       \
+  V(_, ScopeInfoMap, scope_info_map, ScopeInfo)                       \
+  V(_, WeakArrayListMap, weak_array_list_map, WeakArrayList)          \
   TORQUE_DEFINED_MAP_CSA_LIST_GENERATOR(V, _)
 
 #ifdef V8_ENABLE_SWISS_NAME_DICTIONARY

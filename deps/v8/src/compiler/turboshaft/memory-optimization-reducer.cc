@@ -64,8 +64,8 @@ void MemoryAnalyzer::Process(const Operation& op) {
 // Update the successor block states based on the state of the current block.
 // For loop backedges, we need to re-start the analysis from the loop header
 // unless the backedge state is unchanged.
-void MemoryAnalyzer::ProcessBlockTerminator(const Operation& op) {
-  if (auto* goto_op = op.TryCast<GotoOp>()) {
+void MemoryAnalyzer::ProcessBlockTerminator(const Operation& terminator) {
+  if (auto* goto_op = terminator.TryCast<GotoOp>()) {
     if (input_graph.IsLoopBackedge(*goto_op)) {
       std::optional<BlockState>& target_state =
           block_states[goto_op->destination->index()];
@@ -93,7 +93,7 @@ void MemoryAnalyzer::ProcessBlockTerminator(const Operation& op) {
       }
     }
   }
-  for (Block* successor : SuccessorBlocks(op)) {
+  for (Block* successor : SuccessorBlocks(terminator)) {
     MergeCurrentStateIntoSuccessor(successor);
   }
 }

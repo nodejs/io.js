@@ -48,9 +48,10 @@ namespace internal {
   V(w24) V(w25) V(w26) V(w27) V(w28) V(w29) V(w30) V(w31)
 
 #define ALLOCATABLE_DOUBLE_REGISTERS(V)                   \
-  V(f0)  V(f1)  V(f2)  V(f3)  V(f4)  V(f5) V(f6) V(f7) \
-  V(f8) V(f9) V(f10) V(f11) V(f12) V(f13) V(f14) V(f15) V(f16) \
-  V(f17) V(f18) V(f19) V(f20) V(f21) V(f22) V(f23)
+  V(f0)  V(f1)  V(f2)  V(f3)  V(f4)  V(f5)  V(f6)  V(f7)  \
+  V(f8)  V(f9)  V(f10) V(f11) V(f12) V(f13) V(f14) V(f15) \
+  V(f16) V(f17) V(f18) V(f19) V(f20) V(f21) V(f22) V(f23) \
+  V(f24) V(f25) V(f26) V(f27) V(f28)
 // clang-format on
 
 // Note that the bit values must match those used in actual instruction
@@ -223,6 +224,7 @@ constexpr Register kJavaScriptCallCodeStartRegister = a2;
 constexpr Register kJavaScriptCallTargetRegister = kJSFunctionRegister;
 constexpr Register kJavaScriptCallNewTargetRegister = a3;
 constexpr Register kJavaScriptCallExtraArg1Register = a2;
+constexpr Register kJavaScriptCallDispatchHandleRegister = a4;
 
 constexpr Register kRuntimeCallFunctionRegister = a1;
 constexpr Register kRuntimeCallArgCountRegister = a0;

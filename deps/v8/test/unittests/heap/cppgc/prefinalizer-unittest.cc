@@ -310,6 +310,8 @@ TEST_F(PrefinalizerDeathTest, PrefinalizerCanRewireGraphWithDeadObjects) {
   PreciseGC();
 }
 
+#ifdef CPPGC_ENABLE_SLOW_API_CHECKS
+
 TEST_F(PrefinalizerDeathTest, PrefinalizerCantRessurectObjectOnStack) {
   Persistent<GCed> persistent;
   MakeGarbageCollected<RessurectingPrefinalizer<Persistent>>(
@@ -317,6 +319,8 @@ TEST_F(PrefinalizerDeathTest, PrefinalizerCantRessurectObjectOnStack) {
       MakeGarbageCollected<GCed>(GetAllocationHandle()));
   EXPECT_DEATH_IF_SUPPORTED(PreciseGC(), "");
 }
+
+#endif  // CPPGC_ENABLE_SLOW_API_CHECKS
 
 TEST_F(PrefinalizerDeathTest, PrefinalizerCantRessurectObjectOnHeap) {
   Persistent<GCedHolder> persistent(

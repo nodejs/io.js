@@ -19,6 +19,6 @@ assertTrue(isMaglevved(f));
 
 // Trigger a lazy deopt now, so that f() deopts on its next call.
 x = 2;
-assertEquals(2, f());
 assertFalse(isMaglevved(f));
 assertUnoptimized(f);
+assertEquals(2, f());

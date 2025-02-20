@@ -23,21 +23,16 @@ class StructBodyDescriptor;
 
 class ObjectBoilerplateDescriptionShape final : public AllStatic {
  public:
-  static constexpr int kElementSize = kTaggedSize;
   using ElementT = Object;
   using CompressionScheme = V8HeapCompressionScheme;
   static constexpr RootIndex kMapRootIndex =
       RootIndex::kObjectBoilerplateDescriptionMap;
   static constexpr bool kLengthEqualsCapacity = true;
 
-#define FIELD_LIST(V)                                                   \
-  V(kCapacityOffset, kTaggedSize)                                       \
-  V(kBackingStoreSizeOffset, kTaggedSize)                               \
-  V(kFlagsOffset, kTaggedSize)                                          \
-  V(kUnalignedHeaderSize, OBJECT_POINTER_PADDING(kUnalignedHeaderSize)) \
-  V(kHeaderSize, 0)
-  DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize, FIELD_LIST)
-#undef FIELD_LIST
+  V8_ARRAY_EXTRA_FIELDS({
+    TaggedMember<Smi> backing_store_size_;
+    TaggedMember<Smi> flags_;
+  });
 };
 
 // ObjectBoilerplateDescription is a list of properties consisting of name
@@ -49,8 +44,6 @@ class ObjectBoilerplateDescription
                              ObjectBoilerplateDescriptionShape> {
   using Super = TaggedArrayBase<ObjectBoilerplateDescription,
                                 ObjectBoilerplateDescriptionShape>;
-  OBJECT_CONSTRUCTORS(ObjectBoilerplateDescription, Super);
-
  public:
   using Shape = ObjectBoilerplateDescriptionShape;
 
@@ -79,10 +72,6 @@ class ObjectBoilerplateDescription
   DECL_PRINTER(ObjectBoilerplateDescription)
 
   class BodyDescriptor;
-
-  static constexpr int kBackingStoreSizeOffset = Shape::kBackingStoreSizeOffset;
-  static constexpr int kFlagsOffset = Shape::kFlagsOffset;
-  static constexpr int kRawEntriesOffset = Shape::kHeaderSize;
 
  private:
   static constexpr int kElementsPerEntry = 2;

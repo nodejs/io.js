@@ -7,6 +7,7 @@
 
 #include "src/interpreter/bytecode-register.h"
 #include "src/maglev/maglev-ir.h"
+#include "src/sandbox/js-dispatch-table-inl.h"
 
 namespace v8 {
 namespace internal {
@@ -107,17 +108,17 @@ void DeepForVirtualObject(VirtualObject* vobject,
         UNREACHABLE();
       case Opcode::kInlinedAllocation: {
         InlinedAllocation* alloc = value->Cast<InlinedAllocation>();
-        VirtualObject* vobject = virtual_objects.FindAllocatedWith(alloc);
-        CHECK_NOT_NULL(vobject);
+        VirtualObject* inner_vobject = virtual_objects.FindAllocatedWith(alloc);
+        CHECK_NOT_NULL(inner_vobject);
         // Check if it has escaped.
         if (alloc->HasBeenAnalysed() && alloc->HasBeenElided()) {
           input_location++;  // Reserved for the inlined allocation.
-          DeepForVirtualObject<mode>(vobject, input_location, virtual_objects,
-                                     f);
+          DeepForVirtualObject<mode>(inner_vobject, input_location,
+                                     virtual_objects, f);
         } else {
           f(alloc, input_location);
           input_location +=
-              vobject->InputLocationSizeNeeded(virtual_objects) + 1;
+              inner_vobject->InputLocationSizeNeeded(virtual_objects) + 1;
         }
         break;
       }
@@ -132,10 +133,9 @@ void DeepForVirtualObject(VirtualObject* vobject,
 template <DeoptFrameVisitMode mode, typename Function>
 void DeepForEachInputAndVirtualObject(
     const_if_default<mode, DeoptFrame>& frame, InputLocation*& input_location,
-    Function&& f,
+    const VirtualObject::List& virtual_objects, Function&& f,
     std::function<bool(interpreter::Register)> is_result_register =
         [](interpreter::Register) { return false; }) {
-  const VirtualObject::List& virtual_objects = GetVirtualObjects(frame);
   auto update_node = [&f, &virtual_objects](ValueNodeT<mode> node,
                                             InputLocation*& input_location) {
     DCHECK(!node->template Is<VirtualObject>());
@@ -166,19 +166,25 @@ void DeepForEachInputAndVirtualObject(
 
 template <DeoptFrameVisitMode mode, typename Function>
 void DeepForEachInputImpl(const_if_default<mode, DeoptFrame>& frame,
-                          InputLocation*& input_location, Function&& f) {
+                          InputLocation*& input_location,
+                          const VirtualObject::List& virtual_objects,
+                          Function&& f) {
   if (frame.parent()) {
-    DeepForEachInputImpl<mode>(*frame.parent(), input_location, f);
+    DeepForEachInputImpl<mode>(*frame.parent(), input_location, virtual_objects,
+                               f);
   }
-  DeepForEachInputAndVirtualObject<mode>(frame, input_location, f);
+  DeepForEachInputAndVirtualObject<mode>(frame, input_location, virtual_objects,
+                                         f);
 }
 
 template <DeoptFrameVisitMode mode, typename Function>
 void DeepForEachInputForEager(
     const_if_default<mode, EagerDeoptInfo>* deopt_info, Function&& f) {
   InputLocation* input_location = deopt_info->input_locations();
+  const VirtualObject::List& virtual_objects =
+      GetVirtualObjects(deopt_info->top_frame());
   DeepForEachInputImpl<mode>(deopt_info->top_frame(), input_location,
-                             std::forward<Function>(f));
+                             virtual_objects, std::forward<Function>(f));
 }
 
 template <DeoptFrameVisitMode mode, typename Function>
@@ -186,11 +192,14 @@ void DeepForEachInputForLazy(const_if_default<mode, LazyDeoptInfo>* deopt_info,
                              Function&& f) {
   InputLocation* input_location = deopt_info->input_locations();
   auto& top_frame = deopt_info->top_frame();
+  const VirtualObject::List& virtual_objects = GetVirtualObjects(top_frame);
   if (top_frame.parent()) {
-    DeepForEachInputImpl<mode>(*top_frame.parent(), input_location, f);
+    DeepForEachInputImpl<mode>(*top_frame.parent(), input_location,
+                               virtual_objects, f);
   }
   DeepForEachInputAndVirtualObject<mode>(
-      top_frame, input_location, f, [deopt_info](interpreter::Register reg) {
+      top_frame, input_location, virtual_objects, f,
+      [deopt_info](interpreter::Register reg) {
         return deopt_info->IsResultRegister(reg);
       });
 }
@@ -285,6 +294,32 @@ inline void UseFixed(Input& input, DoubleRegister reg) {
   input.SetUnallocated(compiler::UnallocatedOperand::FIXED_FP_REGISTER,
                        reg.code(), kNoVreg);
   input.node()->SetHint(input.operand());
+}
+
+CallKnownJSFunction::CallKnownJSFunction(
+    uint64_t bitfield,
+#ifdef V8_ENABLE_LEAPTIERING
+    JSDispatchHandle dispatch_handle,
+#endif
+    compiler::SharedFunctionInfoRef shared_function_info, ValueNode* closure,
+    ValueNode* context, ValueNode* receiver, ValueNode* new_target)
+    : Base(bitfield),
+#ifdef V8_ENABLE_LEAPTIERING
+      dispatch_handle_(dispatch_handle),
+#endif
+      shared_function_info_(shared_function_info),
+      expected_parameter_count_(
+#ifdef V8_ENABLE_LEAPTIERING
+          IsolateGroup::current()->js_dispatch_table()->GetParameterCount(
+              dispatch_handle)
+#else
+          shared_function_info.internal_formal_parameter_count_with_receiver()
+#endif
+      ) {
+  set_input(kClosureIndex, closure);
+  set_input(kContextIndex, context);
+  set_input(kReceiverIndex, receiver);
+  set_input(kNewTargetIndex, new_target);
 }
 
 }  // namespace maglev

@@ -38,7 +38,8 @@ parser.add_option(
     '--perf-data-dir',
     default=None,
     metavar="OUT_DIR",
-    help="Output directory for linux perf profile files")
+    help=("Output directory for linux perf profile files "
+          "Defaults to './perf_profile_d8_%Y-%m-%d_%H%M%S'"))
 parser.add_option("--timeout", type=float, help="Stop d8 after N seconds")
 parser.add_option(
     "--scope-to-mark-measure",
@@ -81,17 +82,20 @@ See `perf record --help for more` informationn
 
 perf_options.add_option(
     "--freq",
-    default="max",
+    default="10000",
     help="Sampling frequency, either 'max' or a number in herz. "
-    "Might be reduced depending on the platform.")
+    "Might be reduced depending on the platform. "
+    "Default is 10000.")
+perf_options.add_option(
+    "--count", default=None, help="Event period to sample. Not set by default.")
 perf_options.add_option("--call-graph", default="fp", help="Defaults tp 'fp'")
+perf_options.add_option("--clockid", default="mono", help="Defaults to 'mono'")
 perf_options.add_option("--event", default=None, help="Not set by default.")
 perf_options.add_option(
     "--raw-samples",
     default=None,
     help="Collect raw samples. Not set by default")
-perf_options.add_option(
-    "--count", default=None, help="Event period to sample. Not set by default.")
+
 perf_options.add_option(
     "--no-inherit",
     action="store_true",
@@ -113,12 +117,25 @@ def main():
   try:
     # ==========================================================================
     (options, args) = parser.parse_args()
+    if options.freq and options.count:
+      parser.error("--freq and --count are mutually exclusive. "
+                   "See `perf record --help' for more details.")
 
     if len(args) == 0:
       parser.error("No d8 binary provided")
 
-    d8_bin = Path(args.pop(0)).absolute()
-    if not d8_bin.exists():
+    raw_perf_args = []
+    d8_bin = None
+    while args:
+      additional_arg = args.pop(0)
+      maybe_d8_bin = Path(additional_arg).absolute()
+      if maybe_d8_bin.exists():
+        d8_bin = maybe_d8_bin
+        break
+      else:
+        raw_perf_args.append(additional_arg)
+
+    if not d8_bin:
       parser.error(f"D8 '{d8_bin}' does not exist")
 
     if options.perf_data_dir is None:
@@ -134,16 +151,27 @@ def main():
       parser.error("--timeout should be a positive number")
 
     # ==========================================================================
-    def make_path_absolute(maybe_path):
+    def make_path_absolute(maybe_path, is_d8_js_argument=False):
       if maybe_path.startswith("-"):
         return maybe_path
       path = Path(maybe_path)
-      if path.exists():
-        return str(path.absolute())
-      return maybe_path
+      if not path.exists():
+        return maybe_path
+      if is_d8_js_argument:
+        # Be slightly more strict with JS arguments as they might accidentally
+        # point to files that exist (e.h. JetStream workloads).
+        if "/" not in maybe_path:
+          return maybe_path
+      return str(path.absolute())
 
     def make_args_paths_absolute(args):
-      return list(map(make_path_absolute, args))
+      args_absolute_paths = []
+      is_d8_js_argument = False
+      for arg in args:
+        if arg == "--":
+          is_d8_js_argument = True
+        args_absolute_paths.append(make_path_absolute(arg, is_d8_js_argument))
+      return args_absolute_paths
 
     # Preprocess args if we change CWD to get cleaner output
     if options.perf_data_dir != Path.cwd():
@@ -191,8 +219,10 @@ def main():
     perf_data_file = Path.cwd() / f"d8_{datetime_str}.perf.data"
     perf_cmd = [
         "perf", "record", f"--call-graph={options.call_graph}",
-        f"--freq={options.freq}", "--clockid=mono", f"--output={perf_data_file}"
+        f"--clockid={options.clockid}", f"--output={perf_data_file}"
     ]
+    if options.freq:
+      perf_cmd += [f"--freq={options.freq}"]
     if options.count:
       perf_cmd += [f"--count={options.count}"]
     if options.raw_samples:
@@ -201,6 +231,8 @@ def main():
       perf_cmd += [f"--event={options.event}"]
     if options.no_inherit:
       perf_cmd += [f"--no-inherit"]
+    if raw_perf_args:
+      perf_cmd.extend(raw_perf_args)
 
     if options.scope_to_mark_measure:
       perf_cmd += [f"--control=fd:{perf_ctl_fd},{perf_ack_fd}", "--delay=-1"]

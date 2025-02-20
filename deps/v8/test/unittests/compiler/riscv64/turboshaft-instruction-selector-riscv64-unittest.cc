@@ -160,12 +160,12 @@ const MachInst2 kAddSubInstructions[] = {
 // IntArithTest instructions, one node.
 // ----------------------------------------------------------------------------
 
-const MachInst1 kAddSubOneInstructions[] = {
-    // {TSBinop::kInt32Neg, "Int32Neg", kRiscvSub32,
-    //  MachineType::Int32()},
-    // {TSBinop::kInt64Neg, "Int64Neg", kRiscvSub64,
-    //  MachineType::Int64()}
-};
+// const MachInst1 kAddSubOneInstructions[] = {
+//     {TSBinop::kInt32Neg, "Int32Neg", kRiscvSub32,
+//      MachineType::Int32()},
+//     {TSBinop::kInt64Neg, "Int64Neg", kRiscvSub64,
+//      MachineType::Int64()}
+// };
 
 // ----------------------------------------------------------------------------
 // Arithmetic compare instructions.
@@ -186,22 +186,22 @@ const IntCmp kCmpInstructions[] = {
     //  COMPRESS_POINTERS_BOOL ? 3U : 1U},
     {{TSBinop::kInt32LessThan, "Int32LessThan", kRiscvCmp,
       MachineType::Int32()},
-     3U},
+     COMPRESS_POINTERS_BOOL ? 3U : 1U},
     {{TSBinop::kInt32LessThanOrEqual, "Int32LessThanOrEqual", kRiscvCmp,
       MachineType::Int32()},
-     3U},
+     COMPRESS_POINTERS_BOOL ? 3U : 1U},
     {{TSBinop::kInt32GreaterThan, "Int32GreaterThan", kRiscvCmp,
       MachineType::Int32()},
-     3U},
+     COMPRESS_POINTERS_BOOL ? 3U : 1U},
     {{TSBinop::kInt32GreaterThanOrEqual, "Int32GreaterThanOrEqual", kRiscvCmp,
       MachineType::Int32()},
-     3U},
+     COMPRESS_POINTERS_BOOL ? 3U : 1U},
     {{TSBinop::kUint32LessThan, "Uint32LessThan", kRiscvCmp,
       MachineType::Uint32()},
-     3U},
+     COMPRESS_POINTERS_BOOL ? 3U : 1U},
     {{TSBinop::kUint32LessThanOrEqual, "Uint32LessThanOrEqual", kRiscvCmp,
       MachineType::Uint32()},
-     3U}};
+     COMPRESS_POINTERS_BOOL ? 3U : 1U}};
 
 // ----------------------------------------------------------------------------
 // Conversion instructions.
@@ -231,35 +231,35 @@ const Conversion kConversionInstructions[] = {
     //  MachineType::Int32()}
 };
 
-const Conversion kFloat64RoundInstructions[] = {
-    // {{TSBinop::kFloat64RoundUp, "Float64RoundUp", kRiscvCeilWD,
-    //   MachineType::Int32()},
-    //  MachineType::Float64()},
-    // {{TSBinop::kFloat64RoundDown, "Float64RoundDown", kRiscvFloorWD,
-    //   MachineType::Int32()},
-    //  MachineType::Float64()},
-    // {{TSBinop::kFloat64RoundTiesEven, "Float64RoundTiesEven",
-    //   kRiscvRoundWD, MachineType::Int32()},
-    //  MachineType::Float64()},
-    // {{TSBinop::kFloat64RoundTruncate, "Float64RoundTruncate",
-    //   kRiscvTruncWD, MachineType::Int32()},
-    //  MachineType::Float64()}
-};
+// const Conversion kFloat64RoundInstructions[] = {
+// {{TSBinop::kFloat64RoundUp, "Float64RoundUp", kRiscvCeilWD,
+//   MachineType::Int32()},
+//  MachineType::Float64()},
+// {{TSBinop::kFloat64RoundDown, "Float64RoundDown", kRiscvFloorWD,
+//   MachineType::Int32()},
+//  MachineType::Float64()},
+// {{TSBinop::kFloat64RoundTiesEven, "Float64RoundTiesEven",
+//   kRiscvRoundWD, MachineType::Int32()},
+//  MachineType::Float64()},
+// {{TSBinop::kFloat64RoundTruncate, "Float64RoundTruncate",
+//   kRiscvTruncWD, MachineType::Int32()},
+//  MachineType::Float64()}
+// };
 
-const Conversion kFloat32RoundInstructions[] = {
-    // {{TSBinop::kFloat32RoundUp, "Float32RoundUp", kRiscvCeilWS,
-    //   MachineType::Int32()},
-    //  MachineType::Float32()},
-    // {{TSBinop::kFloat32RoundDown, "Float32RoundDown", kRiscvFloorWS,
-    //   MachineType::Int32()},
-    //  MachineType::Float32()},
-    // {{TSBinop::kFloat32RoundTiesEven, "Float32RoundTiesEven",
-    //   kRiscvRoundWS, MachineType::Int32()},
-    //  MachineType::Float32()},
-    // {{TSBinop::kFloat32RoundTruncate, "Float32RoundTruncate",
-    //   kRiscvTruncWS, MachineType::Int32()},
-    //  MachineType::Float32()}
-};
+// const Conversion kFloat32RoundInstructions[] = {
+// {{TSBinop::kFloat32RoundUp, "Float32RoundUp", kRiscvCeilWS,
+//   MachineType::Int32()},
+//  MachineType::Float32()},
+// {{TSBinop::kFloat32RoundDown, "Float32RoundDown", kRiscvFloorWS,
+//   MachineType::Int32()},
+//  MachineType::Float32()},
+// {{TSBinop::kFloat32RoundTiesEven, "Float32RoundTiesEven",
+//   kRiscvRoundWS, MachineType::Int32()},
+//  MachineType::Float32()},
+// {{TSBinop::kFloat32RoundTruncate, "Float32RoundTruncate",
+//   kRiscvTruncWS, MachineType::Int32()},
+//  MachineType::Float32()}
+// };
 
 // RISCV64 instructions that clear the top 32 bits of the destination.
 const MachInst2 kCanElideChangeUint32ToUint64[] = {
@@ -305,10 +305,11 @@ TEST_P(TurboshaftInstructionSelectorCmpTest, Parameter) {
   m.Return(m.Emit(cmp.mi.op, m.Parameter(0), m.Parameter(1)));
   Stream s = m.Build();
   if (v8_flags.debug_code &&
-      type.representation() == MachineRepresentation::kWord32) {
-    ASSERT_EQ(3U, s.size());
+      type.representation() == MachineRepresentation::kWord32 &&
+      cmp.expected_size == 1) {
+    ASSERT_EQ(6U, s.size());
 
-    EXPECT_EQ(kRiscvShl64, s[0]->arch_opcode());
+    EXPECT_EQ(cmp.mi.arch_opcode, s[0]->arch_opcode());
     EXPECT_EQ(2U, s[0]->InputCount());
     EXPECT_EQ(1U, s[0]->OutputCount());
 
@@ -316,11 +317,30 @@ TEST_P(TurboshaftInstructionSelectorCmpTest, Parameter) {
     EXPECT_EQ(2U, s[1]->InputCount());
     EXPECT_EQ(1U, s[1]->OutputCount());
 
-    EXPECT_EQ(cmp.mi.arch_opcode, s[2]->arch_opcode());
+    EXPECT_EQ(kRiscvShl64, s[2]->arch_opcode());
     EXPECT_EQ(2U, s[2]->InputCount());
     EXPECT_EQ(1U, s[2]->OutputCount());
+
+    EXPECT_EQ(cmp.mi.arch_opcode, s[3]->arch_opcode());
+    EXPECT_EQ(2U, s[3]->InputCount());
+    EXPECT_EQ(1U, s[3]->OutputCount());
+
+    EXPECT_EQ(kRiscvAssertEqual, s[4]->arch_opcode());
+
+    EXPECT_EQ(cmp.mi.arch_opcode, s[5]->arch_opcode());
+    EXPECT_EQ(2U, s[5]->InputCount());
+    EXPECT_EQ(1U, s[5]->OutputCount());
   } else {
     ASSERT_EQ(cmp.expected_size, s.size());
+    if (cmp.expected_size == 3) {
+      EXPECT_EQ(kRiscvShl64, s[0]->arch_opcode());
+      EXPECT_EQ(2U, s[0]->InputCount());
+      EXPECT_EQ(1U, s[0]->OutputCount());
+
+      EXPECT_EQ(kRiscvShl64, s[1]->arch_opcode());
+      EXPECT_EQ(2U, s[1]->InputCount());
+      EXPECT_EQ(1U, s[1]->OutputCount());
+    }
     EXPECT_EQ(cmp.mi.arch_opcode, s[cmp.expected_size - 1]->arch_opcode());
     EXPECT_EQ(2U, s[0]->InputCount());
     EXPECT_EQ(1U, s[0]->OutputCount());

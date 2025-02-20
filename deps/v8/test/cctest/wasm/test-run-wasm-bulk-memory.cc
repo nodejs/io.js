@@ -377,8 +377,8 @@ void CheckTableCall(Isolate* isolate, DirectHandle<WasmTableObject> table,
   CHECK_EQ(table->current_length(), args_length);
   double expected[] = {args...};
   for (uint32_t i = 0; i < args_length; ++i) {
-    Handle<Object> buffer[] = {isolate->factory()->NewNumber(i)};
-    r->CheckCallApplyViaJS(expected[i], function_index, buffer, 1);
+    DirectHandle<Object> buffer[] = {isolate->factory()->NewNumber(i)};
+    r->CheckCallApplyViaJS(expected[i], function_index, base::VectorOf(buffer));
   }
 }
 }  // namespace
@@ -391,7 +391,7 @@ void TestTableCopyElems(TestExecutionTier execution_tier, int table_dst,
   WasmRunner<uint32_t, uint32_t, uint32_t, uint32_t> r(execution_tier);
   const uint32_t kTableSize = 5;
   uint16_t function_indexes[kTableSize];
-  const uint32_t sig_index = r.builder().AddSignature(sigs.i_v());
+  const ModuleTypeIndex sig_index = r.builder().AddSignature(sigs.i_v());
 
   for (uint32_t i = 0; i < kTableSize; ++i) {
     WasmFunctionCompiler& fn = r.NewFunction(sigs.i_v(), "f");
@@ -468,7 +468,7 @@ void TestTableCopyCalls(TestExecutionTier execution_tier, int table_dst,
   WasmRunner<uint32_t, uint32_t, uint32_t, uint32_t> r(execution_tier);
   const uint32_t kTableSize = 5;
   uint16_t function_indexes[kTableSize];
-  const uint32_t sig_index = r.builder().AddSignature(sigs.i_v());
+  const ModuleTypeIndex sig_index = r.builder().AddSignature(sigs.i_v());
 
   for (uint32_t i = 0; i < kTableSize; ++i) {
     WasmFunctionCompiler& fn = r.NewFunction(sigs.i_v(), "f");
@@ -538,7 +538,7 @@ void TestTableCopyOobWrites(TestExecutionTier execution_tier, int table_dst,
   WasmRunner<uint32_t, uint32_t, uint32_t, uint32_t> r(execution_tier);
   const uint32_t kTableSize = 5;
   uint16_t function_indexes[kTableSize];
-  const uint32_t sig_index = r.builder().AddSignature(sigs.i_v());
+  const ModuleTypeIndex sig_index = r.builder().AddSignature(sigs.i_v());
 
   for (uint32_t i = 0; i < kTableSize; ++i) {
     WasmFunctionCompiler& fn = r.NewFunction(sigs.i_v(), "f");

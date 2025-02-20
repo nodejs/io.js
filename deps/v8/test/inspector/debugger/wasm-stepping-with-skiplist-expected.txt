@@ -2,90 +2,90 @@ Tests stepping through wasm scripts by byte offsets
 
 Running test: test
 Setting up global instance variable
-Got wasm script: wasm://wasm/befe41aa
+Got wasm script: wasm://wasm/8ccc9796
 {
     columnNumber : 46
     lineNumber : 0
     scriptId : <scriptId>
 }
 Test with valid skip lists
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping over without skip list
 Testing stepOver with skipList: []
-Script wasm://wasm/befe41aa byte offset 48: Wasm opcode 0x04 (kExprIf)
-Script wasm://wasm/befe41aa byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
-Script wasm://wasm/befe41aa byte offset 52: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
-Script wasm://wasm/befe41aa byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
-Script wasm://wasm/befe41aa byte offset 57: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 48: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/8ccc9796 byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 52: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/8ccc9796 byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/8ccc9796 byte offset 57: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping over with skip list
 Testing stepOver with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":48},"end":{"lineNumber":0,"columnNumber":50}},{"scriptId":"4","start":{"lineNumber":0,"columnNumber":60},"end":{"lineNumber":0,"columnNumber":62}}]
-Script wasm://wasm/befe41aa byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
-Script wasm://wasm/befe41aa byte offset 52: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
-Script wasm://wasm/befe41aa byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
-Script wasm://wasm/befe41aa byte offset 57: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 52: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/8ccc9796 byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/8ccc9796 byte offset 57: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping over start location is inclusive
 Testing stepOver with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":48},"end":{"lineNumber":0,"columnNumber":61}}]
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping over end location is exclusive
 Testing stepOver with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":49},"end":{"lineNumber":0,"columnNumber":62}}]
-Script wasm://wasm/befe41aa byte offset 48: Wasm opcode 0x04 (kExprIf)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 48: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping into without skip list
 Testing stepInto with skipList: []
-Script wasm://wasm/befe41aa byte offset 48: Wasm opcode 0x04 (kExprIf)
-Script wasm://wasm/befe41aa byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
-Script wasm://wasm/befe41aa byte offset 52: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
-Script wasm://wasm/befe41aa byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
-Script wasm://wasm/befe41aa byte offset 57: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
-Script wasm://wasm/befe41aa byte offset 39: Wasm opcode 0x01 (kExprNop)
-Script wasm://wasm/befe41aa byte offset 40: Wasm opcode 0x01 (kExprNop)
-Script wasm://wasm/befe41aa byte offset 41: Wasm opcode 0x0b (kExprEnd)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 48: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/8ccc9796 byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 52: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/8ccc9796 byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/8ccc9796 byte offset 57: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/8ccc9796 byte offset 39: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/8ccc9796 byte offset 40: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/8ccc9796 byte offset 41: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping into with skip list, while call itself is skipped
 Testing stepInto with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":39},"end":{"lineNumber":0,"columnNumber":41}},{"scriptId":"4","start":{"lineNumber":0,"columnNumber":50},"end":{"lineNumber":0,"columnNumber":62}}]
-Script wasm://wasm/befe41aa byte offset 48: Wasm opcode 0x04 (kExprIf)
-Script wasm://wasm/befe41aa byte offset 41: Wasm opcode 0x0b (kExprEnd)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 48: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/8ccc9796 byte offset 41: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping into start location is inclusive
 Testing stepInto with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":39},"end":{"lineNumber":0,"columnNumber":40}}]
-Script wasm://wasm/befe41aa byte offset 48: Wasm opcode 0x04 (kExprIf)
-Script wasm://wasm/befe41aa byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
-Script wasm://wasm/befe41aa byte offset 52: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
-Script wasm://wasm/befe41aa byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
-Script wasm://wasm/befe41aa byte offset 57: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
-Script wasm://wasm/befe41aa byte offset 40: Wasm opcode 0x01 (kExprNop)
-Script wasm://wasm/befe41aa byte offset 41: Wasm opcode 0x0b (kExprEnd)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 48: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/8ccc9796 byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 52: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/8ccc9796 byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/8ccc9796 byte offset 57: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/8ccc9796 byte offset 40: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/8ccc9796 byte offset 41: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: Stepping into end location is exclusive
 Testing stepInto with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":38},"end":{"lineNumber":0,"columnNumber":41}}]
-Script wasm://wasm/befe41aa byte offset 48: Wasm opcode 0x04 (kExprIf)
-Script wasm://wasm/befe41aa byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
-Script wasm://wasm/befe41aa byte offset 52: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
-Script wasm://wasm/befe41aa byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
-Script wasm://wasm/befe41aa byte offset 57: Wasm opcode 0x41 (kExprI32Const)
-Script wasm://wasm/befe41aa byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
-Script wasm://wasm/befe41aa byte offset 41: Wasm opcode 0x0b (kExprEnd)
-Script wasm://wasm/befe41aa byte offset 62: Wasm opcode 0x0c (kExprBr)
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 48: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/8ccc9796 byte offset 50: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 52: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 54: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/8ccc9796 byte offset 55: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/8ccc9796 byte offset 57: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8ccc9796 byte offset 60: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/8ccc9796 byte offset 41: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8ccc9796 byte offset 62: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test with invalid skip lists
-Script wasm://wasm/befe41aa byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8ccc9796 byte offset 46: Wasm opcode 0x20 (kExprLocalGet)
 Test: start position has invalid column number
 Testing stepOver with skipList: [{"scriptId":"4","start":{"lineNumber":0,"columnNumber":-1},"end":{"lineNumber":0,"columnNumber":62}}]
 Position missing 'column' or 'column' < 0.

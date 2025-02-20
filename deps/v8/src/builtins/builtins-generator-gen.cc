@@ -35,7 +35,16 @@ class GeneratorBuiltinsAssembler : public CodeStubAssembler {
                                 TNode<Object> value, TNode<Context> context,
                                 JSGeneratorObject::ResumeMode resume_mode,
                                 char const* const method_name);
+
+  TNode<IntPtrT> LoadParameterCountWithoutReceiverFromBaseline();
 };
+
+TNode<IntPtrT>
+GeneratorBuiltinsAssembler::LoadParameterCountWithoutReceiverFromBaseline() {
+  auto parameter_count = LoadBytecodeArrayParameterCountWithoutReceiver(
+      LoadBytecodeArrayFromBaseline());
+  return Signed(ChangeUint32ToWord(parameter_count));
+}
 
 void GeneratorBuiltinsAssembler::InnerResume(
     CodeStubArguments* args, TNode<JSGeneratorObject> receiver,
@@ -211,6 +220,7 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
   auto generator = Parameter<JSGeneratorObject>(Descriptor::kGeneratorObject);
   auto context = LoadContextFromBaseline();
   StoreJSGeneratorObjectContext(generator, context);
+  auto parameter_count = LoadParameterCountWithoutReceiverFromBaseline();
   auto suspend_id = SmiTag(UncheckedParameter<IntPtrT>(Descriptor::kSuspendId));
   StoreJSGeneratorObjectContinuation(generator, suspend_id);
   // Store the bytecode offset in the [input_or_debug_pos] field, to be used by
@@ -221,13 +231,6 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
   StoreObjectFieldNoWriteBarrier(
       generator, JSGeneratorObject::kInputOrDebugPosOffset, bytecode_offset);
 
-  TNode<JSFunction> closure = LoadJSGeneratorObjectFunction(generator);
-  auto sfi = LoadJSFunctionSharedFunctionInfo(closure);
-  CSA_DCHECK(this,
-             Word32BinaryNot(IsSharedFunctionInfoDontAdaptArguments(sfi)));
-  TNode<IntPtrT> formal_parameter_count = Signed(ChangeUint32ToWord(
-      LoadSharedFunctionInfoFormalParameterCountWithoutReceiver(sfi)));
-
   TNode<FixedArray> parameters_and_registers =
       LoadJSGeneratorObjectParametersAndRegisters(generator);
   auto parameters_and_registers_length =
@@ -236,11 +239,11 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
   // Copy over the function parameters
   auto parameter_base_index = IntPtrConstant(
       interpreter::Register::FromParameterIndex(0).ToOperand() + 1);
-  CSA_CHECK(this, UintPtrLessThan(formal_parameter_count,
-                                  parameters_and_registers_length));
+  CSA_CHECK(this,
+            UintPtrLessThan(parameter_count, parameters_and_registers_length));
   auto parent_frame_pointer = LoadParentFramePointer();
   BuildFastLoop<IntPtrT>(
-      IntPtrConstant(0), formal_parameter_count,
+      IntPtrConstant(0), parameter_count,
       [=, this](TNode<IntPtrT> index) {
         auto reg_index = IntPtrAdd(parameter_base_index, index);
         TNode<Object> value = LoadFullTagged(parent_frame_pointer,
@@ -252,14 +255,13 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
   // Iterate over register file and write values into array.
   // The mapping of register to array index must match that used in
   // BytecodeGraphBuilder::VisitResumeGenerator.
-  auto register_base_index =
-      IntPtrAdd(formal_parameter_count,
-                IntPtrConstant(interpreter::Register(0).ToOperand()));
+  auto register_base_index = IntPtrAdd(
+      parameter_count, IntPtrConstant(interpreter::Register(0).ToOperand()));
   auto register_count = UncheckedParameter<IntPtrT>(Descriptor::kRegisterCount);
-  auto end_index = IntPtrAdd(formal_parameter_count, register_count);
+  auto end_index = IntPtrAdd(parameter_count, register_count);
   CSA_CHECK(this, UintPtrLessThan(end_index, parameters_and_registers_length));
   BuildFastLoop<IntPtrT>(
-      formal_parameter_count, end_index,
+      parameter_count, end_index,
       [=, this](TNode<IntPtrT> index) {
         auto reg_index = IntPtrSub(register_base_index, index);
         TNode<Object> value = LoadFullTagged(parent_frame_pointer,
@@ -275,29 +277,23 @@ TF_BUILTIN(SuspendGeneratorBaseline, GeneratorBuiltinsAssembler) {
 // TODO(cbruni): Merge with corresponding bytecode handler.
 TF_BUILTIN(ResumeGeneratorBaseline, GeneratorBuiltinsAssembler) {
   auto generator = Parameter<JSGeneratorObject>(Descriptor::kGeneratorObject);
-  TNode<JSFunction> closure = LoadJSGeneratorObjectFunction(generator);
-  auto sfi = LoadJSFunctionSharedFunctionInfo(closure);
-  CSA_DCHECK(this,
-             Word32BinaryNot(IsSharedFunctionInfoDontAdaptArguments(sfi)));
-  TNode<IntPtrT> formal_parameter_count = Signed(ChangeUint32ToWord(
-      LoadSharedFunctionInfoFormalParameterCountWithoutReceiver(sfi)));
+  auto parameter_count = LoadParameterCountWithoutReceiverFromBaseline();
 
   TNode<FixedArray> parameters_and_registers =
       LoadJSGeneratorObjectParametersAndRegisters(generator);
 
   // Iterate over array and write values into register file.  Also erase the
   // array contents to not keep them alive artificially.
-  auto register_base_index =
-      IntPtrAdd(formal_parameter_count,
-                IntPtrConstant(interpreter::Register(0).ToOperand()));
+  auto register_base_index = IntPtrAdd(
+      parameter_count, IntPtrConstant(interpreter::Register(0).ToOperand()));
   auto register_count = UncheckedParameter<IntPtrT>(Descriptor::kRegisterCount);
-  auto end_index = IntPtrAdd(formal_parameter_count, register_count);
+  auto end_index = IntPtrAdd(parameter_count, register_count);
   auto parameters_and_registers_length =
       LoadAndUntagFixedArrayBaseLength(parameters_and_registers);
   CSA_CHECK(this, UintPtrLessThan(end_index, parameters_and_registers_length));
   auto parent_frame_pointer = LoadParentFramePointer();
   BuildFastLoop<IntPtrT>(
-      formal_parameter_count, end_index,
+      parameter_count, end_index,
       [=, this](TNode<IntPtrT> index) {
         TNode<Object> value =
             UnsafeLoadFixedArrayElement(parameters_and_registers, index);

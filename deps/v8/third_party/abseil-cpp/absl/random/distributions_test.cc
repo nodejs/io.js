@@ -97,17 +97,16 @@ void CheckArgsInferType() {
 
 template <typename A, typename B, typename ExplicitRet>
 auto ExplicitUniformReturnT(int) -> decltype(absl::Uniform<ExplicitRet>(
-                                     std::declval<absl::InsecureBitGen&>(),
-                                     std::declval<A>(), std::declval<B>()));
+    std::declval<absl::InsecureBitGen&>(), std::declval<A>(),
+    std::declval<B>()));
 
 template <typename, typename, typename ExplicitRet>
 Invalid ExplicitUniformReturnT(...);
 
 template <typename TagType, typename A, typename B, typename ExplicitRet>
-auto ExplicitTaggedUniformReturnT(int)
-    -> decltype(absl::Uniform<ExplicitRet>(
-        std::declval<TagType>(), std::declval<absl::InsecureBitGen&>(),
-        std::declval<A>(), std::declval<B>()));
+auto ExplicitTaggedUniformReturnT(int) -> decltype(absl::Uniform<ExplicitRet>(
+    std::declval<TagType>(), std::declval<absl::InsecureBitGen&>(),
+    std::declval<A>(), std::declval<B>()));
 
 template <typename, typename, typename, typename ExplicitRet>
 Invalid ExplicitTaggedUniformReturnT(...);
@@ -469,6 +468,13 @@ TEST_F(RandomDistributionsTest, Zipf) {
   const auto moments =
       absl::random_internal::ComputeDistributionMoments(values);
   EXPECT_NEAR(6.5944, moments.mean, 2000) << moments;
+}
+
+TEST_F(RandomDistributionsTest, ZipfWithZeroMax) {
+  absl::InsecureBitGen gen;
+  for (int i = 0; i < 100; ++i) {
+    EXPECT_EQ(0, absl::Zipf(gen, 0));
+  }
 }
 
 TEST_F(RandomDistributionsTest, Gaussian) {

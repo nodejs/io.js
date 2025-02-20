@@ -205,6 +205,8 @@ var V8OptimizationStatus = {
   kIsLazy: 1 << 18,
   kTopmostFrameIsMaglev: 1 << 19,
   kOptimizeOnNextCallOptimizesToMaglev: 1 << 20,
+  kMarkedForMagkevOptimization: 1 << 21,
+  kMarkedForConcurrentMaglevOptimization: 1 << 22,
 };
 
 // Returns true if --lite-mode is on and we can't ever turn on optimization.
@@ -258,6 +260,9 @@ var topFrameIsMaglevved;
 // Returns true if the top frame in compiled by Turbofan according to the
 // status passed as a parameter.
 var topFrameIsTurboFanned;
+
+// Monkey-patchable all-purpose failure handler.
+var fail;
 
 // Monkey-patchable all-purpose failure handler.
 var failWithMessage;
@@ -412,7 +417,7 @@ var prettyPrinted;
     return message;
   }
 
-  function fail(expectedText, found, name_opt) {
+  fail = function fail(expectedText, found, name_opt) {
     throw new MjsUnitAssertionError(
         ()=>formatFailureText(expectedText, found, name_opt));
   }

@@ -6,7 +6,7 @@
 
 #include <optional>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/lazy-instance.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/node.h"
@@ -153,7 +153,7 @@ DeoptimizeParameters const& DeoptimizeParametersOf(Operator const* const op) {
 
 bool operator==(SelectParameters const& lhs, SelectParameters const& rhs) {
   return lhs.representation() == rhs.representation() &&
-         lhs.hint() == rhs.hint();
+         lhs.hint() == rhs.hint() && lhs.semantics() == rhs.semantics();
 }
 
 
@@ -163,12 +163,12 @@ bool operator!=(SelectParameters const& lhs, SelectParameters const& rhs) {
 
 
 size_t hash_value(SelectParameters const& p) {
-  return base::hash_combine(p.representation(), p.hint());
+  return base::hash_combine(p.representation(), p.hint(), p.semantics());
 }
 
 
 std::ostream& operator<<(std::ostream& os, SelectParameters const& p) {
-  return os << p.representation() << ", " << p.hint();
+  return os << p.representation() << ", " << p.hint() << ", " << p.semantics();
 }
 
 
@@ -1342,36 +1342,36 @@ const Operator* CommonOperatorBuilder::PointerConstant(intptr_t value) {
 
 const Operator* CommonOperatorBuilder::HeapConstant(
     const Handle<HeapObject>& value) {
-  return zone()->New<Operator1<Handle<HeapObject>>>(  // --
-      IrOpcode::kHeapConstant, Operator::kPure,       // opcode
-      "HeapConstant",                                 // name
-      0, 0, 0, 1, 0, 0,                               // counts
-      value);                                         // parameter
+  return zone()->New<Operator1<IndirectHandle<HeapObject>>>(  // --
+      IrOpcode::kHeapConstant, Operator::kPure,               // opcode
+      "HeapConstant",                                         // name
+      0, 0, 0, 1, 0, 0,                                       // counts
+      value);                                                 // parameter
 }
 
 const Operator* CommonOperatorBuilder::CompressedHeapConstant(
     const Handle<HeapObject>& value) {
-  return zone()->New<Operator1<Handle<HeapObject>>>(       // --
-      IrOpcode::kCompressedHeapConstant, Operator::kPure,  // opcode
-      "CompressedHeapConstant",                            // name
-      0, 0, 0, 1, 0, 0,                                    // counts
-      value);                                              // parameter
+  return zone()->New<Operator1<IndirectHandle<HeapObject>>>(  // --
+      IrOpcode::kCompressedHeapConstant, Operator::kPure,     // opcode
+      "CompressedHeapConstant",                               // name
+      0, 0, 0, 1, 0, 0,                                       // counts
+      value);                                                 // parameter
 }
 
 const Operator* CommonOperatorBuilder::TrustedHeapConstant(
     const Handle<HeapObject>& value) {
-  return zone()->New<Operator1<Handle<HeapObject>>>(    // --
-      IrOpcode::kTrustedHeapConstant, Operator::kPure,  // opcode
-      "TrustedHeapConstant",                            // name
-      0, 0, 0, 1, 0, 0,                                 // counts
-      value);                                           // parameter
+  return zone()->New<Operator1<IndirectHandle<HeapObject>>>(  // --
+      IrOpcode::kTrustedHeapConstant, Operator::kPure,        // opcode
+      "TrustedHeapConstant",                                  // name
+      0, 0, 0, 1, 0, 0,                                       // counts
+      value);                                                 // parameter
 }
 
 Handle<HeapObject> HeapConstantOf(const Operator* op) {
   DCHECK(IrOpcode::kHeapConstant == op->opcode() ||
          IrOpcode::kCompressedHeapConstant == op->opcode() ||
          IrOpcode::kTrustedHeapConstant == op->opcode());
-  return OpParameter<Handle<HeapObject>>(op);
+  return OpParameter<IndirectHandle<HeapObject>>(op);
 }
 
 const char* StaticAssertSourceOf(const Operator* op) {
@@ -1406,14 +1406,14 @@ const Operator* CommonOperatorBuilder::ObjectId(uint32_t object_id) {
 }
 
 const Operator* CommonOperatorBuilder::Select(MachineRepresentation rep,
-                                              BranchHint hint) {
+                                              BranchHint hint,
+                                              BranchSemantics semantics) {
   return zone()->New<Operator1<SelectParameters>>(  // --
       IrOpcode::kSelect, Operator::kPure,           // opcode
       "Select",                                     // name
       3, 0, 0, 1, 0, 0,                             // counts
-      SelectParameters(rep, hint));                 // parameter
+      SelectParameters(rep, hint, semantics));      // parameter
 }
-
 
 const Operator* CommonOperatorBuilder::Phi(MachineRepresentation rep,
                                            int value_input_count) {
@@ -1692,9 +1692,11 @@ const Operator* CommonOperatorBuilder::ResizeMergeOrPhi(const Operator* op,
 const FrameStateFunctionInfo*
 CommonOperatorBuilder::CreateFrameStateFunctionInfo(
     FrameStateType type, uint16_t parameter_count, uint16_t max_arguments,
-    int local_count, Handle<SharedFunctionInfo> shared_info) {
-  return zone()->New<FrameStateFunctionInfo>(
-      type, parameter_count, max_arguments, local_count, shared_info);
+    int local_count, IndirectHandle<SharedFunctionInfo> shared_info,
+    IndirectHandle<BytecodeArray> bytecode_array) {
+  return zone()->New<FrameStateFunctionInfo>(type, parameter_count,
+                                             max_arguments, local_count,
+                                             shared_info, bytecode_array);
 }
 
 #if V8_ENABLE_WEBASSEMBLY
@@ -1702,7 +1704,7 @@ const FrameStateFunctionInfo*
 CommonOperatorBuilder::CreateJSToWasmFrameStateFunctionInfo(
     FrameStateType type, uint16_t parameter_count, int local_count,
     Handle<SharedFunctionInfo> shared_info,
-    const wasm::FunctionSig* signature) {
+    const wasm::CanonicalSig* signature) {
   DCHECK_EQ(type, FrameStateType::kJSToWasmBuiltinContinuation);
   DCHECK_NOT_NULL(signature);
   return zone()->New<JSToWasmFrameStateFunctionInfo>(

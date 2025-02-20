@@ -2,7 +2,8 @@ Debugger.scriptParsed.stackTrace should contain only one frame
 {
     method : Debugger.scriptParsed
     params : {
-        embedderName :
+        buildId : 
+        embedderName : 
         endColumn : 0
         endLine : 0
         executionContextId : <executionContextId>
@@ -13,15 +14,15 @@ Debugger.scriptParsed.stackTrace should contain only one frame
         length : 0
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         stackTrace : {
             callFrames : [
                 [0] : {
                     columnNumber : 17
-                    functionName :
+                    functionName : 
                     lineNumber : 0
                     scriptId : <scriptId>
-                    url :
+                    url : 
                 }
             ]
             parentId : {
@@ -30,6 +31,6 @@ Debugger.scriptParsed.stackTrace should contain only one frame
         }
         startColumn : 0
         startLine : 0
-        url :
+        url : 
     }
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 const v2 = new Uint8ClampedArray([1, 2, 3, 4, 5]);
 function f3() {

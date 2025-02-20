@@ -53,7 +53,7 @@ cc_test(
         "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/time",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )

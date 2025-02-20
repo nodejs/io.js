@@ -45,13 +45,13 @@ static constexpr int kAssertNotNullIndex = -5;
 // All "load-like" special cases use the same fake size and type. The specific
 // values we use don't matter; for accurate alias analysis, the type should
 // be "unrelated" to any struct type.
-static constexpr uint32_t kLoadLikeType = wasm::HeapType::kExtern;
+static constexpr wasm::ModuleTypeIndex kLoadLikeType{wasm::HeapType::kExtern};
 static constexpr int kLoadLikeSize = 4;  // Chosen by fair dice roll.
 
 struct WasmMemoryAddress {
   OpIndex base;
   int32_t offset;
-  uint32_t type_index;
+  wasm::ModuleTypeIndex type_index;
   uint8_t size;
   bool mutability;
 
@@ -134,7 +134,8 @@ class WasmMemoryContentTable
     }
   }
 
-  bool TypesUnrelated(uint32_t type1, uint32_t type2) {
+  bool TypesUnrelated(wasm::ModuleTypeIndex type1,
+                      wasm::ModuleTypeIndex type2) {
     return wasm::TypesUnrelated(wasm::ValueType::Ref(type1),
                                 wasm::ValueType::Ref(type2), module_, module_);
   }
@@ -226,7 +227,7 @@ class WasmMemoryContentTable
                     kLoadLikeSize, mutability);
   }
 
-  OpIndex FindImpl(OpIndex object, int offset, uint32_t type_index,
+  OpIndex FindImpl(OpIndex object, int offset, wasm::ModuleTypeIndex type_index,
                    uint8_t size, bool mutability,
                    OptionalOpIndex index = OptionalOpIndex::Nullopt()) {
     WasmMemoryAddress mem{object, offset, type_index, size, mutability};
@@ -272,8 +273,8 @@ class WasmMemoryContentTable
 #endif  // DEBUG
 
  private:
-  void Insert(OpIndex base, int32_t offset, uint32_t type_index, uint8_t size,
-              bool mutability, OpIndex value) {
+  void Insert(OpIndex base, int32_t offset, wasm::ModuleTypeIndex type_index,
+              uint8_t size, bool mutability, OpIndex value) {
     DCHECK_EQ(base, ResolveBase(base));
 
     WasmMemoryAddress mem{base, offset, type_index, size, mutability};

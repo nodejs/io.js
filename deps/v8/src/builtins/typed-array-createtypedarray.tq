@@ -301,6 +301,9 @@ transitioning macro ConstructByArrayBuffer(
       } else {
         // b. Else,
         //   i. Let newByteLength be newLength × elementSize.
+        // Since the ArrayBuffer already exists, the typed array view on top
+        // of it can't be too big to allocate, but it could still exceed the
+        // limit.
         newByteLength = elementsInfo.CalculateByteLength(newLength)
             otherwise IfInvalidLength;
 

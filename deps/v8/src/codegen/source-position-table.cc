@@ -55,7 +55,7 @@ void SubtractFromEntry(PositionTableEntry* value,
 // Helper: Encode an integer.
 template <typename T>
 void EncodeInt(ZoneVector<uint8_t>* bytes, T value) {
-  using unsigned_type = typename std::make_unsigned<T>::type;
+  using unsigned_type = std::make_unsigned_t<T>;
   // Zig-zag encoding.
   static constexpr int kShift = sizeof(T) * kBitsPerByte - 1;
   value = ((static_cast<unsigned_type>(value) << 1) ^ (value >> kShift));
@@ -94,8 +94,7 @@ T DecodeInt(base::Vector<const uint8_t> bytes, int* index) {
   bool more;
   do {
     current = bytes[(*index)++];
-    decoded |= static_cast<typename std::make_unsigned<T>::type>(
-                   ValueBits::decode(current))
+    decoded |= static_cast<std::make_unsigned_t<T>>(ValueBits::decode(current))
                << shift;
     more = MoreBit::decode(current);
     shift += ValueBits::kSize;
@@ -206,7 +205,7 @@ SourcePositionTableBuilder::ToSourcePositionTableVector() {
   if (bytes_.empty()) return base::OwnedVector<uint8_t>();
   DCHECK(!Omit());
 
-  base::OwnedVector<uint8_t> table = base::OwnedVector<uint8_t>::Of(bytes_);
+  base::OwnedVector<uint8_t> table = base::OwnedCopyOf(bytes_);
 
 #ifdef ENABLE_SLOW_DCHECKS
   // Brute force testing: Record all positions and decode

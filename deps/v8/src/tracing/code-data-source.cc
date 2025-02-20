@@ -218,6 +218,10 @@ uint64_t CodeDataSourceIncrementalState::InternJsFunction(
   if (start_position >= 0) {
     function_proto->set_byte_offset(static_cast<uint32_t>(start_position));
   }
+  if (line_num > 0 && column_num > 0) {
+    function_proto->set_line(static_cast<uint32_t>(line_num));
+    function_proto->set_column(static_cast<uint32_t>(column_num));
+  }
 
   return iid;
 }

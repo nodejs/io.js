@@ -2,17 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// #include "src/api/api-inl.h"
-// #include "test/cctest/wasm/wasm-atomics-utils.h"
+#include "src/wasm/wasm-engine.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/wasm/wasm-run-utils.h"
 #include "test/common/wasm/test-signatures.h"
 #include "test/common/wasm/wasm-macro-gen.h"
 
-namespace v8 {
-namespace internal {
-namespace wasm {
-namespace test_liftoff_for_fuzzing {
+namespace v8::internal::wasm {
 
 TEST(MaxSteps) {
   WasmRunner<uint32_t> r(TestExecutionTier::kLiftoffForFuzzing);
@@ -26,18 +22,18 @@ TEST(NondeterminismUnopF32) {
   WasmRunner<float> r(TestExecutionTier::kLiftoffForFuzzing);
 
   r.Build({WASM_F32_ABS(WASM_F32(std::nanf("")))});
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(std::nanf(""));
-  CHECK(r.HasNondeterminism());
+  CHECK(WasmEngine::had_nondeterminism());
 }
 
 TEST(NondeterminismUnopF64) {
   WasmRunner<double> r(TestExecutionTier::kLiftoffForFuzzing);
 
   r.Build({WASM_F64_ABS(WASM_F64(std::nan("")))});
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(std::nan(""));
-  CHECK(r.HasNondeterminism());
+  CHECK(WasmEngine::had_nondeterminism());
 }
 
 TEST(NondeterminismUnopF32x4AllNaN) {
@@ -47,11 +43,11 @@ TEST(NondeterminismUnopF32x4AllNaN) {
   r.Build({WASM_SIMD_UNOP(kExprF32x4Ceil,
                           WASM_SIMD_F32x4_SPLAT(WASM_LOCAL_GET(value))),
            kExprDrop, WASM_ONE});
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(1, 0.0);
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(1, std::nanf(""));
-  CHECK(r.HasNondeterminism());
+  CHECK(WasmEngine::had_nondeterminism());
 }
 
 TEST(NondeterminismUnopF32x4OneNaN) {
@@ -60,11 +56,11 @@ TEST(NondeterminismUnopF32x4OneNaN) {
     r.Build({WASM_SIMD_F32x4_SPLAT(WASM_F32(0)), WASM_LOCAL_GET(0),
              WASM_SIMD_OP(kExprF32x4ReplaceLane), lane,
              WASM_SIMD_OP(kExprF32x4Ceil), kExprDrop, WASM_ONE});
-    CHECK(!r.HasNondeterminism());
+    CHECK(!WasmEngine::had_nondeterminism());
     r.CheckCallViaJS(1, 0.0);
-    CHECK(!r.HasNondeterminism());
+    CHECK(!WasmEngine::had_nondeterminism());
     r.CheckCallViaJS(1, std::nanf(""));
-    CHECK(r.HasNondeterminism());
+    CHECK(WasmEngine::clear_nondeterminism());
   }
 }
 
@@ -75,11 +71,11 @@ TEST(NondeterminismUnopF64x2AllNaN) {
   r.Build({WASM_SIMD_UNOP(kExprF64x2Ceil,
                           WASM_SIMD_F64x2_SPLAT(WASM_LOCAL_GET(value))),
            kExprDrop, WASM_ONE});
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(1, 0.0);
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(1, std::nan(""));
-  CHECK(r.HasNondeterminism());
+  CHECK(WasmEngine::clear_nondeterminism());
 }
 
 TEST(NondeterminismUnopF64x2OneNaN) {
@@ -88,11 +84,11 @@ TEST(NondeterminismUnopF64x2OneNaN) {
     r.Build({WASM_SIMD_F64x2_SPLAT(WASM_F64(0)), WASM_LOCAL_GET(0),
              WASM_SIMD_OP(kExprF64x2ReplaceLane), lane,
              WASM_SIMD_OP(kExprF64x2Ceil), kExprDrop, WASM_ONE});
-    CHECK(!r.HasNondeterminism());
+    CHECK(!WasmEngine::had_nondeterminism());
     r.CheckCallViaJS(1, 0.0);
-    CHECK(!r.HasNondeterminism());
+    CHECK(!WasmEngine::had_nondeterminism());
     r.CheckCallViaJS(1, std::nan(""));
-    CHECK(r.HasNondeterminism());
+    CHECK(WasmEngine::clear_nondeterminism());
   }
 }
 
@@ -100,12 +96,9 @@ TEST(NondeterminismBinop) {
   WasmRunner<float> r(TestExecutionTier::kLiftoffForFuzzing);
 
   r.Build({WASM_F32_ADD(WASM_F32(std::nanf("")), WASM_F32(0))});
-  CHECK(!r.HasNondeterminism());
+  CHECK(!WasmEngine::had_nondeterminism());
   r.CheckCallViaJS(std::nanf(""));
-  CHECK(r.HasNondeterminism());
+  CHECK(WasmEngine::clear_nondeterminism());
 }
 
-}  // namespace test_liftoff_for_fuzzing
-}  // namespace wasm
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal::wasm

@@ -2,10 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Note that we explicitly set the --turboshaft-wasm flag as the bug only
-// reproduces on ia32 full debug builds which do not seem to execute the
-// turboshaft variant.
-// Flags: --allow-natives-syntax --turboshaft-wasm
+// Flags: --allow-natives-syntax
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 

@@ -15,10 +15,12 @@
 #ifndef ABSL_RANDOM_BERNOULLI_DISTRIBUTION_H_
 #define ABSL_RANDOM_BERNOULLI_DISTRIBUTION_H_
 
+#include <cassert>
 #include <cstdint>
 #include <istream>
-#include <limits>
+#include <ostream>
 
+#include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/random/internal/fast_uniform_bits.h"
 #include "absl/random/internal/iostream_state_saver.h"

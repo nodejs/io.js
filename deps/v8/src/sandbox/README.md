@@ -38,17 +38,12 @@ To use a "sandbox testing" configurations, two steps are required:
    object through which memory inside the sandbox can be arbitrarily modified.
    This API effectively emulates common exploit primitives that can be
    constructed from a typical V8 vulnerability.
-2. The sandbox testing mode needs to be enabled at runtime via
+2. The sandbox testing mode needs to be enabled at runtime via either
    `--sandbox-testing` or `--sandbox-fuzzing`. This will expose the memory
    corruption API to JavaScript code and enable the sandbox crash filter, which
    will filter out uninteresting (for the sandbox) crashes such as access
    violations inside the sandbox or other unexploitable crashes.
-   `--sandbox-testing` is generally used for demonstrating and validating
-   sandbox bypasses and effectively defines what constitutes a sandbox bypass
-   (currently an arbitrary write primitive outside of the sandbox).
-   `--sandbox-fuzzing` is used when fuzzing the sandbox and will report any
-   memory corruption outside of the sandbox (a "sandbox violation").
-   The sandbox crash filter is currently only available on Linux and in d8.
+   Note that the sandbox crash filter is currently only available on Linux.
 
 The following example demonstrates these two parts:
 
@@ -70,8 +65,25 @@ memory.setUint32(addr + 8, 0x41414141, true);
 corruptMe.crash();
 
 // The process will now terminate cleanly with a message such as:
-// "Caught harmless memory access violaton (inside sandbox address space). Exiting process..."
+// "Caught harmless memory access violation (inside sandbox address space). Exiting process..."
 ```
+
+The --sandbox-testing and --sandbox-fuzzing flags are mostly identical.
+However, with --sandbox-testing, the process will terminate with exit status
+zero when detecting a harmless crash. As such, tests will be treated as passing
+if they crash safely such as for example through a CHECK failure. With
+--sandbox-fuzzing on the other hand, the process instead exits with a non-zero
+status so that fuzzers can determine that the execution terminated prematurely.
+Furthermore, the --sandbox-fuzzing requires the memory corruption API to be
+compiled in while --sandbox-testing can be enabled on any (sandbox-enabled)
+build. As such, --sandbox-fuzzing should generally be used for fuzzers while
+--sandbox-testing should be used for most other purposes.
+
+Note that both --sandbox-testing and --sandbox-fuzzing will also report _reads_
+outside the sandbox as "sandbox violations". This is not technically true as
+the sandbox only attempts to prevent _writes_. However it is both difficult and
+undesirable to filter out reads, for example because in some cases, the
+underlying issue may also allow an attacker to perform a write instead.
 
 ## Resources
 

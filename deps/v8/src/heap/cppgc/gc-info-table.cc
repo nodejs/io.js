@@ -128,7 +128,7 @@ GCInfoIndex GCInfoTable::RegisterNewGCInfo(
     std::atomic<GCInfoIndex>& registered_index, const GCInfo& info) {
   // Ensuring a new index involves current index adjustment as well as
   // potentially resizing the table. For simplicity we use a lock.
-  v8::base::MutexGuard guard(&table_mutex_);
+  v8::base::SpinningMutexGuard guard(&table_mutex_);
 
   // Check the registered index again after taking the lock as some other
   // thread may have registered the info at the same time.

@@ -101,13 +101,14 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
 
   // Construct a compilation info for optimized compilation.
   OptimizedCompilationInfo(Zone* zone, Isolate* isolate,
-                           Handle<SharedFunctionInfo> shared,
-                           Handle<JSFunction> closure, CodeKind code_kind,
-                           BytecodeOffset osr_offset);
+                           IndirectHandle<SharedFunctionInfo> shared,
+                           IndirectHandle<JSFunction> closure,
+                           CodeKind code_kind, BytecodeOffset osr_offset);
   // For testing.
   OptimizedCompilationInfo(Zone* zone, Isolate* isolate,
-                           Handle<SharedFunctionInfo> shared,
-                           Handle<JSFunction> closure, CodeKind code_kind)
+                           IndirectHandle<SharedFunctionInfo> shared,
+                           IndirectHandle<JSFunction> closure,
+                           CodeKind code_kind)
       : OptimizedCompilationInfo(zone, isolate, shared, closure, code_kind,
                                  BytecodeOffset::None()) {}
   // Construct a compilation info for stub compilation, Wasm, and testing.
@@ -122,12 +123,16 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
 
   Zone* zone() { return zone_; }
   bool is_osr() const { return !osr_offset_.IsNone(); }
-  Handle<SharedFunctionInfo> shared_info() const { return shared_info_; }
+  IndirectHandle<SharedFunctionInfo> shared_info() const {
+    return shared_info_;
+  }
   bool has_shared_info() const { return !shared_info().is_null(); }
-  Handle<BytecodeArray> bytecode_array() const { return bytecode_array_; }
+  IndirectHandle<BytecodeArray> bytecode_array() const {
+    return bytecode_array_;
+  }
   bool has_bytecode_array() const { return !bytecode_array_.is_null(); }
-  Handle<JSFunction> closure() const { return closure_; }
-  Handle<Code> code() const { return code_; }
+  IndirectHandle<JSFunction> closure() const { return closure_; }
+  IndirectHandle<Code> code() const { return code_; }
   CodeKind code_kind() const { return code_kind_; }
   Builtin builtin() const { return builtin_; }
   void set_builtin(Builtin builtin) { builtin_ = builtin; }
@@ -140,12 +145,7 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
 
   // Code getters and setters.
 
-  void SetCode(Handle<Code> code);
-
-#if V8_ENABLE_WEBASSEMBLY
-  void SetWasmCompilationResult(std::unique_ptr<wasm::WasmCompilationResult>);
-  std::unique_ptr<wasm::WasmCompilationResult> ReleaseWasmCompilationResult();
-#endif  // V8_ENABLE_WEBASSEMBLY
+  void SetCode(IndirectHandle<Code> code);
 
   bool has_context() const;
   Tagged<Context> context() const;
@@ -164,6 +164,7 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
   bool IsWasm() const { return code_kind() == CodeKind::WASM_FUNCTION; }
   bool IsWasmBuiltin() const {
     return code_kind() == CodeKind::WASM_TO_JS_FUNCTION ||
+           code_kind() == CodeKind::WASM_TO_CAPI_FUNCTION ||
            code_kind() == CodeKind::JS_TO_WASM_FUNCTION ||
            (code_kind() == CodeKind::BUILTIN &&
             (builtin() == Builtin::kJSToWasmWrapper ||
@@ -188,14 +189,14 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
   }
 
   template <typename T>
-  Handle<T> CanonicalHandle(Tagged<T> object, Isolate* isolate) {
+  IndirectHandle<T> CanonicalHandle(Tagged<T> object, Isolate* isolate) {
     DCHECK_NOT_NULL(canonical_handles_);
     DCHECK(PersistentHandlesScope::IsActive(isolate));
     auto find_result = canonical_handles_->FindOrInsert(object);
     if (!find_result.already_exists) {
-      *find_result.entry = Handle<T>(object, isolate).location();
+      *find_result.entry = IndirectHandle<T>(object, isolate).location();
     }
-    return Handle<T>(*find_result.entry);
+    return IndirectHandle<T>(*find_result.entry);
   }
 
   void ReopenAndCanonicalizeHandlesInNewScope(Isolate* isolate);
@@ -218,13 +219,14 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
   }
 
   struct InlinedFunctionHolder {
-    Handle<SharedFunctionInfo> shared_info;
-    Handle<BytecodeArray> bytecode_array;  // Explicit to prevent flushing.
+    IndirectHandle<SharedFunctionInfo> shared_info;
+    IndirectHandle<BytecodeArray>
+        bytecode_array;  // Explicit to prevent flushing.
     InliningPosition position;
 
-    InlinedFunctionHolder(Handle<SharedFunctionInfo> inlined_shared_info,
-                          Handle<BytecodeArray> inlined_bytecode,
-                          SourcePosition pos);
+    InlinedFunctionHolder(
+        IndirectHandle<SharedFunctionInfo> inlined_shared_info,
+        IndirectHandle<BytecodeArray> inlined_bytecode, SourcePosition pos);
 
     void RegisterInlinedFunctionId(size_t inlined_function_id) {
       position.inlined_function_id = static_cast<int>(inlined_function_id);
@@ -235,8 +237,8 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
   InlinedFunctionList& inlined_functions() { return inlined_functions_; }
 
   // Returns the inlining id for source position tracking.
-  int AddInlinedFunction(Handle<SharedFunctionInfo> inlined_function,
-                         Handle<BytecodeArray> inlined_bytecode,
+  int AddInlinedFunction(IndirectHandle<SharedFunctionInfo> inlined_function,
+                         IndirectHandle<BytecodeArray> inlined_bytecode,
                          SourcePosition pos);
 
   std::unique_ptr<char[]> GetDebugName() const;
@@ -295,20 +297,15 @@ class V8_EXPORT_PRIVATE OptimizedCompilationInfo final {
 
   // We retain a reference the bytecode array specifically to ensure it doesn't
   // get flushed while we are optimizing the code.
-  Handle<BytecodeArray> bytecode_array_;
-  Handle<SharedFunctionInfo> shared_info_;
-  Handle<JSFunction> closure_;
+  IndirectHandle<BytecodeArray> bytecode_array_;
+  IndirectHandle<SharedFunctionInfo> shared_info_;
+  IndirectHandle<JSFunction> closure_;
 
   // The compiled code.
-  Handle<Code> code_;
+  IndirectHandle<Code> code_;
 
   // Basic block profiling support.
   BasicBlockProfilerData* profiler_data_ = nullptr;
-
-#if V8_ENABLE_WEBASSEMBLY
-  // The WebAssembly compilation result, not published in the NativeModule yet.
-  std::unique_ptr<wasm::WasmCompilationResult> wasm_compilation_result_;
-#endif  // V8_ENABLE_WEBASSEMBLY
 
   // Entry point when compiling for OSR, {BytecodeOffset::None} otherwise.
   const BytecodeOffset osr_offset_ = BytecodeOffset::None();

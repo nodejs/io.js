@@ -1,5 +1,6 @@
 Tests scripts hasing
 {
+    buildId : 
     embedderName : foo1.js
     endColumn : 1
     endLine : 0
@@ -11,12 +12,13 @@ Tests scripts hasing
     length : 1
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : foo1.js
 }
 {
+    buildId : 
     embedderName : foo2.js
     endColumn : 3
     endLine : 0
@@ -28,12 +30,13 @@ Tests scripts hasing
     length : 3
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : foo2.js
 }
 {
+    buildId : 
     embedderName : foo3.js
     endColumn : 8106
     endLine : 0
@@ -45,7 +48,7 @@ Tests scripts hasing
     length : 8106
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : foo3.js

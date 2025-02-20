@@ -229,7 +229,12 @@ class ProfileDownloader:
   def _validate(self):
     meta_json = f'{self._remote_profile_path}/meta.json'
     cmd = ['stat', f'gs://{meta_json}']
-    failure_hint = f'https://storage.googleapis.com/{meta_json} does not exist.'
+    failure_hint = (
+        f'https://storage.googleapis.com/{meta_json} does not exist. This '
+        f'error might be transient. Creating PGO data takes ~20 min after a '
+        f'merge to a release branch. You can follow current PGO creation at '
+        f'https://ci.chromium.org/ui/p/v8/builders/ci-hp/PGO%20Builder and '
+        f'retry the release builder when it\'s ready.')
     self._call_gsutil(cmd, failure_hint)
 
   def _call_gsutil(self, cmd, failure_hint):

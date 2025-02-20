@@ -12,7 +12,7 @@ utils.load('test/inspector/wasm-inspector-test.js');
 let {session, contextGroup, Protocol} =
     InspectorTest.start('Tests reported code offsets on wasm scripts');
 
-// Include a sentinel in every module to avoid re-using a cached module.
+// Include a sentinel in every module to avoid reusing a cached module.
 let sentinel = 0;
 
 function addHeader(binary, num_functions) {

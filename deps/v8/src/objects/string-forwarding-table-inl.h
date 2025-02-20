@@ -71,7 +71,8 @@ class StringForwardingTable::Record final {
   // Dispose the external resource if the original string has transitioned
   // to an external string and the resource used for the transition is different
   // than the one in the record.
-  inline void DisposeUnusedExternalResource(Tagged<String> original_string);
+  inline void DisposeUnusedExternalResource(Isolate* isolate,
+                                            Tagged<String> original_string);
 
  private:
   OffHeapObjectSlot OriginalStringSlot() const {
@@ -208,10 +209,9 @@ void StringForwardingTable::Record::DisposeExternalResource() {
 }
 
 void StringForwardingTable::Record::DisposeUnusedExternalResource(
-    Tagged<String> original) {
+    Isolate* isolate, Tagged<String> original) {
 #ifdef DEBUG
-  Tagged<String> stored_original =
-      original_string(GetIsolateFromWritableObject(original));
+  Tagged<String> stored_original = original_string(isolate);
   if (IsThinString(stored_original)) {
     stored_original = Cast<ThinString>(stored_original)->actual();
   }
@@ -283,7 +283,7 @@ class StringForwardingTable::BlockVector {
   }
 
   static std::unique_ptr<BlockVector> Grow(BlockVector* data, size_t capacity,
-                                           const base::Mutex& mutex);
+                                           const base::SpinningMutex& mutex);
 
   size_t size() const { return size_; }
 

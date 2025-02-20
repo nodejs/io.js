@@ -6,14 +6,8 @@
 #define V8_COMPILER_TURBOSHAFT_SIDETABLE_H_
 
 #include <algorithm>
-#include <iterator>
-#include <limits>
-#include <memory>
 #include <type_traits>
 
-#include "src/base/iterator.h"
-#include "src/base/small-vector.h"
-#include "src/base/vector.h"
 #include "src/compiler/turboshaft/operations.h"
 #include "src/zone/zone-containers.h"
 
@@ -218,6 +212,54 @@ class FixedOpIndexSidetable : public detail::FixedSidetable<T, OpIndex> {
   }
 
  public:
+#ifdef DEBUG
+  const Graph* graph_;
+#endif
+};
+
+template <class T>
+class SparseOpIndexSideTable {
+ public:
+  SparseOpIndexSideTable(Zone* zone, const Graph* graph)
+      : data_(zone)
+#ifdef DEBUG
+        ,
+        graph_(graph)
+#endif
+  {
+  }
+
+  T& operator[](OpIndex index) {
+    DCHECK(OpIndexBelongsToTableGraph(graph_, index));
+    return data_[index];
+  }
+
+  const T& operator[](OpIndex index) const {
+    DCHECK(OpIndexBelongsToTableGraph(graph_, index));
+    DCHECK(data_.contains(index));
+    return data_.at(index);
+  }
+
+  bool contains(OpIndex index, const T** value = nullptr) const {
+    DCHECK(OpIndexBelongsToTableGraph(graph_, index));
+    if (auto it = data_.find(index); it != data_.end()) {
+      if (value) *value = &it->second;
+      return true;
+    }
+    return false;
+  }
+
+  void remove(OpIndex index) {
+    DCHECK(OpIndexBelongsToTableGraph(graph_, index));
+    auto it = data_.find(index);
+    if (it != data_.end()) data_.erase(it);
+  }
+
+  auto begin() { return data_.begin(); }
+  auto end() { return data_.end(); }
+
+ private:
+  ZoneAbslFlatHashMap<OpIndex, T> data_;
 #ifdef DEBUG
   const Graph* graph_;
 #endif

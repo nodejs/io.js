@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 // Generate a function {f} containing a large array literal of doubles.
 eval("function create_arr_lit() { return [" + String("0.1,").repeat(65535) + "] }");

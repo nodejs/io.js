@@ -8,7 +8,7 @@
 #include <cstdint>
 #include <optional>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/logging.h"
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/time.h"
@@ -53,7 +53,7 @@ constexpr const char* ToString(StepOrigin step_origin) {
 
 class V8_EXPORT_PRIVATE IncrementalMarking final {
  public:
-  class V8_NODISCARD PauseBlackAllocationScope final {
+  class V8_NODISCARD V8_EXPORT_PRIVATE PauseBlackAllocationScope final {
    public:
     explicit PauseBlackAllocationScope(IncrementalMarking* marking);
     ~PauseBlackAllocationScope();
@@ -212,7 +212,7 @@ class V8_EXPORT_PRIVATE IncrementalMarking final {
   std::unique_ptr<IncrementalMarkingJob> incremental_marking_job_;
   Observer new_generation_observer_;
   Observer old_generation_observer_;
-  base::Mutex background_live_bytes_mutex_;
+  base::SpinningMutex background_live_bytes_mutex_;
   std::unordered_map<MutablePageMetadata*, intptr_t,
                      base::hash<MutablePageMetadata*>>
       background_live_bytes_;

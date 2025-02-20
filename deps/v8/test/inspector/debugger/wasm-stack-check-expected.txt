@@ -3,7 +3,7 @@ Tests pausing a running script and stepping
 Running test: testPauseAndStep
 Instantiate
 Wait for script
-Got wasm script: wasm://wasm/c84b7cde
+Got wasm script: wasm://wasm/09f1bd7e
 Run
 Expecting to pause at 61
 Paused at offset 61; wasm-expression-stack: []; local: [12 (i32)]

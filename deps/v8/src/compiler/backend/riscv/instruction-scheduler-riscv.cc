@@ -14,6 +14,8 @@ bool InstructionScheduler::SchedulerSupported() { return true; }
 int InstructionScheduler::GetTargetInstructionFlags(
     const Instruction* instr) const {
   switch (instr->arch_opcode()) {
+    case kRiscvEnableDebugTrace:
+    case kRiscvDisableDebugTrace:
 #if V8_TARGET_ARCH_RISCV64
     case kRiscvAdd32:
     case kRiscvBitcastDL:

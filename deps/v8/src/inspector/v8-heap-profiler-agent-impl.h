@@ -19,7 +19,6 @@ namespace v8_inspector {
 
 class V8InspectorSessionImpl;
 
-using protocol::Maybe;
 using protocol::Response;
 
 class V8HeapProfilerAgentImpl : public protocol::HeapProfiler::Backend {
@@ -35,30 +34,35 @@ class V8HeapProfilerAgentImpl : public protocol::HeapProfiler::Backend {
       std::unique_ptr<CollectGarbageCallback> callback) override;
 
   Response enable() override;
-  Response startTrackingHeapObjects(Maybe<bool> trackAllocations) override;
-  Response stopTrackingHeapObjects(Maybe<bool> reportProgress,
-                                   Maybe<bool> treatGlobalObjectsAsRoots,
-                                   Maybe<bool> captureNumericValue,
-                                   Maybe<bool> exposeInternals) override;
+  Response startTrackingHeapObjects(
+      std::optional<bool> trackAllocations) override;
+  Response stopTrackingHeapObjects(
+      std::optional<bool> reportProgress,
+      std::optional<bool> treatGlobalObjectsAsRoots,
+      std::optional<bool> captureNumericValue,
+      std::optional<bool> exposeInternals) override;
 
   Response disable() override;
 
   void takeHeapSnapshot(
-      Maybe<bool> reportProgress, Maybe<bool> treatGlobalObjectsAsRoots,
-      Maybe<bool> captureNumericValue, Maybe<bool> exposeInternals,
+      std::optional<bool> reportProgress,
+      std::optional<bool> treatGlobalObjectsAsRoots,
+      std::optional<bool> captureNumericValue,
+      std::optional<bool> exposeInternals,
       std::unique_ptr<TakeHeapSnapshotCallback> callback) override;
 
   Response getObjectByHeapObjectId(
-      const String16& heapSnapshotObjectId, Maybe<String16> objectGroup,
+      const String16& heapSnapshotObjectId, std::optional<String16> objectGroup,
       std::unique_ptr<protocol::Runtime::RemoteObject>* result) override;
   Response addInspectedHeapObject(
       const String16& inspectedHeapObjectId) override;
   Response getHeapObjectId(const String16& objectId,
                            String16* heapSnapshotObjectId) override;
 
-  Response startSampling(Maybe<double> samplingInterval,
-                         Maybe<bool> includeObjectsCollectedByMajorGC,
-                         Maybe<bool> includeObjectsCollectedByMinorGC) override;
+  Response startSampling(
+      std::optional<double> samplingInterval,
+      std::optional<bool> includeObjectsCollectedByMajorGC,
+      std::optional<bool> includeObjectsCollectedByMinorGC) override;
   Response stopSampling(
       std::unique_ptr<protocol::HeapProfiler::SamplingHeapProfile>*) override;
   Response getSamplingProfile(

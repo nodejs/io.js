@@ -139,26 +139,29 @@ inline int128::operator float() const {
   // complement overwhelms the precision of the mantissa.
   //
   // Also check to make sure we don't negate Int128Min()
+  constexpr float pow_2_64 = 18446744073709551616.0f;
   return hi_ < 0 && *this != Int128Min()
              ? -static_cast<float>(-*this)
              : static_cast<float>(lo_) +
-                   std::ldexp(static_cast<float>(hi_), 64);
+                   static_cast<float>(hi_) * pow_2_64;
 }
 
 inline int128::operator double() const {
   // See comment in int128::operator float() above.
+  constexpr double pow_2_64 = 18446744073709551616.0;
   return hi_ < 0 && *this != Int128Min()
              ? -static_cast<double>(-*this)
              : static_cast<double>(lo_) +
-                   std::ldexp(static_cast<double>(hi_), 64);
+                   static_cast<double>(hi_) * pow_2_64;
 }
 
 inline int128::operator long double() const {
   // See comment in int128::operator float() above.
+  constexpr long double pow_2_64 = 18446744073709551616.0L;
   return hi_ < 0 && *this != Int128Min()
              ? -static_cast<long double>(-*this)
              : static_cast<long double>(lo_) +
-                   std::ldexp(static_cast<long double>(hi_), 64);
+                   static_cast<long double>(hi_) * pow_2_64;
 }
 
 // Comparison operators.

@@ -16,6 +16,7 @@ int EncodedCSignature::FPParameterCount() const {
   return base::bits::CountPopulation(bitfield_ & ~(1 << kReturnIndex));
 }
 
+START_ALLOW_USE_DEPRECATED()
 EncodedCSignature::EncodedCSignature(const CFunctionInfo* signature) {
   parameter_count_ = static_cast<int>(signature->ArgumentCount());
   for (int i = 0; i < parameter_count_; ++i) {
@@ -40,6 +41,7 @@ EncodedCSignature::EncodedCSignature(const CFunctionInfo* signature) {
     }
   }
 }
+END_ALLOW_USE_DEPRECATED()
 
 }  // namespace internal
 }  // namespace v8

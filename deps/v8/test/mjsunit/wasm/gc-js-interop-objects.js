@@ -41,6 +41,9 @@ for (const wasm_obj of [struct, array]) {
   repeated(() => assertEquals(true, Object.isFrozen(wasm_obj)));
   repeated(() => assertEquals(false, Object.isExtensible(wasm_obj)));
   repeated(() => assertEquals('object', typeof wasm_obj));
+  // This is not the same as above! We have a fast path in the optimizing
+  // compiler that's not smart enough to see through "assertEquals".
+  repeated(() => assertTrue(typeof wasm_obj == 'object'));
   repeated(
       () => assertEquals(
           '[object Object]', Object.prototype.toString.call(wasm_obj)));

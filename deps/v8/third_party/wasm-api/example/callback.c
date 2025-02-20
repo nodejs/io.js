@@ -22,7 +22,7 @@ void wasm_val_print(wasm_val_t val) {
     case WASM_F64: {
       printf("%g", val.of.f64);
     } break;
-    case WASM_ANYREF:
+    case WASM_EXTERNREF:
     case WASM_FUNCREF: {
       if (val.of.ref == NULL) {
         printf("null");
@@ -35,27 +35,27 @@ void wasm_val_print(wasm_val_t val) {
 
 // A function to be called from Wasm code.
 own wasm_trap_t* print_callback(
-  const wasm_val_t args[], wasm_val_t results[]
+  const wasm_val_vec_t* args, wasm_val_vec_t* results
 ) {
   printf("Calling back...\n> ");
-  wasm_val_print(args[0]);
+  wasm_val_print(args->data[0]);
   printf("\n");
 
-  wasm_val_copy(&results[0], &args[0]);
+  wasm_val_copy(&results->data[0], &args->data[0]);
   return NULL;
 }
 
 
 // A function closure.
 own wasm_trap_t* closure_callback(
-  void* env, const wasm_val_t args[], wasm_val_t results[]
+  void* env, const wasm_val_vec_t* args, wasm_val_vec_t* results
 ) {
   int i = *(int*)env;
   printf("Calling back closure...\n");
   printf("> %d\n", i);
 
-  results[0].kind = WASM_I32;
-  results[0].of.i32 = (int32_t)i;
+  results->data[0].kind = WASM_I32;
+  results->data[0].of.i32 = (int32_t)i;
   return NULL;
 }
 
@@ -68,7 +68,7 @@ int main(int argc, const char* argv[]) {
 
   // Load binary.
   printf("Loading binary...\n");
-  FILE* file = fopen("callback.wasm", "r");
+  FILE* file = fopen("callback.wasm", "rb");
   if (!file) {
     printf("> Error loading module!\n");
     return 1;
@@ -108,11 +108,12 @@ int main(int argc, const char* argv[]) {
 
   // Instantiate.
   printf("Instantiating module...\n");
-  const wasm_extern_t* imports[] = {
+  wasm_extern_t* externs[] = {
     wasm_func_as_extern(print_func), wasm_func_as_extern(closure_func)
   };
+  wasm_extern_vec_t imports = WASM_ARRAY_VEC(externs);
   own wasm_instance_t* instance =
-    wasm_instance_new(store, module, imports, NULL);
+    wasm_instance_new(store, module, &imports, NULL);
   if (!instance) {
     printf("> Error instantiating module!\n");
     return 1;
@@ -140,13 +141,11 @@ int main(int argc, const char* argv[]) {
 
   // Call.
   printf("Calling export...\n");
-  wasm_val_t args[2];
-  args[0].kind = WASM_I32;
-  args[0].of.i32 = 3;
-  args[1].kind = WASM_I32;
-  args[1].of.i32 = 4;
-  wasm_val_t results[1];
-  if (wasm_func_call(run_func, args, results)) {
+  wasm_val_t as[2] = { WASM_I32_VAL(3), WASM_I32_VAL(4) };
+  wasm_val_t rs[1] = { WASM_INIT_VAL };
+  wasm_val_vec_t args = WASM_ARRAY_VEC(as);
+  wasm_val_vec_t results = WASM_ARRAY_VEC(rs);
+  if (wasm_func_call(run_func, &args, &results)) {
     printf("> Error calling function!\n");
     return 1;
   }
@@ -155,7 +154,7 @@ int main(int argc, const char* argv[]) {
 
   // Print result.
   printf("Printing result...\n");
-  printf("> %u\n", results[0].of.i32);
+  printf("> %u\n", rs[0].of.i32);
 
   // Shut down.
   printf("Shutting down...\n");

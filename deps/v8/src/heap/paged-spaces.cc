@@ -24,6 +24,7 @@
 #include "src/heap/marking-state-inl.h"
 #include "src/heap/memory-allocator.h"
 #include "src/heap/memory-chunk-layout.h"
+#include "src/heap/memory-chunk.h"
 #include "src/heap/mutable-page-metadata-inl.h"
 #include "src/heap/page-metadata-inl.h"
 #include "src/heap/paged-spaces-inl.h"
@@ -102,7 +103,7 @@ void PagedSpaceBase::TearDown() {
 }
 
 void PagedSpaceBase::MergeCompactionSpace(CompactionSpace* other) {
-  base::MutexGuard guard(mutex());
+  base::SpinningMutexGuard guard(mutex());
 
   DCHECK_NE(NEW_SPACE, identity());
   DCHECK_NE(NEW_SPACE, other->identity());
@@ -183,9 +184,9 @@ void PagedSpaceBase::VerifyCommittedPhysicalMemory() const {
 #endif  // DEBUG
 
 bool PagedSpaceBase::ContainsSlow(Address addr) const {
-  PageMetadata* p = PageMetadata::FromAddress(addr);
+  MemoryChunk* chunk = MemoryChunk::FromAddress(addr);
   for (const PageMetadata* page : *this) {
-    if (page == p) return true;
+    if (page->Chunk() == chunk) return true;
   }
   return false;
 }
@@ -212,7 +213,7 @@ void PagedSpaceBase::RefineAllocatedBytesAfterSweeping(PageMetadata* page) {
 }
 
 PageMetadata* PagedSpaceBase::RemovePageSafe(int size_in_bytes) {
-  base::MutexGuard guard(mutex());
+  base::SpinningMutexGuard guard(mutex());
   PageMetadata* page = free_list()->GetPageForSize(size_in_bytes);
   if (!page) return nullptr;
   RemovePage(page);
@@ -300,7 +301,7 @@ bool PagedSpaceBase::TryExpand(LocalHeap* local_heap, AllocationOrigin origin) {
   const size_t accounted_size =
       MemoryChunkLayout::AllocatableMemoryInMemoryChunk(identity());
   if (origin != AllocationOrigin::kGC && identity() != NEW_SPACE) {
-    base::MutexGuard expansion_guard(heap_->heap_expansion_mutex());
+    base::SpinningMutexGuard expansion_guard(heap_->heap_expansion_mutex());
     if (!heap()->IsOldGenerationExpansionAllowed(accounted_size,
                                                  expansion_guard)) {
       return false;
@@ -350,7 +351,7 @@ void PagedSpaceBase::ReleasePageImpl(PageMetadata* page,
   DCHECK_IMPLIES(identity() == NEW_SPACE,
                  page->Chunk()->IsFlagSet(MemoryChunk::TO_PAGE));
 
-  memory_chunk_list().Remove(page);
+  memory_chunk_list_.Remove(page);
 
   free_list_->EvictFreeListItems(page);
 
@@ -579,6 +580,13 @@ AllocatorPolicy* PagedSpace::CreateAllocatorPolicy(MainAllocator* allocator) {
 // CompactionSpace implementation
 
 void CompactionSpace::NotifyNewPage(PageMetadata* page) {
+  // Incremental marking can be running on the main thread isolate, so when
+  // allocating a new page for the client's compaction space we can get a black
+  // allocated page. This is fine, since the page is not observed the main
+  // isolate until it's merged.
+  DCHECK_IMPLIES(identity() != SHARED_SPACE ||
+                     destination_heap() != DestinationHeap::kSharedSpaceHeap,
+                 !page->Chunk()->IsFlagSet(MemoryChunk::BLACK_ALLOCATED));
   new_pages_.push_back(page);
 }
 
@@ -601,7 +609,7 @@ void CompactionSpace::RefillFreeList() {
     // during compaction.
     DCHECK_NE(this, p->owner());
     PagedSpace* owner = static_cast<PagedSpace*>(p->owner());
-    base::MutexGuard guard(owner->mutex());
+    base::SpinningMutexGuard guard(owner->mutex());
     owner->RefineAllocatedBytesAfterSweeping(p);
     owner->RemovePage(p);
     added += AddPage(p);

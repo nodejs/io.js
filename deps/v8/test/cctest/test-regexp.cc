@@ -90,7 +90,7 @@ class InterruptTest {
     Local<String> string =
         Local<String>::New(isolate, instance->subject_string_handle_);
     CHECK(string->CanMakeExternal(String::Encoding::ONE_BYTE_ENCODING));
-    string->MakeExternal(&one_byte_string_resource);
+    string->MakeExternal(isolate, &one_byte_string_resource);
   }
 
   static void MakeSubjectTwoByteExternal(Isolate* isolate, void* data) {
@@ -99,7 +99,7 @@ class InterruptTest {
     Local<String> string =
         Local<String>::New(isolate, instance->subject_string_handle_);
     CHECK(string->CanMakeExternal(String::Encoding::TWO_BYTE_ENCODING));
-    string->MakeExternal(&two_byte_string_resource);
+    string->MakeExternal(isolate, &two_byte_string_resource);
   }
 
   static void TwoByteSubjectToOneByte(Isolate* isolate, void* data) {
@@ -160,7 +160,7 @@ class InterruptTest {
     HandleScope handle_scope(isolate_);
     i::Isolate* i_isolate = this->i_isolate();
     // The string must be in old space to support externalization.
-    i::Handle<i::String> i_one_byte_string =
+    i::DirectHandle<i::String> i_one_byte_string =
         i_isolate->factory()->NewStringFromAsciiChecked(
             &kOneByteSubjectString[0], i::AllocationType::kOld);
     SetSubjectString(Utils::ToLocal(i_one_byte_string));
@@ -170,7 +170,7 @@ class InterruptTest {
     HandleScope handle_scope(isolate_);
     i::Isolate* i_isolate = this->i_isolate();
     // The string must be in old space to support externalization.
-    i::Handle<i::String> i_two_byte_string =
+    i::DirectHandle<i::String> i_two_byte_string =
         i_isolate->factory()
             ->NewStringFromTwoByte(
                 base::Vector<const base::uc16>(&kTwoByteSubjectString[0],

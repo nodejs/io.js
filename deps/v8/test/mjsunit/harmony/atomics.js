@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Flags: --js-staging
+
 function toRangeWrapper(is_big) {
   return function _toRangeWrapped(raw_value) {
     var raw_range = this.max - this.min + (is_big ? 1n : 1);
@@ -51,13 +53,14 @@ var IntegerTypedArrayConstructors = [
 (function TestBadArray() {
   var ab = new ArrayBuffer(16);
   var sab = new SharedArrayBuffer(128);
+  var sf16a = new Float16Array(sab);
   var sf32a = new Float32Array(sab);
   var sf64a = new Float64Array(sab);
   var u8ca = new Uint8ClampedArray(sab);
 
   // Atomic ops required integer typed arrays
   var badArrayTypes = [
-    undefined, 1, 'hi', 3.4, ab, sab, sf32a, sf64a, u8ca
+    undefined, 1, 'hi', 3.4, ab, sab, sf16a, sf32a, sf64a, u8ca
   ];
   badArrayTypes.forEach(function(o) {
     assertThrows(function() { Atomics.compareExchange(o, 0, 0, 0); },

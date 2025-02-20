@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Flags: --harmony-string-replaceall --allow-natives-syntax
+// Flags: --allow-natives-syntax
 
 assertEquals('a-b-c-d', 'a+b+c+d'.replaceAll('+', '-'));
 assertEquals('aaaa', 'abcd'.replaceAll(/./g, 'a'));

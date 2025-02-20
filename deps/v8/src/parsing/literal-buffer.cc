@@ -14,15 +14,17 @@ namespace v8 {
 namespace internal {
 
 template <typename IsolateT>
-Handle<String> LiteralBuffer::Internalize(IsolateT* isolate) const {
+DirectHandle<String> LiteralBuffer::Internalize(IsolateT* isolate) const {
   if (is_one_byte()) {
     return isolate->factory()->InternalizeString(one_byte_literal());
   }
   return isolate->factory()->InternalizeString(two_byte_literal());
 }
 
-template Handle<String> LiteralBuffer::Internalize(Isolate* isolate) const;
-template Handle<String> LiteralBuffer::Internalize(LocalIsolate* isolate) const;
+template DirectHandle<String> LiteralBuffer::Internalize(
+    Isolate* isolate) const;
+template DirectHandle<String> LiteralBuffer::Internalize(
+    LocalIsolate* isolate) const;
 
 int LiteralBuffer::NewCapacity(int min_capacity) {
   return min_capacity < (kMaxGrowth / (kGrowthFactor - 1))

@@ -640,12 +640,6 @@ parser.add_argument('--experimental-enable-pointer-compression',
     default=None,
     help='[Experimental] Enable V8 pointer compression (limits max heap to 4GB and breaks ABI compatibility)')
 
-parser.add_argument('--disable-shared-readonly-heap',
-    action='store_true',
-    dest='disable_shared_ro_heap',
-    default=None,
-    help='Disable the shared read-only heap feature in V8')
-
 parser.add_argument('--v8-options',
     action='store',
     dest='v8_options',
@@ -1713,7 +1707,6 @@ def configure_v8(o, configs):
   o['variables']['v8_enable_pointer_compression'] = 1 if options.enable_pointer_compression else 0
   o['variables']['v8_enable_sandbox'] = 1 if options.enable_pointer_compression else 0
   o['variables']['v8_enable_31bit_smis_on_64bit_arch'] = 1 if options.enable_pointer_compression else 0
-  o['variables']['v8_enable_shared_ro_heap'] = 0 if options.enable_pointer_compression or options.disable_shared_ro_heap else 1
   o['variables']['v8_enable_extensible_ro_snapshot'] = 0
   o['variables']['v8_trace_maps'] = 1 if options.trace_maps else 0
   o['variables']['node_use_v8_platform'] = b(not options.without_v8_platform)

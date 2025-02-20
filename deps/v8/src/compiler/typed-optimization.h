@@ -43,6 +43,7 @@ class V8_EXPORT_PRIVATE TypedOptimization final
   Reduction ReduceCheckHeapObject(Node* node);
   Reduction ReduceCheckMaps(Node* node);
   Reduction ReduceCheckNumber(Node* node);
+  Reduction ReduceCheckNumberFitsInt32(Node* node);
   Reduction ReduceCheckString(Node* node);
   Reduction ReduceCheckStringOrStringWrapper(Node* node);
   Reduction ReduceCheckEqualsInternalizedString(Node* node);
@@ -60,6 +61,7 @@ class V8_EXPORT_PRIVATE TypedOptimization final
   Reduction ReduceSelect(Node* node);
   Reduction ReduceSpeculativeToNumber(Node* node);
   Reduction ReduceCheckNotTaggedHole(Node* node);
+  Reduction ReduceTypedArrayLength(Node* node);
   Reduction ReduceTypeOf(Node* node);
   Reduction ReduceToBoolean(Node* node);
   Reduction ReduceSpeculativeNumberAdd(Node* node);
@@ -67,6 +69,7 @@ class V8_EXPORT_PRIVATE TypedOptimization final
   Reduction ReduceSpeculativeNumberPow(Node* node);
   Reduction ReduceSpeculativeNumberBinop(Node* node);
   Reduction ReduceSpeculativeNumberComparison(Node* node);
+  Reduction ReduceTransitionElementsKindOrCheckMap(Node* node);
 
   Reduction TryReduceStringComparisonOfStringFromSingleCharCode(
       Node* comparison, Node* from_char_code, Type constant_type,

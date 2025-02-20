@@ -145,41 +145,42 @@ namespace internal {
     return obj->field();                                                     \
   }
 
-#define TEMPORAL_GET_NUMBER_AFTER_DIVID(T, M, field, scale, name)         \
-  BUILTIN(Temporal##T##Prototype##M) {                                    \
-    HandleScope scope(isolate);                                           \
-    CHECK_RECEIVER(JSTemporal##T, handle,                                 \
-                   "get Temporal." #T ".prototype." #name);               \
-    Handle<BigInt> value;                                                 \
-    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(                                   \
-        isolate, value,                                                   \
-        BigInt::Divide(isolate, Handle<BigInt>(handle->field(), isolate), \
-                       BigInt::FromUint64(isolate, scale)));              \
-    DirectHandle<Object> number = BigInt::ToNumber(isolate, value);       \
-    DCHECK(std::isfinite(Object::NumberValue(*number)));                  \
-    return *number;                                                       \
+#define TEMPORAL_GET_NUMBER_AFTER_DIVID(T, M, field, scale, name)        \
+  BUILTIN(Temporal##T##Prototype##M) {                                   \
+    HandleScope scope(isolate);                                          \
+    CHECK_RECEIVER(JSTemporal##T, handle,                                \
+                   "get Temporal." #T ".prototype." #name);              \
+    DirectHandle<BigInt> value;                                          \
+    ASSIGN_RETURN_FAILURE_ON_EXCEPTION(                                  \
+        isolate, value,                                                  \
+        BigInt::Divide(isolate, direct_handle(handle->field(), isolate), \
+                       BigInt::FromUint64(isolate, scale)));             \
+    DirectHandle<Object> number = BigInt::ToNumber(isolate, value);      \
+    DCHECK(std::isfinite(Object::NumberValue(*number)));                 \
+    return *number;                                                      \
   }
 
-#define TEMPORAL_GET_BIGINT_AFTER_DIVID(T, M, field, scale, name)         \
-  BUILTIN(Temporal##T##Prototype##M) {                                    \
-    HandleScope scope(isolate);                                           \
-    CHECK_RECEIVER(JSTemporal##T, handle,                                 \
-                   "get Temporal." #T ".prototype." #name);               \
-    RETURN_RESULT_OR_FAILURE(                                             \
-        isolate,                                                          \
-        BigInt::Divide(isolate, Handle<BigInt>(handle->field(), isolate), \
-                       BigInt::FromUint64(isolate, scale)));              \
+#define TEMPORAL_GET_BIGINT_AFTER_DIVID(T, M, field, scale, name)        \
+  BUILTIN(Temporal##T##Prototype##M) {                                   \
+    HandleScope scope(isolate);                                          \
+    CHECK_RECEIVER(JSTemporal##T, handle,                                \
+                   "get Temporal." #T ".prototype." #name);              \
+    RETURN_RESULT_OR_FAILURE(                                            \
+        isolate,                                                         \
+        BigInt::Divide(isolate, direct_handle(handle->field(), isolate), \
+                       BigInt::FromUint64(isolate, scale)));             \
   }
 
-#define TEMPORAL_GET_BY_FORWARD_CALENDAR(T, METHOD, name)                 \
-  BUILTIN(Temporal##T##Prototype##METHOD) {                               \
-    HandleScope scope(isolate);                                           \
-    CHECK_RECEIVER(JSTemporal##T, temporal_date,                          \
-                   "get Temporal." #T ".prototype." #name);               \
-    RETURN_RESULT_OR_FAILURE(                                             \
-        isolate, temporal::Calendar##METHOD(                              \
-                     isolate, handle(temporal_date->calendar(), isolate), \
-                     temporal_date));                                     \
+#define TEMPORAL_GET_BY_FORWARD_CALENDAR(T, METHOD, name)               \
+  BUILTIN(Temporal##T##Prototype##METHOD) {                             \
+    HandleScope scope(isolate);                                         \
+    CHECK_RECEIVER(JSTemporal##T, temporal_date,                        \
+                   "get Temporal." #T ".prototype." #name);             \
+    RETURN_RESULT_OR_FAILURE(                                           \
+        isolate,                                                        \
+        temporal::Calendar##METHOD(                                     \
+            isolate, direct_handle(temporal_date->calendar(), isolate), \
+            temporal_date));                                            \
   }
 
 #define TEMPORAL_GET_BY_INVOKE_CALENDAR_METHOD(T, METHOD, name)              \
@@ -190,7 +191,7 @@ namespace internal {
     CHECK_RECEIVER(JSTemporal##T, date_like,                                 \
                    "get Temporal." #T ".prototype." #name);                  \
     /* 3. Let calendar be temporalDate.[[Calendar]]. */                      \
-    Handle<JSReceiver> calendar = handle(date_like->calendar(), isolate);    \
+    DirectHandle<JSReceiver> calendar(date_like->calendar(), isolate);       \
     /* 2. Return ? Invoke(calendar, "name", « dateLike »).  */             \
     RETURN_RESULT_OR_FAILURE(                                                \
         isolate, temporal::InvokeCalendarMethod(                             \
@@ -413,32 +414,31 @@ TEMPORAL_PROTOTYPE_METHOD1(PlainMonthDay, ToString, toString)
 
 // ZonedDateTime
 
-#define TEMPORAL_ZONED_DATE_TIME_GET_PREPARE(M)                               \
-  HandleScope scope(isolate);                                                 \
-  const char* method_name = "get Temporal.ZonedDateTime.prototype." #M;       \
-  /* 1. Let zonedDateTime be the this value. */                               \
-  /* 2. Perform ? RequireInternalSlot(zonedDateTime, */                       \
-  /* [[InitializedTemporalZonedDateTime]]). */                                \
-  CHECK_RECEIVER(JSTemporalZonedDateTime, zoned_date_time, method_name);      \
-  /* 3. Let timeZone be zonedDateTime.[[TimeZone]]. */                        \
-  Handle<JSReceiver> time_zone =                                              \
-      handle(zoned_date_time->time_zone(), isolate);                          \
-  /* 4. Let instant be ?                                   */                 \
-  /* CreateTemporalInstant(zonedDateTime.[[Nanoseconds]]). */                 \
-  Handle<JSTemporalInstant> instant;                                          \
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(                                         \
-      isolate, instant,                                                       \
-      temporal::CreateTemporalInstant(                                        \
-          isolate, Handle<BigInt>(zoned_date_time->nanoseconds(), isolate))); \
-  /* 5. Let calendar be zonedDateTime.[[Calendar]]. */                        \
-  Handle<JSReceiver> calendar = handle(zoned_date_time->calendar(), isolate); \
-  /* 6. Let temporalDateTime be ?                 */                          \
-  /* BuiltinTimeZoneGetPlainDateTimeFor(timeZone, */                          \
-  /* instant, calendar). */                                                   \
-  Handle<JSTemporalPlainDateTime> temporal_date_time;                         \
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(                                         \
-      isolate, temporal_date_time,                                            \
-      temporal::BuiltinTimeZoneGetPlainDateTimeFor(                           \
+#define TEMPORAL_ZONED_DATE_TIME_GET_PREPARE(M)                              \
+  HandleScope scope(isolate);                                                \
+  const char* method_name = "get Temporal.ZonedDateTime.prototype." #M;      \
+  /* 1. Let zonedDateTime be the this value. */                              \
+  /* 2. Perform ? RequireInternalSlot(zonedDateTime, */                      \
+  /* [[InitializedTemporalZonedDateTime]]). */                               \
+  CHECK_RECEIVER(JSTemporalZonedDateTime, zoned_date_time, method_name);     \
+  /* 3. Let timeZone be zonedDateTime.[[TimeZone]]. */                       \
+  DirectHandle<JSReceiver> time_zone(zoned_date_time->time_zone(), isolate); \
+  /* 4. Let instant be ?                                   */                \
+  /* CreateTemporalInstant(zonedDateTime.[[Nanoseconds]]). */                \
+  DirectHandle<JSTemporalInstant> instant;                                   \
+  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(                                        \
+      isolate, instant,                                                      \
+      temporal::CreateTemporalInstant(                                       \
+          isolate, direct_handle(zoned_date_time->nanoseconds(), isolate))); \
+  /* 5. Let calendar be zonedDateTime.[[Calendar]]. */                       \
+  DirectHandle<JSReceiver> calendar(zoned_date_time->calendar(), isolate);   \
+  /* 6. Let temporalDateTime be ?                 */                         \
+  /* BuiltinTimeZoneGetPlainDateTimeFor(timeZone, */                         \
+  /* instant, calendar). */                                                  \
+  DirectHandle<JSTemporalPlainDateTime> temporal_date_time;                  \
+  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(                                        \
+      isolate, temporal_date_time,                                           \
+      temporal::BuiltinTimeZoneGetPlainDateTimeFor(                          \
           isolate, time_zone, instant, calendar, method_name));
 
 #define TEMPORAL_ZONED_DATE_TIME_GET_BY_FORWARD_TIME_ZONE_AND_CALENDAR(M) \

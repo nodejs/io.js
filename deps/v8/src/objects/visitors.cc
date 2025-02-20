@@ -4,7 +4,7 @@
 
 #include "src/objects/visitors.h"
 
-#include "src/codegen/reloc-info.h"
+#include "src/codegen/reloc-info-inl.h"
 
 #ifdef DEBUG
 #include "src/objects/instruction-stream-inl.h"

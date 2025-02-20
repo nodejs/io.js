@@ -43,38 +43,39 @@ class JSNumberFormat
     : public TorqueGeneratedJSNumberFormat<JSNumberFormat, JSObject> {
  public:
   // ecma402/#sec-initializenumberformat
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSNumberFormat> New(
-      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
-      Handle<Object> options, const char* service);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSNumberFormat> New(
+      Isolate* isolate, DirectHandle<Map> map, DirectHandle<Object> locales,
+      DirectHandle<Object> options, const char* service);
 
   // ecma402/#sec-unwrapnumberformat
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSNumberFormat> UnwrapNumberFormat(
-      Isolate* isolate, Handle<JSReceiver> format_holder);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSNumberFormat>
+  UnwrapNumberFormat(Isolate* isolate, DirectHandle<JSReceiver> format_holder);
 
   // #sec-number-format-functions
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> NumberFormatFunction(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> NumberFormatFunction(
       Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
       Handle<Object> numeric_obj);
 
   // ecma402/#sec-intl.numberformat.prototype.resolvedoptions
-  static Handle<JSObject> ResolvedOptions(
+  static DirectHandle<JSObject> ResolvedOptions(
       Isolate* isolate, DirectHandle<JSNumberFormat> number_format);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatToParts(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSArray> FormatToParts(
       Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
       Handle<Object> numeric_obj);
 
   // ecma402/#sec-formatnumericrange
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> FormatNumericRange(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> FormatNumericRange(
       Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
       Handle<Object> x, Handle<Object> y);
 
   // ecma402/#sec-formatnumericrangetoparts
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatNumericRangeToParts(
-      Isolate* isolate, DirectHandle<JSNumberFormat> number_format,
-      Handle<Object> x, Handle<Object> y);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSArray>
+  FormatNumericRangeToParts(Isolate* isolate,
+                            DirectHandle<JSNumberFormat> number_format,
+                            Handle<Object> x, Handle<Object> y);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> FormatNumeric(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> FormatNumeric(
       Isolate* isolate,
       const icu::number::LocalizedNumberFormatter& number_format,
       Handle<Object> numeric_obj);
@@ -89,14 +90,14 @@ class JSNumberFormat
   static bool SignificantDigitsFromSkeleton(const icu::UnicodeString& skeleton,
                                             int32_t* minimum, int32_t* maximum);
 
-  static Handle<String> RoundingModeString(Isolate* isolate,
-                                           const icu::UnicodeString& skeleton);
-  static Handle<String> RoundingPriorityString(
+  static DirectHandle<String> RoundingModeString(
       Isolate* isolate, const icu::UnicodeString& skeleton);
-  static Handle<String> TrailingZeroDisplayString(
+  static DirectHandle<String> RoundingPriorityString(
       Isolate* isolate, const icu::UnicodeString& skeleton);
-  static Handle<Object> RoundingIncrement(Isolate* isolate,
-                                          const icu::UnicodeString& skeleton);
+  static DirectHandle<String> TrailingZeroDisplayString(
+      Isolate* isolate, const icu::UnicodeString& skeleton);
+  static DirectHandle<Object> RoundingIncrement(
+      Isolate* isolate, const icu::UnicodeString& skeleton);
 
   enum class ShowTrailingZeros { kShow, kHide };
 

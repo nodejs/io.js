@@ -7,7 +7,6 @@
 #include <memory>
 
 #include "cbor.h"
-#include "maybe.h"
 #include "status_test_support.h"
 #include "test_platform.h"
 #include "test_string_traits.h"
@@ -359,10 +358,9 @@ class TestTypeOptional : public ProtocolObject<TestTypeOptional> {
   const std::string& GetStrField() const { return str_field_.value(); }
   void SetStrField(std::string value) { str_field_ = std::move(value); }
 
-  bool HasTestTypeBasicField() { return test_type_basic_field_.has_value(); }
+  bool HasTestTypeBasicField() { return !!test_type_basic_field_; }
   const TestTypeBasic* GetTestTypeBasicField() const {
-    return test_type_basic_field_.has_value() ? &test_type_basic_field_.value()
-                                              : nullptr;
+    return test_type_basic_field_.get();
   }
   void SetTestTypeBasicField(std::unique_ptr<TestTypeBasic> value) {
     test_type_basic_field_ = std::move(value);
@@ -371,9 +369,9 @@ class TestTypeOptional : public ProtocolObject<TestTypeOptional> {
  private:
   DECLARE_SERIALIZATION_SUPPORT();
 
-  Maybe<int> int_field_;
-  Maybe<std::string> str_field_;
-  Maybe<TestTypeBasic> test_type_basic_field_;
+  std::optional<int> int_field_;
+  std::optional<std::string> str_field_;
+  std::unique_ptr<TestTypeBasic> test_type_basic_field_;
 };
 
 // clang-format off

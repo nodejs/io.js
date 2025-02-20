@@ -2,12 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 // Flags: --no-always-turbofan
 
 let arr = [1, 2, 3, 4, 5, 6];
 
-let trigger = false;
+// Make this slot mutable by assigning it twice. This ensures we are not adding
+// a context slot dependency, which will also deoptimize the array_foreach.
+// This is not what we want to test here.
+let trigger = {};
+trigger = false;
+
 function maybe_deopt(v) {
   if (v == 3 && trigger) {
     // The first time this is executed, it will change the map of {arr}, which

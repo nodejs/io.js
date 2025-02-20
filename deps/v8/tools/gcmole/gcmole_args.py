@@ -13,6 +13,7 @@ import sys
 
 DEFINES_RE = re.compile(r'^defines = (.*)$', re.M)
 INCLUDES_RE = re.compile(r'^include_dirs = (.*)$', re.M)
+CFLAGS_CC_RE = re.compile(r'^cflags_cc = (.*)$', re.M)
 
 BASE_DIR = Path(__file__).resolve().parents[2].absolute()
 
@@ -29,7 +30,6 @@ def search_flags(regexp, ninja_config):
   assert result
   return result
 
-
 def main():
   assert len(sys.argv) == 2, 'Expecting sysroot arg'
   gn_sysroot_var = sys.argv[1]
@@ -45,19 +45,35 @@ def main():
     ninja_config = f.read()
 
   defines = search_flags(DEFINES_RE, ninja_config)
+  # ninja files escape special characters (e.g. '"', '\', '(', etc).
+  defines = defines.replace('\\', '')
   includes = search_flags(INCLUDES_RE, ninja_config)
+  cflags_cc = search_flags(CFLAGS_CC_RE, ninja_config)
+
+  flags = []
+  flags += defines.strip().split()
 
   # Include flags are relative to the build root. Make them relative to the
   # base directory for gcmole.
   # E.g. BUILD_DIR_REL = out/build and -I../../include gives -Iinclude.
-  include_flags = []
   for flag in includes.strip().split():
     prefix, suffix = flag[:2], flag[2:]
     assert prefix == '-I'
-    include_flags.append(prefix + os.path.normpath(BUILD_DIR_REL / suffix))
+    flags.append(prefix + os.path.normpath(BUILD_DIR_REL / suffix))
+
+  # System include flags are in the ccflags
+  for flag in cflags_cc.strip().split():
+    if flag == "-nostdinc++":
+      flags.append(flag)
+    elif flag.startswith('-isystem'):
+      prefix, suffix = flag[:len('-isystem')], flag[len('-isystem'):]
+      assert prefix == '-isystem'
+      flags.append(prefix + os.path.normpath(BUILD_DIR_REL / suffix))
+
+  flags.append(f'--sysroot={rel_sysroot}')
 
   with open('v8_gcmole.args', 'w') as f:
-    f.write(' '.join([defines] + include_flags + [f'--sysroot={rel_sysroot}']))
+    f.write(' '.join(flags))
 
 
 if __name__ == '__main__':

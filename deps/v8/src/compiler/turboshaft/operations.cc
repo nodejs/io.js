@@ -16,9 +16,9 @@
 #include "src/common/globals.h"
 #include "src/compiler/backend/instruction-selector.h"
 #include "src/compiler/frame-states.h"
-#include "src/compiler/graph-visualizer.h"
 #include "src/compiler/js-heap-broker.h"
 #include "src/compiler/machine-operator.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 #include "src/compiler/turboshaft/deopt-data.h"
 #include "src/compiler/turboshaft/graph.h"
 #include "src/handles/handles-inl.h"
@@ -97,52 +97,67 @@ void TailCallOp::PrintOptions(std::ostream& os) const {
 }
 
 #if DEBUG
-bool ValidOpInputRep(
+void ValidateOpInputRep(
     const Graph& graph, OpIndex input,
     std::initializer_list<RegisterRepresentation> expected_reps,
-    std::optional<size_t> projection_index) {
+    const Operation* checked_op, std::optional<size_t> projection_index) {
+  const Operation& input_op = graph.Get(input);
   base::Vector<const RegisterRepresentation> input_reps =
-      graph.Get(input).outputs_rep();
+      input_op.outputs_rep();
   RegisterRepresentation input_rep;
   if (projection_index) {
     if (*projection_index < input_reps.size()) {
       input_rep = input_reps[*projection_index];
     } else {
-      std::cerr << "Turboshaft operation has input #" << input
+      std::cerr << "Turboshaft operation ";
+      if (checked_op) {
+        std::cerr << *checked_op << " ";
+      }
+      std::cerr << "has input #" << input << ":" << input_op
                 << " with wrong arity.\n";
       std::cerr << "Input has results " << PrintCollection(input_reps)
                 << ", but expected at least " << (*projection_index + 1)
                 << " results.\n";
-      return false;
+      UNREACHABLE();
     }
   } else if (input_reps.size() == 1) {
     input_rep = input_reps[0];
   } else {
-    std::cerr << "Turboshaft operation has input #" << input
+    std::cerr << "Turboshaft operation ";
+    if (checked_op) {
+      std::cerr << *checked_op << " ";
+    }
+    std::cerr << "has input #" << input << ":" << input_op
               << " with wrong arity.\n";
     std::cerr << "Expected a single output but found " << input_reps.size()
               << ".\n";
-    return false;
+    UNREACHABLE();
   }
   for (RegisterRepresentation expected_rep : expected_reps) {
     if (input_rep.AllowImplicitRepresentationChangeTo(
             expected_rep, graph.IsCreatedFromTurbofan())) {
-      return true;
+      return;
     }
   }
-  std::cerr << "Turboshaft operation has input #" << input
+  std::cerr << "Turboshaft operation ";
+  if (checked_op) {
+    std::cerr << *checked_op << " ";
+  }
+  std::cerr << "has input #" << input << ":" << input_op
             << " with wrong representation.\n";
   std::cerr << "Expected " << (expected_reps.size() > 1 ? "one of " : "")
             << PrintCollection(expected_reps).WithoutBrackets() << " but found "
             << input_rep << ".\n";
   std::cout << "Input: " << graph.Get(input) << "\n";
-  return false;
+  UNREACHABLE();
 }
 
-bool ValidOpInputRep(const Graph& graph, OpIndex input,
-                     RegisterRepresentation expected_rep,
-                     std::optional<size_t> projection_index) {
-  return ValidOpInputRep(graph, input, {expected_rep}, projection_index);
+void ValidateOpInputRep(const Graph& graph, OpIndex input,
+                        RegisterRepresentation expected_rep,
+                        const Operation* checked_op,
+                        std::optional<size_t> projection_index) {
+  return ValidateOpInputRep(graph, input, {expected_rep}, checked_op,
+                            projection_index);
 }
 #endif  // DEBUG
 
@@ -179,6 +194,15 @@ std::ostream& operator<<(std::ostream& os, GenericUnopOp::Kind kind) {
     return os << #Name;
     GENERIC_UNOP_LIST(PRINT_KIND)
 #undef PRINT_KIND
+  }
+}
+
+std::ostream& operator<<(std::ostream& os, Word32SignHintOp::Sign sign) {
+  switch (sign) {
+    case Word32SignHintOp::Sign::kSigned:
+      return os << "Signed";
+    case Word32SignHintOp::Sign::kUnsigned:
+      return os << "Unsigned";
   }
 }
 
@@ -354,6 +378,10 @@ std::ostream& operator<<(std::ostream& os, ChangeOp::Kind kind) {
       return os << "FloatConversion";
     case ChangeOp::Kind::kJSFloatTruncate:
       return os << "JSFloatTruncate";
+    case ChangeOp::Kind::kJSFloat16ChangeWithBitcast:
+      return os << "JSFloat16ChangeWithBitcast";
+    case ChangeOp::Kind::kJSFloat16TruncateWithBitcast:
+      return os << "JSFloat16TruncateWithBitcast";
     case ChangeOp::Kind::kSignedFloatTruncateOverflowToMin:
       return os << "SignedFloatTruncateOverflowToMin";
     case ChangeOp::Kind::kUnsignedFloatTruncateOverflowToMin:
@@ -574,6 +602,10 @@ void ConstantOp::PrintOptions(std::ostream& os) const {
       os << "relocatable wasm canonical signature ID: "
          << static_cast<int32_t>(storage.integral);
       break;
+    case Kind::kRelocatableWasmIndirectCallTarget:
+      os << "relocatable wasm indirect call target: "
+         << static_cast<uint32_t>(storage.integral);
+      break;
   }
   os << ']';
 }
@@ -706,7 +738,7 @@ void AllocateOp::PrintOptions(std::ostream& os) const {
 
 void DecodeExternalPointerOp::PrintOptions(std::ostream& os) const {
   os << '[';
-  os << "tag: " << std::hex << tag << std::dec;
+  os << "tag_range: [" << tag_range.first << ", " << tag_range.last << "]";
   os << ']';
 }
 
@@ -742,6 +774,18 @@ void FrameStateOp::PrintOptions(std::ostream& os) const {
         uint32_t id;
         it.ConsumeDematerializedObjectReference(&id);
         os << '$' << id;
+        break;
+      }
+      case FrameStateData::Instr::kDematerializedStringConcat: {
+        uint32_t id;
+        it.ConsumeDematerializedStringConcat(&id);
+        os << "£" << id << "DematerializedStringConcat";
+        break;
+      }
+      case FrameStateData::Instr::kDematerializedStringConcatReference: {
+        uint32_t id;
+        it.ConsumeDematerializedStringConcatReference(&id);
+        os << "£" << id;
         break;
       }
       case FrameStateData::Instr::kArgumentsElements: {
@@ -783,7 +827,9 @@ void FrameStateOp::Validate(const Graph& graph) const {
           // The deoptimizer can handle compressed values.
           rep = RegisterRepresentation::Compressed();
         }
-        DCHECK(ValidOpInputRep(graph, input, rep));
+#ifdef DEBUG
+        ValidateOpInputRep(graph, input, rep);
+#endif  // DEBUG
         break;
       }
       case FrameStateData::Instr::kUnusedRegister:
@@ -798,6 +844,16 @@ void FrameStateOp::Validate(const Graph& graph) const {
       case FrameStateData::Instr::kDematerializedObjectReference: {
         uint32_t id;
         it.ConsumeDematerializedObjectReference(&id);
+        break;
+      }
+      case FrameStateData::Instr::kDematerializedStringConcat: {
+        uint32_t id;
+        it.ConsumeDematerializedStringConcat(&id);
+        break;
+      }
+      case FrameStateData::Instr::kDematerializedStringConcatReference: {
+        uint32_t id;
+        it.ConsumeDematerializedStringConcatReference(&id);
         break;
       }
       case FrameStateData::Instr::kArgumentsElements: {
@@ -1093,6 +1149,8 @@ std::ostream& operator<<(std::ostream& os, ObjectIsOp::Kind kind) {
       return os << "NonCallable";
     case ObjectIsOp::Kind::kNumber:
       return os << "Number";
+    case ObjectIsOp::Kind::kNumberFitsInt32:
+      return os << "NumberFitsInt32";
     case ObjectIsOp::Kind::kNumberOrBigInt:
       return os << "NumberOrBigInt";
     case ObjectIsOp::Kind::kReceiver:
@@ -1134,6 +1192,8 @@ std::ostream& operator<<(std::ostream& os, NumericKind kind) {
       return os << "Integer";
     case NumericKind::kSafeInteger:
       return os << "SafeInteger";
+    case NumericKind::kInt32:
+      return os << "kInt32";
     case NumericKind::kSmi:
       return os << "kSmi";
     case NumericKind::kMinusZero:
@@ -1437,6 +1497,33 @@ std::ostream& operator<<(std::ostream& os,
   }
 }
 
+void PrintMapSet(std::ostream& os, const ZoneRefSet<Map>& maps) {
+  os << "{";
+  for (size_t i = 0; i < maps.size(); ++i) {
+    if (i != 0) os << ",";
+    os << JSONEscaped(maps[i].object());
+  }
+  os << "}";
+}
+
+void CompareMapsOp::PrintOptions(std::ostream& os) const {
+  os << "[";
+  PrintMapSet(os, maps);
+  os << "]";
+}
+
+void CheckMapsOp::PrintOptions(std::ostream& os) const {
+  os << "[";
+  PrintMapSet(os, maps);
+  os << ", " << flags << ", " << feedback << "]";
+}
+
+void AssumeMapOp::PrintOptions(std::ostream& os) const {
+  os << "[";
+  PrintMapSet(os, maps);
+  os << "]";
+}
+
 std::ostream& operator<<(std::ostream& os, SameValueOp::Mode mode) {
   switch (mode) {
     case SameValueOp::Mode::kSameValue:
@@ -1511,6 +1598,7 @@ const RegisterRepresentation& RepresentationFor(wasm::ValueType type) {
       return kSimd128;
     case wasm::kVoid:
     case wasm::kRtt:
+    case wasm::kTop:
     case wasm::kBottom:
       UNREACHABLE();
   }
@@ -1826,12 +1914,13 @@ std::string Operation::ToString() const {
   return ss.str();
 }
 
-base::LazyMutex SupportedOperations::mutex_ = LAZY_MUTEX_INITIALIZER;
+base::LazySpinningMutex SupportedOperations::mutex_ =
+    LAZY_SELFISH_MUTEX_INITIALIZER;
 SupportedOperations SupportedOperations::instance_;
 bool SupportedOperations::initialized_;
 
 void SupportedOperations::Initialize() {
-  base::MutexGuard lock(mutex_.Pointer());
+  base::SpinningMutexGuard lock(mutex_.Pointer());
   if (initialized_) return;
   initialized_ = true;
 
@@ -1881,8 +1970,8 @@ size_t CallOp::hash_value(HashingStrategy strategy) const {
   if (strategy == HashingStrategy::kMakeSnapshotStable) {
     // Destructure here to cause a compilation error in case `options` is
     // changed.
-    auto [descriptor_value, callee_effects] = options();
-    return HashWithOptions(*descriptor_value, callee_effects);
+    auto [descriptor_value, effects] = options();
+    return HashWithOptions(*descriptor, effects);
   } else {
     return Base::hash_value(strategy);
   }

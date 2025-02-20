@@ -11,6 +11,7 @@
 #include "src/heap/cppgc/heap-object-header.h"
 #include "src/heap/cppgc/heap.h"
 #include "test/unittests/heap/cppgc/tests.h"
+#include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace cppgc {
@@ -215,6 +216,47 @@ TEST_F(MarkingVerifierDeathTest, DieOnUnexpectedLiveByteCount) {
                                           StackState::kMayContainHeapPointers,
                                           header.AllocatedSize() - 1),
                             "");
+}
+
+namespace {
+void EscapeControlRegexCharacters(std::string& s) {
+  for (std::string::size_type start_pos = 0;
+       (start_pos = s.find_first_of("().*+\\", start_pos)) != std::string::npos;
+       start_pos += 2) {
+    s.insert(start_pos, "\\");
+  }
+}
+}  // anonymous namespace
+
+TEST_F(MarkingVerifierDeathTest, DieWithDebugInfoOnUnexpectedLiveByteCount) {
+  using ::testing::AllOf;
+  using ::testing::ContainsRegex;
+  GCed* object = MakeGarbageCollected<GCed>(GetAllocationHandle());
+  auto& header = HeapObjectHeader::FromObject(object);
+  ASSERT_TRUE(header.TryMarkAtomic());
+  size_t allocated = header.AllocatedSize();
+  size_t expected = allocated - 1;
+  std::string regex_total =
+      "\n<--- Mismatch in marking verifier --->"
+      "\nMarked bytes: expected " +
+      std::to_string(expected) + " vs. verifier found " +
+      std::to_string(allocated) + ",";
+  std::string class_name =
+      header.GetName(HeapObjectNameForUnnamedObject::kUseClassNameIfSupported)
+          .value;
+  EscapeControlRegexCharacters(class_name);
+  std::string regex_page =
+      "\nNormal page in space \\d+:"
+      "\nMarked bytes: expected 0 vs. verifier found " +
+      std::to_string(allocated) +
+      ",.*"
+      "\n- " +
+      class_name + " at .*, size " + std::to_string(header.ObjectSize()) +
+      ", marked\n";
+  EXPECT_DEATH_IF_SUPPORTED(
+      VerifyMarking(Heap::From(GetHeap())->AsBase(),
+                    StackState::kNoHeapPointers, expected),
+      AllOf(ContainsRegex(regex_total), ContainsRegex(regex_page)));
 }
 
 #endif  // CPPGC_VERIFY_HEAP

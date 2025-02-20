@@ -15,7 +15,7 @@
 #include "include/v8-platform.h"
 #include "src/base/bounded-page-allocator.h"
 #include "src/base/export-template.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/macros.h"
 #include "src/base/platform/mutex.h"
 #include "src/base/platform/semaphore.h"
@@ -65,7 +65,7 @@ class MemoryAllocator {
     }
 
     MutablePageMetadata* TryGetPooled() {
-      base::MutexGuard guard(&mutex_);
+      base::SpinningMutexGuard guard(&mutex_);
       if (pooled_chunks_.empty()) return nullptr;
       MutablePageMetadata* chunk = pooled_chunks_.back();
       pooled_chunks_.pop_back();
@@ -80,7 +80,7 @@ class MemoryAllocator {
    private:
     MemoryAllocator* const allocator_;
     std::vector<MutablePageMetadata*> pooled_chunks_;
-    mutable base::Mutex mutex_;
+    mutable base::SpinningMutex mutex_;
 
     friend class MemoryAllocator;
   };
@@ -118,12 +118,6 @@ class MemoryAllocator {
     DCHECK_LT(0, commit_page_size_bits_);
     return commit_page_size_bits_;
   }
-
-  // Computes the memory area of discardable memory within a given memory area
-  // [addr, addr+size) and returns the result as base::AddressRegion. If the
-  // memory is not discardable base::AddressRegion is an empty region.
-  V8_EXPORT_PRIVATE static base::AddressRegion ComputeDiscardMemoryArea(
-      Address addr, size_t size);
 
   V8_EXPORT_PRIVATE MemoryAllocator(Isolate* isolate,
                                     v8::PageAllocator* code_page_allocator,
@@ -196,7 +190,7 @@ class MemoryAllocator {
   // Checks if an allocated MemoryChunk was intended to be used for executable
   // memory.
   bool IsMemoryChunkExecutable(MutablePageMetadata* chunk) {
-    base::MutexGuard guard(&executable_memory_mutex_);
+    base::SpinningMutexGuard guard(&executable_memory_mutex_);
     return executable_memory_.find(chunk) != executable_memory_.end();
   }
 #endif  // DEBUG
@@ -239,12 +233,10 @@ class MemoryAllocator {
 
   Address HandleAllocationFailure(Executability executable);
 
-#if defined(V8_ENABLE_CONSERVATIVE_STACK_SCANNING) || defined(DEBUG)
   // Return the normal or large page that contains this address, if it is owned
   // by this heap, otherwise a nullptr.
   V8_EXPORT_PRIVATE const MemoryChunk* LookupChunkContainingAddress(
       Address addr) const;
-#endif  // V8_ENABLE_CONSERVATIVE_STACK_SCANNING || DEBUG
 
   // Insert and remove normal and large pages that are owned by this heap.
   void RecordMemoryChunkCreated(const MemoryChunk* chunk);
@@ -272,7 +264,7 @@ class MemoryAllocator {
   static size_t ComputeChunkSize(size_t area_size, AllocationSpace space);
 
   // Internal allocation method for all pages/memory chunks. Returns data about
-  // the unintialized memory region.
+  // the uninitialized memory region.
   V8_WARN_UNUSED_RESULT std::optional<MemoryChunkAllocationResult>
   AllocateUninitializedChunk(BaseSpace* space, size_t area_size,
                              Executability executable, PageSize page_size) {
@@ -378,14 +370,14 @@ class MemoryAllocator {
 
 #ifdef DEBUG
   void RegisterExecutableMemoryChunk(MutablePageMetadata* chunk) {
-    base::MutexGuard guard(&executable_memory_mutex_);
+    base::SpinningMutexGuard guard(&executable_memory_mutex_);
     DCHECK(chunk->Chunk()->IsFlagSet(MemoryChunk::IS_EXECUTABLE));
     DCHECK_EQ(executable_memory_.find(chunk), executable_memory_.end());
     executable_memory_.insert(chunk);
   }
 
   void UnregisterExecutableMemoryChunk(MutablePageMetadata* chunk) {
-    base::MutexGuard guard(&executable_memory_mutex_);
+    base::SpinningMutexGuard guard(&executable_memory_mutex_);
     DCHECK_NE(executable_memory_.find(chunk), executable_memory_.end());
     executable_memory_.erase(chunk);
   }
@@ -442,18 +434,16 @@ class MemoryAllocator {
   // This data structure is used only in DCHECKs.
   std::unordered_set<MutablePageMetadata*, base::hash<MutablePageMetadata*>>
       executable_memory_;
-  base::Mutex executable_memory_mutex_;
+  base::SpinningMutex executable_memory_mutex_;
 #endif  // DEBUG
 
-#if defined(V8_ENABLE_CONSERVATIVE_STACK_SCANNING) || defined(DEBUG)
   // Allocated normal and large pages are stored here, to be used during
   // conservative stack scanning.
   std::unordered_set<const MemoryChunk*, base::hash<const MemoryChunk*>>
       normal_pages_;
   std::set<const MemoryChunk*> large_pages_;
 
-  mutable base::Mutex chunks_mutex_;
-#endif  // V8_ENABLE_CONSERVATIVE_STACK_SCANNING || DEBUG
+  mutable base::SpinningMutex chunks_mutex_;
 
   V8_EXPORT_PRIVATE static size_t commit_page_size_;
   V8_EXPORT_PRIVATE static size_t commit_page_size_bits_;

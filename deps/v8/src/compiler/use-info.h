@@ -5,7 +5,7 @@
 #ifndef V8_COMPILER_USE_INFO_H_
 #define V8_COMPILER_USE_INFO_H_
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/codegen/machine-type.h"
 #include "src/compiler/feedback-source.h"
 #include "src/compiler/globals.h"
@@ -234,6 +234,12 @@ class UseInfo {
     return UseInfo(MachineRepresentation::kFloat64,
                    Truncation::OddballAndBigIntToNumber(identify_zeros));
   }
+  static UseInfo TruncatingFloat16RawBits(
+      IdentifyZeros identify_zeros = kDistinguishZeros) {
+    return UseInfo(MachineRepresentation::kFloat16,
+                   Truncation::OddballAndBigIntToNumber(identify_zeros));
+  }
+
   static UseInfo AnyTagged() {
     return UseInfo(MachineRepresentation::kTagged, Truncation::Any());
   }

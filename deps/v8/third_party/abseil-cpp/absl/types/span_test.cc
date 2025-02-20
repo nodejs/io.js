@@ -787,9 +787,9 @@ TEST(IntSpan, NoexceptTest) {
 template <int i>
 struct ConstexprTester {};
 
-#define ABSL_TEST_CONSTEXPR(expr)                       \
-  do {                                                  \
-    ABSL_ATTRIBUTE_UNUSED ConstexprTester<(expr, 1)> t; \
+#define ABSL_TEST_CONSTEXPR(expr)                                          \
+  do {                                                                     \
+    ABSL_ATTRIBUTE_UNUSED ConstexprTester<(static_cast<void>(expr), 1)> t; \
   } while (0)
 
 struct ContainerWithConstexprMethods {
@@ -825,6 +825,41 @@ TEST(ConstIntSpan, ConstexprTest) {
   ABSL_TEST_CONSTEXPR(span.last(1));
   ABSL_TEST_CONSTEXPR(span[0]);
 }
+
+#if defined(ABSL_INTERNAL_CPLUSPLUS_LANG) && \
+    ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+
+TEST(ConstIntSpan, ConstexprRelOpsTest) {
+  static constexpr int lhs_data[] = {1, 2, 3};
+  static constexpr int rhs_data[] = {1, 2, 3};
+
+  constexpr absl::Span<const int> lhs = absl::MakeConstSpan(lhs_data, 3);
+  constexpr absl::Span<const int> rhs = absl::MakeConstSpan(rhs_data, 3);
+
+  ABSL_TEST_CONSTEXPR(lhs_data == rhs);
+  ABSL_TEST_CONSTEXPR(lhs_data != rhs);
+  ABSL_TEST_CONSTEXPR(lhs_data < rhs);
+  ABSL_TEST_CONSTEXPR(lhs_data <= rhs);
+  ABSL_TEST_CONSTEXPR(lhs_data > rhs);
+  ABSL_TEST_CONSTEXPR(lhs_data >= rhs);
+
+  ABSL_TEST_CONSTEXPR(lhs == rhs);
+  ABSL_TEST_CONSTEXPR(lhs != rhs);
+  ABSL_TEST_CONSTEXPR(lhs < rhs);
+  ABSL_TEST_CONSTEXPR(lhs <= rhs);
+  ABSL_TEST_CONSTEXPR(lhs > rhs);
+  ABSL_TEST_CONSTEXPR(lhs >= rhs);
+
+  ABSL_TEST_CONSTEXPR(lhs == rhs_data);
+  ABSL_TEST_CONSTEXPR(lhs != rhs_data);
+  ABSL_TEST_CONSTEXPR(lhs < rhs_data);
+  ABSL_TEST_CONSTEXPR(lhs <= rhs_data);
+  ABSL_TEST_CONSTEXPR(lhs > rhs_data);
+  ABSL_TEST_CONSTEXPR(lhs >= rhs_data);
+}
+
+#endif  // defined(ABSL_INTERNAL_CPLUSPLUS_LANG) &&
+        //  ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
 
 struct BigStruct {
   char bytes[10000];

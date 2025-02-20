@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 function foo(a) {
   // Doing random things to add entries in the feedback vector before the

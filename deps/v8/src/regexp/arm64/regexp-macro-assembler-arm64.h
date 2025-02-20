@@ -20,7 +20,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerARM64
                             int registers_to_save);
   ~RegExpMacroAssemblerARM64() override;
   void AbortedCodeGeneration() override;
-  int stack_limit_slack() override;
+  int stack_limit_slack_slot_count() override;
   void AdvanceCurrentPosition(int by) override;
   void AdvanceRegister(int reg, int by) override;
   void Backtrack() override;
@@ -69,7 +69,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerARM64
                                Label* on_no_match) override;
   void BindJumpTarget(Label* label = nullptr) override;
   void Fail() override;
-  Handle<HeapObject> GetCode(Handle<String> source) override;
+  Handle<HeapObject> GetCode(Handle<String> source, RegExpFlags flags) override;
   void GoTo(Label* label) override;
   void IfRegisterGE(int reg, int comparand, Label* if_ge) override;
   void IfRegisterLT(int reg, int comparand, Label* if_lt) override;
@@ -178,6 +178,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerARM64
 
   // Check whether we are exceeding the stack limit on the backtrack stack.
   void CheckStackLimit();
+  void AssertAboveStackLimitMinusSlack();
 
   void CallCheckStackGuardState(Register scratch,
                                 Operand extra_space = Operand(0));

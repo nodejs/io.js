@@ -226,6 +226,8 @@ namespace compiler {
   V(RiscvULoadFloat)                      \
   V(RiscvULoadDouble)                     \
   V(RiscvUStoreDouble)                    \
+  V(RiscvEnableDebugTrace)                \
+  V(RiscvDisableDebugTrace)               \
   V(RiscvBitcastInt32ToFloat32)           \
   V(RiscvBitcastFloat32ToInt32)           \
   V(RiscvFloat64ExtractLowWord32)         \

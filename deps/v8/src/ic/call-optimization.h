@@ -37,19 +37,19 @@ class CallOptimization {
     return !expected_receiver_type_.is_null();
   }
 
-  Handle<JSFunction> constant_function() const {
+  DirectHandle<JSFunction> constant_function() const {
     DCHECK(is_constant_call());
     return constant_function_;
   }
 
   bool is_simple_api_call() const { return is_simple_api_call_; }
 
-  Handle<FunctionTemplateInfo> expected_receiver_type() const {
+  DirectHandle<FunctionTemplateInfo> expected_receiver_type() const {
     DCHECK(is_simple_api_call());
     return expected_receiver_type_;
   }
 
-  Handle<FunctionTemplateInfo> api_call_info() const {
+  DirectHandle<FunctionTemplateInfo> api_call_info() const {
     DCHECK(is_simple_api_call());
     return api_call_info_;
   }
@@ -58,10 +58,10 @@ class CallOptimization {
 
   template <class IsolateT>
   Handle<JSObject> LookupHolderOfExpectedType(
-      IsolateT* isolate, Handle<Map> receiver_map,
+      IsolateT* isolate, DirectHandle<Map> receiver_map,
       HolderLookup* holder_lookup) const;
 
-  bool IsCompatibleReceiverMap(Handle<JSObject> api_holder,
+  bool IsCompatibleReceiverMap(DirectHandle<JSObject> api_holder,
                                Handle<JSObject> holder, HolderLookup) const;
 
  private:

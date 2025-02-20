@@ -23,7 +23,8 @@ macro FastPackedDoubleArrayToReversed(
 
     // c. Let fromValue be ? Get(O, from).
     const fromValue: float64 =
-        elements.floats[from].Value() otherwise unreachable;
+        elements.values[from].Value() otherwise unreachable,
+                     unreachable;
 
     // d. Perform ! CreateDataPropertyOrThrow(A, Pk, fromValue).
     StoreFixedDoubleArrayElement(copy, k, fromValue);
@@ -149,6 +150,7 @@ transitioning builtin GenericArrayToReversed(
 }
 
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toReversed
+@incrementUseCounter('v8::Isolate::kArrayByCopy')
 transitioning javascript builtin ArrayPrototypeToReversed(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   try {

@@ -420,7 +420,7 @@ for (var i = 0; i < 100000; i++) {
 try {
   RegExp(long).exec("a");
 } catch (e) {
-  assertTrue(String(e).indexOf("Stack overflow") >= 0, "overflow");
+  assertTrue(String(e).indexOf("too large") >= 0, "too large");
 }
 
 
@@ -840,4 +840,11 @@ assertEquals("\\u2029", new RegExp("\\\u2029").source);
   // No escapes needed, the original string should be reused as `.source`.
   const pattern = "\\n";
   assertTrue(%ReferenceEqual(pattern, new RegExp(pattern).source));
+}
+
+// Cons strings are flattened:
+{
+  let s = %ConstructConsString("aaaaaaaaaaaaaa", "bbbbbbbbbbbbbb");
+  s = s.replace(/x.z/g, "");  // Prime the regexp.
+  s = s.replace(/x.z/g, "");
 }

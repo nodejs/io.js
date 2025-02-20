@@ -404,11 +404,15 @@ template <typename = void> struct pow5_tables {
 #endif
 };
 
+#if FASTFLOAT_DETAIL_MUST_DEFINE_CONSTEXPR_VARIABLE
+
 template <typename T> constexpr uint32_t pow5_tables<T>::large_step;
 
 template <typename T> constexpr uint64_t pow5_tables<T>::small_power_of_5[];
 
 template <typename T> constexpr limb pow5_tables<T>::large_power_of_5[];
+
+#endif
 
 // big integer type. implements a small subset of big integer
 // arithmetic, using simple algorithms since asymptotically

@@ -69,6 +69,7 @@ namespace compiler {
   V(X64S256Load64Splat)                                    \
   V(X64S256Load8x16S)                                      \
   V(X64S256Load8x16U)                                      \
+  V(X64S256Load8x8U)                                       \
   V(X64S256Load16x8S)                                      \
   V(X64S256Load16x8U)                                      \
   V(X64S256Load32x4S)                                      \
@@ -159,6 +160,8 @@ namespace compiler {
   V(SSEFloat32Min)                                   \
   V(SSEFloat64Min)                                   \
   V(SSEFloat64ToFloat32)                             \
+  V(SSEFloat64ToFloat16RawBits)                      \
+  V(SSEFloat16RawBitsToFloat64)                      \
   V(SSEFloat64ToInt32)                               \
   V(SSEFloat64ToUint32)                              \
   V(SSEFloat32ToInt64)                               \
@@ -203,6 +206,7 @@ namespace compiler {
   V(X64Cvttpd2dq)                                    \
   V(X64I32x4TruncF64x2UZero)                         \
   V(X64I32x4TruncF32x4U)                             \
+  V(X64I32x8TruncF32x8U)                             \
   V(X64FSplat)                                       \
   V(X64FExtractLane)                                 \
   V(X64FReplaceLane)                                 \

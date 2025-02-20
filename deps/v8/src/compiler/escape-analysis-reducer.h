@@ -24,7 +24,7 @@ class NodeHashCache {
   NodeHashCache(Graph* graph, Zone* zone)
       : graph_(graph), cache_(zone), temp_nodes_(zone) {}
 
-  // Handle to a conceptually new mutable node. Tries to re-use existing nodes
+  // Handle to a conceptually new mutable node. Tries to reuse existing nodes
   // and to recycle memory if possible.
   class Constructor {
    public:

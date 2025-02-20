@@ -47,3 +47,13 @@ with (Math) {
   cos(PI);
 }
 let module = new WebAssembly.Module(builder.toBuffer());
+const complex1 = [1, 2, 3];
+const complex2 = boom();
+
+let complex3 = function () {
+  let complex4 = [1, 2, 3];
+}();
+
+if (true) {
+  let complex5 = new Map();
+}

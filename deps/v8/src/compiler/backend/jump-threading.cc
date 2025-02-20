@@ -266,22 +266,26 @@ void JumpThreading::ApplyForwarding(Zone* local_zone,
     bool skip = block_rpo != RpoNumber::FromInt(0) && result_rpo != block_rpo;
 
     if (result_rpo != block_rpo) {
-      // We need the handler information to be propagated, so that branch
-      // targets are annotated as necessary for control flow integrity
-      // checks (when enabled).
+      // We need the handler and switch target information to be propagated, so
+      // that branch targets are annotated as necessary for control flow
+      // integrity checks (when enabled).
       if (code->InstructionBlockAt(block_rpo)->IsHandler()) {
         code->InstructionBlockAt(result_rpo)->MarkHandler();
+      }
+      if (code->InstructionBlockAt(block_rpo)->IsSwitchTarget()) {
+        code->InstructionBlockAt(result_rpo)->set_switch_target(true);
       }
     }
 
     if (skip) {
-      for (int i = block->code_start(); i < block->code_end(); ++i) {
-        Instruction* instr = code->InstructionAt(i);
+      for (int instr_idx = block->code_start(); instr_idx < block->code_end();
+           ++instr_idx) {
+        Instruction* instr = code->InstructionAt(instr_idx);
         DCHECK_NE(FlagsModeField::decode(instr->opcode()), kFlags_branch);
         if (instr->arch_opcode() == kArchJmp ||
             instr->arch_opcode() == kArchRet) {
           // Overwrite a redundant jump with a nop.
-          TRACE("jt-fw nop @%d\n", i);
+          TRACE("jt-fw nop @%d\n", instr_idx);
           instr->OverwriteWithNop();
           // Eliminate all the ParallelMoves.
           for (int i = Instruction::FIRST_GAP_POSITION;

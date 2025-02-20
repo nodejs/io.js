@@ -33,14 +33,8 @@ GraphTest::Data::Data(Isolate* isolate, Zone* zone, int num_parameters)
       source_positions_(&graph_),
       node_origins_(&graph_),
       num_parameters_(num_parameters) {
-  // PersistentHandlesScope currently requires an active handle before it can
-  // be opened and they can't be nested.
-  // TODO(v8:13897): Remove once PersistentHandlesScopes can be opened
-  // uncontionally.
   if (!PersistentHandlesScope::IsActive(isolate)) {
-    DirectHandle<Object> dummy(ReadOnlyRoots(isolate->heap()).empty_string(),
-                               isolate);
-    persistent_scope_ = std::make_unique<PersistentHandlesScope>(isolate);
+    persistent_scope_.emplace(isolate);
   }
   graph_.SetStart(graph_.NewNode(common_.Start(num_parameters)));
   graph_.SetEnd(graph_.NewNode(common_.End(1), graph_.start()));
@@ -48,7 +42,7 @@ GraphTest::Data::Data(Isolate* isolate, Zone* zone, int num_parameters)
 }
 
 GraphTest::Data::~Data() {
-  if (persistent_scope_ != nullptr) {
+  if (persistent_scope_) {
     persistent_scope_->Detach();
   }
 }
@@ -123,8 +117,7 @@ Node* GraphTest::EmptyFrameState() {
       graph()->NewNode(common()->StateValues(0, SparseInputMask::Dense()));
   FrameStateFunctionInfo const* function_info =
       common()->CreateFrameStateFunctionInfo(
-          FrameStateType::kUnoptimizedFunction, 0, 0, 0,
-          Handle<SharedFunctionInfo>());
+          FrameStateType::kUnoptimizedFunction, 0, 0, 0, {}, {});
   return graph()->NewNode(
       common()->FrameState(BytecodeOffset::None(),
                            OutputFrameStateCombine::Ignore(), function_info),

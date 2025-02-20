@@ -205,6 +205,11 @@ inline v8::Isolate* Environment::isolate() const {
   return isolate_;
 }
 
+inline v8::ExternalMemoryAccounter* Environment::external_memory_accounter()
+    const {
+  return external_memory_accounter_;
+}
+
 inline Environment* Environment::from_timer_handle(uv_timer_t* handle) {
   return ContainerOf(&Environment::timer_handle_, handle);
 }

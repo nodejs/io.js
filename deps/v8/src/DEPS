@@ -16,8 +16,10 @@ include_rules = [
   "+src/compiler/wasm-compiler.h",
   "-src/flags/flags-impl.h",
   "-src/heap",
+  "+src/heap/memory-chunk-constants.h",
   "+src/heap/memory-chunk-metadata.h",
   "+src/heap/code-range.h",
+  "+src/heap/read-only-spaces.h",
   "+src/heap/trusted-range.h",
   "+src/heap/combined-heap.h",
   "+src/heap/factory.h",
@@ -29,6 +31,8 @@ include_rules = [
   "+src/heap/heap.h",
   "+src/heap/heap-verifier.h",
   "+src/heap/heap-inl.h",
+  "+src/heap/heap-layout-inl.h",
+  "+src/heap/heap-layout.h",
   "+src/heap/heap-write-barrier-inl.h",
   "+src/heap/heap-write-barrier.h",
   "+src/heap/local-factory-inl.h",
@@ -50,6 +54,7 @@ include_rules = [
   "+src/heap/safepoint.h",
   "+src/heap/base/stack.h",
   "+src/heap/conservative-stack-visitor.h",
+  "+src/heap/visit-object.h",
   "-src/inspector",
   "-src/interpreter",
   "+src/interpreter/bytecode-array-iterator.h",
@@ -67,6 +72,7 @@ include_rules = [
   "-src/regexp",
   "+src/regexp/regexp.h",
   "+src/regexp/regexp-flags.h",
+  "+src/regexp/regexp-result-vector.h",
   "+src/regexp/regexp-stack.h",
   "+src/regexp/regexp-utils.h",
   "+src/tracing/trace-event-no-perfetto.h",
@@ -121,7 +127,13 @@ specific_include_rules = {
     "+src/heap/factory-base.h",
     "+src/heap/local-factory.h",
   ],
+  "setup-builtins-internal\.cc": [
+    "+src/compiler/pipeline.h",
+  ],
   "snapshot\.cc": [
     "+src/heap/read-only-promotion.h",
   ],
+  "string-hasher-inl\.h": [
+    "+third_party/rapidhash-v8/rapidhash.h",
+  ]
 }

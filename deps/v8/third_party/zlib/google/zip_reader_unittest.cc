@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -555,10 +556,10 @@ TEST_F(ZipReaderTest, ExtractToFileAsync_RegularFile) {
   const std::string md5 = base::MD5String(output);
   EXPECT_EQ(kQuuxExpectedMD5, md5);
 
-  int64_t file_size = 0;
-  ASSERT_TRUE(base::GetFileSize(target_file, &file_size));
+  std::optional<int64_t> file_size = base::GetFileSize(target_file);
+  ASSERT_TRUE(file_size.has_value());
 
-  EXPECT_EQ(file_size, listener.current_progress());
+  EXPECT_EQ(file_size.value(), listener.current_progress());
 }
 
 TEST_F(ZipReaderTest, ExtractToFileAsync_Encrypted_NoPassword) {

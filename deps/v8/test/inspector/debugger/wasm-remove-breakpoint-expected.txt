@@ -4,7 +4,7 @@ Running test: Test
 Calling instantiate function.
 Waiting for wasm scripts to be parsed.
 Ignoring script with url v8://test/instantiate
-Got wasm script: wasm://wasm/7d022e0e
+Got wasm script: wasm://wasm/fd1bd682
 Setting breakpoint on line 3 of wasm function
 {
     columnNumber : 39
@@ -12,7 +12,7 @@ Setting breakpoint on line 3 of wasm function
     scriptId : <scriptId>
 }
 paused No 1
-Script wasm://wasm/7d022e0e byte offset 39: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/fd1bd682 byte offset 39: Wasm opcode 0x6b (kExprI32Sub)
 Remove breakpoint
 Debugger.resume
 exports.main returned!

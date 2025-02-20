@@ -104,14 +104,11 @@ void CheckWideningConvertsTo() {
 TEST(TraitsTest, IsWideningConvertibleTest) {
   constexpr bool kInvalid = false;
 
-  CheckWideningConvertsToSelf<
-      uint8_t, uint16_t, uint32_t, uint64_t,
-      int8_t,  int16_t,  int32_t,  int64_t,
-      float,   double>();
-  CheckNotWideningConvertibleWithSigned<
-      uint8_t, uint16_t, uint32_t, uint64_t>();
-  CheckWideningConvertsToLargerTypes<
-      uint8_t, uint16_t, uint32_t, uint64_t>();
+  CheckWideningConvertsToSelf<uint8_t, uint16_t, uint32_t, uint64_t, int8_t,
+                              int16_t, int32_t, int64_t, float, double>();
+  CheckNotWideningConvertibleWithSigned<uint8_t, uint16_t, uint32_t,
+                                        uint64_t>();
+  CheckWideningConvertsToLargerTypes<uint8_t, uint16_t, uint32_t, uint64_t>();
 
   CheckWideningConvertsTo<float, double>();
   CheckWideningConvertsTo<uint16_t, float>();

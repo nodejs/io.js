@@ -4,7 +4,7 @@
 
 // Flags: --allow-natives-syntax --no-always-turbofan --no-stress-flush-code
 // Flags: --no-stress-incremental-marking
-// Flags: --expose-gc
+// Flags: --expose-gc --js-staging
 // Files: test/mjsunit/code-coverage-utils.js
 
 (async function () {
@@ -209,6 +209,24 @@ abc();                                    // 0350
       {"start":201,"end":401,"count":1},
       {"start":321,"end":400,"count":0} ]
   );
+
+  await TestCoverage(
+      'await using in a block', `
+async function testAwaitUsing() {               // 0000
+    await using x = {                           // 0050
+    value: 1,                                   // 0100
+    [Symbol.asyncDispose]() {                   // 0150
+      return 42;                                // 0200
+    } };                                        // 0250
+  }                                             // 0300
+  testAwaitUsing();                             // 0350
+  %PerformMicrotaskCheckpoint();                // 0400
+    `,
+      [
+        {'start': 0, 'end': 503, 'count': 1},
+        {'start': 0, 'end': 339, 'count': 1},
+        {'start': 172, 'end': 285, 'count': 1}
+      ]);
 
   %DebugToggleBlockCoverage(false);
 

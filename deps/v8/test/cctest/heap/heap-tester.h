@@ -92,7 +92,7 @@ class HeapTester {
 
   // test-alloc.cc
   static AllocationResult AllocateAfterFailures();
-  static Handle<Object> TestAllocateAfterFailures();
+  static DirectHandle<Object> TestAllocateAfterFailures();
 
   // test-invalidated-slots.cc
   static PageMetadata* AllocateByteArraysOnPage(

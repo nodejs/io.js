@@ -223,10 +223,6 @@ v8_executable("v8_unittests") {
     deps += [ ":cppgc_unittests_sources" ]
   }
 
-  if (v8_enable_fuzztest && use_centipede) {
-    deps += [ "//third_party/boringssl" ]
-  }
-
   data_deps = [ "../../tools:v8_testrunner" ]
 
   data = [
@@ -267,6 +263,7 @@ v8_source_set("v8_unittests_sources") {
     "api/isolate-unittest.cc",
     "api/remote-object-unittest.cc",
     "api/resource-constraints-unittest.cc",
+    "api/smi-tagging-unittest.cc",
     "api/v8-array-unittest.cc",
     "api/v8-maybe-unittest.cc",
     "api/v8-object-unittest.cc",
@@ -286,7 +283,7 @@ v8_source_set("v8_unittests_sources") {
     "base/fast-dtoa-unittest.cc",
     "base/fixed-dtoa-unittest.cc",
     "base/flags-unittest.cc",
-    "base/functional-unittest.cc",
+    "base/hashing-unittest.cc",
     "base/hashmap-unittest.cc",
     "base/ieee754-unittest.cc",
     "base/iterator-unittest.cc",
@@ -338,8 +335,6 @@ v8_source_set("v8_unittests_sources") {
     "gay-shortest.cc",
     "gay-shortest.h",
     "heap/allocation-observer-unittest.cc",
-    "heap/bitmap-test-utils.h",
-    "heap/bitmap-unittest.cc",
     "heap/cppgc-js/embedder-roots-handler-unittest.cc",
     "heap/cppgc-js/traced-reference-unittest.cc",
     "heap/cppgc-js/unified-heap-snapshot-unittest.cc",
@@ -361,14 +356,14 @@ v8_source_set("v8_unittests_sources") {
     "heap/local-factory-unittest.cc",
     "heap/local-handles-unittest.cc",
     "heap/local-heap-unittest.cc",
-    "heap/marking-unittest.cc",
+    "heap/marking-bitmap-unittest.cc",
+    "heap/marking-progress-tracker-unittest.cc",
     "heap/marking-worklist-unittest.cc",
     "heap/memory-reducer-unittest.cc",
     "heap/object-stats-unittest.cc",
     "heap/page-promotion-unittest.cc",
     "heap/persistent-handles-unittest.cc",
     "heap/pool-unittest.cc",
-    "heap/progressbar-unittest.cc",
     "heap/safepoint-unittest.cc",
     "heap/shared-heap-unittest.cc",
     "heap/slot-set-unittest.cc",
@@ -460,6 +455,7 @@ v8_source_set("v8_unittests_sources") {
     "regress/regress-crbug-938251-unittest.cc",
     "run-all-unittests.cc",
     "runtime/runtime-debug-unittest.cc",
+    "sandbox/pointer-table-unittest.cc",
     "sandbox/sandbox-unittest.cc",
     "strings/char-predicates-unittest.cc",
     "strings/unicode-unittest.cc",
@@ -571,7 +567,6 @@ v8_source_set("v8_unittests_sources") {
       "compiler/turboshaft/loop-unrolling-analyzer-unittest.cc",
       "compiler/turboshaft/opmask-unittest.cc",
       "compiler/turboshaft/reducer-test.h",
-      "compiler/turboshaft/simplified-lowering-reducer-unittest.cc",
       "compiler/turboshaft/snapshot-table-unittest.cc",
       "compiler/turboshaft/store-store-elimination-reducer-unittest.cc",
       "compiler/turboshaft/turboshaft-typer-unittest.cc",
@@ -617,6 +612,7 @@ v8_source_set("v8_unittests_sources") {
       "wasm/subtyping-unittest.cc",
       "wasm/wasm-code-manager-unittest.cc",
       "wasm/wasm-code-pointer-table-unittest.cc",
+      "wasm/wasm-compile-module.h",
       "wasm/wasm-compiler-unittest.cc",
       "wasm/wasm-disassembler-unittest-bad-name-section.wasm.inc",
       "wasm/wasm-disassembler-unittest-gc.wasm.inc",
@@ -633,6 +629,7 @@ v8_source_set("v8_unittests_sources") {
       "wasm/wasm-macro-gen-unittest.cc",
       "wasm/wasm-module-builder-unittest.cc",
       "wasm/wasm-module-sourcemap-unittest.cc",
+      "wasm/wasm-usecounters.cc",
     ]
   }
 
@@ -665,7 +662,10 @@ v8_source_set("v8_unittests_sources") {
       "assembler/macro-assembler-arm-unittest.cc",
     ]
     if (v8_enable_turbofan) {
-      sources += [ "compiler/arm/instruction-selector-arm-unittest.cc" ]
+      sources += [
+        "compiler/arm/instruction-selector-arm-unittest.cc",
+        "compiler/arm/turboshaft-instruction-selector-arm-unittest.cc",
+      ]
     }
   } else if (v8_current_cpu == "arm64") {
     sources += [
@@ -746,7 +746,7 @@ v8_source_set("v8_unittests_sources") {
     if (v8_enable_turbofan) {
       sources += [ "compiler/ppc/instruction-selector-ppc-unittest.cc" ]
     }
-  } else if (v8_current_cpu == "s390" || v8_current_cpu == "s390x") {
+  } else if (v8_current_cpu == "s390x") {
     sources += [
       "assembler/disasm-s390-unittest.cc",
       "assembler/macro-assembler-s390-unittest.cc",
@@ -823,6 +823,10 @@ v8_source_set("v8_unittests_sources") {
       "//third_party/fuzztest:init_fuzztest",
     ]
 
+    if (v8_enable_webassembly) {
+      sources += [ "wasm/type-canonicalization-fuzztest.cc" ]
+    }
+
     if (!is_win) {
       # TODO(https://crbug.com/40941204): Using jsoncpp doesn't work on
       # Windows.
@@ -849,6 +853,15 @@ v8_source_set("v8_unittests_sources") {
     cflags = [ "/wd4309" ]
 
     sources += [ "avoid-windows-h-includes.cc" ]
+  }
+
+  if (is_win) {
+    if (v8_enable_etw_stack_walking) {
+      sources += [
+        "diagnostics/etw-control-unittest.cc",
+        "diagnostics/etw-isolate-capture-state-monitor-win-unittest.cc",
+      ]
+    }
   }
 }
 

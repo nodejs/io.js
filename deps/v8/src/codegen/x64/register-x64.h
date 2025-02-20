@@ -284,6 +284,7 @@ constexpr Register kJavaScriptCallCodeStartRegister = rcx;
 constexpr Register kJavaScriptCallTargetRegister = kJSFunctionRegister;
 constexpr Register kJavaScriptCallNewTargetRegister = rdx;
 constexpr Register kJavaScriptCallExtraArg1Register = rbx;
+constexpr Register kJavaScriptCallDispatchHandleRegister = r15;
 
 constexpr Register kRuntimeCallFunctionRegister = rbx;
 constexpr Register kRuntimeCallArgCountRegister = rax;

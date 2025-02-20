@@ -142,7 +142,7 @@ TEST_F(ConcurrentTransitionArrayTest, FullFieldTransitions) {
   v8::HandleScope scope(isolate());
 
   Handle<String> name1 = MakeString("name1");
-  Handle<String> name2 = MakeString("name2");
+  DirectHandle<String> name2 = MakeString("name2");
   const PropertyAttributes attributes = NONE;
   const PropertyKind kind = PropertyKind::kData;
 
@@ -200,7 +200,7 @@ TEST_F(ConcurrentTransitionArrayTest, WeakRefToFullFieldTransitions) {
   v8::HandleScope scope(isolate());
 
   Handle<String> name1 = MakeString("name1");
-  Handle<String> name2 = MakeString("name2");
+  DirectHandle<String> name2 = MakeString("name2");
   const PropertyAttributes attributes = NONE;
   const PropertyKind kind = PropertyKind::kData;
 
@@ -262,8 +262,8 @@ TEST_F(ConcurrentTransitionArrayTest, FullFieldTransitions_withSlack) {
   v8::HandleScope scope(isolate());
 
   Handle<String> name1 = MakeString("name1");
-  Handle<String> name2 = MakeString("name2");
-  Handle<String> name3 = MakeString("name3");
+  DirectHandle<String> name2 = MakeString("name2");
+  DirectHandle<String> name3 = MakeString("name3");
   const PropertyAttributes attributes = NONE;
   const PropertyKind kind = PropertyKind::kData;
 
@@ -336,7 +336,7 @@ TEST_F(ConcurrentTransitionArrayTest, FullFieldTransitions_withSlack) {
 TEST_F(ConcurrentTransitionArrayTest, UninitializedToFullFieldTransitions) {
   v8::HandleScope scope(isolate());
 
-  Handle<String> name1 = MakeString("name1");
+  DirectHandle<String> name1 = MakeString("name1");
   Handle<String> name2 = MakeString("name2");
   const PropertyAttributes attributes = NONE;
   const PropertyKind kind = PropertyKind::kData;
@@ -390,7 +390,7 @@ TEST_F(ConcurrentTransitionArrayTest,
   v8::HandleScope scope(isolate());
 
   Handle<String> name1 = MakeString("name1");
-  Handle<String> name2 = MakeString("name2");
+  DirectHandle<String> name2 = MakeString("name2");
   const PropertyAttributes attributes = NONE;
   const PropertyKind kind = PropertyKind::kData;
 

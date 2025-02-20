@@ -322,6 +322,7 @@ class V8_EXPORT_PRIVATE LoadElimination final
   Reduction ReduceEnsureWritableFastElements(Node* node);
   Reduction ReduceMaybeGrowFastElements(Node* node);
   Reduction ReduceTransitionElementsKind(Node* node);
+  Reduction ReduceTransitionElementsKindOrCheckMap(Node* node);
   Reduction ReduceLoadField(Node* node, FieldAccess const& access);
   Reduction ReduceStoreField(Node* node, FieldAccess const& access);
   Reduction ReduceLoadElement(Node* node);

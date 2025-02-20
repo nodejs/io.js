@@ -8,7 +8,6 @@
 // tail call, since otherwise the tail call terminates control-flow.)
 
 // Flags: --allow-natives-syntax
-// Flags: --turboshaft-wasm
 // Flags: --wasm-inlining-ignore-call-counts
 // For the subtest involving `return_call_indirect`.
 // Flags: --wasm-inlining-call-indirect

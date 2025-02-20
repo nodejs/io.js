@@ -465,7 +465,7 @@ WASM_EXEC_TEST(TryCatchTrapTableFill) {
 }
 
 namespace {
-// TODO(cleanup): Define in cctest.h and re-use where appropriate.
+// TODO(cleanup): Define in cctest.h and reuse where appropriate.
 class IsolateScope {
  public:
   IsolateScope() {

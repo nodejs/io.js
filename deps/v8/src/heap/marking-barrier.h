@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "include/v8-internal.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/common/globals.h"
 #include "src/heap/mark-compact.h"
 #include "src/heap/marking-worklist.h"
@@ -59,11 +59,22 @@ class MarkingBarrier {
 
   bool is_minor() const { return marking_mode_ == MarkingMode::kMinorMarking; }
 
+  bool is_not_major() const {
+    switch (marking_mode_) {
+      case MarkingMode::kMajorMarking:
+        return false;
+      case MarkingMode::kNoMarking:
+      case MarkingMode::kMinorMarking:
+        return true;
+    }
+  }
+
   Heap* heap() const { return heap_; }
 
 #if DEBUG
   void AssertMarkingIsActivated() const;
   void AssertSharedMarkingIsActivated() const;
+  bool IsMarked(const Tagged<HeapObject> value) const;
 #endif  // DEBUG
 
  private:

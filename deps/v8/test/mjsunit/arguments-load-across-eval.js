@@ -25,7 +25,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// Tests loading of aguments across eval calls.
+// Tests loading of arguments across eval calls.
 
 // Test loading across an eval call that does not shadow variables.
 function testNoShadowing(x, h) {

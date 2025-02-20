@@ -278,20 +278,23 @@ TEST_F(SimdShuffleTest, TryMatch32x8Shuffle) {
 }
 
 TEST_F(SimdShuffleTest, TryMatch32x4Reverse) {
-  uint8_t shuffle32x4[4];
+  Shuffle<kSimd128Size> low_rev = {12, 13, 14, 15, 8, 9, 10, 11,
+                                   4,  5,  6,  7,  0, 1, 2,  3};
+  std::array<uint8_t, 4> shuffle32x4;
   // low
-  EXPECT_TRUE(TryMatch32x4Shuffle(
-      {{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}}, shuffle32x4));
+  EXPECT_TRUE(TryMatch32x4Shuffle(low_rev, shuffle32x4.data()));
   EXPECT_EQ(3, shuffle32x4[0]);
   EXPECT_EQ(2, shuffle32x4[1]);
   EXPECT_EQ(1, shuffle32x4[2]);
   EXPECT_EQ(0, shuffle32x4[3]);
-  EXPECT_TRUE(TryMatch32x4Reverse(shuffle32x4));
+  EXPECT_TRUE(TryMatch32x4Reverse(shuffle32x4.data()));
+  EXPECT_EQ(SimdShuffle::TryMatchCanonical(low_rev),
+            SimdShuffle::CanonicalShuffle::kS32x4Reverse);
 
   // high
   Shuffle<kSimd128Size> high_rev = {28, 29, 30, 31, 24, 25, 26, 27,
                                     20, 21, 22, 23, 16, 17, 18, 19};
-  EXPECT_TRUE(TryMatch32x4Shuffle(high_rev, shuffle32x4));
+  EXPECT_TRUE(TryMatch32x4Shuffle(high_rev, shuffle32x4.data()));
   EXPECT_EQ(7, shuffle32x4[0]);
   EXPECT_EQ(6, shuffle32x4[1]);
   EXPECT_EQ(5, shuffle32x4[2]);
@@ -302,8 +305,10 @@ TEST_F(SimdShuffleTest, TryMatch32x4Reverse) {
   CanonicalizeShuffle(false, &high_rev, &needs_swap, &is_swizzle);
   EXPECT_TRUE(needs_swap);
   EXPECT_TRUE(is_swizzle);
-  EXPECT_TRUE(TryMatch32x4Shuffle(high_rev, shuffle32x4));
-  EXPECT_TRUE(TryMatch32x4Reverse(shuffle32x4));
+  EXPECT_TRUE(TryMatch32x4Shuffle(high_rev, shuffle32x4.data()));
+  EXPECT_TRUE(TryMatch32x4Reverse(shuffle32x4.data()));
+  EXPECT_EQ(SimdShuffle::TryMatchCanonical(high_rev),
+            SimdShuffle::CanonicalShuffle::kS32x4Reverse);
 }
 
 TEST_F(SimdShuffleTest, TryMatch32x4OneLaneSwizzle) {
@@ -425,28 +430,109 @@ TEST_F(SimdShuffleTest, UpperToLowerReduce) {
 TEST_F(SimdShuffleTest, Shuffle64x2) {
   constexpr uint8_t identity_64x2[] = {0, 1, 2,  3,  4,  5,  6,  7,
                                        8, 9, 10, 11, 12, 13, 14, 15};
-  uint8_t shuffle64x2[2];
-  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(identity_64x2, shuffle64x2));
+  std::array<uint8_t, 8> shuffle64x2;
+  EXPECT_TRUE(
+      SimdShuffle::TryMatch64x2Shuffle(identity_64x2, shuffle64x2.data()));
   EXPECT_EQ(shuffle64x2[0], 0);
   EXPECT_EQ(shuffle64x2[1], 1);
 
+  constexpr uint8_t shuffle_1_3[] = {8,  9,  10, 11, 12, 13, 14, 15,
+                                     24, 25, 26, 27, 28, 29, 30, 31};
+  EXPECT_TRUE(
+      SimdShuffle::TryMatch64x2Shuffle(shuffle_1_3, shuffle64x2.data()));
+  EXPECT_EQ(shuffle64x2[0], 1);
+  EXPECT_EQ(shuffle64x2[1], 3);
+
   constexpr uint8_t rev_64x2[] = {8, 9, 10, 11, 12, 13, 14, 15,
                                   0, 1, 2,  3,  4,  5,  6,  7};
-  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(rev_64x2, shuffle64x2));
+  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(rev_64x2, shuffle64x2.data()));
   EXPECT_EQ(shuffle64x2[0], 1);
   EXPECT_EQ(shuffle64x2[1], 0);
 
   constexpr uint8_t dup0_64x2[] = {0, 1, 2, 3, 4, 5, 6, 7,
                                    0, 1, 2, 3, 4, 5, 6, 7};
-  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(dup0_64x2, shuffle64x2));
+  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(dup0_64x2, shuffle64x2.data()));
   EXPECT_EQ(shuffle64x2[0], 0);
   EXPECT_EQ(shuffle64x2[1], 0);
 
   constexpr uint8_t dup1_64x2[] = {8, 9, 10, 11, 12, 13, 14, 15,
                                    8, 9, 10, 11, 12, 13, 14, 15};
-  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(dup1_64x2, shuffle64x2));
+  EXPECT_TRUE(SimdShuffle::TryMatch64x2Shuffle(dup1_64x2, shuffle64x2.data()));
   EXPECT_EQ(shuffle64x2[0], 1);
   EXPECT_EQ(shuffle64x2[1], 1);
+}
+
+using CanonicalShuffle = SimdShuffle::CanonicalShuffle;
+using ShuffleMap = std::unordered_map<CanonicalShuffle,
+                                      const std::array<uint8_t, kSimd128Size>>;
+
+ShuffleMap test_shuffles = {
+    {CanonicalShuffle::kIdentity,
+     {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}}},
+    {CanonicalShuffle::kUnknown,
+     {{0, 1, 2, 3, 16, 17, 18, 19, 16, 17, 18, 19, 20, 21, 22, 23}}},
+    {CanonicalShuffle::kS64x2ReverseBytes,
+     {{7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8}}},
+    {CanonicalShuffle::kS64x2Reverse,
+     {{8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7}}},
+    {CanonicalShuffle::kS64x2Even,
+     {{0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23}}},
+    {CanonicalShuffle::kS64x2Odd,
+     {{8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31}}},
+    {CanonicalShuffle::kS32x4ReverseBytes,
+     {{3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12}}},
+    {CanonicalShuffle::kS32x4Reverse,
+     {{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}}},
+    {CanonicalShuffle::kS32x4InterleaveLowHalves,
+     {{0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23}}},
+    {CanonicalShuffle::kS32x4InterleaveHighHalves,
+     {{8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31}}},
+    {CanonicalShuffle::kS32x4InterleaveEven,
+     {{0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27}}},
+    {CanonicalShuffle::kS32x4InterleaveOdd,
+     {{4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31}}},
+    {CanonicalShuffle::kS32x4TransposeEven,
+     {{0, 1, 2, 3, 16, 17, 18, 19, 8, 9, 10, 11, 24, 25, 26, 27}}},
+    {CanonicalShuffle::kS32x4TransposeOdd,
+     {{4, 5, 6, 7, 20, 21, 22, 23, 12, 13, 14, 15, 28, 29, 30, 31}}},
+    {CanonicalShuffle::kS16x8ReverseBytes,
+     {{1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14}}},
+    {CanonicalShuffle::kS16x8InterleaveLowHalves,
+     {{0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23}}},
+    {CanonicalShuffle::kS16x8InterleaveHighHalves,
+     {{8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31}}},
+    {CanonicalShuffle::kS16x8InterleaveEven,
+     {{0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21, 24, 25, 28, 29}}},
+    {CanonicalShuffle::kS16x8InterleaveOdd,
+     {{2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22, 23, 26, 27, 30, 31}}},
+    {CanonicalShuffle::kS16x8TransposeEven,
+     {{0, 1, 16, 17, 4, 5, 20, 21, 8, 9, 24, 25, 12, 13, 28, 29}}},
+    {CanonicalShuffle::kS16x8TransposeOdd,
+     {{2, 3, 18, 19, 6, 7, 22, 23, 10, 11, 26, 27, 14, 15, 30, 31}}},
+    {CanonicalShuffle::kS8x16InterleaveLowHalves,
+     {{0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23}}},
+    {CanonicalShuffle::kS8x16InterleaveHighHalves,
+     {{8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31}}},
+    {CanonicalShuffle::kS8x16InterleaveEven,
+     {{0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30}}},
+    {CanonicalShuffle::kS8x16InterleaveOdd,
+     {{1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31}}},
+    {CanonicalShuffle::kS8x16TransposeEven,
+     {{0, 16, 2, 18, 4, 20, 6, 22, 8, 24, 10, 26, 12, 28, 14, 30}}},
+    {CanonicalShuffle::kS8x16TransposeOdd,
+     {{1, 17, 3, 19, 5, 21, 7, 23, 9, 25, 11, 27, 13, 29, 15, 31}}},
+    {CanonicalShuffle::kS32x2Reverse,
+     {{4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11}}},
+    {CanonicalShuffle::kS16x4Reverse,
+     {{6, 7, 4, 5, 2, 3, 0, 1, 14, 15, 12, 13, 10, 11, 8, 9}}},
+    {CanonicalShuffle::kS16x2Reverse,
+     {{2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13}}},
+};
+
+TEST_F(SimdShuffleTest, CanonicalMatchers) {
+  for (auto& pair : test_shuffles) {
+    EXPECT_EQ(pair.first, SimdShuffle::TryMatchCanonical(pair.second));
+  }
 }
 
 TEST(SimdShufflePackTest, PackShuffle4) {

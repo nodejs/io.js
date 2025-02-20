@@ -76,7 +76,7 @@ void ProcessorImpl::Toom3Main(RWDigits Z, Digits X, Digits Y) {
   // We will use the same variable names as the Wikipedia article, as much as
   // C++ lets us: our "p_m1" is their "p(-1)" etc. For consistency with other
   // algorithms, we use X and Y where Wikipedia uses m and n.
-  // We will use and re-use the temporary storage as follows:
+  // We will use and reuse the temporary storage as follows:
   //
   //   chunk                  | -------- time ----------->
   //   [0 .. i]               |( po )( p_m1 ) ( r_m2  )
@@ -87,7 +87,7 @@ void ProcessorImpl::Toom3Main(RWDigits Z, Digits X, Digits Y) {
   //   [3*rlen .. 4*rlen-1]   |             (  r_m1   )
   //
   // This requires interleaving phases 2 and 3 a bit: after computing
-  // r_1 = p_1 * q_1, we can re-use p_1's storage for p_m2, and so on.
+  // r_1 = p_1 * q_1, we can reuse p_1's storage for p_m2, and so on.
   digit_t* t = temp_storage.get();
   RWDigits po(t, p_len);
   RWDigits qo(t + p_len, p_len);

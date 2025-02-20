@@ -244,7 +244,8 @@ VerifyTypeImplementsAbslHashCorrectly(const Container& values, Eq equals) {
       if (v.expand() != expected) {
         return testing::AssertionFailure()
                << "Values " << c[0].ToString() << " and " << v.ToString()
-               << " evaluate as equal but have an unequal hash expansion.";
+               << " evaluate as equal but have unequal hash expansions ("
+               << expected << " vs. " << v.expand() << ").";
       }
     }
 
@@ -256,17 +257,18 @@ VerifyTypeImplementsAbslHashCorrectly(const Container& values, Eq equals) {
         case SpyHashState::CompareResult::kEqual:
           return testing::AssertionFailure()
                  << "Values " << c[0].ToString() << " and " << c2[0].ToString()
-                 << " evaluate as unequal but have an equal hash expansion.";
+                 << " evaluate as unequal but have an equal hash expansion:"
+                 << c2_hash << ".";
         case SpyHashState::CompareResult::kBSuffixA:
           return testing::AssertionFailure()
-                 << "Hash expansion of " << c2[0].ToString()
+                 << "Hash expansion of " << c2[0].ToString() << ";" << c2_hash
                  << " is a suffix of the hash expansion of " << c[0].ToString()
-                 << ".";
+                 << ";" << expected << ".";
         case SpyHashState::CompareResult::kASuffixB:
           return testing::AssertionFailure()
-                 << "Hash expansion of " << c[0].ToString()
-                 << " is a suffix of the hash expansion of " << c2[0].ToString()
-                 << ".";
+                 << "Hash expansion of " << c[0].ToString() << ";"
+                 << expected << " is a suffix of the hash expansion of "
+                 << c2[0].ToString() << ";" << c2_hash << ".";
         case SpyHashState::CompareResult::kUnequal:
           break;
       }

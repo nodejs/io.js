@@ -114,8 +114,8 @@ TYPED_TEST(UniformIntDistributionTest, ParamSerializeTest) {
 TYPED_TEST(UniformIntDistributionTest, ViolatesPreconditionsDeathTest) {
 #if GTEST_HAS_DEATH_TEST
   // Hi < Lo
-  EXPECT_DEBUG_DEATH({ absl::uniform_int_distribution<TypeParam> dist(10, 1); },
-                     "");
+  EXPECT_DEBUG_DEATH(
+      { absl::uniform_int_distribution<TypeParam> dist(10, 1); }, "");
 #endif  // GTEST_HAS_DEATH_TEST
 #if defined(NDEBUG)
   // opt-mode, for invalid parameters, will generate a garbage value,

@@ -58,7 +58,8 @@ TEST_F(IsolateTest, MemoryPressureNotificationBackground) {
 
   base::Semaphore semaphore(0);
 
-  internal::V8::GetCurrentPlatform()->CallOnWorkerThread(
+  internal::V8::GetCurrentPlatform()->PostTaskOnWorkerThread(
+      TaskPriority::kUserVisible,
       std::make_unique<MemoryPressureTask>(isolate(), &semaphore));
 
   semaphore.Wait();

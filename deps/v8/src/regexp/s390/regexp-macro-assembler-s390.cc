@@ -4,7 +4,7 @@
 
 #include "src/init/v8.h"
 
-#if V8_TARGET_ARCH_S390
+#if V8_TARGET_ARCH_S390X
 
 #include "src/codegen/macro-assembler.h"
 #include "src/codegen/s390/assembler-s390-inl.h"
@@ -140,8 +140,8 @@ RegExpMacroAssemblerS390::~RegExpMacroAssemblerS390() {
   fallback_label_.Unuse();
 }
 
-int RegExpMacroAssemblerS390::stack_limit_slack() {
-  return RegExpStack::kStackLimitSlack;
+int RegExpMacroAssemblerS390::stack_limit_slack_slot_count() {
+  return RegExpStack::kStackLimitSlackSlotCount;
 }
 
 void RegExpMacroAssemblerS390::AdvanceCurrentPosition(int by) {
@@ -535,8 +535,8 @@ void RegExpMacroAssemblerS390::CheckBitInTable(Handle<ByteArray> table,
     __ AndP(r3, current_character(), Operand(kTableSize - 1));
     index = r3;
   }
-  __ LoadU8(r2,
-            MemOperand(r2, index, (ByteArray::kHeaderSize - kHeapObjectTag)));
+  __ LoadU8(r2, MemOperand(r2, index,
+                           (OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag)));
   __ CmpS64(r2, Operand::Zero());
   BranchOrBacktrack(ne, on_bit_set);
 }
@@ -710,7 +710,8 @@ void RegExpMacroAssemblerS390::PopRegExpBasePointer(Register stack_pointer_out,
   StoreRegExpStackPointerToMemory(stack_pointer_out, scratch);
 }
 
-Handle<HeapObject> RegExpMacroAssemblerS390::GetCode(Handle<String> source) {
+Handle<HeapObject> RegExpMacroAssemblerS390::GetCode(Handle<String> source,
+                                                     RegExpFlags flags) {
   Label return_r2;
 
   // Finalize code - write the entry point code now we know how many
@@ -742,7 +743,7 @@ Handle<HeapObject> RegExpMacroAssemblerS390::GetCode(Handle<String> source) {
   //          r3: start_index
   //          r4: start addr
   //          r5: end addr
-  //          r6: capture output arrray
+  //          r6: capture output array
   //    Requires us to save the callee-preserved registers r6-r13
   //    General convention is to also save r14 (return addr) and
   //    sp/r15 as well in a single STM/STMG
@@ -1127,7 +1128,7 @@ Handle<HeapObject> RegExpMacroAssemblerS390::GetCode(Handle<String> source) {
           .set_empty_source_position_table()
           .Build();
   PROFILE(masm_->isolate(),
-          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source, flags));
   return Cast<HeapObject>(code);
 }
 
@@ -1181,13 +1182,18 @@ void RegExpMacroAssemblerS390::PushBacktrack(Label* label) {
 
 void RegExpMacroAssemblerS390::PushCurrentPosition() {
   Push(current_input_offset());
+  CheckStackLimit();
 }
 
 void RegExpMacroAssemblerS390::PushRegister(int register_index,
                                             StackCheckFlag check_stack_limit) {
   __ LoadU64(r2, register_location(register_index), r0);
   Push(r2);
-  if (check_stack_limit) CheckStackLimit();
+  if (check_stack_limit) {
+    CheckStackLimit();
+  } else if (V8_UNLIKELY(v8_flags.slow_debug_code)) {
+    AssertAboveStackLimitMinusSlack();
+  }
 }
 
 void RegExpMacroAssemblerS390::ReadCurrentPositionFromRegister(int reg) {
@@ -1328,11 +1334,7 @@ void RegExpMacroAssemblerS390::CallCheckStackGuardState(Register scratch,
 template <typename T>
 static T& frame_entry(Address re_frame, int frame_offset) {
   DCHECK_EQ(kSystemPointerSize, sizeof(T));
-#ifdef V8_TARGET_ARCH_S390X
   return reinterpret_cast<T&>(Memory<uint64_t>(re_frame + frame_offset));
-#else
-  return reinterpret_cast<T&>(Memory<uint32_t>(re_frame + frame_offset));
-#endif
 }
 
 template <typename T>
@@ -1414,7 +1416,6 @@ void RegExpMacroAssemblerS390::SafeReturn() {
 
 void RegExpMacroAssemblerS390::SafeCallTarget(Label* name) {
   __ bind(name);
-  __ CleanseP(r14);
   __ mov(r0, r14);
   __ mov(ip, Operand(masm_->CodeObject()));
   __ SubS64(r0, r0, ip);
@@ -1466,6 +1467,20 @@ void RegExpMacroAssemblerS390::CheckStackLimit() {
   __ mov(r2, Operand(stack_limit));
   __ CmpU64(backtrack_stackpointer(), MemOperand(r2));
   SafeCall(&stack_overflow_label_, le);
+}
+
+void RegExpMacroAssemblerS390::AssertAboveStackLimitMinusSlack() {
+  DCHECK(v8_flags.slow_debug_code);
+  Label no_stack_overflow;
+  ASM_CODE_COMMENT_STRING(masm_.get(), "AssertAboveStackLimitMinusSlack");
+  auto l = ExternalReference::address_of_regexp_stack_limit_address(isolate());
+  __ mov(r2, Operand(l));
+  __ LoadU64(r2, MemOperand(r2));
+  __ SubS64(r2, r2, Operand(RegExpStack::kStackLimitSlackSize));
+  __ CmpU64(backtrack_stackpointer(), r2);
+  __ bgt(&no_stack_overflow);
+  __ DebugBreak();
+  __ bind(&no_stack_overflow);
 }
 
 void RegExpMacroAssemblerS390::CallCFunctionUsingStub(
@@ -1532,4 +1547,4 @@ void RegExpMacroAssemblerS390::LoadCurrentCharacterUnchecked(int cp_offset,
 }  // namespace internal
 }  // namespace v8
 
-#endif  // V8_TARGET_ARCH_S390
+#endif  // V8_TARGET_ARCH_S390X

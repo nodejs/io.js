@@ -3,10 +3,11 @@
 // found in the LICENSE file.
 
 #include "src/compiler/simplified-operator.h"
+
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator-properties.h"
 #include "src/compiler/operator.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8 {
@@ -123,7 +124,7 @@ INSTANTIATE_TEST_SUITE_P(SimplifiedOperatorTest, SimplifiedPureOperatorTest,
 // Element access operators.
 
 const ElementAccess kElementAccesses[] = {
-    {kTaggedBase, FixedArray::kHeaderSize, Type::Any(),
+    {kTaggedBase, OFFSET_OF_DATA_START(FixedArray), Type::Any(),
      MachineType::AnyTagged(), kFullWriteBarrier},
     {kUntaggedBase, 0, Type::Any(), MachineType::Int8(), kNoWriteBarrier},
     {kUntaggedBase, 0, Type::Any(), MachineType::Int16(), kNoWriteBarrier},
@@ -146,22 +147,22 @@ const ElementAccess kElementAccesses[] = {
     {kUntaggedBase, 0, Type::Number(),
      MachineType(MachineRepresentation::kFloat64, MachineSemantic::kNone),
      kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Signed32(), MachineType::Int8(),
-     kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Unsigned32(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Signed32(),
+     MachineType::Int8(), kNoWriteBarrier},
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Unsigned32(),
      MachineType::Uint8(), kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Signed32(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Signed32(),
      MachineType::Int16(), kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Unsigned32(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Unsigned32(),
      MachineType::Uint16(), kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Signed32(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Signed32(),
      MachineType::Int32(), kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Unsigned32(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Unsigned32(),
      MachineType::Uint32(), kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Number(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Number(),
      MachineType(MachineRepresentation::kFloat32, MachineSemantic::kNone),
      kNoWriteBarrier},
-    {kTaggedBase, ByteArray::kHeaderSize, Type::Number(),
+    {kTaggedBase, OFFSET_OF_DATA_START(ByteArray), Type::Number(),
      MachineType(MachineRepresentation::kFloat32, MachineSemantic::kNone),
      kNoWriteBarrier}};
 

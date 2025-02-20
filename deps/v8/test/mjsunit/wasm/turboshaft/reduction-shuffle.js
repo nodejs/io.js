@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --no-liftoff --no-wasm-lazy-compilation
-// Flags: --turboshaft-wasm --turboshaft-future --enable-testing-opcode-in-wasm
+// Flags: --enable-testing-opcode-in-wasm
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 d8.file.execute('test/mjsunit/value-helper.js');

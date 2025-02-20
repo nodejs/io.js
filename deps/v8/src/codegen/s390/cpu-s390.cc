@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // CPU specific code for s390 independent of OS goes here.
-#if V8_TARGET_ARCH_S390
+#if V8_TARGET_ARCH_S390X
 
 #include "src/codegen/cpu-features.h"
 
@@ -21,4 +21,4 @@ void CpuFeatures::FlushICache(void* buffer, size_t size) {
 }  // namespace internal
 }  // namespace v8
 
-#endif  // V8_TARGET_ARCH_S390
+#endif  // V8_TARGET_ARCH_S390X

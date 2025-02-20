@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+@incrementUseCounter('v8::Isolate::kArrayGroup')
 transitioning javascript builtin MapGroupBy(
     js-implicit context: NativeContext, receiver: JSAny)(items: JSAny,
     callback: JSAny): JSAny {

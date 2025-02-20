@@ -246,9 +246,10 @@ static void EnsureNoUninstrumentedInternals(v8::Isolate* isolate,
                                             const v8::HeapGraphNode* node) {
   for (int i = 0; i < 20; ++i) {
     v8::base::ScopedVector<char> buffer(10);
-    const v8::HeapGraphNode* internal =
-        GetProperty(isolate, node, v8::HeapGraphEdge::kInternal,
-                    i::IntToCString(i, buffer));
+    std::string_view str = i::IntToStringView(i, buffer);
+    // GetProperty requires a null-terminated string.
+    const v8::HeapGraphNode* internal = GetProperty(
+        isolate, node, v8::HeapGraphEdge::kInternal, std::string(str).c_str());
     CHECK(!internal);
   }
 }
@@ -629,6 +630,76 @@ TEST(HeapSnapshotSlicedString) {
   const v8::HeapGraphNode* parent = GetProperty(
       env->GetIsolate(), child_string, v8::HeapGraphEdge::kInternal, "parent");
   CHECK_EQ(parent_string, parent);
+  heap_profiler->DeleteAllHeapSnapshots();
+}
+
+namespace {
+
+class StringResourceNotReportingSize
+    : public v8::String::ExternalStringResource {
+ public:
+  static constexpr char16_t kString[] = u"external string not reporting size";
+  static constexpr char kNarrowString[] = "external string not reporting size";
+  const uint16_t* data() const final {
+    return reinterpret_cast<const uint16_t*>(kString);
+  }
+  size_t length() const final {
+    return std::char_traits<char16_t>::length(kString);
+  }
+};
+
+class StringResourceReportingSize
+    : public v8::String::ExternalOneByteStringResource {
+ public:
+  static constexpr char kString[] = "external string reporting size";
+  static const int kMemoryUsage = 5;
+  const char* data() const final { return kString; }
+  size_t length() const final { return strlen(kString); }
+  int EstimateMemoryUsage() const final { return kMemoryUsage; }
+};
+
+}  // namespace
+
+TEST(HeapSnapshotExternalString) {
+  LocalContext env;
+  v8::Isolate* isolate = env->GetIsolate();
+  v8::HandleScope scope(isolate);
+  v8::HeapProfiler* heap_profiler = isolate->GetHeapProfiler();
+  v8::Local<v8::Function> f = v8::Local<v8::Function>::Cast(
+      CompileRun("(function (name, value) { globalThis[name] = value; })"));
+
+  constexpr char kPropertyName1[] = "first external string";
+  v8::Local<v8::String> property_name_1 = v8_str(kPropertyName1);
+  v8::Local<v8::String> external_string_1 =
+      v8::String::NewExternalTwoByte(isolate,
+                                     new StringResourceNotReportingSize())
+          .ToLocalChecked();
+  v8::Local<v8::Value> args[2] = {property_name_1, external_string_1};
+  f->Call(env.local(), env->Global(), 2, args).ToLocalChecked();
+
+  constexpr char kPropertyName2[] = "second external string";
+  v8::Local<v8::String> property_name_2 = v8_str(kPropertyName2);
+  v8::Local<v8::String> external_string_2 =
+      v8::String::NewExternalOneByte(isolate, new StringResourceReportingSize())
+          .ToLocalChecked();
+  args[0] = property_name_2;
+  args[1] = external_string_2;
+  f->Call(env.local(), env->Global(), 2, args).ToLocalChecked();
+
+  const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
+  CHECK(ValidateSnapshot(snapshot));
+  const v8::HeapGraphNode* global = GetGlobalObject(snapshot);
+  const v8::HeapGraphNode* string_1 = GetProperty(
+      isolate, global, v8::HeapGraphEdge::kProperty, kPropertyName1);
+  CHECK(string_1);
+  CHECK_EQ(GetSize(string_1),
+           sizeof(i::ExternalTwoByteString) +
+               2 * strlen(StringResourceNotReportingSize::kNarrowString));
+  const v8::HeapGraphNode* string_2 = GetProperty(
+      isolate, global, v8::HeapGraphEdge::kProperty, kPropertyName2);
+  CHECK(string_2);
+  CHECK_EQ(GetSize(string_2), sizeof(i::ExternalOneByteString) +
+                                  StringResourceReportingSize::kMemoryUsage);
   heap_profiler->DeleteAllHeapSnapshots();
 }
 
@@ -3332,7 +3403,7 @@ TEST(EmbedderGraph) {
   v8::HandleScope scope(env->GetIsolate());
   i::Isolate* isolate = reinterpret_cast<i::Isolate*>(env->GetIsolate());
   v8::Local<v8::Value> global_object =
-      v8::Utils::ToLocal(i::Handle<i::JSObject>(
+      v8::Utils::ToLocal(i::DirectHandle<i::JSObject>(
           (isolate->context()->native_context()->global_object()), isolate));
   global_object_pointer = &global_object;
   v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
@@ -3396,7 +3467,7 @@ TEST(EmbedderGraphWithNamedEdges) {
   v8::HandleScope scope(env->GetIsolate());
   i::Isolate* isolate = reinterpret_cast<i::Isolate*>(env->GetIsolate());
   v8::Local<v8::Value> global_object =
-      v8::Utils::ToLocal(i::Handle<i::JSObject>(
+      v8::Utils::ToLocal(i::DirectHandle<i::JSObject>(
           (isolate->context()->native_context()->global_object()), isolate));
   global_object_pointer = &global_object;
   v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
@@ -3462,7 +3533,7 @@ TEST(EmbedderGraphMultipleCallbacks) {
   v8::HandleScope scope(env->GetIsolate());
   i::Isolate* isolate = reinterpret_cast<i::Isolate*>(env->GetIsolate());
   v8::Local<v8::Value> global_object =
-      v8::Utils::ToLocal(i::Handle<i::JSObject>(
+      v8::Utils::ToLocal(i::DirectHandle<i::JSObject>(
           (isolate->context()->native_context()->global_object()), isolate));
   global_object_pointer = &global_object;
   v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
@@ -3539,7 +3610,7 @@ TEST(EmbedderGraphWithWrapperNode) {
   v8::HandleScope scope(env->GetIsolate());
   i::Isolate* isolate = reinterpret_cast<i::Isolate*>(env->GetIsolate());
   v8::Local<v8::Value> global_object =
-      v8::Utils::ToLocal(i::Handle<i::JSObject>(
+      v8::Utils::ToLocal(i::DirectHandle<i::JSObject>(
           (isolate->context()->native_context()->global_object()), isolate));
   global_object_pointer = &global_object;
   v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
@@ -3596,7 +3667,7 @@ TEST(EmbedderGraphWithPrefix) {
   v8::HandleScope scope(env->GetIsolate());
   i::Isolate* isolate = reinterpret_cast<i::Isolate*>(env->GetIsolate());
   v8::Local<v8::Value> global_object =
-      v8::Utils::ToLocal(i::Handle<i::JSObject>(
+      v8::Utils::ToLocal(i::DirectHandle<i::JSObject>(
           (isolate->context()->native_context()->global_object()), isolate));
   global_object_pointer = &global_object;
   v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
@@ -4218,10 +4289,11 @@ TEST(WeakReference) {
       i::ClosureFeedbackCellArray::New(i_isolate, shared_function);
   i::DirectHandle<i::FeedbackVector> fv = factory->NewFeedbackVector(
       shared_function, feedback_cell_array,
-      handle(i::Cast<i::JSFunction>(*obj)->raw_feedback_cell(), i_isolate));
+      direct_handle(i::Cast<i::JSFunction>(*obj)->raw_feedback_cell(),
+                    i_isolate));
 
   // Create a Code object.
-  i::Assembler assm(i::AssemblerOptions{});
+  i::Assembler assm(i_isolate->allocator(), i::AssemblerOptions{});
   assm.nop();  // supported on all architectures
   i::CodeDesc desc;
   assm.GetCode(i_isolate, &desc);
@@ -4230,12 +4302,16 @@ TEST(WeakReference) {
           .Build();
   CHECK(IsCode(*code));
 
+#ifdef V8_ENABLE_LEAPTIERING
+  USE(fv);
+#else
   // Manually inlined version of FeedbackVector::SetOptimizedCode (needed due
   // to the FOR_TESTING code kind).
   fv->set_maybe_optimized_code(i::MakeWeak(code->wrapper()));
   fv->set_flags(
       i::FeedbackVector::MaybeHasTurbofanCodeBit::encode(true) |
       i::FeedbackVector::TieringStateBits::encode(i::TieringState::kNone));
+#endif  // V8_ENABLE_LEAPTIERING
 
   v8::HeapProfiler* heap_profiler = isolate->GetHeapProfiler();
   const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
@@ -4338,7 +4414,8 @@ TEST(ObjectRetainedInHandle) {
   v8::HeapProfiler* heap_profiler = isolate->GetHeapProfiler();
 
   // Allocate an array and keep a handle to it.
-  i::Handle<i::FixedArray> handle = i_isolate->factory()->NewFixedArray(1024);
+  i::DirectHandle<i::FixedArray> handle =
+      i_isolate->factory()->NewFixedArray(1024);
 
   const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot));

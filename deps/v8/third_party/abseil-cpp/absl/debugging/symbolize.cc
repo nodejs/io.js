@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// SKIP_ABSL_INLINE_NAMESPACE_CHECK
+
 #include "absl/debugging/symbolize.h"
 
 #ifdef _WIN32
 #include <winapifamily.h>
-#if !(WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_APP)) || \
-    WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
+#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 // UWP doesn't have access to win32 APIs.
 #define ABSL_INTERNAL_HAVE_SYMBOLIZE_WIN32
 #endif

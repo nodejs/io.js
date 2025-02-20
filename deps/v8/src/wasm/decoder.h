@@ -64,6 +64,7 @@ class ITracer {
   virtual void Description(const char* desc) = 0;
   virtual void Description(const char* desc, size_t length) = 0;
   virtual void Description(uint32_t number) = 0;
+  virtual void Description(uint64_t number) = 0;
   virtual void Description(ValueType type) = 0;
   virtual void Description(HeapType type) = 0;
   virtual void Description(const FunctionSig* sig) = 0;

@@ -22,6 +22,7 @@
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/const_init.h"
+#include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/flags/internal/path_util.h"
 #include "absl/flags/internal/program_name.h"
@@ -104,14 +105,18 @@ std::string NormalizeFilename(absl::string_view filename) {
 
 // --------------------------------------------------------------------
 
-ABSL_CONST_INIT absl::Mutex custom_usage_config_guard(absl::kConstInit);
+absl::Mutex* CustomUsageConfigMutex() {
+  static absl::NoDestructor<absl::Mutex> mutex;
+  return mutex.get();
+}
 ABSL_CONST_INIT FlagsUsageConfig* custom_usage_config
-    ABSL_GUARDED_BY(custom_usage_config_guard) = nullptr;
+    ABSL_GUARDED_BY(CustomUsageConfigMutex())
+        ABSL_PT_GUARDED_BY(CustomUsageConfigMutex()) = nullptr;
 
 }  // namespace
 
 FlagsUsageConfig GetUsageConfig() {
-  absl::MutexLock l(&custom_usage_config_guard);
+  absl::MutexLock l(CustomUsageConfigMutex());
 
   if (custom_usage_config) return *custom_usage_config;
 
@@ -136,7 +141,7 @@ void ReportUsageError(absl::string_view msg, bool is_fatal) {
 }  // namespace flags_internal
 
 void SetFlagsUsageConfig(FlagsUsageConfig usage_config) {
-  absl::MutexLock l(&flags_internal::custom_usage_config_guard);
+  absl::MutexLock l(flags_internal::CustomUsageConfigMutex());
 
   if (!usage_config.contains_helpshort_flags)
     usage_config.contains_helpshort_flags =

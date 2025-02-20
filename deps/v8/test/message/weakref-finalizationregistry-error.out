@@ -3,12 +3,9 @@
   ^
 Error: callback
     at callback (*%(basename)s:{NUMBER}:{NUMBER})
-    at FinalizationRegistry.cleanupSome (<anonymous>)
 
 *%(basename)s:{NUMBER}: Error: callback
   throw new Error('callback');
   ^
 Error: callback
     at callback (*%(basename)s:{NUMBER}:{NUMBER})
-    at FinalizationRegistry.cleanupSome (<anonymous>)
-

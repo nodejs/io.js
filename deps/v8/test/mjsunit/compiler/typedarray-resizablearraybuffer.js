@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --turbofan --no-always-turbofan
-// Flags: --js-float16array
+// Flags: --js-staging
 
 "use strict";
 
@@ -192,6 +192,10 @@ function PrintBuffer(buffer) {
   }
 }
 %NeverOptimizeFunction(PrintBuffer);
+
+// Detach a buffer to trip the protector up front, to prevent deopts in later
+// tests.
+%ArrayBufferDetach(new ArrayBuffer(8));
 
 (function() {
 for (let shared of [false, true]) {

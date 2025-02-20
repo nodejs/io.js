@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-stringref --allow-natives-syntax
+// Flags: --allow-natives-syntax --wasm-staging
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -265,4 +265,58 @@ assertEquals("abc", instance1.exports.call_tolower("ABC"));
       () => tolower(null, 'en'),
       () => String.prototype.toLocaleLowerCase.call(null, 'en'),
       'call_tolower');
+})();
+
+// Test that we discard background tier-up compilation results in case the
+// assumptions were invalidated in the meantime.
+// Regression test for https://crbug.com/382326704.
+(function TestInvalidatingAssumptionsDuringBackgroundCompile() {
+  console.log('Testing invalidating assumptions during background compilation');
+  let builder = new WasmModuleBuilder();
+  let sig_w_w = makeSig([kWasmStringRef], [kWasmStringRef]);
+  let toLowerCase = builder.addImport('m', 'toLowerCase', sig_w_w);
+
+  builder.addFunction('call_tolower', sig_w_w).exportFunc().addBody([
+    kExprLocalGet, 0,
+    kExprCallFunction, toLowerCase,
+  ]);
+
+  // Add a global with a random value to ensure that this is a fresh module (not
+  // from the NativeModule cache).
+  builder.addGlobal(kWasmI32, true, false, wasmI32Const(2711));
+
+  let module = builder.toModule();
+
+  let recognizable = Function.prototype.call.bind(String.prototype.toLowerCase);
+  let recognizable_imports = {m: {toLowerCase: recognizable}};
+
+  let instance1 = new WebAssembly.Instance(module, recognizable_imports);
+  let call_tolower1 = instance1.exports.call_tolower;
+  // Note: We cannot assert that `call_tolower1` is Liftoff at this point; in
+  // multi-isolate test execution, it could be tiered up already.
+  assertEquals('abc', call_tolower1('ABC'));
+  %WasmTriggerTierUpForTesting(call_tolower1);
+
+  // Give background compilation a little time to start...
+  for (let i = Math.floor(Math.random() * 10000); i > 0; --i);
+
+  // While background compilation is (potentially) running, create another
+  // instance which invalidates the assumptions. The background-compiled code
+  // should then not be used.
+  let other_imports = {m: {toLowerCase: () => 'foo'}};
+  let instance2 = new WebAssembly.Instance(module, other_imports);
+  let call_tolower2 = instance2.exports.call_tolower;
+  assertEquals('foo', call_tolower2('GHI'));
+  let last_print = performance.now();
+  while (!%IsTurboFanFunction(call_tolower2)) {
+    assertEquals('foo', call_tolower2('GHI'));
+    if (performance.now() - last_print > 1000) {
+      print('Still waiting for background compilation to finish...');
+      last_print = performance.now();
+      // Also, re-trigger in case the background compilation finished but the
+      // result was discarded because of the invalidated assumptions.
+      %WasmTriggerTierUpForTesting(call_tolower1);
+    }
+  }
+  assertEquals('foo', call_tolower2('GHI'));
 })();

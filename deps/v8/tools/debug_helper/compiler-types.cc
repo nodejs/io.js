@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "debug-helper-internal.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 
 namespace ic = v8::internal::compiler;
 

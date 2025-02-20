@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// Flags: --js-staging
+
 let {session, contextGroup, Protocol} = InspectorTest.start('Checks when promise rejections are predicted to be caught.');
 
 // catch-prediction.js
@@ -38,6 +40,10 @@ function rejectAfterDelayInTryInPromiseConstructor() {
 function rejectBindAfterDelay() {
   // Unbreakable location because there will be nothing on the callstack
   return new Promise((pass, reject) => setTimeout(reject.bind(null, new Error('fail')), 0));
+}
+
+function throwInPromiseTryCallback() {
+  return Promise.try(() => { throw new Error('fail'); });
 }
 
 async function throwFromAsync() {
@@ -175,6 +181,15 @@ function throwAfterFulfillInPromiseConstructor() {
     console.log('after pass');
     throw new Error('fail');
   });
+}
+
+async function throwInAsyncDisposeFormSync() {
+  await using x = {
+    value: 1,
+    [Symbol.dispose]() {
+      throw new Error('fail');
+    }
+  };
 }
 
 async function dontHandleAsync(fn) {
@@ -465,6 +480,8 @@ const advancedThrowFunctions = [
     rejectAfterFulfillInPromiseConstructor,
     rejectAfterDelayAfterFulfillInPromiseConstructor,
     throwAfterFulfillInPromiseConstructor,
+    throwInPromiseTryCallback,
+    throwInAsyncDisposeFormSync
 ];
 const basicCatchFunctions = [dontHandleAsync, awaitAndCreateInTry];
 const advancedCatchFunctions = [

@@ -5,9 +5,9 @@
 #include "src/compiler/dead-code-elimination.h"
 
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/operator-properties.h"
+#include "src/compiler/turbofan-graph.h"
 
 namespace v8 {
 namespace internal {

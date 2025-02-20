@@ -260,44 +260,55 @@
   ABSL_LOG_INTERNAL_DLOG_IF_IMPL(_##severity, condition)
 
 // LOG_EVERY_N
+// LOG_FIRST_N
+// LOG_EVERY_POW_2
+// LOG_EVERY_N_SEC
 //
-// An instance of `LOG_EVERY_N` increments a hidden zero-initialized counter
-// every time execution passes through it and logs the specified message when
-// the counter's value is a multiple of `n`, doing nothing otherwise.  Each
-// instance has its own counter.  The counter's value can be logged by streaming
-// the symbol `COUNTER`.  `LOG_EVERY_N` is thread-safe.
-// Example:
+// These "stateful" macros log conditionally based on a hidden counter or timer.
+// When the condition is false and no logging is done, streamed operands aren't
+// evaluated either.  Each instance has its own state (i.e. counter, timer)
+// that's independent of other instances of the macros.  The macros in this
+// family are thread-safe in the sense that they are meant to be called
+// concurrently and will not invoke undefined behavior, however their
+// implementation prioritizes efficiency over exactness and may occasionally log
+// more or less often than specified.
+//
+//   * `LOG_EVERY_N` logs the first time and once every `n` times thereafter.
+//   * `LOG_FIRST_N` logs the first `n` times and then stops.
+//   * `LOG_EVERY_POW_2` logs the first, second, fourth, eighth, etc. times.
+//   * `LOG_EVERY_N_SEC` logs the first time and no more than once every `n`
+//     seconds thereafter.  `n` is passed as a floating point value.
+//
+// The `LOG_IF`... variations with an extra condition evaluate the specified
+// condition first and short-circuit if it is false.  For example, an evaluation
+// of `LOG_IF_FIRST_N` does not count against the first `n` if the specified
+// condition is false.  Stateful `VLOG`... variations likewise short-circuit
+// if `VLOG` is disabled.
+//
+// An approximate count of the number of times a particular instance's stateful
+// condition has been evaluated (i.e. excluding those where a specified `LOG_IF`
+// condition was false) can be included in the logged message by streaming the
+// symbol `COUNTER`.
+//
+// The `n` parameter need not be a constant.  Conditional logging following a
+// change to `n` isn't fully specified, but it should converge on the new value
+// within roughly `max(old_n, new_n)` evaluations or seconds.
+//
+// Examples:
 //
 //   LOG_EVERY_N(WARNING, 1000) << "Got a packet with a bad CRC (" << COUNTER
 //                              << " total)";
-#define LOG_EVERY_N(severity, n) \
-  ABSL_LOG_INTERNAL_LOG_EVERY_N_IMPL(_##severity, n)
-
-// LOG_FIRST_N
-//
-// `LOG_FIRST_N` behaves like `LOG_EVERY_N` except that the specified message is
-// logged when the counter's value is less than `n`.  `LOG_FIRST_N` is
-// thread-safe.
-#define LOG_FIRST_N(severity, n) \
-  ABSL_LOG_INTERNAL_LOG_FIRST_N_IMPL(_##severity, n)
-
-// LOG_EVERY_POW_2
-//
-// `LOG_EVERY_POW_2` behaves like `LOG_EVERY_N` except that the specified
-// message is logged when the counter's value is a power of 2.
-// `LOG_EVERY_POW_2` is thread-safe.
-#define LOG_EVERY_POW_2(severity) \
-  ABSL_LOG_INTERNAL_LOG_EVERY_POW_2_IMPL(_##severity)
-
-// LOG_EVERY_N_SEC
-//
-// An instance of `LOG_EVERY_N_SEC` uses a hidden state variable to log the
-// specified message at most once every `n_seconds`.  A hidden counter of
-// executions (whether a message is logged or not) is also maintained and can be
-// logged by streaming the symbol `COUNTER`.  `LOG_EVERY_N_SEC` is thread-safe.
-// Example:
 //
 //   LOG_EVERY_N_SEC(INFO, 2.5) << "Got " << COUNTER << " cookies so far";
+//
+//   LOG_IF_EVERY_N(INFO, (size > 1024), 10) << "Got the " << COUNTER
+//                                           << "th big cookie";
+#define LOG_EVERY_N(severity, n) \
+  ABSL_LOG_INTERNAL_LOG_EVERY_N_IMPL(_##severity, n)
+#define LOG_FIRST_N(severity, n) \
+  ABSL_LOG_INTERNAL_LOG_FIRST_N_IMPL(_##severity, n)
+#define LOG_EVERY_POW_2(severity) \
+  ABSL_LOG_INTERNAL_LOG_EVERY_POW_2_IMPL(_##severity)
 #define LOG_EVERY_N_SEC(severity, n_seconds) \
   ABSL_LOG_INTERNAL_LOG_EVERY_N_SEC_IMPL(_##severity, n_seconds)
 
@@ -328,13 +339,6 @@
 #define VLOG_EVERY_N_SEC(severity, n_seconds) \
   ABSL_LOG_INTERNAL_VLOG_EVERY_N_SEC_IMPL(severity, n_seconds)
 
-// `LOG_IF_EVERY_N` and friends behave as the corresponding `LOG_EVERY_N`
-// but neither increment a counter nor log a message if condition is false (as
-// `LOG_IF`).
-// Example:
-//
-//   LOG_IF_EVERY_N(INFO, (size > 1024), 10) << "Got the " << COUNTER
-//                                           << "th big cookie";
 #define LOG_IF_EVERY_N(severity, condition, n) \
   ABSL_LOG_INTERNAL_LOG_IF_EVERY_N_IMPL(_##severity, condition, n)
 #define LOG_IF_FIRST_N(severity, condition, n) \

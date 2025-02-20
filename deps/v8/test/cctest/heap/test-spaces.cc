@@ -176,7 +176,8 @@ TEST(MutablePageMetadata) {
     // in this case.
     CodeRange* code_range =
         IsolateGroup::current()->EnsureCodeRange(code_range_size);
-    base::BoundedPageAllocator* page_allocator = code_range->page_allocator();
+    base::BoundedPageAllocator* bounded_page_allocator =
+        code_range->page_allocator();
 #else
     // With CodeRange.
     bool jitless = isolate->jitless();
@@ -206,14 +207,14 @@ TEST(MutablePageMetadata) {
         page_allocator, code_range_reservation.address(),
         code_range_reservation.size(), MemoryChunk::GetAlignmentForAllocation(),
         page_initialization_mode, page_freeing_mode);
-    base::BoundedPageAllocator* page_allocator = &code_page_allocator;
+    base::BoundedPageAllocator* bounded_page_allocator = &code_page_allocator;
 #endif
 
-    VerifyMemoryChunk(isolate, heap, page_allocator, area_size, EXECUTABLE,
-                      PageSize::kLarge, heap->code_lo_space());
+    VerifyMemoryChunk(isolate, heap, bounded_page_allocator, area_size,
+                      EXECUTABLE, PageSize::kLarge, heap->code_lo_space());
 
-    VerifyMemoryChunk(isolate, heap, page_allocator, area_size, NOT_EXECUTABLE,
-                      PageSize::kLarge, heap->lo_space());
+    VerifyMemoryChunk(isolate, heap, bounded_page_allocator, area_size,
+                      NOT_EXECUTABLE, PageSize::kLarge, heap->lo_space());
   }
 }
 
@@ -260,42 +261,45 @@ TEST(MemoryAllocator) {
 }
 
 TEST(ComputeDiscardMemoryAreas) {
-  base::AddressRegion memory_area;
+  std::optional<base::AddressRegion> discard_area;
   size_t page_size = MemoryAllocator::GetCommitPageSize();
-  size_t free_header_size = FreeSpace::kSize;
 
-  memory_area = MemoryAllocator::ComputeDiscardMemoryArea(0, 0);
-  CHECK_EQ(memory_area.begin(), 0);
-  CHECK_EQ(memory_area.size(), 0);
+  discard_area = Sweeper::ComputeDiscardMemoryArea(0, 0);
+  CHECK(!discard_area);
 
-  memory_area = MemoryAllocator::ComputeDiscardMemoryArea(
-      0, page_size + free_header_size);
-  CHECK_EQ(memory_area.begin(), 0);
-  CHECK_EQ(memory_area.size(), 0);
+  discard_area = Sweeper::ComputeDiscardMemoryArea(0, page_size);
+  CHECK_EQ(discard_area->begin(), 0);
+  CHECK_EQ(discard_area->size(), page_size);
 
-  memory_area = MemoryAllocator::ComputeDiscardMemoryArea(
-      page_size - free_header_size, page_size + free_header_size);
-  CHECK_EQ(memory_area.begin(), page_size);
-  CHECK_EQ(memory_area.size(), page_size);
+  discard_area = Sweeper::ComputeDiscardMemoryArea(page_size, 2 * page_size);
+  CHECK_EQ(discard_area->begin(), page_size);
+  CHECK_EQ(discard_area->size(), page_size);
 
-  memory_area = MemoryAllocator::ComputeDiscardMemoryArea(page_size, page_size);
-  CHECK_EQ(memory_area.begin(), 0);
-  CHECK_EQ(memory_area.size(), 0);
+  discard_area =
+      Sweeper::ComputeDiscardMemoryArea(page_size - kTaggedSize, 2 * page_size);
+  CHECK_EQ(discard_area->begin(), page_size);
+  CHECK_EQ(discard_area->size(), page_size);
 
-  memory_area = MemoryAllocator::ComputeDiscardMemoryArea(
-      page_size / 2, page_size + page_size / 2);
-  CHECK_EQ(memory_area.begin(), page_size);
-  CHECK_EQ(memory_area.size(), page_size);
+  discard_area =
+      Sweeper::ComputeDiscardMemoryArea(page_size, 2 * page_size + kTaggedSize);
+  CHECK_EQ(discard_area->begin(), page_size);
+  CHECK_EQ(discard_area->size(), page_size);
 
-  memory_area = MemoryAllocator::ComputeDiscardMemoryArea(
-      page_size / 2, page_size + page_size / 4);
-  CHECK_EQ(memory_area.begin(), 0);
-  CHECK_EQ(memory_area.size(), 0);
+  discard_area = Sweeper::ComputeDiscardMemoryArea(page_size, page_size);
+  CHECK(!discard_area);
 
-  memory_area =
-      MemoryAllocator::ComputeDiscardMemoryArea(page_size / 2, page_size * 3);
-  CHECK_EQ(memory_area.begin(), page_size);
-  CHECK_EQ(memory_area.size(), page_size * 2);
+  discard_area = Sweeper::ComputeDiscardMemoryArea(page_size / 2,
+                                                   page_size + page_size / 2);
+  CHECK(!discard_area);
+
+  discard_area = Sweeper::ComputeDiscardMemoryArea(page_size / 2,
+                                                   page_size + page_size / 4);
+  CHECK(!discard_area);
+
+  discard_area =
+      Sweeper::ComputeDiscardMemoryArea(page_size / 2, page_size * 3);
+  CHECK_EQ(discard_area->begin(), page_size);
+  CHECK_EQ(discard_area->size(), page_size * 2);
 }
 
 TEST(SemiSpaceNewSpace) {
@@ -637,8 +641,8 @@ TEST(ShrinkPageToHighWaterMarkNoFiller) {
   heap::SealCurrentObjects(CcTest::heap());
 
   const int kFillerSize = 0;
-  std::vector<Handle<FixedArray>> arrays =
-      heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize);
+  DirectHandleVector<FixedArray> arrays(isolate);
+  heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize, &arrays);
   DirectHandle<FixedArray> array = arrays.back();
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
   CHECK_EQ(page->area_end(), array->address() + array->Size() + kFillerSize);
@@ -661,8 +665,8 @@ TEST(ShrinkPageToHighWaterMarkOneWordFiller) {
   heap::SealCurrentObjects(CcTest::heap());
 
   const int kFillerSize = kTaggedSize;
-  std::vector<Handle<FixedArray>> arrays =
-      heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize);
+  DirectHandleVector<FixedArray> arrays(isolate);
+  heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize, &arrays);
   DirectHandle<FixedArray> array = arrays.back();
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
   CHECK_EQ(page->area_end(), array->address() + array->Size() + kFillerSize);
@@ -690,8 +694,8 @@ TEST(ShrinkPageToHighWaterMarkTwoWordFiller) {
   heap::SealCurrentObjects(CcTest::heap());
 
   const int kFillerSize = 2 * kTaggedSize;
-  std::vector<Handle<FixedArray>> arrays =
-      heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize);
+  DirectHandleVector<FixedArray> arrays(isolate);
+  heap::FillOldSpacePageWithFixedArrays(CcTest::heap(), kFillerSize, &arrays);
   DirectHandle<FixedArray> array = arrays.back();
   PageMetadata* page = PageMetadata::FromHeapObject(*array);
   CHECK_EQ(page->area_end(), array->address() + array->Size() + kFillerSize);
@@ -798,19 +802,17 @@ TEST(ReadOnlySpaceMetrics_OnePage) {
   // Allocated objects size.
   CHECK_EQ(faked_space->Size(), 16);
 
-  size_t committed_memory =
-      RoundUp(MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage() +
-                  faked_space->Size(),
-              MemoryAllocator::GetCommitPageSize());
+  size_t committed_memory = RoundUp(
+      MemoryChunkLayout::ObjectStartOffsetInDataPage() + faked_space->Size(),
+      MemoryAllocator::GetCommitPageSize());
 
   // Amount of OS allocated memory.
   CHECK_EQ(faked_space->CommittedMemory(), committed_memory);
   CHECK_EQ(faked_space->CommittedPhysicalMemory(), committed_memory);
 
   // Capacity will be one OS page minus the page header.
-  CHECK_EQ(
-      faked_space->Capacity(),
-      committed_memory - MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage());
+  CHECK_EQ(faked_space->Capacity(),
+           committed_memory - MemoryChunkLayout::ObjectStartOffsetInDataPage());
 }
 
 TEST(ReadOnlySpaceMetrics_AlignedAllocations) {
@@ -855,18 +857,16 @@ TEST(ReadOnlySpaceMetrics_AlignedAllocations) {
   // with pointer compression.
   CHECK_EQ(faked_space->Size(), expected_size);
 
-  size_t committed_memory =
-      RoundUp(MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage() +
-                  faked_space->Size(),
-              MemoryAllocator::GetCommitPageSize());
+  size_t committed_memory = RoundUp(
+      MemoryChunkLayout::ObjectStartOffsetInDataPage() + faked_space->Size(),
+      MemoryAllocator::GetCommitPageSize());
 
   CHECK_EQ(faked_space->CommittedMemory(), committed_memory);
   CHECK_EQ(faked_space->CommittedPhysicalMemory(), committed_memory);
 
   // Capacity will be 3 OS pages minus the page header.
-  CHECK_EQ(
-      faked_space->Capacity(),
-      committed_memory - MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage());
+  CHECK_EQ(faked_space->Capacity(),
+           committed_memory - MemoryChunkLayout::ObjectStartOffsetInDataPage());
 }
 
 TEST(ReadOnlySpaceMetrics_TwoPages) {
@@ -905,9 +905,9 @@ TEST(ReadOnlySpaceMetrics_TwoPages) {
   CHECK_EQ(faked_space->Size(), object_size * 2);
 
   // Amount of OS allocated memory.
-  size_t committed_memory_per_page = RoundUp(
-      MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage() + object_size,
-      MemoryAllocator::GetCommitPageSize());
+  size_t committed_memory_per_page =
+      RoundUp(MemoryChunkLayout::ObjectStartOffsetInDataPage() + object_size,
+              MemoryAllocator::GetCommitPageSize());
   CHECK_EQ(faked_space->CommittedMemory(), 2 * committed_memory_per_page);
   CHECK_EQ(faked_space->CommittedPhysicalMemory(),
            2 * committed_memory_per_page);
@@ -915,10 +915,9 @@ TEST(ReadOnlySpaceMetrics_TwoPages) {
   // Capacity will be the space up to the amount of committed memory minus the
   // page headers.
   size_t capacity_per_page =
-      RoundUp(
-          MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage() + object_size,
-          MemoryAllocator::GetCommitPageSize()) -
-      MemoryChunkLayout::ObjectStartOffsetInReadOnlyPage();
+      RoundUp(MemoryChunkLayout::ObjectStartOffsetInDataPage() + object_size,
+              MemoryAllocator::GetCommitPageSize()) -
+      MemoryChunkLayout::ObjectStartOffsetInDataPage();
   CHECK_EQ(faked_space->Capacity(), 2 * capacity_per_page);
 }
 

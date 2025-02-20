@@ -224,7 +224,6 @@ ArchOpcode SelectLoadOpcode(turboshaft::MemoryRepresentation loaded_rep,
     case MemoryRepresentation::Int16():
       DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
       return kPPC_LoadWordS16;
-      break;
     case MemoryRepresentation::Uint16():
       DCHECK_EQ(result_rep, RegisterRepresentation::Word32());
       return kPPC_LoadWordU16;
@@ -237,7 +236,6 @@ ArchOpcode SelectLoadOpcode(turboshaft::MemoryRepresentation loaded_rep,
       DCHECK_EQ(result_rep, RegisterRepresentation::Word64());
       if (*mode != kInt34Imm) *mode = kInt16Imm_4ByteAligned;
       return kPPC_LoadWord64;
-      break;
     case MemoryRepresentation::Float16():
       UNIMPLEMENTED();
     case MemoryRepresentation::Float32():
@@ -270,7 +268,6 @@ ArchOpcode SelectLoadOpcode(turboshaft::MemoryRepresentation loaded_rep,
       DCHECK_EQ(result_rep, RegisterRepresentation::Tagged());
       if (*mode != kInt34Imm) *mode = kInt16Imm_4ByteAligned;
       return kPPC_LoadWord64;
-      break;
 #endif
     case MemoryRepresentation::AnyUncompressedTagged():
     case MemoryRepresentation::UncompressedTaggedPointer():
@@ -699,10 +696,10 @@ void VisitStoreCommon(InstructionSelectorT<TurbofanAdapter>* selector,
 #ifdef V8_COMPRESS_POINTERS
         if (mode != kInt34Imm) mode = kInt16Imm;
         opcode = kPPC_StoreCompressTagged;
+        break;
 #else
         UNREACHABLE();
 #endif
-        break;
       case MachineRepresentation::kIndirectPointer:
         if (mode != kInt34Imm) mode = kInt16Imm_4ByteAligned;
         opcode = kPPC_StoreIndirectPointer;
@@ -2120,6 +2117,18 @@ void InstructionSelectorT<Adapter>::VisitChangeUint32ToUint64(node_t node) {
 }
 
 template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitTruncateFloat64ToFloat16RawBits(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitChangeFloat16RawBitsToFloat64(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitChangeFloat64ToUint64(node_t node) {
     VisitRR(this, kPPC_DoubleToUint64, node);
 }
@@ -2760,31 +2769,29 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitWordCompareZero(
         // actual value, or was already defined, which means it is scheduled
         // *AFTER* this branch).
         OpIndex node = projection->input();
-        OpIndex result = FindProjection(node, 0);
-        if (!result.valid() || IsDefined(result)) {
-          if (const OverflowCheckedBinopOp* binop =
-                  TryCast<OverflowCheckedBinopOp>(node)) {
-            const bool is64 = binop->rep == WordRepresentation::Word64();
-            switch (binop->kind) {
-              case OverflowCheckedBinopOp::Kind::kSignedAdd:
-                cont->OverwriteAndNegateIfEqual(kOverflow);
-                return VisitBinop(this, node,
-                                  is64 ? kPPC_Add64 : kPPC_AddWithOverflow32,
-                                  kInt16Imm, cont);
-              case OverflowCheckedBinopOp::Kind::kSignedSub:
-                cont->OverwriteAndNegateIfEqual(kOverflow);
-                return VisitBinop(this, node,
-                                  is64 ? kPPC_Sub : kPPC_SubWithOverflow32,
-                                  kInt16Imm_Negate, cont);
-              case OverflowCheckedBinopOp::Kind::kSignedMul:
-                if (is64) {
-                  cont->OverwriteAndNegateIfEqual(kNotEqual);
-                  return EmitInt64MulWithOverflow(this, node, cont);
-                } else {
-                  cont->OverwriteAndNegateIfEqual(kNotEqual);
-                  return EmitInt32MulWithOverflow(this, node, cont);
-                }
-            }
+        if (const OverflowCheckedBinopOp* binop =
+                TryCast<OverflowCheckedBinopOp>(node);
+            binop && CanDoBranchIfOverflowFusion(node)) {
+          const bool is64 = binop->rep == WordRepresentation::Word64();
+          switch (binop->kind) {
+            case OverflowCheckedBinopOp::Kind::kSignedAdd:
+              cont->OverwriteAndNegateIfEqual(kOverflow);
+              return VisitBinop(this, node,
+                                is64 ? kPPC_Add64 : kPPC_AddWithOverflow32,
+                                kInt16Imm, cont);
+            case OverflowCheckedBinopOp::Kind::kSignedSub:
+              cont->OverwriteAndNegateIfEqual(kOverflow);
+              return VisitBinop(this, node,
+                                is64 ? kPPC_Sub : kPPC_SubWithOverflow32,
+                                kInt16Imm_Negate, cont);
+            case OverflowCheckedBinopOp::Kind::kSignedMul:
+              if (is64) {
+                cont->OverwriteAndNegateIfEqual(kNotEqual);
+                return EmitInt64MulWithOverflow(this, node, cont);
+              } else {
+                cont->OverwriteAndNegateIfEqual(kNotEqual);
+                return EmitInt32MulWithOverflow(this, node, cont);
+              }
           }
         }
       }
@@ -3647,7 +3654,6 @@ void InstructionSelectorT<Adapter>::VisitInt64AbsWithOverflow(node_t node) {
   V(F64x2ConvertLowI32x4S)     \
   V(F64x2ConvertLowI32x4U)     \
   V(F64x2PromoteLowF32x4)      \
-  V(F64x2Splat)                \
   V(F32x4Abs)                  \
   V(F32x4Neg)                  \
   V(F32x4Sqrt)                 \
@@ -3657,7 +3663,6 @@ void InstructionSelectorT<Adapter>::VisitInt64AbsWithOverflow(node_t node) {
   V(F32x4Floor)                \
   V(F32x4Trunc)                \
   V(F32x4DemoteF64x2Zero)      \
-  V(F32x4Splat)                \
   V(I64x2Abs)                  \
   V(I64x2Neg)                  \
   V(I64x2SConvertI32x4Low)     \
@@ -3667,7 +3672,6 @@ void InstructionSelectorT<Adapter>::VisitInt64AbsWithOverflow(node_t node) {
   V(I64x2AllTrue)              \
   V(I64x2BitMask)              \
   V(I32x4Neg)                  \
-  V(I64x2Splat)                \
   V(I32x4Abs)                  \
   V(I32x4SConvertF32x4)        \
   V(I32x4UConvertF32x4)        \
@@ -3681,18 +3685,15 @@ void InstructionSelectorT<Adapter>::VisitInt64AbsWithOverflow(node_t node) {
   V(I32x4TruncSatF64x2UZero)   \
   V(I32x4AllTrue)              \
   V(I32x4BitMask)              \
-  V(I32x4Splat)                \
   V(I16x8Neg)                  \
   V(I16x8Abs)                  \
   V(I16x8AllTrue)              \
   V(I16x8BitMask)              \
-  V(I16x8Splat)                \
   V(I8x16Neg)                  \
   V(I8x16Abs)                  \
   V(I8x16Popcnt)               \
   V(I8x16AllTrue)              \
   V(I8x16BitMask)              \
-  V(I8x16Splat)                \
   V(I16x8SConvertI8x16Low)     \
   V(I16x8SConvertI8x16High)    \
   V(I16x8UConvertI8x16Low)     \
@@ -3701,6 +3702,21 @@ void InstructionSelectorT<Adapter>::VisitInt64AbsWithOverflow(node_t node) {
   V(I16x8ExtAddPairwiseI8x16U) \
   V(S128Not)                   \
   V(V128AnyTrue)
+
+#define SIMD_VISIT_SPLAT(Type, T, LaneSize)                                 \
+  template <typename Adapter>                                               \
+  void InstructionSelectorT<Adapter>::Visit##Type##Splat(node_t node) {     \
+    PPCOperandGeneratorT<Adapter> g(this);                                  \
+    Emit(kPPC_##T##Splat | LaneSizeField::encode(LaneSize),                 \
+         g.DefineAsRegister(node), g.UseRegister(this->input_at(node, 0))); \
+  }
+SIMD_VISIT_SPLAT(F64x2, F, 64)
+SIMD_VISIT_SPLAT(F32x4, F, 32)
+SIMD_VISIT_SPLAT(I64x2, I, 64)
+SIMD_VISIT_SPLAT(I32x4, I, 32)
+SIMD_VISIT_SPLAT(I16x8, I, 16)
+SIMD_VISIT_SPLAT(I8x16, I, 8)
+#undef SIMD_VISIT_SPLAT
 
 #define SIMD_VISIT_EXTRACT_LANE(Type, T, Sign, LaneSize)                   \
   template <typename Adapter>                                              \

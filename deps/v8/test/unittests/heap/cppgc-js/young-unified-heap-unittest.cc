@@ -226,10 +226,10 @@ TEST_F(YoungUnifiedHeapTest, GenerationalBarrierV8ToCppGCReference) {
   // With direct locals, api_object may be invalid after a stackless GC.
   auto handle_api_object = v8::Utils::OpenIndirectHandle(*api_object);
 
-  EXPECT_TRUE(Heap::InYoungGeneration(*handle_api_object));
+  EXPECT_TRUE(HeapLayout::InYoungGeneration(*handle_api_object));
   InvokeMemoryReducingMajorGCs();
   EXPECT_EQ(0u, Wrappable::destructor_callcount);
-  EXPECT_FALSE(Heap::InYoungGeneration(*handle_api_object));
+  EXPECT_FALSE(HeapLayout::InYoungGeneration(*handle_api_object));
 
   auto* wrappable = cppgc::MakeGarbageCollected<Wrappable>(allocation_handle());
   WrapperHelper::SetWrappableConnection(

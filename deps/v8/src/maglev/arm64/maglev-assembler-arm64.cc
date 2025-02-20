@@ -91,14 +91,14 @@ void MaglevAssembler::OSRPrologue(Graph* graph) {
   static_assert(StandardFrameConstants::kFixedSlotCount % 2 == 1);
   if (source_frame_size % 2 == 0) source_frame_size++;
 
-  if (v8_flags.maglev_assert_stack_size && v8_flags.debug_code) {
+  if (V8_ENABLE_SANDBOX_BOOL || v8_flags.debug_code) {
     TemporaryRegisterScope temps(this);
     Register scratch = temps.AcquireScratch();
     Add(scratch, sp,
         source_frame_size * kSystemPointerSize +
             StandardFrameConstants::kFixedFrameSizeFromFp);
     Cmp(scratch, fp);
-    Assert(eq, AbortReason::kOsrUnexpectedStackSize);
+    SbxCheck(eq, AbortReason::kOsrUnexpectedStackSize);
   }
 
   uint32_t target_frame_size =
@@ -145,6 +145,7 @@ void MaglevAssembler::Prologue(Graph* graph) {
     BindCallTarget(code_gen_state()->entry_label());
   }
 
+#ifndef V8_ENABLE_LEAPTIERING
   // Tiering support.
   if (v8_flags.turbofan) {
     using D = MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor;
@@ -152,7 +153,8 @@ void MaglevAssembler::Prologue(Graph* graph) {
     Register feedback_vector = D::GetRegisterParameter(D::kFeedbackVector);
     DCHECK(!AreAliased(flags, feedback_vector, kJavaScriptCallArgCountRegister,
                        kJSFunctionRegister, kContextRegister,
-                       kJavaScriptCallNewTargetRegister));
+                       kJavaScriptCallNewTargetRegister,
+                       kJavaScriptCallDispatchHandleRegister));
     DCHECK(!temps.Available().has(flags));
     DCHECK(!temps.Available().has(feedback_vector));
     Move(feedback_vector,
@@ -163,6 +165,7 @@ void MaglevAssembler::Prologue(Graph* graph) {
     TailCallBuiltin(Builtin::kMaglevOptimizeCodeOrTailCallOptimizedCodeSlot,
                     needs_processing);
   }
+#endif  // !V8_ENABLE_LEAPTIERING
 
   EnterFrame(StackFrame::MAGLEV);
 
@@ -260,7 +263,7 @@ void MaglevAssembler::LoadSingleCharacterString(Register result,
   Register table = scratch;
   LoadRoot(table, RootIndex::kSingleCharacterStringTable);
   LoadTaggedFieldByIndex(result, table, char_code, kTaggedSize,
-                         FixedArray::kHeaderSize);
+                         OFFSET_OF_DATA_START(FixedArray));
 }
 
 void MaglevAssembler::StringFromCharCode(RegisterSnapshot register_snapshot,

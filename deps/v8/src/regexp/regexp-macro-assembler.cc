@@ -319,7 +319,7 @@ int NativeRegExpMacroAssembler::CheckStackGuardState(
   DirectHandle<InstructionStream> code_handle(re_code, isolate);
   DirectHandle<String> subject_handle(Cast<String>(Tagged<Object>(*subject)),
                                       isolate);
-  bool is_one_byte = String::IsOneByteRepresentationUnderneath(*subject_handle);
+  bool is_one_byte = subject_handle->IsOneByteRepresentation();
   int return_value = 0;
 
   {
@@ -349,8 +349,7 @@ int NativeRegExpMacroAssembler::CheckStackGuardState(
   // If we continue, we need to update the subject string addresses.
   if (return_value == 0) {
     // String encoding might have changed.
-    if (String::IsOneByteRepresentationUnderneath(*subject_handle) !=
-        is_one_byte) {
+    if (subject_handle->IsOneByteRepresentation() != is_one_byte) {
       // If we changed between an LATIN1 and an UC16 string, the specialized
       // code cannot be used, and we need to restart regexp matching from
       // scratch (including, potentially, compiling a new version of the code).
@@ -431,9 +430,7 @@ int NativeRegExpMacroAssembler::Execute(
     int start_offset, const uint8_t* input_start, const uint8_t* input_end,
     int* output, int output_size, Isolate* isolate,
     Tagged<IrRegExpData> regexp_data) {
-  RegExpStackScope stack_scope(isolate);
-
-  bool is_one_byte = String::IsOneByteRepresentationUnderneath(input);
+  bool is_one_byte = input->IsOneByteRepresentation();
   Tagged<Code> code = regexp_data->code(isolate, is_one_byte);
   RegExp::CallOrigin call_origin = RegExp::CallOrigin::kFromRuntime;
 

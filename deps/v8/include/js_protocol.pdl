@@ -369,6 +369,14 @@ domain Debugger
       # call stacks (default).
       integer maxDepth
 
+  # Replace previous blackbox execution contexts with passed ones. Forces backend to skip
+  # stepping/pausing in scripts in these execution contexts. VM will try to leave blackboxed script by
+  # performing 'step in' several times, finally resorting to 'step out' if unsuccessful.
+  experimental command setBlackboxExecutionContexts
+    parameters
+      # Array of execution context unique ids for the debugger to ignore.
+      array of string uniqueIds
+
   # Replace previous blackbox patterns with passed ones. Forces backend to skip stepping/pausing in
   # scripts with url matching one of the patterns. VM will try to leave blackboxed script by
   # performing 'step in' several times, finally resorting to 'step out' if unsuccessful.
@@ -376,6 +384,8 @@ domain Debugger
     parameters
       # Array of regexps that will be used to check script url for blackbox state.
       array of string patterns
+      # If true, also ignore scripts with no source url.
+      optional boolean skipAnonymous
 
   # Makes backend skip steps in the script in blackboxed ranges. VM will try leave blacklisted
   # scripts by performing 'step in' several times, finally resorting to 'step out' if unsuccessful.
@@ -554,7 +564,8 @@ domain Debugger
       experimental optional array of LocationRange skipList
 
   # Fired when breakpoint is resolved to an actual script and location.
-  event breakpointResolved
+  # Deprecated in favor of `resolvedBreakpoints` in the `scriptParsed` event.
+  deprecated event breakpointResolved
     parameters
       # Breakpoint unique identifier.
       BreakpointId breakpointId
@@ -606,12 +617,18 @@ domain Debugger
     properties
       # Type of the debug symbols.
       enum type
-        None
         SourceMap
         EmbeddedDWARF
         ExternalDWARF
       # URL of the external symbol source.
       optional string externalURL
+
+  type ResolvedBreakpoint extends object
+    properties
+      # Breakpoint unique identifier.
+      BreakpointId breakpointId
+      # Actual breakpoint location.
+      Location location
 
   # Fired when virtual machine fails to parse the script.
   event scriptFailedToParse
@@ -632,6 +649,8 @@ domain Debugger
       Runtime.ExecutionContextId executionContextId
       # Content hash of the script, SHA-256.
       string hash
+      # For Wasm modules, the content of the `build_id` custom section.
+      string buildId
       # Embedder-specific auxiliary data likely matching {isDefault: boolean, type: 'default'|'isolated'|'worker', frameId: string}
       optional object executionContextAuxData
       # URL of source map associated with script (if any).
@@ -671,6 +690,8 @@ domain Debugger
       Runtime.ExecutionContextId executionContextId
       # Content hash of the script, SHA-256.
       string hash
+      # For Wasm modules, the content of the `build_id` custom section.
+      string buildId
       # Embedder-specific auxiliary data likely matching {isDefault: boolean, type: 'default'|'isolated'|'worker', frameId: string}
       optional object executionContextAuxData
       # True, if this script is generated as a result of the live edit operation.
@@ -689,10 +710,14 @@ domain Debugger
       experimental optional integer codeOffset
       # The language of the script.
       experimental optional Debugger.ScriptLanguage scriptLanguage
-      # If the scriptLanguage is WebASsembly, the source of debug symbols for the module.
-      experimental optional Debugger.DebugSymbols debugSymbols
+      # If the scriptLanguage is WebAssembly, the source of debug symbols for the module.
+      experimental optional array of Debugger.DebugSymbols debugSymbols
       # The name the embedder supplied for this script.
       experimental optional string embedderName
+      # The list of set breakpoints in this script if calls to `setBreakpointByUrl`
+      # matches this script's URL or hash. Clients that use this list can ignore the
+      # `breakpointResolved` event. They are equivalent.
+      experimental optional array of ResolvedBreakpoint resolvedBreakpoints
 
 experimental domain HeapProfiler
   depends on Runtime
@@ -1547,10 +1572,14 @@ domain Runtime
   # It is the total usage of the corresponding isolate not scoped to a particular Runtime.
   experimental command getHeapUsage
     returns
-      # Used heap size in bytes.
+      # Used JavaScript heap size in bytes.
       number usedSize
-      # Allocated heap size in bytes.
+      # Allocated JavaScript heap size in bytes.
       number totalSize
+      # Used size in bytes in the embedder's garbage-collected heap.
+      number embedderHeapUsedSize
+      # Size in bytes of backing storage for array buffers and external strings.
+      number backingStorageSize
 
   # Returns properties of a given object. Object group of the result is inherited from the target
   # object.

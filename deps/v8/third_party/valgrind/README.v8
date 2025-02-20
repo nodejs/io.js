@@ -1,0 +1,10 @@
+Name: valgrind
+URL: https://valgrind.org/
+Version: 3.6
+License: BSD
+License File: LICENSE
+Shipped: no
+Security Critical: no
+
+Description:
+Client header for controlling Valgrind execution.

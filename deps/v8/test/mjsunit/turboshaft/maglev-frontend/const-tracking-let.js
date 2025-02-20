@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
-// Flags: --no-always-turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
+// Flags: --no-always-turbofan --const-tracking-let
 
 let glob_a = 0;
 let glob_b = 3.35;
@@ -26,7 +26,7 @@ let glob_b = 3.35;
 
   %PrepareFunctionForOptimization(write);
   // Write the same value. This won't invalidate the constness.
-  write(0, 2.25);
+  write(0, 2.2);
   glob_b = 3.35;
   assertEquals(3.35, read());
 

@@ -26,11 +26,11 @@ Tagged<Smi> SetBitFieldValue(Isolate* isolate, Tagged<Smi> smi_handler,
 // TODO(ishell): Remove templatezation once we move common bits from
 // Load/StoreHandler to the base class.
 template <typename ICHandler, bool fill_handler = true>
-int InitPrototypeChecksImpl(Isolate* isolate, Handle<ICHandler> handler,
+int InitPrototypeChecksImpl(Isolate* isolate, DirectHandle<ICHandler> handler,
                             Tagged<Smi>* smi_handler,
                             DirectHandle<Map> lookup_start_object_map,
-                            MaybeObjectHandle data1,
-                            MaybeObjectHandle maybe_data2) {
+                            MaybeObjectDirectHandle data1,
+                            MaybeObjectDirectHandle maybe_data2) {
   int data_size = 1;
   // Holder-is-receiver case itself does not add entries unless there is an
   // optional data2 value provided.
@@ -90,21 +90,21 @@ int InitPrototypeChecksImpl(Isolate* isolate, Handle<ICHandler> handler,
 // If the |holder| is an empty handle then the full prototype chain is
 // checked.
 template <typename ICHandler>
-int GetHandlerDataSize(Isolate* isolate, Tagged<Smi>* smi_handler,
-                       Handle<Map> lookup_start_object_map,
-                       MaybeObjectHandle data1,
-                       MaybeObjectHandle maybe_data2 = MaybeObjectHandle()) {
+int GetHandlerDataSize(
+    Isolate* isolate, Tagged<Smi>* smi_handler,
+    DirectHandle<Map> lookup_start_object_map, MaybeObjectDirectHandle data1,
+    MaybeObjectDirectHandle maybe_data2 = MaybeObjectDirectHandle()) {
   DCHECK_NOT_NULL(smi_handler);
   return InitPrototypeChecksImpl<ICHandler, false>(
-      isolate, Handle<ICHandler>(), smi_handler, lookup_start_object_map, data1,
-      maybe_data2);
+      isolate, DirectHandle<ICHandler>(), smi_handler, lookup_start_object_map,
+      data1, maybe_data2);
 }
 
 template <typename ICHandler>
-void InitPrototypeChecks(Isolate* isolate, Handle<ICHandler> handler,
-                         Handle<Map> lookup_start_object_map,
-                         MaybeObjectHandle data1,
-                         MaybeObjectHandle maybe_data2 = MaybeObjectHandle()) {
+void InitPrototypeChecks(
+    Isolate* isolate, DirectHandle<ICHandler> handler,
+    DirectHandle<Map> lookup_start_object_map, MaybeObjectDirectHandle data1,
+    MaybeObjectDirectHandle maybe_data2 = MaybeObjectDirectHandle()) {
   InitPrototypeChecksImpl<ICHandler, true>(
       isolate, handler, nullptr, lookup_start_object_map, data1, maybe_data2);
 }
@@ -113,12 +113,12 @@ void InitPrototypeChecks(Isolate* isolate, Handle<ICHandler> handler,
 
 // static
 Handle<Object> LoadHandler::LoadFromPrototype(
-    Isolate* isolate, Handle<Map> lookup_start_object_map,
-    Handle<JSReceiver> holder, Tagged<Smi> smi_handler,
-    MaybeObjectHandle maybe_data1, MaybeObjectHandle maybe_data2) {
-  MaybeObjectHandle data1;
+    Isolate* isolate, DirectHandle<Map> lookup_start_object_map,
+    DirectHandle<JSReceiver> holder, Tagged<Smi> smi_handler,
+    MaybeObjectDirectHandle maybe_data1, MaybeObjectDirectHandle maybe_data2) {
+  MaybeObjectDirectHandle data1;
   if (maybe_data1.is_null()) {
-    data1 = MaybeObjectHandle::Weak(holder);
+    data1 = MaybeObjectDirectHandle::Weak(holder);
   } else {
     data1 = maybe_data1;
   }
@@ -134,18 +134,17 @@ Handle<Object> LoadHandler::LoadFromPrototype(
 
   handler->set_smi_handler(smi_handler);
   handler->set_validity_cell(*validity_cell);
-  InitPrototypeChecks(isolate, handler, lookup_start_object_map, data1,
-                      maybe_data2);
+  InitPrototypeChecks(isolate, direct_handle(handler), lookup_start_object_map,
+                      data1, maybe_data2);
   return handler;
 }
 
 // static
-Handle<Object> LoadHandler::LoadFullChain(Isolate* isolate,
-                                          Handle<Map> lookup_start_object_map,
-                                          const MaybeObjectHandle& holder,
-                                          Handle<Smi> smi_handler_handle) {
+Handle<Object> LoadHandler::LoadFullChain(
+    Isolate* isolate, DirectHandle<Map> lookup_start_object_map,
+    const MaybeObjectDirectHandle& holder, Handle<Smi> smi_handler_handle) {
   Tagged<Smi> smi_handler = *smi_handler_handle;
-  MaybeObjectHandle data1 = holder;
+  MaybeObjectDirectHandle data1 = holder;
   int data_size = GetHandlerDataSize<LoadHandler>(
       isolate, &smi_handler, lookup_start_object_map, data1);
 
@@ -165,7 +164,8 @@ Handle<Object> LoadHandler::LoadFullChain(Isolate* isolate,
 
   handler->set_smi_handler(smi_handler);
   handler->set_validity_cell(*validity_cell);
-  InitPrototypeChecks(isolate, handler, lookup_start_object_map, data1);
+  InitPrototypeChecks(isolate, direct_handle(handler), lookup_start_object_map,
+                      data1);
   return handler;
 }
 
@@ -210,10 +210,10 @@ KeyedAccessStoreMode StoreHandler::GetKeyedAccessStoreMode(
 Handle<Object> StoreHandler::StoreElementTransition(
     Isolate* isolate, DirectHandle<Map> receiver_map,
     DirectHandle<Map> transition, KeyedAccessStoreMode store_mode,
-    MaybeHandle<UnionOf<Smi, Cell>> prev_validity_cell) {
+    MaybeDirectHandle<UnionOf<Smi, Cell>> prev_validity_cell) {
   DirectHandle<Code> code =
       ElementsTransitionAndStoreBuiltin(isolate, store_mode);
-  Handle<UnionOf<Smi, Cell>> validity_cell;
+  DirectHandle<UnionOf<Smi, Cell>> validity_cell;
   if (!prev_validity_cell.ToHandle(&validity_cell)) {
     validity_cell =
         Map::GetOrCreatePrototypeChainValidityCell(receiver_map, isolate);
@@ -283,7 +283,7 @@ MaybeObjectHandle StoreHandler::StoreTransition(Isolate* isolate,
   DCHECK(!transition_map->is_access_check_needed());
 
   // Get validity cell value if it is necessary for the handler.
-  Handle<UnionOf<Smi, Cell>> validity_cell;
+  DirectHandle<UnionOf<Smi, Cell>> validity_cell;
   if (is_dictionary_map || !transition_map->IsPrototypeValidityCellValid()) {
     validity_cell =
         Map::GetOrCreatePrototypeChainValidityCell(transition_map, isolate);
@@ -311,12 +311,12 @@ MaybeObjectHandle StoreHandler::StoreTransition(Isolate* isolate,
 
 // static
 Handle<Object> StoreHandler::StoreThroughPrototype(
-    Isolate* isolate, Handle<Map> receiver_map, Handle<JSReceiver> holder,
-    Tagged<Smi> smi_handler, MaybeObjectHandle maybe_data1,
-    MaybeObjectHandle maybe_data2) {
-  MaybeObjectHandle data1;
+    Isolate* isolate, DirectHandle<Map> receiver_map,
+    DirectHandle<JSReceiver> holder, Tagged<Smi> smi_handler,
+    MaybeObjectDirectHandle maybe_data1, MaybeObjectDirectHandle maybe_data2) {
+  MaybeObjectDirectHandle data1;
   if (maybe_data1.is_null()) {
-    data1 = MaybeObjectHandle::Weak(holder);
+    data1 = MaybeObjectDirectHandle::Weak(holder);
   } else {
     data1 = maybe_data1;
   }
@@ -331,7 +331,8 @@ Handle<Object> StoreHandler::StoreThroughPrototype(
 
   handler->set_smi_handler(smi_handler);
   handler->set_validity_cell(*validity_cell);
-  InitPrototypeChecks(isolate, handler, receiver_map, data1, maybe_data2);
+  InitPrototypeChecks(isolate, direct_handle(handler), receiver_map, data1,
+                      maybe_data2);
   return handler;
 }
 
@@ -342,13 +343,13 @@ MaybeObjectHandle StoreHandler::StoreGlobal(Handle<PropertyCell> cell) {
 
 // static
 Handle<Object> StoreHandler::StoreProxy(Isolate* isolate,
-                                        Handle<Map> receiver_map,
+                                        DirectHandle<Map> receiver_map,
                                         Handle<JSProxy> proxy,
-                                        Handle<JSReceiver> receiver) {
+                                        DirectHandle<JSReceiver> receiver) {
   Handle<Smi> smi_handler = StoreProxy(isolate);
   if (receiver.is_identical_to(proxy)) return smi_handler;
   return StoreThroughPrototype(isolate, receiver_map, proxy, *smi_handler,
-                               MaybeObjectHandle::Weak(proxy));
+                               MaybeObjectDirectHandle::Weak(proxy));
 }
 
 bool LoadHandler::CanHandleHolderNotLookupStart(Tagged<Object> handler) {

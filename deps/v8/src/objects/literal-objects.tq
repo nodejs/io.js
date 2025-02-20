@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class ObjectBoilerplateDescription extends HeapObject {
-  const capacity: Smi;
+  const length: Smi;
   backing_store_size: Smi;
   flags: Smi;
-  raw_entries[capacity]: Object;
+  raw_entries[length]: Object;
 }
 
 extern class ArrayBoilerplateDescription extends Struct {

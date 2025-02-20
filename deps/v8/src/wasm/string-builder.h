@@ -139,6 +139,11 @@ inline StringBuilder& operator<<(StringBuilder& sb, const std::string& s) {
   return sb;
 }
 
+inline StringBuilder& operator<<(StringBuilder& sb, std::string_view s) {
+  sb.write(s.data(), s.length());
+  return sb;
+}
+
 inline StringBuilder& operator<<(StringBuilder& sb, uint32_t n) {
   if (n == 0) {
     *sb.allocate(1) = '0';

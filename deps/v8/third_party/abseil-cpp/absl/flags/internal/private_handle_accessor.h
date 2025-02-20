@@ -52,6 +52,9 @@ class PrivateHandleAccessor {
   static bool ParseFrom(CommandLineFlag& flag, absl::string_view value,
                         flags_internal::FlagSettingMode set_mode,
                         flags_internal::ValueSource source, std::string& error);
+
+  // Access to CommandLineFlag::TypeName.
+  static absl::string_view TypeName(const CommandLineFlag& flag);
 };
 
 }  // namespace flags_internal

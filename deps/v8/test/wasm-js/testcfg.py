@@ -45,6 +45,10 @@ proposal_flags = [
         'name': 'jspi',
         'flags': ['--experimental-wasm-jspi']
     },
+    {
+        'name': 'exception-handling',
+        'flags': ['--experimental-wasm-exnref']
+    },
 ]
 
 

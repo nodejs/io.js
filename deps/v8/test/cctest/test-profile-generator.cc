@@ -503,7 +503,8 @@ TEST(SampleIds) {
   auto symbolized = symbolizer.SymbolizeTickSample(sample1);
   profiles.AddPathToCurrentProfiles(
       sample1.timestamp, symbolized.stack_trace, symbolized.src_line, true,
-      base::TimeDelta(), StateTag::JS, EmbedderStateTag::EMPTY);
+      base::TimeDelta(), StateTag::JS, EmbedderStateTag::EMPTY, kNullAddress,
+      kNullAddress, 1);
 
   TickSample sample2;
   sample2.timestamp = v8::base::TimeTicks::Now();
@@ -515,7 +516,8 @@ TEST(SampleIds) {
   symbolized = symbolizer.SymbolizeTickSample(sample2);
   profiles.AddPathToCurrentProfiles(
       sample2.timestamp, symbolized.stack_trace, symbolized.src_line, true,
-      base::TimeDelta(), StateTag::JS, EmbedderStateTag::EMPTY);
+      base::TimeDelta(), StateTag::JS, EmbedderStateTag::EMPTY, kNullAddress,
+      kNullAddress, 2);
 
   TickSample sample3;
   sample3.timestamp = v8::base::TimeTicks::Now();
@@ -526,7 +528,8 @@ TEST(SampleIds) {
   symbolized = symbolizer.SymbolizeTickSample(sample3);
   profiles.AddPathToCurrentProfiles(
       sample3.timestamp, symbolized.stack_trace, symbolized.src_line, true,
-      base::TimeDelta(), StateTag::JS, EmbedderStateTag::EMPTY);
+      base::TimeDelta(), StateTag::JS, EmbedderStateTag::EMPTY, kNullAddress,
+      kNullAddress, 3);
 
   CpuProfile* profile = profiles.StopProfiling(id);
   unsigned nodeId = 1;
@@ -535,8 +538,10 @@ TEST(SampleIds) {
 
   CHECK_EQ(3, profile->samples_count());
   unsigned expected_id[] = {3, 5, 7};
+  const uint64_t expected_trace_id[] = {1, 2, 3};
   for (int i = 0; i < 3; i++) {
     CHECK_EQ(expected_id[i], profile->sample(i).node->id());
+    CHECK_EQ(expected_trace_id[i], profile->sample(i).trace_id);
   }
 }
 

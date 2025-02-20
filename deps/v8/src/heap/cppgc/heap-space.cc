@@ -23,13 +23,13 @@ BaseSpace::BaseSpace(RawHeap* heap, size_t index, PageType type,
 BaseSpace::~BaseSpace() = default;
 
 void BaseSpace::AddPage(BasePage* page) {
-  v8::base::LockGuard<v8::base::Mutex> lock(&pages_mutex_);
+  v8::base::SpinningMutexGuard lock(&pages_mutex_);
   DCHECK_EQ(pages_.cend(), std::find(pages_.cbegin(), pages_.cend(), page));
   pages_.push_back(page);
 }
 
 void BaseSpace::RemovePage(BasePage* page) {
-  v8::base::LockGuard<v8::base::Mutex> lock(&pages_mutex_);
+  v8::base::SpinningMutexGuard lock(&pages_mutex_);
   auto it = std::find(pages_.cbegin(), pages_.cend(), page);
   DCHECK_NE(pages_.cend(), it);
   pages_.erase(it);

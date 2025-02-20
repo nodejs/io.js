@@ -307,6 +307,10 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // own buffer. Otherwise it takes ownership of the provided buffer.
   explicit Assembler(const AssemblerOptions&,
                      std::unique_ptr<AssemblerBuffer> = {});
+  // For compatibility with assemblers that require a zone.
+  Assembler(const MaybeAssemblerZone&, const AssemblerOptions& options,
+            std::unique_ptr<AssemblerBuffer> buffer = {})
+      : Assembler(options, std::move(buffer)) {}
 
   ~Assembler() override;
 
@@ -316,6 +320,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   void AbortedCodeGeneration() override {
     pending_32_bit_constants_.clear();
     first_const_pool_32_use_ = -1;
+    constant_pool_deadline_ = kMaxInt;
   }
 
   // GetCode emits any pending (non-emitted) code and fills the descriptor desc.
@@ -368,25 +373,22 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   V8_INLINE static Address target_address_at(Address pc, Address constant_pool);
   V8_INLINE static void set_target_address_at(
       Address pc, Address constant_pool, Address target,
+      WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
-
-  // This sets the branch destination (which is in the constant pool on ARM).
-  // This is for calls and branches within generated code.
-  inline static void deserialization_set_special_target_at(
-      Address constant_pool_entry, Tagged<Code> code, Address target);
 
   // Get the size of the special target encoded at 'location'.
   inline static int deserialization_special_target_size(Address location);
 
   // This sets the internal reference at the pc.
   inline static void deserialization_set_target_internal_reference_at(
-      Address pc, Address target,
+      Address pc, Address target, WritableJitAllocation& jit_allocation,
       RelocInfo::Mode mode = RelocInfo::INTERNAL_REFERENCE);
 
   // Read/modify the uint32 constant used at pc.
   static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
   static inline void set_uint32_constant_at(
       Address pc, Address constant_pool, uint32_t new_constant,
+      WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Here we are patching the address in the constant pool, not the actual call

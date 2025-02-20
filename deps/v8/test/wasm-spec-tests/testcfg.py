@@ -2,10 +2,12 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-import os
-
 from testrunner.local import testsuite
 from testrunner.objects import testcase
+
+# We use the 'wasm-3.0' branch on the main spec repo, so enable all proposals
+# that were merged into that branch.
+default_flags = ['--experimental-wasm-exnref']
 
 proposal_flags = [
     {
@@ -17,8 +19,14 @@ proposal_flags = [
         'flags': []
     },
     {
-        'name': 'memory64',
-        'flags': ['--experimental-wasm-memory64']
+        'name':
+            'memory64',
+        'flags': [
+            '--experimental-wasm-memory64',
+            # The memory64 repository is rebased on the upstream 'wasm-3.0'
+            # branch, which contains exnref.
+            '--experimental-wasm-exnref'
+        ]
     },
     {
         'name': 'extended-const',
@@ -40,11 +48,17 @@ proposal_flags = [
         'name': 'exception-handling',
         # This flag enables the *new* exception handling proposal. The legacy
         # proposal is enabled by default.
-        'flags': ['--experimental-wasm-exnref', '--turboshaft-wasm']
+        'flags': ['--experimental-wasm-exnref']
     },
     {
-        'name': 'js-promise-integration',
-        'flags': ['--experimental-wasm-jspi']
+        'name':
+            'js-promise-integration',
+        'flags': [
+            '--experimental-wasm-jspi',
+            # The jspi repository is rebased on the upstream 'wasm-3.0'
+            # branch, which contains exnref.
+            '--experimental-wasm-exnref'
+        ]
     }
 ]
 
@@ -73,4 +87,4 @@ class TestCase(testcase.D8TestCase):
     for proposal in proposal_flags:
       if f"proposals/{proposal['name']}" in self.name:
         return proposal['flags']
-    return []
+    return default_flags

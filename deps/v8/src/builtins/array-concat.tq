@@ -3,8 +3,10 @@
 // found in the LICENSE file.
 
 namespace array {
-
-extern builtin ArrayConcat(Context, JSFunction, JSAny, int32): JSAny;
+// These are technically all js-implicit parameters, but we don't currently
+// support supplying these in tail calls (where we have to supply them).
+extern javascript builtin ArrayConcat(
+    Context, JSFunction, JSAny, int32, DispatchHandle): JSAny;
 
 transitioning javascript builtin ArrayPrototypeConcat(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
@@ -42,7 +44,7 @@ transitioning javascript builtin ArrayPrototypeConcat(
   // TODO(victorgomes): Implement slow path ArrayConcat in Torque.
   tail ArrayConcat(
       context, LoadTargetFromFrame(), Undefined,
-      Convert<int32>(arguments.actual_count));
+      Convert<int32>(arguments.actual_count), kInvalidDispatchHandle);
 }
 
 }  // namespace array

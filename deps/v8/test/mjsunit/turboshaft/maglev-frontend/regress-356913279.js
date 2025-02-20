@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev
+// Flags: --allow-natives-syntax --turbolev
 // Flags: --turboshaft-assert-types --jit-fuzzing
 
 for (let i = 0; i < 50; i++) {

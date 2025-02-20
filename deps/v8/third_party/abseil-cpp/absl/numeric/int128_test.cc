@@ -17,11 +17,13 @@
 #include <algorithm>
 #include <limits>
 #include <random>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "absl/base/casts.h"
 #include "absl/base/internal/cycleclock.h"
 #include "absl/hash/hash_testing.h"
 #include "absl/meta/type_traits.h"
@@ -473,29 +475,51 @@ TEST(Uint128, NumericLimitsTest) {
   EXPECT_EQ(absl::Uint128Max(), std::numeric_limits<absl::uint128>::max());
 }
 
+// Some arbitrary constant to test hashing. The first hex digits of pi.
+constexpr absl::uint128 kPi = (absl::uint128(0x3243f6a8885a308d) << 64) |
+                              absl::uint128(0x313198a2e0370734);
+
 TEST(Uint128, Hash) {
-  EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly({
+#if defined(ABSL_HAVE_INTRINSIC_INT128)
+  using Ext128 = unsigned __int128;
+#endif
+  // Make the tuple outside the EXPECT_TRUE because putting the #if inside the
+  // macro argument is not ok.
+  const auto values = std::make_tuple(
       // Some simple values
-      absl::uint128{0},
-      absl::uint128{1},
-      ~absl::uint128{},
+      absl::uint128{0}, absl::uint128{1}, ~absl::uint128{},
       // 64 bit limits
       absl::uint128{std::numeric_limits<int64_t>::max()},
       absl::uint128{std::numeric_limits<uint64_t>::max()} + 0,
       absl::uint128{std::numeric_limits<uint64_t>::max()} + 1,
       absl::uint128{std::numeric_limits<uint64_t>::max()} + 2,
       // Keeping high same
-      absl::uint128{1} << 62,
-      absl::uint128{1} << 63,
+      absl::uint128{1} << 62, absl::uint128{1} << 63,
       // Keeping low same
-      absl::uint128{1} << 64,
-      absl::uint128{1} << 65,
+      absl::uint128{1} << 64, absl::uint128{1} << 65,
       // 128 bit limits
       std::numeric_limits<absl::uint128>::max(),
       std::numeric_limits<absl::uint128>::max() - 1,
       std::numeric_limits<absl::uint128>::min() + 1,
       std::numeric_limits<absl::uint128>::min(),
-  }));
+      // arbitrary constant
+      kPi
+#if defined(ABSL_HAVE_INTRINSIC_INT128)
+      // Same but with the intrinsic to verify that they match
+      ,
+      Ext128{0}, Ext128{1}, ~Ext128{},
+      Ext128{std::numeric_limits<int64_t>::max()},
+      Ext128{std::numeric_limits<uint64_t>::max()} + 0,
+      Ext128{std::numeric_limits<uint64_t>::max()} + 1,
+      Ext128{std::numeric_limits<uint64_t>::max()} + 2, Ext128{1} << 62,
+      Ext128{1} << 63, Ext128{1} << 64, Ext128{1} << 65,
+      std::numeric_limits<Ext128>::max(),
+      std::numeric_limits<Ext128>::max() - 1,
+      std::numeric_limits<Ext128>::min() + 1,
+      std::numeric_limits<Ext128>::min(), static_cast<Ext128>(kPi)
+#endif
+  );
+  EXPECT_TRUE(absl::VerifyTypeImplementsAbslHashCorrectly(values));
 }
 
 
@@ -1280,6 +1304,52 @@ TEST(Int128, NumericLimitsTest) {
   EXPECT_EQ(absl::Int128Min(), std::numeric_limits<absl::int128>::min());
   EXPECT_EQ(absl::Int128Min(), std::numeric_limits<absl::int128>::lowest());
   EXPECT_EQ(absl::Int128Max(), std::numeric_limits<absl::int128>::max());
+}
+
+TEST(Int128, BitCastable) {
+  // NOTE: This test is not intended to be an example that demonstrate usages of
+  // `static_cast` and `std::bit_cast`, rather it is here simply to verify
+  // behavior. When deciding whether you should use `static_cast` or
+  // `std::bit_cast` when converting between `absl::int128` and `absl::uint128`,
+  // use your best judgement. As a rule of thumb, use the same cast that you
+  // would use when converting between the signed and unsigned counterparts of a
+  // builtin integral type.
+
+  // Verify bit casting between signed and unsigned works with regards to two's
+  // complement. This verifies we exhibit the same behavior as a theoretical
+  // builtin int128_t and uint128_t in C++20 onwards.
+  EXPECT_EQ(absl::bit_cast<absl::uint128>(absl::int128(-1)),
+            std::numeric_limits<absl::uint128>::max());
+  EXPECT_EQ(
+      absl::bit_cast<absl::int128>(std::numeric_limits<absl::uint128>::max()),
+      absl::int128(-1));
+  EXPECT_EQ(
+      absl::bit_cast<absl::uint128>(std::numeric_limits<absl::int128>::min()),
+      absl::uint128(1) << 127);
+  EXPECT_EQ(absl::bit_cast<absl::int128>(absl::uint128(1) << 127),
+            std::numeric_limits<absl::int128>::min());
+  EXPECT_EQ(
+      absl::bit_cast<absl::uint128>(std::numeric_limits<absl::int128>::max()),
+      (absl::uint128(1) << 127) - 1);
+  EXPECT_EQ(absl::bit_cast<absl::int128>((absl::uint128(1) << 127) - 1),
+            std::numeric_limits<absl::int128>::max());
+
+  // Also verify static casting has the same behavior as bit casting.
+  EXPECT_EQ(static_cast<absl::uint128>(absl::int128(-1)),
+            std::numeric_limits<absl::uint128>::max());
+  EXPECT_EQ(
+      static_cast<absl::int128>(std::numeric_limits<absl::uint128>::max()),
+      absl::int128(-1));
+  EXPECT_EQ(
+      static_cast<absl::uint128>(std::numeric_limits<absl::int128>::min()),
+      absl::uint128(1) << 127);
+  EXPECT_EQ(static_cast<absl::int128>(absl::uint128(1) << 127),
+            std::numeric_limits<absl::int128>::min());
+  EXPECT_EQ(
+      static_cast<absl::uint128>(std::numeric_limits<absl::int128>::max()),
+      (absl::uint128(1) << 127) - 1);
+  EXPECT_EQ(static_cast<absl::int128>((absl::uint128(1) << 127) - 1),
+            std::numeric_limits<absl::int128>::max());
 }
 
 }  // namespace

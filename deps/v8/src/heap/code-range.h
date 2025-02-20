@@ -34,7 +34,7 @@ class CodeRangeAddressHint {
                                               size_t code_range_size);
 
  private:
-  base::Mutex mutex_;
+  base::SpinningMutex mutex_;
   // A map from code range size to an array of recently freed code range
   // addresses. There should be O(1) different code range sizes.
   // The length of each array is limited by the peak number of code ranges,
@@ -129,9 +129,9 @@ class CodeRange final : public VirtualMemoryCage {
 
   // When sharing a CodeRange among Isolates, calls to RemapEmbeddedBuiltins may
   // race during Isolate::Init.
-  base::Mutex remap_embedded_builtins_mutex_;
+  base::SpinningMutex remap_embedded_builtins_mutex_;
 
-#ifdef DEBUG
+#if !defined(V8_OS_WIN) && defined(DEBUG)
   bool immutable_ = false;
 #endif
 };

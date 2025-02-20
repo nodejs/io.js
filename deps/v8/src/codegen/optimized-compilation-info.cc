@@ -22,8 +22,9 @@ namespace v8 {
 namespace internal {
 
 OptimizedCompilationInfo::OptimizedCompilationInfo(
-    Zone* zone, Isolate* isolate, Handle<SharedFunctionInfo> shared,
-    Handle<JSFunction> closure, CodeKind code_kind, BytecodeOffset osr_offset)
+    Zone* zone, Isolate* isolate, IndirectHandle<SharedFunctionInfo> shared,
+    IndirectHandle<JSFunction> closure, CodeKind code_kind,
+    BytecodeOffset osr_offset)
     : isolate_unsafe_(isolate),
       code_kind_(code_kind),
       osr_offset_(osr_offset),
@@ -42,7 +43,11 @@ OptimizedCompilationInfo::OptimizedCompilationInfo(
   // is active, to be able to get more precise source positions at the price of
   // more memory consumption.
   if (isolate->NeedsDetailedOptimizedCodeLineInfo()) {
-    set_source_positions();
+    // We might not have source positions if collection fails (e.g. because we
+    // run out of stack space).
+    if (bytecode_array_->HasSourcePositionTable()) {
+      set_source_positions();
+    }
   }
 
   SetTracingFlags(shared->PassesFilter(v8_flags.trace_turbo_filter));
@@ -79,7 +84,7 @@ void OptimizedCompilationInfo::ConfigureFlags() {
   }
 
   switch (code_kind_) {
-    case CodeKind::TURBOFAN:
+    case CodeKind::TURBOFAN_JS:
       set_called_with_code_start_register();
       set_switch_jump_table();
       if (v8_flags.analyze_environment_liveness) {
@@ -190,22 +195,10 @@ StackFrame::Type OptimizedCompilationInfo::GetOutputStackFrameType() const {
   }
 }
 
-void OptimizedCompilationInfo::SetCode(Handle<Code> code) {
+void OptimizedCompilationInfo::SetCode(IndirectHandle<Code> code) {
   DCHECK_EQ(code->kind(), code_kind());
   code_ = code;
 }
-
-#if V8_ENABLE_WEBASSEMBLY
-void OptimizedCompilationInfo::SetWasmCompilationResult(
-    std::unique_ptr<wasm::WasmCompilationResult> wasm_compilation_result) {
-  wasm_compilation_result_ = std::move(wasm_compilation_result);
-}
-
-std::unique_ptr<wasm::WasmCompilationResult>
-OptimizedCompilationInfo::ReleaseWasmCompilationResult() {
-  return std::move(wasm_compilation_result_);
-}
-#endif  // V8_ENABLE_WEBASSEMBLY
 
 bool OptimizedCompilationInfo::has_context() const {
   return !closure().is_null();
@@ -235,8 +228,8 @@ Tagged<JSGlobalObject> OptimizedCompilationInfo::global_object() const {
 }
 
 int OptimizedCompilationInfo::AddInlinedFunction(
-    Handle<SharedFunctionInfo> inlined_function,
-    Handle<BytecodeArray> inlined_bytecode, SourcePosition pos) {
+    IndirectHandle<SharedFunctionInfo> inlined_function,
+    IndirectHandle<BytecodeArray> inlined_bytecode, SourcePosition pos) {
   int id = static_cast<int>(inlined_functions_.size());
   inlined_functions_.push_back(
       InlinedFunctionHolder(inlined_function, inlined_bytecode, pos));
@@ -254,8 +247,8 @@ void OptimizedCompilationInfo::SetTracingFlags(bool passes_filter) {
 }
 
 OptimizedCompilationInfo::InlinedFunctionHolder::InlinedFunctionHolder(
-    Handle<SharedFunctionInfo> inlined_shared_info,
-    Handle<BytecodeArray> inlined_bytecode, SourcePosition pos)
+    IndirectHandle<SharedFunctionInfo> inlined_shared_info,
+    IndirectHandle<BytecodeArray> inlined_bytecode, SourcePosition pos)
     : shared_info(inlined_shared_info), bytecode_array(inlined_bytecode) {
   position.position = pos;
   // initialized when generating the deoptimization literals

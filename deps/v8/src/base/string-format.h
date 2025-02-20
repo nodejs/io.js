@@ -6,6 +6,7 @@
 #define V8_BASE_STRING_FORMAT_H_
 
 #include <array>
+#include <cinttypes>
 #include <limits>
 #include <string_view>
 #include <tuple>
@@ -44,35 +45,43 @@ struct JoinedStringViews {
 };
 
 template <typename T>
-struct FormattedStringPart {
-  static_assert(sizeof(T) < 0,
-                "unimplemented type, add specialization below if needed");
+concept FixedSizeString =
+    std::is_bounded_array_v<T> &&
+    std::is_same_v<char,
+                   std::remove_cv_t<std::remove_pointer_t<std::decay_t<T>>>>;
+
+template <typename T>
+struct FormattedStringPart;  // Specializations below.
+
+// Use a single implementation for all integral types; this avoids hassle with
+// int32_t, int64_t, long, long long sometimes being the same types and
+// sometimes not, depending on the platform.
+template <typename I>
+  requires std::is_integral_v<I>
+struct FormattedStringPart<I> {
+  static_assert(sizeof(I) == 4 || sizeof(I) == 8);
+  constexpr static bool kIs64Bit = sizeof(I) == 8;
+  constexpr static bool kIsSigned = std::is_signed_v<I>;
+  static constexpr int kMaxLen = (kIs64Bit ? 20 : 10) + (kIsSigned ? 1 : 0);
+  static constexpr std::string_view kFormats[2][2]{{"%" PRIu32, "%" PRId32},
+                                                   {"%" PRIu64, "%" PRId64}};
+  static constexpr std::string_view kFormatPart = kFormats[kIs64Bit][kIsSigned];
+
+  using StorageType =
+      std::conditional_t<kIs64Bit,
+                         std::conditional_t<kIsSigned, int64_t, uint64_t>,
+                         std::conditional_t<kIsSigned, int32_t, uint32_t>>;
+  StorageType value;
 };
 
-template <>
-struct FormattedStringPart<int> {
-  // Integer range: [-2147483647, 2147483647]. Representable in 11 characters.
-  static constexpr int kMaxLen = 11;
-  static constexpr std::string_view kFormatPart = "%d";
+template <typename S>
+  requires FixedSizeString<S>
+struct FormattedStringPart<S> {
+  static constexpr size_t kCharArraySize = std::extent_v<S>;
 
-  int value;
-};
-
-template <>
-struct FormattedStringPart<size_t> {
-  // size_t range: [0, 4294967295] on 32-bit, [0, +18446744073709551615] on
-  // 64-bit. Needs 10 or 20 characters.
-  static constexpr int kMaxLen = sizeof(size_t) == sizeof(uint32_t) ? 10 : 20;
-  static constexpr std::string_view kFormatPart = "%zu";
-
-  size_t value;
-};
-
-template <size_t N>
-struct FormattedStringPart<char[N]> {
-  static_assert(N >= 1, "Do not print (static) empty strings");
-  static_assert(N <= 128, "Do not include huge strings");
-  static constexpr int kMaxLen = N - 1;
+  static_assert(kCharArraySize >= 1, "Do not print (static) empty strings");
+  static_assert(kCharArraySize <= 128, "Do not include huge strings");
+  static constexpr int kMaxLen = kCharArraySize - 1;
   static constexpr std::string_view kFormatPart = "%s";
 
   const char* value;

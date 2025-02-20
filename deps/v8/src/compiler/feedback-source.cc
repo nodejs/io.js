@@ -8,7 +8,7 @@ namespace v8 {
 namespace internal {
 namespace compiler {
 
-FeedbackSource::FeedbackSource(Handle<FeedbackVector> vector_,
+FeedbackSource::FeedbackSource(IndirectHandle<FeedbackVector> vector_,
                                FeedbackSlot slot_)
     : vector(vector_), slot(slot_) {
   DCHECK(!slot.IsInvalid());

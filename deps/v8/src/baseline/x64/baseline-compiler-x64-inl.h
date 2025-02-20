@@ -27,6 +27,9 @@ void BaselineCompiler::Prologue() {
   CallBuiltin<Builtin::kBaselineOutOfLinePrologue>(
       kContextRegister, kJSFunctionRegister, kJavaScriptCallArgCountRegister,
       max_frame_size, kJavaScriptCallNewTargetRegister, bytecode_);
+#ifdef V8_ENABLE_CET_SHADOW_STACK
+  __ MaybeEmitPlaceHolderForDeopt();
+#endif  // V8_ENABLE_CET_SHADOW_STACK
 
   PrologueFillFrame();
 }

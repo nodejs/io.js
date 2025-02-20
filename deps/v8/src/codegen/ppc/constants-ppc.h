@@ -9,6 +9,7 @@
 
 #include "src/base/logging.h"
 #include "src/base/macros.h"
+#include "src/common/code-memory-access.h"
 #include "src/common/globals.h"
 
 // UNIMPLEMENTED_ macro for PPC.
@@ -3012,9 +3013,8 @@ class Instruction {
   }
 
   // Set the raw instruction bits to value.
-  inline void SetInstructionBits(Instr value) {
-    *reinterpret_cast<Instr*>(this) = value;
-  }
+  V8_EXPORT_PRIVATE void SetInstructionBits(
+      Instr value, WritableJitAllocation* jit_allocation = nullptr);
 
   // Read one particular bit out of the instruction bits.
   inline int Bit(int nr) const { return (InstructionBits() >> nr) & 1; }

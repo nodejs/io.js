@@ -42,7 +42,7 @@ TEST_F(RemoteObjectTest, CreationContextOfRemoteContext) {
 
   Local<Object> remote_context =
       Context::NewRemoteContext(isolate(), global_template).ToLocalChecked();
-  EXPECT_TRUE(remote_context->GetCreationContext().IsEmpty());
+  EXPECT_TRUE(remote_context->GetCreationContext(isolate()).IsEmpty());
 }
 
 TEST_F(RemoteObjectTest, CreationContextOfRemoteObject) {
@@ -54,7 +54,7 @@ TEST_F(RemoteObjectTest, CreationContextOfRemoteObject) {
 
   Local<Object> remote_object =
       constructor_template->NewRemoteInstance().ToLocalChecked();
-  EXPECT_TRUE(remote_object->GetCreationContext().IsEmpty());
+  EXPECT_TRUE(remote_object->GetCreationContext(isolate()).IsEmpty());
 }
 
 TEST_F(RemoteObjectTest, RemoteContextInstanceChecks) {

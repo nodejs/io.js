@@ -9,7 +9,7 @@ let {session, contextGroup, Protocol} = InspectorTest.start(
 
 const kNodeName = 1;
 const kNodeEdgeCount = 4;
-const kNodeSize = 7;
+const kNodeSize = 6;
 const kEdgeType = 0;
 const kEdgeName = 1;
 const kEdgeTarget = 2;

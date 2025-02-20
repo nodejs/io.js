@@ -825,7 +825,7 @@ TNode<Object> BinaryOpAssembler::Generate_BitwiseBinaryOpWithOptionalFeedback(
   Label if_left_bigint(this), if_left_bigint64(this);
   Label if_left_number_right_bigint(this, Label::kDeferred);
 
-  FeedbackValues feedback =
+  FeedbackValues feedback_values =
       slot ? FeedbackValues{&var_left_feedback, maybe_feedback_vector, slot,
                             update_feedback_mode}
            : FeedbackValues();
@@ -833,13 +833,13 @@ TNode<Object> BinaryOpAssembler::Generate_BitwiseBinaryOpWithOptionalFeedback(
   TaggedToWord32OrBigIntWithFeedback(
       context(), left, &if_left_number, &var_left_word32, &if_left_bigint,
       IsBigInt64OpSupported(this, bitwise_op) ? &if_left_bigint64 : nullptr,
-      &var_left_bigint, feedback);
+      &var_left_bigint, feedback_values);
 
   BIND(&if_left_number);
-  feedback.var_feedback = slot ? &var_right_feedback : nullptr;
+  feedback_values.var_feedback = slot ? &var_right_feedback : nullptr;
   TaggedToWord32OrBigIntWithFeedback(
       context(), right, &do_number_op, &var_right_word32,
-      &if_left_number_right_bigint, nullptr, nullptr, feedback);
+      &if_left_number_right_bigint, nullptr, nullptr, feedback_values);
 
   BIND(&if_left_number_right_bigint);
   {

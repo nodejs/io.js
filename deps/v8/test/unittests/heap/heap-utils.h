@@ -133,13 +133,23 @@ class WithHeapInternals : public TMixin, HeapInternalsBase {
   void EmptyNewSpaceUsingGC() { InvokeMajorGC(); }
 };
 
-using TestWithHeapInternals =                  //
-    WithHeapInternals<                         //
-        WithInternalIsolateMixin<              //
-            WithIsolateScopeMixin<             //
-                WithIsolateMixin<              //
-                    WithDefaultPlatformMixin<  //
-                        ::testing::Test>>>>>;
+template <typename TMixin>
+class WithCppHeap : public TMixin {
+ public:
+  WithCppHeap() {
+    IsolateWrapper::set_cpp_heap_for_next_isolate(
+        v8::CppHeap::Create(V8::GetCurrentPlatform(), CppHeapCreateParams{{}}));
+  }
+};
+
+using TestWithHeapInternals =                      //
+    WithHeapInternals<                             //
+        WithInternalIsolateMixin<                  //
+            WithIsolateScopeMixin<                 //
+                WithIsolateMixin<                  //
+                    WithCppHeap<                   //
+                        WithDefaultPlatformMixin<  //
+                            ::testing::Test>>>>>>;
 
 using TestWithHeapInternalsAndContext =  //
     WithContextMixin<                    //
@@ -150,7 +160,7 @@ bool InYoungGeneration(v8::Isolate* isolate, const GlobalOrPersistent& global) {
   CHECK(!v8_flags.single_generation);
   v8::HandleScope scope(isolate);
   auto tmp = global.Get(isolate);
-  return Heap::InYoungGeneration(*v8::Utils::OpenDirectHandle(*tmp));
+  return HeapLayout::InYoungGeneration(*v8::Utils::OpenDirectHandle(*tmp));
 }
 
 bool IsNewObjectInCorrectGeneration(Tagged<HeapObject> object);
@@ -191,11 +201,19 @@ class V8_NODISCARD ManualGCScope final {
 // this scope is used, it is important to ensure that the objects stored in
 // handles used for mocking are retained by other means, so that they will not
 // be reclaimed by a garbage collection.
+// Note: The check is only performed in debug builds with enabled slow DCHECKs.
+#ifdef ENABLE_SLOW_DCHECKS
 class V8_NODISCARD DisableHandleChecksForMockingScope final
     : public StackAllocatedCheck::Scope {
  public:
   DisableHandleChecksForMockingScope() : StackAllocatedCheck::Scope(false) {}
 };
+#else
+class V8_NODISCARD DisableHandleChecksForMockingScope final {
+ public:
+  DisableHandleChecksForMockingScope() {}
+};
+#endif
 
 }  // namespace internal
 }  // namespace v8

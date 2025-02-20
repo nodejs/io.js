@@ -37,9 +37,5 @@ RootIndexMap::RootIndexMap(Isolate* isolate) {
   isolate->set_root_index_map(map_);
 }
 
-bool RootIndexMap::Lookup(Address obj, RootIndex* out_root_list) const {
-  return Lookup(Cast<HeapObject>(Tagged<Object>(obj)), out_root_list);
-}
-
 }  // namespace internal
 }  // namespace v8

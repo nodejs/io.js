@@ -149,9 +149,9 @@ using uint128 = absl::uint128;
 #define DEFINE_CONSTRUCTED_FLAG(T, dflt, dflt_kind)                        \
   constexpr flags::FlagDefaultArg f1default##T{                            \
       flags::FlagDefaultSrc{dflt}, flags::FlagDefaultKind::dflt_kind};     \
-  constexpr absl::Flag<T> f1##T{"f1", "file", help_arg, f1default##T};     \
+  constexpr absl::Flag<T> f1##T{"f1", #T, "file", help_arg, f1default##T}; \
   ABSL_CONST_INIT absl::Flag<T> f2##T {                                    \
-    "f2", "file",                                                          \
+    "f2", #T, "file",                                                      \
         {flags::FlagHelpMsg(&TestHelpMsg), flags::FlagHelpKind::kGenFunc}, \
         flags::FlagDefaultArg {                                            \
       flags::FlagDefaultSrc(&TestMakeDflt<T>),                             \

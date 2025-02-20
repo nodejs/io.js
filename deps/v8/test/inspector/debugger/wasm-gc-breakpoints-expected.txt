@@ -3,10 +3,10 @@ Tests GC object inspection.
 Running test: test
 Instantiating.
 Waiting for wasm script (ignoring first non-wasm script).
-Setting breakpoint at offset 103 on script wasm://wasm/b3f93902
+Setting breakpoint at offset 103 on script wasm://wasm/27d1b772
 Calling main()
 Paused:
-Script wasm://wasm/b3f93902 byte offset 103: Wasm opcode 0x1a (kExprDrop)
+Script wasm://wasm/27d1b772 byte offset 103: Wasm opcode 0x1a (kExprDrop)
 Scope:
 at $main (0:103):
  - scope (wasm-expression-stack):
@@ -27,7 +27,7 @@ at $main (0:103):
    instance: exports: "main" (Function)
    module: Module
    functions: "$main": (Function)
-   globals: "$global0": function $main() { [native code] } ((ref null $type3))
+   globals: "$global0": function $main() { [native code] } ((ref null $canon6))
 at (anonymous) (0:17):
    -- skipped
 exports.main returned!

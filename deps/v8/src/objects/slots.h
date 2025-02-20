@@ -8,6 +8,7 @@
 #include "src/base/memory.h"
 #include "src/common/assert-scope.h"
 #include "src/common/globals.h"
+#include "src/objects/tagged-field.h"
 #include "src/sandbox/external-pointer-table.h"
 #include "src/sandbox/external-pointer.h"
 #include "src/sandbox/indirect-pointer-tag.h"
@@ -108,6 +109,11 @@ class FullObjectSlot : public SlotBase<FullObjectSlot, Address> {
   explicit FullObjectSlot(const Address* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
   inline explicit FullObjectSlot(TaggedBase* object);
+#if defined(V8_HOST_ARCH_32_BIT) || \
+    defined(V8_HOST_ARCH_64_BIT) && !V8_COMPRESS_POINTERS_BOOL
+  explicit FullObjectSlot(const TaggedMemberBase* member)
+      : SlotBase(reinterpret_cast<Address>(member->ptr_location())) {}
+#endif
   template <typename T>
   explicit FullObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
@@ -157,6 +163,11 @@ class FullMaybeObjectSlot
   explicit FullMaybeObjectSlot(Address ptr) : SlotBase(ptr) {}
   explicit FullMaybeObjectSlot(TaggedBase* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
+#if defined(V8_HOST_ARCH_32_BIT) || \
+    defined(V8_HOST_ARCH_64_BIT) && !V8_COMPRESS_POINTERS_BOOL
+  explicit FullMaybeObjectSlot(const TaggedMemberBase* member)
+      : SlotBase(reinterpret_cast<Address>(member->ptr_location())) {}
+#endif
   explicit FullMaybeObjectSlot(Tagged<MaybeObject>* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
   template <typename T>
@@ -164,6 +175,7 @@ class FullMaybeObjectSlot
       : SlotBase(slot.address()) {}
 
   inline Tagged<MaybeObject> operator*() const;
+  inline Tagged<MaybeObject> load() const;
   inline Tagged<MaybeObject> load(PtrComprCageBase cage_base) const;
   inline void store(Tagged<MaybeObject> value) const;
 
@@ -190,6 +202,11 @@ class FullHeapObjectSlot : public SlotBase<FullHeapObjectSlot, Address> {
   explicit FullHeapObjectSlot(Address ptr) : SlotBase(ptr) {}
   explicit FullHeapObjectSlot(TaggedBase* ptr)
       : SlotBase(reinterpret_cast<Address>(ptr)) {}
+#if defined(V8_HOST_ARCH_32_BIT) || \
+    defined(V8_HOST_ARCH_64_BIT) && !V8_COMPRESS_POINTERS_BOOL
+  explicit FullHeapObjectSlot(const TaggedMemberBase* member)
+      : SlotBase(reinterpret_cast<Address>(member->ptr_location())) {}
+#endif
   template <typename T>
   explicit FullHeapObjectSlot(SlotBase<T, TData, kSlotDataAlignment> slot)
       : SlotBase(slot.address()) {}
@@ -308,16 +325,25 @@ class ExternalPointerSlot
       : SlotBase(kNullAddress)
 #ifdef V8_COMPRESS_POINTERS
         ,
-        tag_(kExternalPointerNullTag)
+        tag_range_()
 #endif
   {
   }
 
-  explicit ExternalPointerSlot(Address ptr, ExternalPointerTag tag)
+  ExternalPointerSlot(Address ptr, ExternalPointerTag tag_range)
       : SlotBase(ptr)
 #ifdef V8_COMPRESS_POINTERS
         ,
-        tag_(tag)
+        tag_range_(tag_range)
+#endif
+  {
+  }
+
+  ExternalPointerSlot(Address ptr, ExternalPointerTagRange tag_range)
+      : SlotBase(ptr)
+#ifdef V8_COMPRESS_POINTERS
+        ,
+        tag_range_(tag_range)
 #endif
   {
   }
@@ -327,13 +353,13 @@ class ExternalPointerSlot
       : SlotBase(member->storage_address())
 #ifdef V8_COMPRESS_POINTERS
         ,
-        tag_(tag)
+        tag_range_(tag)
 #endif
   {
   }
 
   inline void init(IsolateForSandbox isolate, Tagged<HeapObject> host,
-                   Address value);
+                   Address value, ExternalPointerTag tag);
 
 #ifdef V8_COMPRESS_POINTERS
   // When the external pointer is sandboxed, or for array buffer extensions when
@@ -346,7 +372,8 @@ class ExternalPointerSlot
   // TODO(wingo): Remove if we switch to use the EPT for all external pointers
   // when pointer compression is enabled.
   bool HasExternalPointerHandle() const {
-    return V8_ENABLE_SANDBOX_BOOL || tag() == kArrayBufferExtensionTag;
+    return V8_ENABLE_SANDBOX_BOOL || tag_range() == kArrayBufferExtensionTag ||
+           tag_range() == kWaiterQueueNodeTag;
   }
   inline ExternalPointerHandle Relaxed_LoadHandle() const;
   inline void Relaxed_StoreHandle(ExternalPointerHandle handle) const;
@@ -354,7 +381,8 @@ class ExternalPointerSlot
 #endif  // V8_COMPRESS_POINTERS
 
   inline Address load(IsolateForSandbox isolate);
-  inline void store(IsolateForSandbox isolate, Address value);
+  inline void store(IsolateForSandbox isolate, Address value,
+                    ExternalPointerTag tag);
 
   // ExternalPointerSlot serialization support.
   // These methods can be used to clear an external pointer slot prior to
@@ -376,9 +404,22 @@ class ExternalPointerSlot
       const DisallowGarbageCollection& no_gc);
 
 #ifdef V8_COMPRESS_POINTERS
-  ExternalPointerTag tag() const { return tag_; }
+  bool ExactTagIsKnown() const { return tag_range_.Size() == 1; }
+
+  ExternalPointerTag exact_tag() const {
+    DCHECK(ExactTagIsKnown());
+    return tag_range_.first;
+  }
+
+  ExternalPointerTagRange tag_range() const { return tag_range_; }
 #else
-  ExternalPointerTag tag() const { return kExternalPointerNullTag; }
+  bool ExactTagIsKnown() const { return true; }
+
+  ExternalPointerTag exact_tag() const { return kExternalPointerNullTag; }
+
+  ExternalPointerTagRange tag_range() const {
+    return ExternalPointerTagRange();
+  }
 #endif  // V8_COMPRESS_POINTERS
 
  private:
@@ -388,8 +429,8 @@ class ExternalPointerSlot
     return reinterpret_cast<ExternalPointerHandle*>(address());
   }
 
-  // The tag associated with this slot.
-  ExternalPointerTag tag_;
+  // The tag range associated with this slot.
+  ExternalPointerTagRange tag_range_;
 #endif  // V8_COMPRESS_POINTERS
 };
 

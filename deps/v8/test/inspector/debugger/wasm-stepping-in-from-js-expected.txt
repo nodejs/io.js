@@ -4,7 +4,7 @@ Running test: test
 Calling instantiate function.
 Waiting for wasm scripts to be parsed.
 Ignoring script with url v8://test/instantiate
-Got wasm script: wasm://wasm/7d022e0e
+Got wasm script: wasm://wasm/fd1bd682
 Setting breakpoint on i32.const
 {
     columnNumber : 37
@@ -24,9 +24,9 @@ paused
 
 Debugger.stepInto
 paused
-Script wasm://wasm/7d022e0e byte offset 35: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/fd1bd682 byte offset 35: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.resume
 paused
-Script wasm://wasm/7d022e0e byte offset 37: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/fd1bd682 byte offset 37: Wasm opcode 0x41 (kExprI32Const)
 Debugger.resume
 exports.main returned!

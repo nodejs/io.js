@@ -10,7 +10,7 @@ function pauseAlternating() {
   pause = !pause;
 
 Paused at:
-Script wasm://wasm/15df010e byte offset 53: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/004fa7ea byte offset 53: Wasm opcode 0x0b (kExprEnd)
 Paused at:
 instance.exports.main()#
 
@@ -32,7 +32,7 @@ function pauseAlternating() {
   pause = !pause;
 
 Paused at:
-Script wasm://wasm/15df010e byte offset 53: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/004fa7ea byte offset 53: Wasm opcode 0x0b (kExprEnd)
 Paused at:
 instance.exports.main()#
 

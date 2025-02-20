@@ -52,7 +52,7 @@ BUILD_TARGETS_ALL = ["all"]
 # All arches that this script understands.
 ARCHES = [
     "ia32", "x64", "arm", "arm64", "mips64el", "ppc64", "riscv32", "riscv64",
-    "s390", "s390x", "android_arm", "android_arm64", "loong64", "fuchsia_x64",
+    "s390x", "android_arm", "android_arm64", "loong64", "fuchsia_x64",
     "fuchsia_arm64", "android_riscv64"
 ]
 # Arches that get built/run when you don't specify any.
@@ -214,7 +214,9 @@ def detect_reclient_cert():
   ret = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
   if ret.returncode != 0:
     return False
-  MARGIN = 300  # Request fresh cert if less than 5 mins remain.
+  # Request fresh cert if less than an hour remains. Reproxy will refuse to
+  # start when the certificate is close to expiring.
+  MARGIN = 3600
   lifetime = int(ret.stdout.decode("utf-8").strip().split(':')[1]) - MARGIN
   if lifetime < 0:
     return False
@@ -332,7 +334,9 @@ def _call_with_output(cmd):
         output.append(data)
   finally:
     os.close(parent)
-    p.wait()
+    while p.poll() is None:
+      print(".", end="")
+      time.sleep(0.1)
   return p.returncode, "".join(output)
 
 
@@ -524,7 +528,7 @@ class ManagedConfig(RawConfig):
     elif self.arch == "android_riscv64":
       v8_cpu = "riscv64"
     elif self.arch in ("arm", "arm64", "mips64el", "ppc64", "riscv64",
-                       "riscv32", "s390", "s390x", "loong64"):
+                       "riscv32", "s390x", "loong64"):
       v8_cpu = self.arch
     else:
       return []
@@ -584,8 +588,8 @@ class ManagedConfig(RawConfig):
         return 1
     # Special handling for "mkgrokdump": if it was built, run it.
     if ("mkgrokdump" in self.targets and self.mode == "release" and
-        (host_arch == "x86_64" and self.arch == "x64") or
-        (host_arch == "arm64" and self.arch == "arm64")):
+        ((host_arch == "x86_64" and self.arch == "x64") or
+         (host_arch == "arm64" and self.arch == "arm64"))):
       mkgrokdump_bin = self.path / "mkgrokdump"
       _call(f"{mkgrokdump_bin} > tools/v8heapconst.py")
     return super().run_tests()
@@ -695,7 +699,7 @@ class ArgumentParser(object):
     # Specifying a single unit test looks like "unittests/Foo.Bar", test262
     # tests have names like "S15.4.4.7_A4_T1", don't split these.
     if (argstring.startswith("unittests/") or
-        argstring.startswith("test262/") or
+        argstring.startswith("test262/") or argstring.startswith("fuzzer/") or
         argstring.startswith("wasm-api-tests/")):
       words = [argstring]
     else:

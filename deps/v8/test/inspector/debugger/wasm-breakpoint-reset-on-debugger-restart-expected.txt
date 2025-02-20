@@ -5,7 +5,7 @@ Instantiating.
 Waiting for wasm script (ignoring first non-wasm script).
 Setting breakpoint.
 Calling func.
-Script wasm://wasm/8c388106 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/aa8b4c12 byte offset 33: Wasm opcode 0x01 (kExprNop)
 func returned.
 Restarting debugger.
 Calling func.

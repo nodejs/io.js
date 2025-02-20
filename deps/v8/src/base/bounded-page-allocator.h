@@ -126,7 +126,7 @@ class V8_BASE_EXPORT BoundedPageAllocator : public v8::PageAllocator {
   }
 
  private:
-  v8::base::Mutex mutex_;
+  v8::base::SpinningMutex mutex_;
   const size_t allocate_page_size_;
   const size_t commit_page_size_;
   v8::PageAllocator* const page_allocator_;

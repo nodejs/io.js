@@ -19,32 +19,70 @@ namespace internal {
 
 class CppHeap;
 
-class UnifiedHeapTest : public TestWithHeapInternalsAndContext {
+template <typename TMixin>
+class WithUnifiedHeap : public TMixin {
  public:
-  UnifiedHeapTest();
-  explicit UnifiedHeapTest(
-      std::vector<std::unique_ptr<cppgc::CustomSpaceBase>>);
-  ~UnifiedHeapTest() override = default;
+  WithUnifiedHeap() = default;
+
+  ~WithUnifiedHeap() override = default;
 
   void CollectGarbageWithEmbedderStack(cppgc::Heap::SweepingType sweeping_type =
-                                           cppgc::Heap::SweepingType::kAtomic);
+                                           cppgc::Heap::SweepingType::kAtomic) {
+    EmbedderStackStateScope stack_scope(
+        TMixin::heap(), EmbedderStackStateOrigin::kExplicitInvocation,
+        StackState::kMayContainHeapPointers);
+    TMixin::InvokeMajorGC();
+    if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
+      cpp_heap().AsBase().sweeper().FinishIfRunning();
+    }
+  }
+
   void CollectGarbageWithoutEmbedderStack(
       cppgc::Heap::SweepingType sweeping_type =
-          cppgc::Heap::SweepingType::kAtomic);
+          cppgc::Heap::SweepingType::kAtomic) {
+    EmbedderStackStateScope stack_scope(
+        TMixin::heap(), EmbedderStackStateOrigin::kExplicitInvocation,
+        StackState::kNoHeapPointers);
+    TMixin::InvokeMajorGC();
+    if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
+      cpp_heap().AsBase().sweeper().FinishIfRunning();
+    }
+  }
 
   void CollectYoungGarbageWithEmbedderStack(
       cppgc::Heap::SweepingType sweeping_type =
-          cppgc::Heap::SweepingType::kAtomic);
+          cppgc::Heap::SweepingType::kAtomic) {
+    EmbedderStackStateScope stack_scope(
+        TMixin::heap(), EmbedderStackStateOrigin::kExplicitInvocation,
+        StackState::kMayContainHeapPointers);
+    TMixin::InvokeMinorGC();
+    if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
+      cpp_heap().AsBase().sweeper().FinishIfRunning();
+    }
+  }
+
   void CollectYoungGarbageWithoutEmbedderStack(
       cppgc::Heap::SweepingType sweeping_type =
-          cppgc::Heap::SweepingType::kAtomic);
+          cppgc::Heap::SweepingType::kAtomic) {
+    EmbedderStackStateScope stack_scope(
+        TMixin::heap(), EmbedderStackStateOrigin::kExplicitInvocation,
+        StackState::kNoHeapPointers);
+    TMixin::InvokeMinorGC();
+    if (sweeping_type == cppgc::Heap::SweepingType::kAtomic) {
+      cpp_heap().AsBase().sweeper().FinishIfRunning();
+    }
+  }
 
-  CppHeap& cpp_heap() const;
-  cppgc::AllocationHandle& allocation_handle();
+  CppHeap& cpp_heap() const {
+    return *CppHeap::From(TMixin::isolate()->heap()->cpp_heap());
+  }
 
- private:
-  std::unique_ptr<v8::CppHeap> cpp_heap_;
+  cppgc::AllocationHandle& allocation_handle() {
+    return cpp_heap().object_allocator();
+  }
 };
+
+using UnifiedHeapTest = WithUnifiedHeap<TestWithHeapInternalsAndContext>;
 
 // Helpers for managed wrappers using a single header field.
 class WrapperHelper {

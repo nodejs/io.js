@@ -17,9 +17,10 @@
 #include <unordered_map>
 #include <unordered_set>
 
+#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/intrusive-set.h"
 #include "src/base/small-map.h"
 #include "src/base/small-vector.h"
@@ -818,6 +819,21 @@ class ZoneAbslFlatHashSet
   explicit ZoneAbslFlatHashSet(Zone* zone, size_t bucket_count = 0)
       : absl::flat_hash_set<K, Hash, KeyEqual, ZoneAllocator<K>>(
             bucket_count, Hash(), KeyEqual(), ZoneAllocator<K>(zone)) {}
+};
+
+// A wrapper subclass for absl::btree_map to make it easy to construct one
+// that uses a zone allocator. If you want to use a user-defined type as key
+// (K), you'll need to define a AbslHashValue function for it (see
+// https://abseil.io/docs/cpp/guides/hash).
+template <typename K, typename V, typename Compare = std::less<K>>
+class ZoneAbslBTreeMap
+    : public absl::btree_map<K, V, Compare,
+                             ZoneAllocator<std::pair<const K, V>>> {
+ public:
+  // Constructs an empty map.
+  explicit ZoneAbslBTreeMap(Zone* zone)
+      : absl::btree_map<K, V, Compare, ZoneAllocator<std::pair<const K, V>>>(
+            ZoneAllocator<std::pair<const K, V>>(zone)) {}
 };
 
 // Typedefs to shorten commonly used vectors.

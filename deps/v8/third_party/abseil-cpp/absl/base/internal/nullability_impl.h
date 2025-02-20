@@ -26,80 +26,41 @@ namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace nullability_internal {
 
-// `IsNullabilityCompatible` checks whether its first argument is a class
-// explicitly tagged as supporting nullability annotations. The tag is the type
-// declaration `absl_nullability_compatible`.
-template <typename, typename = void>
-struct IsNullabilityCompatible : std::false_type {};
-
 template <typename T>
-struct IsNullabilityCompatible<
-    T, absl::void_t<typename T::absl_nullability_compatible>> : std::true_type {
-};
-
-template <typename T>
-constexpr bool IsSupportedType = IsNullabilityCompatible<T>::value;
-
-template <typename T>
-constexpr bool IsSupportedType<T*> = true;
-
-template <typename T, typename U>
-constexpr bool IsSupportedType<T U::*> = true;
-
-template <typename T, typename... Deleter>
-constexpr bool IsSupportedType<std::unique_ptr<T, Deleter...>> = true;
-
-template <typename T>
-constexpr bool IsSupportedType<std::shared_ptr<T>> = true;
-
-template <typename T>
-struct EnableNullable {
-  static_assert(nullability_internal::IsSupportedType<std::remove_cv_t<T>>,
-                "Template argument must be a raw or supported smart pointer "
-                "type. See absl/base/nullability.h.");
-  using type = T;
-};
-
-template <typename T>
-struct EnableNonnull {
-  static_assert(nullability_internal::IsSupportedType<std::remove_cv_t<T>>,
-                "Template argument must be a raw or supported smart pointer "
-                "type. See absl/base/nullability.h.");
-  using type = T;
-};
-
-template <typename T>
-struct EnableNullabilityUnknown {
-  static_assert(nullability_internal::IsSupportedType<std::remove_cv_t<T>>,
-                "Template argument must be a raw or supported smart pointer "
-                "type. See absl/base/nullability.h.");
-  using type = T;
-};
-
-// Note: we do not apply Clang nullability attributes (e.g. _Nullable).  These
-// only support raw pointers, and conditionally enabling them only for raw
-// pointers inhibits template arg deduction.  Ideally, they would support all
-// pointer-like types.
-template <typename T, typename = typename EnableNullable<T>::type>
 using NullableImpl
 #if ABSL_HAVE_CPP_ATTRIBUTE(clang::annotate)
     [[clang::annotate("Nullable")]]
 #endif
+// Don't add the _Nullable attribute in Objective-C compiles. Many Objective-C
+// projects enable the `-Wnullable-to-nonnull-conversion warning`, which is
+// liable to produce false positives.
+#if ABSL_HAVE_FEATURE(nullability_on_classes) && !defined(__OBJC__)
+    = T _Nullable;
+#else
     = T;
+#endif
 
-template <typename T, typename = typename EnableNonnull<T>::type>
+template <typename T>
 using NonnullImpl
 #if ABSL_HAVE_CPP_ATTRIBUTE(clang::annotate)
     [[clang::annotate("Nonnull")]]
 #endif
+#if ABSL_HAVE_FEATURE(nullability_on_classes) && !defined(__OBJC__)
+    = T _Nonnull;
+#else
     = T;
+#endif
 
-template <typename T, typename = typename EnableNullabilityUnknown<T>::type>
+template <typename T>
 using NullabilityUnknownImpl
 #if ABSL_HAVE_CPP_ATTRIBUTE(clang::annotate)
     [[clang::annotate("Nullability_Unspecified")]]
 #endif
+#if ABSL_HAVE_FEATURE(nullability_on_classes) && !defined(__OBJC__)
+    = T _Null_unspecified;
+#else
     = T;
+#endif
 
 }  // namespace nullability_internal
 ABSL_NAMESPACE_END

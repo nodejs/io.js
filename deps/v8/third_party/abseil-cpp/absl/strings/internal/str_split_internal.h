@@ -253,6 +253,10 @@ using ShouldUseLifetimeBoundForPair = std::integral_constant<
               (std::is_same<First, absl::string_view>::value ||
                std::is_same<Second, absl::string_view>::value)>;
 
+template <typename StringType, typename ElementType, std::size_t Size>
+using ShouldUseLifetimeBoundForArray = std::integral_constant<
+    bool, std::is_same<StringType, std::string>::value &&
+              std::is_same<ElementType, absl::string_view>::value>;
 
 // This class implements the range that is returned by absl::StrSplit(). This
 // class has templated conversion operators that allow it to be implicitly
@@ -344,7 +348,38 @@ class Splitter {
     return ConvertToPair<First, Second>();
   }
 
+  // Returns an array with its elements set to the first few strings returned by
+  // the begin() iterator.  If there is not a corresponding value the empty
+  // string is used.
+  template <typename ElementType, std::size_t Size,
+            std::enable_if_t<ShouldUseLifetimeBoundForArray<
+                                 StringType, ElementType, Size>::value,
+                             std::nullptr_t> = nullptr>
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  operator std::array<ElementType, Size>() const ABSL_ATTRIBUTE_LIFETIME_BOUND {
+    return ConvertToArray<ElementType, Size>();
+  }
+
+  template <typename ElementType, std::size_t Size,
+            std::enable_if_t<!ShouldUseLifetimeBoundForArray<
+                                 StringType, ElementType, Size>::value,
+                             std::nullptr_t> = nullptr>
+  // NOLINTNEXTLINE(google-explicit-constructor)
+  operator std::array<ElementType, Size>() const {
+    return ConvertToArray<ElementType, Size>();
+  }
+
  private:
+  template <typename ElementType, std::size_t Size>
+  std::array<ElementType, Size> ConvertToArray() const {
+    std::array<ElementType, Size> a;
+    auto it = begin();
+    for (std::size_t i = 0; i < Size && it != end(); ++i, ++it) {
+      a[i] = ElementType(*it);
+    }
+    return a;
+  }
+
   template <typename First, typename Second>
   std::pair<First, Second> ConvertToPair() const {
     absl::string_view first, second;

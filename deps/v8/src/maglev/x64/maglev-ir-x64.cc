@@ -81,12 +81,11 @@ void LoadTypedArrayLength::GenerateCode(MaglevAssembler* masm,
   }
   __ LoadBoundedSizeFromObject(result_register, object,
                                JSTypedArray::kRawByteLengthOffset);
-  int element_size = ElementsKindSize(elements_kind_);
-  if (element_size > 1) {
+  int shift_size = ElementsKindToShiftSize(elements_kind_);
+  if (shift_size > 0) {
     // TODO(leszeks): Merge this shift with the one in LoadBoundedSize.
-    DCHECK(element_size == 2 || element_size == 4 || element_size == 8);
-    __ shrq(result_register,
-            Immediate(base::bits::CountTrailingZeros(element_size)));
+    DCHECK(shift_size == 1 || shift_size == 2 || shift_size == 3);
+    __ shrq(result_register, Immediate(shift_size));
   }
 }
 
@@ -120,6 +119,21 @@ void CheckJSDataViewBounds::GenerateCode(MaglevAssembler* masm,
 
 int CheckedObjectToIndex::MaxCallStackArgs() const {
   return MaglevAssembler::ArgumentStackSlotsForCFunctionCall(1);
+}
+
+void CheckedIntPtrToInt32::SetValueLocationConstraints() {
+  UseRegister(input());
+  DefineSameAsFirst(this);
+}
+
+void CheckedIntPtrToInt32::GenerateCode(MaglevAssembler* masm,
+                                        const ProcessingState& state) {
+  Register input_reg = ToRegister(input());
+
+  // Copy input(32 bit) to scratch. Is input equal(64 bit) to scratch?
+  __ movl(kScratchRegister, input_reg);
+  __ cmpq(kScratchRegister, input_reg);
+  __ EmitEagerDeoptIf(not_equal, DeoptimizeReason::kNotInt32, this);
 }
 
 int BuiltinStringFromCharCode::MaxCallStackArgs() const {
@@ -807,7 +821,7 @@ void Return::GenerateCode(MaglevAssembler* masm, const ProcessingState& state) {
   Register actual_params_size = r8;
 
   // Compute the size of the actual parameters + receiver (in bytes).
-  // TODO(leszeks): Consider making this an input into Return to re-use the
+  // TODO(leszeks): Consider making this an input into Return to reuse the
   // incoming argc's register (if it's still valid).
   __ movq(actual_params_size,
           MemOperand(rbp, StandardFrameConstants::kArgCOffset));

@@ -399,7 +399,7 @@ void SignalHandler::FillRegisterState(void* context, RegisterState* state) {
   // Extracting the sample from the context is extremely machine dependent.
   ucontext_t* ucontext = reinterpret_cast<ucontext_t*>(context);
 #if !(V8_OS_OPENBSD || V8_OS_ZOS || \
-      (V8_OS_LINUX && (V8_HOST_ARCH_S390 || V8_HOST_ARCH_PPC64)))
+      (V8_OS_LINUX && (V8_HOST_ARCH_S390X || V8_HOST_ARCH_PPC64)))
   mcontext_t& mcontext = ucontext->uc_mcontext;
 #elif V8_OS_ZOS
   __mcontext_t_* mcontext = reinterpret_cast<__mcontext_t_*>(context);
@@ -455,15 +455,8 @@ void SignalHandler::FillRegisterState(void* context, RegisterState* state) {
   state->fp = reinterpret_cast<void*>(ucontext->uc_mcontext.gp_regs[31]);
   state->lr = reinterpret_cast<void*>(ucontext->uc_mcontext.gp_regs[36]);
 #endif
-#elif V8_HOST_ARCH_S390
-#if V8_TARGET_ARCH_32_BIT
-  // 31-bit target will have bit 0 (MSB) of the PSW set to denote addressing
-  // mode.  This bit needs to be masked out to resolve actual address.
-  state->pc =
-      reinterpret_cast<void*>(ucontext->uc_mcontext.psw.addr & 0x7FFFFFFF);
-#else
+#elif V8_HOST_ARCH_S390X
   state->pc = reinterpret_cast<void*>(ucontext->uc_mcontext.psw.addr);
-#endif  // V8_TARGET_ARCH_32_BIT
   state->sp = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[15]);
   state->fp = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[11]);
   state->lr = reinterpret_cast<void*>(ucontext->uc_mcontext.gregs[14]);

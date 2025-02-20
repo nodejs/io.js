@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm --wasm-math-intrinsics
+// Flags: --wasm-math-intrinsics
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -165,7 +165,7 @@ function genBinop(name, sig) {
 }
 
 function assertUnop(name, math_func, wasm_func) {
-  for (val of inputs) {
+  for (let val of inputs) {
     verbose('  ', val);
     let m = math_func(val);
     let w = wasm_func(val);
@@ -175,9 +175,9 @@ function assertUnop(name, math_func, wasm_func) {
 
 function assertBinop(name, math_func, wasm_func) {
   let inputs2 = [1, 0.5, -1, -0.5, 0, -0, 1 / 0, -1 / 0, 0 / 0];
-  for (val of inputs) {
+  for (let val of inputs) {
     verbose('  ', val);
-    for (val2 of inputs2) {
+    for (let val2 of inputs2) {
       verbose('    ', val2);
       let m = math_func(val, val2);
       let w = wasm_func(val, val2);
@@ -191,14 +191,12 @@ function assertBinop(name, math_func, wasm_func) {
 
 (function TestF64() {
   let f64_intrinsics = [
-    'acos',  'asin', 'atan', 'cos',   'sin',   'tan',  'exp', 'log',
-    'atan2', 'pow',  'ceil', 'floor', 'sqrt',  'min',  'max', 'abs',
-    'min',   'max',  'abs',  'ceil',  'floor', 'sqrt',
+    'acos', 'asin', 'atan', 'cos', 'sin', 'tan', 'exp', 'log', 'atan2', 'pow',
+    'sqrt',
   ];
 
-  for (name of f64_intrinsics) {
+  for (let name of f64_intrinsics) {
     let math_func = Math[name];
-    let f32 = false;
     print('Testing (f64) Math.' + name);
     switch (math_func.length) {
       case 1: {
@@ -215,42 +213,6 @@ function assertBinop(name, math_func, wasm_func) {
         throw 'Unexpected param count: ' + func.length;
     }
   }
-})();
-
-(function TestF32() {
-  let f32_intrinsics = ['min', 'max', 'abs', 'ceil', 'floor', 'sqrt'];
-
-  for (name of f32_intrinsics) {
-    let r = Math.fround, f = Math[name];
-    print('Testing (f32) Math.' + name);
-    switch (f.length) {
-      case 1: {
-        let wasm_func = genUnop(name, kSig_f_f);
-        let math_func = (val) => r(f(r(val)));
-        assertUnop('(f32)' + name, math_func, wasm_func);
-        break;
-      }
-      case 2: {
-        let wasm_func = genBinop(name, kSig_f_ff);
-        let math_func = (v1, v2) => r(f(r(v1), r(v2)));
-        assertBinop('(f32)' + name, math_func, wasm_func);
-        break;
-      }
-      default:
-        throw 'Unexpected param count: ' + func.length;
-    }
-  }
-})();
-
-(function TestFround() {
-  let name = 'fround';
-  print('Testing (f32) Math.' + name);
-
-  let wasm_func = genUnop(name, kSig_f_d);  // fround has a special signature.
-  let f = Math[name];
-  let r = Math.fround;
-  let math_func = (val) => r(f(r(val)));
-  assertUnop(name, math_func, wasm_func);
 })();
 
 assertEquals(0, numFailures);

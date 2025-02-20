@@ -54,7 +54,6 @@ class V8InspectorImpl;
 class V8InspectorSessionImpl;
 
 using protocol::Response;
-using protocol::Maybe;
 
 class V8RuntimeAgentImpl : public protocol::Runtime::Backend {
  public:
@@ -70,72 +69,89 @@ class V8RuntimeAgentImpl : public protocol::Runtime::Backend {
   Response enable() override;
   Response disable() override;
   void evaluate(
-      const String16& expression, Maybe<String16> objectGroup,
-      Maybe<bool> includeCommandLineAPI, Maybe<bool> silent,
-      Maybe<int> executionContextId, Maybe<bool> returnByValue,
-      Maybe<bool> generatePreview, Maybe<bool> userGesture,
-      Maybe<bool> awaitPromise, Maybe<bool> throwOnSideEffect,
-      Maybe<double> timeout, Maybe<bool> disableBreaks, Maybe<bool> replMode,
-      Maybe<bool> allowUnsafeEvalBlockedByCSP, Maybe<String16> uniqueContextId,
-      Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
+      const String16& expression, std::optional<String16> objectGroup,
+      std::optional<bool> includeCommandLineAPI, std::optional<bool> silent,
+      std::optional<int> executionContextId, std::optional<bool> returnByValue,
+      std::optional<bool> generatePreview, std::optional<bool> userGesture,
+      std::optional<bool> awaitPromise, std::optional<bool> throwOnSideEffect,
+      std::optional<double> timeout, std::optional<bool> disableBreaks,
+      std::optional<bool> replMode,
+      std::optional<bool> allowUnsafeEvalBlockedByCSP,
+      std::optional<String16> uniqueContextId,
+      std::unique_ptr<protocol::Runtime::SerializationOptions>
+          serializationOptions,
       std::unique_ptr<EvaluateCallback>) override;
-  void awaitPromise(const String16& promiseObjectId, Maybe<bool> returnByValue,
-                    Maybe<bool> generatePreview,
+  void awaitPromise(const String16& promiseObjectId,
+                    std::optional<bool> returnByValue,
+                    std::optional<bool> generatePreview,
                     std::unique_ptr<AwaitPromiseCallback>) override;
   void callFunctionOn(
-      const String16& expression, Maybe<String16> objectId,
-      Maybe<protocol::Array<protocol::Runtime::CallArgument>> optionalArguments,
-      Maybe<bool> silent, Maybe<bool> returnByValue,
-      Maybe<bool> generatePreview, Maybe<bool> userGesture,
-      Maybe<bool> awaitPromise, Maybe<int> executionContextId,
-      Maybe<String16> objectGroup, Maybe<bool> throwOnSideEffect,
-      Maybe<String16> uniqueContextId,
-      Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
+      const String16& expression, std::optional<String16> objectId,
+      std::unique_ptr<protocol::Array<protocol::Runtime::CallArgument>>
+          optionalArguments,
+      std::optional<bool> silent, std::optional<bool> returnByValue,
+      std::optional<bool> generatePreview, std::optional<bool> userGesture,
+      std::optional<bool> awaitPromise, std::optional<int> executionContextId,
+      std::optional<String16> objectGroup,
+      std::optional<bool> throwOnSideEffect,
+      std::optional<String16> uniqueContextId,
+      std::unique_ptr<protocol::Runtime::SerializationOptions>
+          serializationOptions,
       std::unique_ptr<CallFunctionOnCallback>) override;
   Response releaseObject(const String16& objectId) override;
   Response getProperties(
-      const String16& objectId, Maybe<bool> ownProperties,
-      Maybe<bool> accessorPropertiesOnly, Maybe<bool> generatePreview,
-      Maybe<bool> nonIndexedPropertiesOnly,
+      const String16& objectId, std::optional<bool> ownProperties,
+      std::optional<bool> accessorPropertiesOnly,
+      std::optional<bool> generatePreview,
+      std::optional<bool> nonIndexedPropertiesOnly,
       std::unique_ptr<protocol::Array<protocol::Runtime::PropertyDescriptor>>*
           result,
-      Maybe<protocol::Array<protocol::Runtime::InternalPropertyDescriptor>>*
+      std::unique_ptr<
+          protocol::Array<protocol::Runtime::InternalPropertyDescriptor>>*
           internalProperties,
-      Maybe<protocol::Array<protocol::Runtime::PrivatePropertyDescriptor>>*
+      std::unique_ptr<
+          protocol::Array<protocol::Runtime::PrivatePropertyDescriptor>>*
           privateProperties,
-      Maybe<protocol::Runtime::ExceptionDetails>*) override;
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>*) override;
   Response releaseObjectGroup(const String16& objectGroup) override;
   Response runIfWaitingForDebugger() override;
   Response setCustomObjectFormatterEnabled(bool) override;
   Response setMaxCallStackSizeToCapture(int) override;
   Response discardConsoleEntries() override;
-  Response compileScript(const String16& expression, const String16& sourceURL,
-                         bool persistScript, Maybe<int> executionContextId,
-                         Maybe<String16>*,
-                         Maybe<protocol::Runtime::ExceptionDetails>*) override;
-  void runScript(const String16&, Maybe<int> executionContextId,
-                 Maybe<String16> objectGroup, Maybe<bool> silent,
-                 Maybe<bool> includeCommandLineAPI, Maybe<bool> returnByValue,
-                 Maybe<bool> generatePreview, Maybe<bool> awaitPromise,
+  Response compileScript(
+      const String16& expression, const String16& sourceURL, bool persistScript,
+      std::optional<int> executionContextId, std::optional<String16>*,
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>*) override;
+  void runScript(const String16&, std::optional<int> executionContextId,
+                 std::optional<String16> objectGroup,
+                 std::optional<bool> silent,
+                 std::optional<bool> includeCommandLineAPI,
+                 std::optional<bool> returnByValue,
+                 std::optional<bool> generatePreview,
+                 std::optional<bool> awaitPromise,
                  std::unique_ptr<RunScriptCallback>) override;
   Response queryObjects(
-      const String16& prototypeObjectId, Maybe<String16> objectGroup,
+      const String16& prototypeObjectId, std::optional<String16> objectGroup,
       std::unique_ptr<protocol::Runtime::RemoteObject>* objects) override;
   Response globalLexicalScopeNames(
-      Maybe<int> executionContextId,
+      std::optional<int> executionContextId,
       std::unique_ptr<protocol::Array<String16>>* outNames) override;
   Response getIsolateId(String16* outIsolateId) override;
-  Response getHeapUsage(double* out_usedSize, double* out_totalSize) override;
+  Response getHeapUsage(double* out_usedSize, double* out_totalSize,
+                        double* out_embedderHeapUsedSize,
+                        double* out_backingStorageSize) override;
   void terminateExecution(
       std::unique_ptr<TerminateExecutionCallback> callback) override;
 
-  Response addBinding(const String16& name, Maybe<int> executionContextId,
-                      Maybe<String16> executionContextName) override;
+  Response addBinding(const String16& name,
+                      std::optional<int> executionContextId,
+                      std::optional<String16> executionContextName) override;
   Response removeBinding(const String16& name) override;
   void addBindings(InspectedContext* context);
-  Response getExceptionDetails(const String16& errorObjectId,
-                               Maybe<protocol::Runtime::ExceptionDetails>*
-                                   out_exceptionDetails) override;
+  Response getExceptionDetails(
+      const String16& errorObjectId,
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>*
+          out_exceptionDetails) override;
 
   void reset();
   void reportExecutionContextCreated(InspectedContext*);

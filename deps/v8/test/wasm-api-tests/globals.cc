@@ -90,14 +90,14 @@ TEST_F(WasmCapiTest, Globals) {
                       sizeof(svie), &param_i64);
 
   // Create imported globals.
-  own<GlobalType> const_f32_type =
-      GlobalType::make(ValType::make(::wasm::F32), ::wasm::CONST);
-  own<GlobalType> const_i64_type =
-      GlobalType::make(ValType::make(::wasm::I64), ::wasm::CONST);
-  own<GlobalType> var_f32_type =
-      GlobalType::make(ValType::make(::wasm::F32), ::wasm::VAR);
-  own<GlobalType> var_i64_type =
-      GlobalType::make(ValType::make(::wasm::I64), ::wasm::VAR);
+  own<GlobalType> const_f32_type = GlobalType::make(
+      ValType::make(::wasm::ValKind::F32), ::wasm::Mutability::CONST);
+  own<GlobalType> const_i64_type = GlobalType::make(
+      ValType::make(::wasm::ValKind::I64), ::wasm::Mutability::CONST);
+  own<GlobalType> var_f32_type = GlobalType::make(
+      ValType::make(::wasm::ValKind::F32), ::wasm::Mutability::VAR);
+  own<GlobalType> var_i64_type = GlobalType::make(
+      ValType::make(::wasm::ValKind::I64), ::wasm::Mutability::VAR);
   own<Global> const_f32_import =
       Global::make(store(), const_f32_type.get(), Val::f32(1));
   own<Global> const_i64_import =
@@ -106,8 +106,9 @@ TEST_F(WasmCapiTest, Globals) {
       Global::make(store(), var_f32_type.get(), Val::f32(3));
   own<Global> var_i64_import =
       Global::make(store(), var_i64_type.get(), Val::i64(4));
-  Extern* imports[] = {const_f32_import.get(), const_i64_import.get(),
-                       var_f32_import.get(), var_i64_import.get()};
+  vec<Extern*> imports =
+      vec<Extern*>::make(const_f32_import.get(), const_i64_import.get(),
+                         var_f32_import.get(), var_i64_import.get());
 
   Instantiate(imports);
 
@@ -142,22 +143,24 @@ TEST_F(WasmCapiTest, Globals) {
   EXPECT_EQ(6, const_i64_export->get().i64());
   EXPECT_EQ(7.f, var_f32_export->get().f32());
   EXPECT_EQ(8, var_i64_export->get().i64());
-  Val result[1];
-  get_const_f32_import->call(nullptr, result);
+  vec<Val> result = vec<Val>::make_uninitialized(1);
+  vec<Val> empty_args = vec<Val>::make_uninitialized();
+
+  get_const_f32_import->call(empty_args, result);
   EXPECT_EQ(1.f, result[0].f32());
-  get_const_i64_import->call(nullptr, result);
+  get_const_i64_import->call(empty_args, result);
   EXPECT_EQ(2, result[0].i64());
-  get_var_f32_import->call(nullptr, result);
+  get_var_f32_import->call(empty_args, result);
   EXPECT_EQ(3.f, result[0].f32());
-  get_var_i64_import->call(nullptr, result);
+  get_var_i64_import->call(empty_args, result);
   EXPECT_EQ(4, result[0].i64());
-  get_const_f32_export->call(nullptr, result);
+  get_const_f32_export->call(empty_args, result);
   EXPECT_EQ(5.f, result[0].f32());
-  get_const_i64_export->call(nullptr, result);
+  get_const_i64_export->call(empty_args, result);
   EXPECT_EQ(6, result[0].i64());
-  get_var_f32_export->call(nullptr, result);
+  get_var_f32_export->call(empty_args, result);
   EXPECT_EQ(7.f, result[0].f32());
-  get_var_i64_export->call(nullptr, result);
+  get_var_i64_export->call(empty_args, result);
   EXPECT_EQ(8, result[0].i64());
 
   // Modify variables through the API and check again.
@@ -171,38 +174,39 @@ TEST_F(WasmCapiTest, Globals) {
   EXPECT_EQ(35.f, var_f32_export->get().f32());
   EXPECT_EQ(36, var_i64_export->get().i64());
 
-  get_var_f32_import->call(nullptr, result);
+  get_var_f32_import->call(empty_args, result);
   EXPECT_EQ(33.f, result[0].f32());
-  get_var_i64_import->call(nullptr, result);
+  get_var_i64_import->call(empty_args, result);
   EXPECT_EQ(34, result[0].i64());
-  get_var_f32_export->call(nullptr, result);
+  get_var_f32_export->call(empty_args, result);
   EXPECT_EQ(35.f, result[0].f32());
-  get_var_i64_export->call(nullptr, result);
+  get_var_i64_export->call(empty_args, result);
   EXPECT_EQ(36, result[0].i64());
 
   // Modify variables through calls and check again.
-  Val args[1];
+  vec<Val> empty_rets = vec<Val>::make_uninitialized();
+  vec<Val> args = vec<Val>::make_uninitialized(1);
   args[0] = Val::f32(73);
-  set_var_f32_import->call(args, nullptr);
+  set_var_f32_import->call(args, empty_rets);
   args[0] = Val::i64(74);
-  set_var_i64_import->call(args, nullptr);
+  set_var_i64_import->call(args, empty_rets);
   args[0] = Val::f32(75);
-  set_var_f32_export->call(args, nullptr);
+  set_var_f32_export->call(args, empty_rets);
   args[0] = Val::i64(76);
-  set_var_i64_export->call(args, nullptr);
+  set_var_i64_export->call(args, empty_rets);
 
   EXPECT_EQ(73.f, var_f32_import->get().f32());
   EXPECT_EQ(74, var_i64_import->get().i64());
   EXPECT_EQ(75.f, var_f32_export->get().f32());
   EXPECT_EQ(76, var_i64_export->get().i64());
 
-  get_var_f32_import->call(nullptr, result);
+  get_var_f32_import->call(empty_args, result);
   EXPECT_EQ(73.f, result[0].f32());
-  get_var_i64_import->call(nullptr, result);
+  get_var_i64_import->call(empty_args, result);
   EXPECT_EQ(74, result[0].i64());
-  get_var_f32_export->call(nullptr, result);
+  get_var_f32_export->call(empty_args, result);
   EXPECT_EQ(75.f, result[0].f32());
-  get_var_i64_export->call(nullptr, result);
+  get_var_i64_export->call(empty_args, result);
   EXPECT_EQ(76, result[0].i64());
 }
 

@@ -42,6 +42,27 @@ constexpr Builtin Builtins::EphemeronKeyBarrier(SaveFPRegsMode fp_mode) {
 }
 
 // static
+constexpr Builtin Builtins::AdaptorWithBuiltinExitFrame(
+    int formal_parameter_count) {
+  switch (formal_parameter_count) {
+    case kDontAdaptArgumentsSentinel:
+    case JSParameterCount(0):
+      return Builtin::kAdaptorWithBuiltinExitFrame0;
+    case JSParameterCount(1):
+      return Builtin::kAdaptorWithBuiltinExitFrame1;
+    case JSParameterCount(2):
+      return Builtin::kAdaptorWithBuiltinExitFrame2;
+    case JSParameterCount(3):
+      return Builtin::kAdaptorWithBuiltinExitFrame3;
+    case JSParameterCount(4):
+      return Builtin::kAdaptorWithBuiltinExitFrame4;
+    case JSParameterCount(5):
+      return Builtin::kAdaptorWithBuiltinExitFrame5;
+  }
+  UNREACHABLE();
+}
+
+// static
 constexpr Builtin Builtins::CallFunction(ConvertReceiverMode mode) {
   switch (mode) {
     case ConvertReceiverMode::kNullOrUndefined:
@@ -65,6 +86,21 @@ constexpr Builtin Builtins::Call(ConvertReceiverMode mode) {
       return Builtin::kCall_ReceiverIsAny;
   }
   UNREACHABLE();
+}
+
+// static
+constexpr bool Builtins::IsAnyCall(Builtin builtin) {
+  switch (builtin) {
+    case Builtin::kCallFunction_ReceiverIsNullOrUndefined:
+    case Builtin::kCallFunction_ReceiverIsNotNullOrUndefined:
+    case Builtin::kCallFunction_ReceiverIsAny:
+    case Builtin::kCall_ReceiverIsNullOrUndefined:
+    case Builtin::kCall_ReceiverIsNotNullOrUndefined:
+    case Builtin::kCall_ReceiverIsAny:
+      return true;
+    default:
+      return false;
+  }
 }
 
 // static
@@ -217,28 +253,34 @@ constexpr bool Builtins::IsJSEntryVariant(Builtin builtin) {
   UNREACHABLE();
 }
 
-#ifdef V8_ENABLE_WEBASSEMBLY
-
 // static
-template <Builtin builtin>
-constexpr size_t Builtins::WasmBuiltinHandleArrayIndex() {
-  constexpr size_t index =
-      std::find(std::begin(Builtins::kWasmIndirectlyCallableBuiltins),
-                std::end(Builtins::kWasmIndirectlyCallableBuiltins), builtin) -
-      std::begin(Builtins::kWasmIndirectlyCallableBuiltins);
-  static_assert(Builtins::kWasmIndirectlyCallableBuiltins[index] == builtin);
-  return index;
-}
+int Builtins::GetFormalParameterCount(Builtin builtin) {
+  CHECK(HasJSLinkage(builtin));
 
-// static
-template <Builtin builtin>
-wasm::WasmCodePointerTable::Handle Builtins::WasmBuiltinHandleOf(
-    Isolate* isolate) {
-  return isolate
-      ->wasm_builtin_code_handles()[WasmBuiltinHandleArrayIndex<builtin>()];
-}
+  // TODO(saelo): consider merging GetFormalParameterCount and
+  // GetStackParameterCount into a single function.
+  if (Builtins::KindOf(builtin) == TSJ || Builtins::KindOf(builtin) == TFJ) {
+    return Builtins::GetStackParameterCount(builtin);
+  } else if (Builtins::KindOf(builtin) == ASM ||
+             Builtins::KindOf(builtin) == TFC) {
+    // At the moment, all ASM builtins are varargs builtins. This is verified
+    // in CheckFormalParameterCount.
+    return kDontAdaptArgumentsSentinel;
+  } else if (Builtins::KindOf(builtin) == CPP) {
+#define CPP_BUILTIN(Name, Argc) \
+  case Builtin::k##Name:        \
+    return Argc;
 
-#endif  // V8_ENABLE_WEBASSEMBLY
+    switch (builtin) {
+      BUILTIN_LIST_C(CPP_BUILTIN)
+      default:
+        UNREACHABLE();
+    }
+#undef CPP_BUILTIN
+  } else {
+    UNREACHABLE();
+  }
+}
 
 }  // namespace internal
 }  // namespace v8

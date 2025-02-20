@@ -239,18 +239,10 @@ class ParallelMove {
   }
 
  private:
-  using MovesStorage =
-      std::aligned_storage<kAfterMaxLiftoffRegCode * sizeof(RegisterMove),
-                           alignof(RegisterMove)>::type;
-  using LoadsStorage =
-      std::aligned_storage<kAfterMaxLiftoffRegCode * sizeof(RegisterLoad),
-                           alignof(RegisterLoad)>::type;
-
-  ASSERT_TRIVIALLY_COPYABLE(RegisterMove);
-  ASSERT_TRIVIALLY_COPYABLE(RegisterLoad);
-
-  MovesStorage register_moves_;  // uninitialized
-  LoadsStorage register_loads_;  // uninitialized
+  alignas(RegisterMove) char register_moves_
+      [kAfterMaxLiftoffRegCode * sizeof(RegisterMove)];  // uninitialized
+  alignas(RegisterLoad) char register_loads_
+      [kAfterMaxLiftoffRegCode * sizeof(RegisterLoad)];  // uninitialized
   int src_reg_use_count_[kAfterMaxLiftoffRegCode] = {0};
   LiftoffRegList move_dst_regs_;
   LiftoffRegList load_dst_regs_;
@@ -260,11 +252,11 @@ class ParallelMove {
   int last_spill_offset_;
 
   RegisterMove* register_move(LiftoffRegister reg) {
-    return reinterpret_cast<RegisterMove*>(&register_moves_) +
+    return reinterpret_cast<RegisterMove*>(register_moves_) +
            reg.liftoff_code();
   }
   RegisterLoad* register_load(LiftoffRegister reg) {
-    return reinterpret_cast<RegisterLoad*>(&register_loads_) +
+    return reinterpret_cast<RegisterLoad*>(register_loads_) +
            reg.liftoff_code();
   }
   int* src_reg_use_count(LiftoffRegister reg) {

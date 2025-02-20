@@ -8,7 +8,7 @@
 #include <atomic>
 #include <unordered_map>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/macros.h"
 #include "src/heap/memory-chunk-metadata.h"
 

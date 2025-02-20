@@ -7,15 +7,13 @@
 #include "wasm.hh"
 
 // A function to be called from Wasm code.
-auto fail_callback(
-  void* env, const wasm::Val args[], wasm::Val results[]
-) -> wasm::own<wasm::Trap> {
+auto fail_callback(void* env, const wasm::vec<wasm::Val>& args,
+                   wasm::vec<wasm::Val>& results) -> wasm::own<wasm::Trap> {
   std::cout << "Calling back..." << std::endl;
   auto store = reinterpret_cast<wasm::Store*>(env);
-  auto message = wasm::Name::make(std::string("callback abort"));
+  auto message = wasm::Name::make_nt(std::string("callback abort"));
   return wasm::Trap::make(store, message);
 }
-
 
 void print_frame(const wasm::Frame* frame) {
   std::cout << "> " << frame->instance();
@@ -56,16 +54,16 @@ void run() {
 
   // Create external print functions.
   std::cout << "Creating callback..." << std::endl;
-  auto fail_type = wasm::FuncType::make(
-    wasm::ownvec<wasm::ValType>::make(),
-    wasm::ownvec<wasm::ValType>::make(wasm::ValType::make(wasm::I32))
-  );
+  auto fail_type =
+      wasm::FuncType::make(wasm::ownvec<wasm::ValType>::make(),
+                           wasm::ownvec<wasm::ValType>::make(
+                               wasm::ValType::make(wasm::ValKind::I32)));
   auto fail_func =
     wasm::Func::make(store, fail_type.get(), fail_callback, store);
 
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
-  wasm::Extern* imports[] = {fail_func.get()};
+  auto imports = wasm::vec<wasm::Extern*>::make(fail_func.get());
   auto instance = wasm::Instance::make(store, module.get(), imports);
   if (!instance) {
     std::cout << "> Error instantiating module!" << std::endl;
@@ -75,9 +73,9 @@ void run() {
   // Extract export.
   std::cout << "Extracting exports..." << std::endl;
   auto exports = instance->exports();
-  if (exports.size() < 2 ||
-      exports[0]->kind() != wasm::EXTERN_FUNC || !exports[0]->func() ||
-      exports[1]->kind() != wasm::EXTERN_FUNC || !exports[1]->func()) {
+  if (exports.size() < 2 || exports[0]->kind() != wasm::ExternKind::FUNC ||
+      !exports[0]->func() || exports[1]->kind() != wasm::ExternKind::FUNC ||
+      !exports[1]->func()) {
     std::cout << "> Error accessing exports!" << std::endl;
     exit(1);
   }
@@ -85,7 +83,9 @@ void run() {
   // Call.
   for (size_t i = 0; i < 2; ++i) {
     std::cout << "Calling export " << i << "..." << std::endl;
-    auto trap = exports[i]->func()->call();
+    auto args = wasm::vec<wasm::Val>::make();
+    auto results = wasm::vec<wasm::Val>::make();
+    auto trap = exports[i]->func()->call(args, results);
     if (!trap) {
       std::cout << "> Error calling function, expected trap!" << std::endl;
       exit(1);

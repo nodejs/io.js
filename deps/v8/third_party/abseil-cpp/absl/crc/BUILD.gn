@@ -10,6 +10,7 @@ absl_source_set("cpu_detect") {
   deps = [
     "//third_party/abseil-cpp/absl/base",
     "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/types:optional",
   ]
   visibility = [ ":*" ]
 }

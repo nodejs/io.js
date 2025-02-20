@@ -22,11 +22,11 @@ namespace internal {
   V(Int16, int16, INT16, int16_t)                        \
   V(Uint32, uint32, UINT32, uint32_t)                    \
   V(Int32, int32, INT32, int32_t)                        \
-  V(Float32, float32, FLOAT32, float)                    \
-  V(Float64, float64, FLOAT64, double)                   \
-  V(Uint8Clamped, uint8_clamped, UINT8_CLAMPED, uint8_t) \
   V(BigUint64, biguint64, BIGUINT64, uint64_t)           \
-  V(BigInt64, bigint64, BIGINT64, int64_t)
+  V(BigInt64, bigint64, BIGINT64, int64_t)               \
+  V(Uint8Clamped, uint8_clamped, UINT8_CLAMPED, uint8_t) \
+  V(Float32, float32, FLOAT32, float)                    \
+  V(Float64, float64, FLOAT64, double)
 
 #define TYPED_ARRAYS_FLOAT16(V) V(Float16, float16, FLOAT16, uint16_t)
 
@@ -41,12 +41,12 @@ namespace internal {
   V(RabGsabInt16, rab_gsab_int16, RAB_GSAB_INT16, int16_t)               \
   V(RabGsabUint32, rab_gsab_uint32, RAB_GSAB_UINT32, uint32_t)           \
   V(RabGsabInt32, rab_gsab_int32, RAB_GSAB_INT32, int32_t)               \
-  V(RabGsabFloat32, rab_gsab_float32, RAB_GSAB_FLOAT32, float)           \
-  V(RabGsabFloat64, rab_gsab_float64, RAB_GSAB_FLOAT64, double)          \
+  V(RabGsabBigUint64, rab_gsab_biguint64, RAB_GSAB_BIGUINT64, uint64_t)  \
+  V(RabGsabBigInt64, rab_gsab_bigint64, RAB_GSAB_BIGINT64, int64_t)      \
   V(RabGsabUint8Clamped, rab_gsab_uint8_clamped, RAB_GSAB_UINT8_CLAMPED, \
     uint8_t)                                                             \
-  V(RabGsabBigUint64, rab_gsab_biguint64, RAB_GSAB_BIGUINT64, uint64_t)  \
-  V(RabGsabBigInt64, rab_gsab_bigint64, RAB_GSAB_BIGINT64, int64_t)
+  V(RabGsabFloat32, rab_gsab_float32, RAB_GSAB_FLOAT32, float)           \
+  V(RabGsabFloat64, rab_gsab_float64, RAB_GSAB_FLOAT64, double)
 
 #define RAB_GSAB_TYPED_ARRAYS_FLOAT16(V) \
   V(RabGsabFloat16, rab_gsab_float16, RAB_GSAB_FLOAT16, uint16_t)
@@ -65,11 +65,11 @@ namespace internal {
   V(Int16, rab_gsab_int16, RAB_GSAB_INT16, int16_t)                        \
   V(Uint32, rab_gsab_uint32, RAB_GSAB_UINT32, uint32_t)                    \
   V(Int32, rab_gsab_int32, RAB_GSAB_INT32, int32_t)                        \
-  V(Float32, rab_gsab_float32, RAB_GSAB_FLOAT32, float)                    \
-  V(Float64, rab_gsab_float64, RAB_GSAB_FLOAT64, double)                   \
-  V(Uint8Clamped, rab_gsab_uint8_clamped, RAB_GSAB_UINT8_CLAMPED, uint8_t) \
   V(BigUint64, rab_gsab_biguint64, RAB_GSAB_BIGUINT64, uint64_t)           \
-  V(BigInt64, rab_gsab_bigint64, RAB_GSAB_BIGINT64, int64_t)
+  V(BigInt64, rab_gsab_bigint64, RAB_GSAB_BIGINT64, int64_t)               \
+  V(Uint8Clamped, rab_gsab_uint8_clamped, RAB_GSAB_UINT8_CLAMPED, uint8_t) \
+  V(Float32, rab_gsab_float32, RAB_GSAB_FLOAT32, float)                    \
+  V(Float64, rab_gsab_float64, RAB_GSAB_FLOAT64, double)
 
 #define RAB_GSAB_TYPED_ARRAYS_WITH_TYPED_ARRAY_TYPE_FLOAT16(V) \
   V(Float16, rab_gsab_float16, RAB_GSAB_FLOAT16, uint16_t)
@@ -80,20 +80,20 @@ namespace internal {
 
 // Like RAB_GSAB_TYPED_ARRAYS but has an additional parameter for
 // for the corresponding non-RAB/GSAB ElementsKind.
-#define RAB_GSAB_TYPED_ARRAYS_WITH_NON_RAB_GSAB_ELEMENTS_KIND_BASE(V)    \
-  V(RabGsabUint8, rab_gsab_uint8, RAB_GSAB_UINT8, uint8_t, UINT8)        \
-  V(RabGsabInt8, rab_gsab_int8, RAB_GSAB_INT8, int8_t, INT8)             \
-  V(RabGsabUint16, rab_gsab_uint16, RAB_GSAB_UINT16, uint16_t, UINT16)   \
-  V(RabGsabInt16, rab_gsab_int16, RAB_GSAB_INT16, int16_t, INT16)        \
-  V(RabGsabUint32, rab_gsab_uint32, RAB_GSAB_UINT32, uint32_t, UINT32)   \
-  V(RabGsabInt32, rab_gsab_int32, RAB_GSAB_INT32, int32_t, INT32)        \
-  V(RabGsabFloat32, rab_gsab_float32, RAB_GSAB_FLOAT32, float, FLOAT32)  \
-  V(RabGsabFloat64, rab_gsab_float64, RAB_GSAB_FLOAT64, double, FLOAT64) \
-  V(RabGsabUint8Clamped, rab_gsab_uint8_clamped, RAB_GSAB_UINT8_CLAMPED, \
-    uint8_t, UINT8_CLAMPED)                                              \
-  V(RabGsabBigUint64, rab_gsab_biguint64, RAB_GSAB_BIGUINT64, uint64_t,  \
-    BIGUINT64)                                                           \
-  V(RabGsabBigInt64, rab_gsab_bigint64, RAB_GSAB_BIGINT64, int64_t, BIGINT64)
+#define RAB_GSAB_TYPED_ARRAYS_WITH_NON_RAB_GSAB_ELEMENTS_KIND_BASE(V)         \
+  V(RabGsabUint8, rab_gsab_uint8, RAB_GSAB_UINT8, uint8_t, UINT8)             \
+  V(RabGsabInt8, rab_gsab_int8, RAB_GSAB_INT8, int8_t, INT8)                  \
+  V(RabGsabUint16, rab_gsab_uint16, RAB_GSAB_UINT16, uint16_t, UINT16)        \
+  V(RabGsabInt16, rab_gsab_int16, RAB_GSAB_INT16, int16_t, INT16)             \
+  V(RabGsabUint32, rab_gsab_uint32, RAB_GSAB_UINT32, uint32_t, UINT32)        \
+  V(RabGsabInt32, rab_gsab_int32, RAB_GSAB_INT32, int32_t, INT32)             \
+  V(RabGsabBigUint64, rab_gsab_biguint64, RAB_GSAB_BIGUINT64, uint64_t,       \
+    BIGUINT64)                                                                \
+  V(RabGsabBigInt64, rab_gsab_bigint64, RAB_GSAB_BIGINT64, int64_t, BIGINT64) \
+  V(RabGsabUint8Clamped, rab_gsab_uint8_clamped, RAB_GSAB_UINT8_CLAMPED,      \
+    uint8_t, UINT8_CLAMPED)                                                   \
+  V(RabGsabFloat32, rab_gsab_float32, RAB_GSAB_FLOAT32, float, FLOAT32)       \
+  V(RabGsabFloat64, rab_gsab_float64, RAB_GSAB_FLOAT64, double, FLOAT64)
 
 #define RAB_GSAB_TYPED_ARRAYS_WITH_NON_RAB_GSAB_ELEMENTS_KIND_FLOAT16(V) \
   V(RabGsabFloat16, rab_gsab_float16, RAB_GSAB_FLOAT16, uint16_t, FLOAT16)
@@ -171,6 +171,8 @@ enum ElementsKind : uint8_t {
   TERMINAL_FAST_ELEMENTS_KIND = HOLEY_ELEMENTS,
   FIRST_ANY_NONEXTENSIBLE_ELEMENTS_KIND = PACKED_NONEXTENSIBLE_ELEMENTS,
   LAST_ANY_NONEXTENSIBLE_ELEMENTS_KIND = SHARED_ARRAY_ELEMENTS,
+  FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND = UINT8_ELEMENTS,
+  LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND = BIGINT64_ELEMENTS,
 
 // Alias for kSystemPointerSize-sized elements
 #ifdef V8_COMPRESS_POINTERS
@@ -361,14 +363,6 @@ inline bool IsTransitionElementsKind(ElementsKind kind) {
 
 constexpr bool IsDoubleElementsKind(ElementsKind kind) {
   return base::IsInRange(kind, PACKED_DOUBLE_ELEMENTS, HOLEY_DOUBLE_ELEMENTS);
-}
-
-inline bool IsFixedFloatElementsKind(ElementsKind kind) {
-  return kind == FLOAT32_ELEMENTS || kind == FLOAT64_ELEMENTS;
-}
-
-inline bool IsDoubleOrFloatElementsKind(ElementsKind kind) {
-  return IsDoubleElementsKind(kind) || IsFixedFloatElementsKind(kind);
 }
 
 // This predicate is used for disabling respective functionality in builtins.

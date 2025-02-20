@@ -126,10 +126,6 @@ void EmbeddedFileWriter::WriteBuiltin(PlatformEmbeddedFileWriterBase* w,
 
 void EmbeddedFileWriter::WriteBuiltinLabels(PlatformEmbeddedFileWriterBase* w,
                                             std::string name) const {
-  if (ENABLE_CONTROL_FLOW_INTEGRITY_BOOL) {
-    w->DeclareSymbolGlobal(name.c_str());
-  }
-
   w->DeclareLabel(name.c_str());
 }
 
@@ -297,15 +293,6 @@ void EmbeddedFileWriter::PrepareBuiltinSourcePositionMap(Builtins* builtins) {
                                     source_position_table->end());
     source_positions_[static_cast<int>(builtin)] = data;
   }
-}
-
-void EmbeddedFileWriter::PrepareBuiltinLabelInfoMap(int create_offset,
-                                                    int invoke_offset) {
-  label_info_[static_cast<int>(Builtin::kJSConstructStubGeneric)].push_back(
-      {create_offset, "construct_stub_create_deopt_addr"});
-  label_info_[static_cast<int>(
-                  Builtin::kInterpreterPushArgsThenFastConstructFunction)]
-      .push_back({invoke_offset, "construct_stub_invoke_deopt_addr"});
 }
 
 }  // namespace internal

@@ -46,7 +46,7 @@ class JSConstantCacheTester : public HandleAndZoneScope,
         main_graph_.NewNode(common()->End(1), main_graph_.start()));
   }
 
-  Handle<HeapObject> handle(Node* node) {
+  DirectHandle<HeapObject> handle(Node* node) {
     CHECK_EQ(IrOpcode::kHeapConstant, node->opcode());
     return HeapConstantOf(node->op());
   }

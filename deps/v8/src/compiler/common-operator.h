@@ -160,16 +160,19 @@ DeoptimizeParameters const& DeoptimizeParametersOf(Operator const* const)
 
 class SelectParameters final {
  public:
-  explicit SelectParameters(MachineRepresentation representation,
-                            BranchHint hint = BranchHint::kNone)
-      : representation_(representation), hint_(hint) {}
+  explicit SelectParameters(
+      MachineRepresentation representation, BranchHint hint = BranchHint::kNone,
+      BranchSemantics semantics = BranchSemantics::kUnspecified)
+      : representation_(representation), hint_(hint), semantics_(semantics) {}
 
   MachineRepresentation representation() const { return representation_; }
   BranchHint hint() const { return hint_; }
+  BranchSemantics semantics() const { return semantics_; }
 
  private:
   const MachineRepresentation representation_;
   const BranchHint hint_;
+  const BranchSemantics semantics_;
 };
 
 bool operator==(SelectParameters const&, SelectParameters const&);
@@ -622,7 +625,9 @@ class V8_EXPORT_PRIVATE CommonOperatorBuilder final
   const Operator* RelocatableInt64Constant(int64_t value,
                                            RelocInfo::Mode rmode);
 
-  const Operator* Select(MachineRepresentation, BranchHint = BranchHint::kNone);
+  const Operator* Select(
+      MachineRepresentation, BranchHint = BranchHint::kNone,
+      BranchSemantics semantics = BranchSemantics::kUnspecified);
   const Operator* Phi(MachineRepresentation representation,
                       int value_input_count);
   const Operator* EffectPhi(int effect_input_count);
@@ -660,12 +665,13 @@ class V8_EXPORT_PRIVATE CommonOperatorBuilder final
   // Constructs function info for frame state construction.
   const FrameStateFunctionInfo* CreateFrameStateFunctionInfo(
       FrameStateType type, uint16_t parameter_count, uint16_t max_arguments,
-      int local_count, Handle<SharedFunctionInfo> shared_info);
+      int local_count, IndirectHandle<SharedFunctionInfo> shared_info,
+      IndirectHandle<BytecodeArray> bytecode_array);
 #if V8_ENABLE_WEBASSEMBLY
   const FrameStateFunctionInfo* CreateJSToWasmFrameStateFunctionInfo(
       FrameStateType type, uint16_t parameter_count, int local_count,
       Handle<SharedFunctionInfo> shared_info,
-      const wasm::FunctionSig* signature);
+      const wasm::CanonicalSig* signature);
 #endif  // V8_ENABLE_WEBASSEMBLY
 
  private:
@@ -763,7 +769,8 @@ class StartNode final : public CommonNodeWrapperBase {
   // The receiver is counted as part of formal parameters.
   static constexpr int kReceiverOutputCount = 1;
   // These outputs are in addition to formal parameters.
-  static constexpr int kExtraOutputCount = 4;
+  static constexpr int kExtraOutputCount =
+      4 + V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE_BOOL;
 
   // Takes the formal parameter count of the current function (including
   // receiver) and returns the number of value outputs of the start node.
@@ -771,16 +778,25 @@ class StartNode final : public CommonNodeWrapperBase {
     constexpr int kClosure = 1;
     constexpr int kNewTarget = 1;
     constexpr int kArgCount = 1;
+    constexpr int kDispatchHandle =
+        V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE_BOOL ? 1 : 0;
     constexpr int kContext = 1;
-    static_assert(kClosure + kNewTarget + kArgCount + kContext ==
+    static_assert(kClosure + kNewTarget + kArgCount + kDispatchHandle +
+                      kContext ==
                   kExtraOutputCount);
     // Checking related linkage methods here since they rely on Start node
     // layout.
     DCHECK_EQ(-1, Linkage::kJSCallClosureParamIndex);
     DCHECK_EQ(argc + 0, Linkage::GetJSCallNewTargetParamIndex(argc));
     DCHECK_EQ(argc + 1, Linkage::GetJSCallArgCountParamIndex(argc));
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+    DCHECK_EQ(argc + 2, Linkage::GetJSCallDispatchHandleParamIndex(argc));
+    DCHECK_EQ(argc + 3, Linkage::GetJSCallContextParamIndex(argc));
+#else
     DCHECK_EQ(argc + 2, Linkage::GetJSCallContextParamIndex(argc));
-    return argc + kClosure + kNewTarget + kArgCount + kContext;
+#endif
+    return argc + kClosure + kNewTarget + kArgCount + kDispatchHandle +
+           kContext;
   }
 
   int FormalParameterCount() const {
@@ -805,6 +821,11 @@ class StartNode final : public CommonNodeWrapperBase {
   int ArgCountParameterIndex() const {
     return Linkage::GetJSCallArgCountParamIndex(FormalParameterCount());
   }
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+  int DispatchHandleOutputIndex() const {
+    return Linkage::GetJSCallDispatchHandleParamIndex(FormalParameterCount());
+  }
+#endif
   int ContextParameterIndex() const {
     return Linkage::GetJSCallContextParamIndex(FormalParameterCount());
   }
@@ -833,27 +854,18 @@ class StartNode final : public CommonNodeWrapperBase {
   // output indices (and not the index assigned to a Parameter).
   int NewTargetOutputIndex() const {
     // Indices assigned to parameters are off-by-one (Parameters indices start
-    // at -1).
-    // TODO(jgruber): Consider starting at 0.
-    DCHECK_EQ(Linkage::GetJSCallNewTargetParamIndex(FormalParameterCount()) + 1,
-              node()->op()->ValueOutputCount() - 3);
-    return node()->op()->ValueOutputCount() - 3;
+    // at -1). TODO(jgruber): Consider starting at 0.
+    return Linkage::GetJSCallNewTargetParamIndex(FormalParameterCount()) + 1;
   }
   int ArgCountOutputIndex() const {
     // Indices assigned to parameters are off-by-one (Parameters indices start
-    // at -1).
-    // TODO(jgruber): Consider starting at 0.
-    DCHECK_EQ(Linkage::GetJSCallArgCountParamIndex(FormalParameterCount()) + 1,
-              node()->op()->ValueOutputCount() - 2);
-    return node()->op()->ValueOutputCount() - 2;
+    // at -1). TODO(jgruber): Consider starting at 0.
+    return Linkage::GetJSCallArgCountParamIndex(FormalParameterCount()) + 1;
   }
   int ContextOutputIndex() const {
     // Indices assigned to parameters are off-by-one (Parameters indices start
-    // at -1).
-    // TODO(jgruber): Consider starting at 0.
-    DCHECK_EQ(Linkage::GetJSCallContextParamIndex(FormalParameterCount()) + 1,
-              node()->op()->ValueOutputCount() - 1);
-    return node()->op()->ValueOutputCount() - 1;
+    // at -1). TODO(jgruber): Consider starting at 0.
+    return Linkage::GetJSCallContextParamIndex(FormalParameterCount()) + 1;
   }
   int LastOutputIndex() const { return ContextOutputIndex(); }
 };

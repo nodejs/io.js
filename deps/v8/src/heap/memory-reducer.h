@@ -152,6 +152,7 @@ class V8_EXPORT_PRIVATE MemoryReducer {
     bool next_gc_likely_to_collect_more;
     bool should_start_incremental_gc;
     bool can_start_incremental_gc;
+    bool is_frozen;
   };
 
   explicit MemoryReducer(Heap* heap);
@@ -181,6 +182,8 @@ class V8_EXPORT_PRIVATE MemoryReducer {
   bool ShouldGrowHeapSlowly() { return state_.id() == kDone; }
 
   static int MaxNumberOfGCs();
+
+  static bool IsFrozen(const Heap* heap);
 
  private:
   class TimerTask : public v8::internal::CancelableTask {

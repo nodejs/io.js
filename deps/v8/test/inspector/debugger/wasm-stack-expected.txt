@@ -12,8 +12,8 @@ Result of evaluate (string):
 Error: this is your stack trace:
     -- skipped --
     at call_debugger (<anonymous>:3:5)
-    at call_func (wasm://wasm/37655946:wasm-function[1]:0x37)
-    at main (wasm://wasm/37655946:wasm-function[2]:0x3e)
+    at call_func (wasm://wasm/42056f7a:wasm-function[1]:0x37)
+    at main (wasm://wasm/42056f7a:wasm-function[2]:0x3e)
     at testFunction (<anonymous>:15:20)
     at <anonymous>:1:1
 Finished!

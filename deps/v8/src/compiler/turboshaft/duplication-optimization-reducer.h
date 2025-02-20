@@ -74,7 +74,7 @@ class DuplicationOptimizationReducer : public Next {
  public:
   TURBOSHAFT_REDUCER_BOILERPLATE(DuplucationOptimization)
 
-  OpIndex REDUCE_INPUT_GRAPH(Branch)(OpIndex ig_index, const BranchOp& branch) {
+  V<None> REDUCE_INPUT_GRAPH(Branch)(V<None> ig_index, const BranchOp& branch) {
     LABEL_BLOCK(no_change) {
       return Next::ReduceInputGraphBranch(ig_index, branch);
     }
@@ -89,7 +89,7 @@ class DuplicationOptimizationReducer : public Next {
     DCHECK(new_cond.valid());
     __ Branch(new_cond, __ MapToNewGraph(branch.if_true),
               __ MapToNewGraph(branch.if_false), branch.hint);
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 
   V<Any> REDUCE_INPUT_GRAPH(Select)(V<Any> ig_index, const SelectOp& select) {
@@ -227,7 +227,7 @@ class DuplicationOptimizationReducer : public Next {
   }
 
   OpIndex MaybeDuplicateOutputGraphShift(OpIndex index) {
-    OpIndex shifted;
+    V<Word> shifted;
     int shifted_by;
     ShiftOp::Kind shift_kind;
     WordRepresentation shift_rep;

@@ -3,11 +3,8 @@
 // found in the LICENSE file.
 
 // Flags: --wasm-inlining-call-indirect
-// Flags: --experimental-wasm-type-reflection
+// Flags: --wasm-staging
 // Flags: --no-wasm-tier-up --wasm-dynamic-tiering --allow-natives-syntax
-// Flags: --turboshaft-wasm
-// Explicitly set Turboshaft since speculative call_indirect inlining is only
-// implemented there and TurboFan is on its way out anyway.
 
 // These tests check if functions are speculatively inlined as expected. We do
 // not check automatically which functions are inlined.

@@ -544,6 +544,7 @@ absl_cc_test(
     absl::no_destructor
     absl::config
     absl::raw_logging_internal
+    GTest::gmock
     GTest::gtest_main
 )
 

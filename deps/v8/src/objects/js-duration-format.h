@@ -34,18 +34,20 @@ class JSDurationFormat
  public:
   // Creates duration format object with properties derived from input
   // locales and options.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSDurationFormat> New(
-      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
-      Handle<Object> options);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSDurationFormat> New(
+      Isolate* isolate, DirectHandle<Map> map, DirectHandle<Object> locales,
+      DirectHandle<Object> options);
 
-  V8_WARN_UNUSED_RESULT static Handle<JSObject> ResolvedOptions(
+  V8_WARN_UNUSED_RESULT static DirectHandle<JSObject> ResolvedOptions(
       Isolate* isolate, DirectHandle<JSDurationFormat> format_holder);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> Format(
-      Isolate* isolate, Handle<JSDurationFormat> df, Handle<Object> duration);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> Format(
+      Isolate* isolate, DirectHandle<JSDurationFormat> df,
+      Handle<Object> duration);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatToParts(
-      Isolate* isolate, Handle<JSDurationFormat> df, Handle<Object> duration);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSArray> FormatToParts(
+      Isolate* isolate, DirectHandle<JSDurationFormat> df,
+      Handle<Object> duration);
 
   V8_EXPORT_PRIVATE static const std::set<std::string>& GetAvailableLocales();
 

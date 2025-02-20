@@ -693,9 +693,13 @@ template <class unused = void> struct powers_template {
   };
 };
 
+#if FASTFLOAT_DETAIL_MUST_DEFINE_CONSTEXPR_VARIABLE
+
 template <class unused>
 constexpr uint64_t
     powers_template<unused>::power_of_five_128[number_of_entries];
+
+#endif
 
 using powers = powers_template<>;
 

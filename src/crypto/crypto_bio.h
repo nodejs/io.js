@@ -156,15 +156,15 @@ class NodeBIO : public MemoryRetainer {
                                            len_(len),
                                            next_(nullptr) {
       data_ = new char[len];
-      if (env_ != nullptr)
-        env_->isolate()->AdjustAmountOfExternalAllocatedMemory(len);
+      if (env_ != nullptr) {
+        env_->external_memory_accounter()->Increase(env_->isolate(), len);
+      }
     }
 
     ~Buffer() {
       delete[] data_;
       if (env_ != nullptr) {
-        const int64_t len = static_cast<int64_t>(len_);
-        env_->isolate()->AdjustAmountOfExternalAllocatedMemory(-len);
+        env_->external_memory_accounter()->Decrease(env_->isolate(), len_);
       }
     }
 

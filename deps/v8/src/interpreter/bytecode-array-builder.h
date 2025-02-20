@@ -51,7 +51,7 @@ class V8_EXPORT_PRIVATE BytecodeArrayBuilder final {
   Handle<BytecodeArray> ToBytecodeArray(IsolateT* isolate);
   template <typename IsolateT>
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
-  Handle<TrustedByteArray> ToSourcePositionTable(IsolateT* isolate);
+  DirectHandle<TrustedByteArray> ToSourcePositionTable(IsolateT* isolate);
 
 #ifdef DEBUG
   int CheckBytecodeMatches(Tagged<BytecodeArray> bytecode);
@@ -90,6 +90,7 @@ class V8_EXPORT_PRIVATE BytecodeArrayBuilder final {
   BytecodeArrayBuilder& LoadLiteral(Tagged<Smi> value);
   BytecodeArrayBuilder& LoadLiteral(double value);
   BytecodeArrayBuilder& LoadLiteral(const AstRawString* raw_string);
+  BytecodeArrayBuilder& LoadLiteral(const AstConsString* cons_string);
   BytecodeArrayBuilder& LoadLiteral(const Scope* scope);
   BytecodeArrayBuilder& LoadLiteral(AstBigInt bigint);
   BytecodeArrayBuilder& LoadUndefined();
@@ -105,14 +106,14 @@ class V8_EXPORT_PRIVATE BytecodeArrayBuilder final {
   BytecodeArrayBuilder& StoreGlobal(const AstRawString* name,
                                     int feedback_slot);
 
-  // Load the object at |slot_index| at |depth| in the context chain starting
+  // Load the object at |variable| at |depth| in the context chain starting
   // with |context| into the accumulator.
   enum ContextSlotMutability { kImmutableSlot, kMutableSlot };
-  BytecodeArrayBuilder& LoadContextSlot(Register context, int slot_index,
+  BytecodeArrayBuilder& LoadContextSlot(Register context, Variable* variable,
                                         int depth,
                                         ContextSlotMutability immutable);
 
-  // Stores the object in the accumulator into |slot_index| at |depth| in the
+  // Stores the object in the accumulator into |variable| at |depth| in the
   // context chain starting with |context|.
   BytecodeArrayBuilder& StoreContextSlot(Register context, Variable* variable,
                                          int depth);
@@ -227,6 +228,7 @@ class V8_EXPORT_PRIVATE BytecodeArrayBuilder final {
   // somewhere in that context chain.
   BytecodeArrayBuilder& LoadLookupContextSlot(const AstRawString* name,
                                               TypeofMode typeof_mode,
+                                              ContextKind context_kind,
                                               int slot_index, int depth);
 
   // Lookup the variable with |name|, which has its feedback in |feedback_slot|
@@ -512,6 +514,7 @@ class V8_EXPORT_PRIVATE BytecodeArrayBuilder final {
 
   // Gets a constant pool entry.
   size_t GetConstantPoolEntry(const AstRawString* raw_string);
+  size_t GetConstantPoolEntry(const AstConsString* cons_string);
   size_t GetConstantPoolEntry(AstBigInt bigint);
   size_t GetConstantPoolEntry(const Scope* scope);
   size_t GetConstantPoolEntry(double number);

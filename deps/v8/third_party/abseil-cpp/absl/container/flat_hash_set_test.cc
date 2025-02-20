@@ -14,8 +14,10 @@
 
 #include "absl/container/flat_hash_set.h"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -23,6 +25,7 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 #include "absl/base/config.h"
+#include "absl/container/hash_container_defaults.h"
 #include "absl/container/internal/container_memory.h"
 #include "absl/container/internal/hash_generator_testing.h"
 #include "absl/container/internal/test_allocator.h"
@@ -30,6 +33,7 @@
 #include "absl/container/internal/unordered_set_lookup_test.h"
 #include "absl/container/internal/unordered_set_members_test.h"
 #include "absl/container/internal/unordered_set_modifiers_test.h"
+#include "absl/hash/hash.h"
 #include "absl/log/check.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/string_view.h"
@@ -289,6 +293,62 @@ TEST(FlatHashSet, FlatHashSetPolicyDestroyReturnsTrue) {
           nullptr, nullptr))()));
   EXPECT_FALSE((decltype(FlatHashSetPolicy<std::unique_ptr<int>>::destroy<
                          std::allocator<int>>(nullptr, nullptr))()));
+}
+
+struct HashEqInvalidOnMove {
+  HashEqInvalidOnMove() = default;
+  HashEqInvalidOnMove(const HashEqInvalidOnMove& rhs) = default;
+  HashEqInvalidOnMove(HashEqInvalidOnMove&& rhs) { rhs.moved = true; }
+  HashEqInvalidOnMove& operator=(const HashEqInvalidOnMove& rhs) = default;
+  HashEqInvalidOnMove& operator=(HashEqInvalidOnMove&& rhs) {
+    rhs.moved = true;
+    return *this;
+  }
+
+  size_t operator()(int x) const {
+    CHECK(!moved);
+    return absl::HashOf(x);
+  }
+
+  bool operator()(int x, int y) const {
+    CHECK(!moved);
+    return x == y;
+  }
+
+  bool moved = false;
+};
+
+TEST(FlatHashSet, MovedFromCleared_HashMustBeValid) {
+  flat_hash_set<int, HashEqInvalidOnMove> s1, s2;
+  // Moving the hashtable must not move the hasher because we need to support
+  // this behavior.
+  s2 = std::move(s1);
+  s1.clear();
+  s1.insert(2);
+  EXPECT_THAT(s1, UnorderedElementsAre(2));
+}
+
+TEST(FlatHashSet, MovedFromCleared_EqMustBeValid) {
+  flat_hash_set<int, DefaultHashContainerHash<int>, HashEqInvalidOnMove> s1, s2;
+  // Moving the hashtable must not move the equality functor because we need to
+  // support this behavior.
+  s2 = std::move(s1);
+  s1.clear();
+  s1.insert(2);
+  EXPECT_THAT(s1, UnorderedElementsAre(2));
+}
+
+TEST(FlatHashSet, Equality) {
+  {
+    flat_hash_set<int> s1 = {1, 2, 3};
+    flat_hash_set<int> s2 = {1, 2, 3};
+    EXPECT_EQ(s1, s2);
+  }
+  {
+    flat_hash_set<std::string> s1 = {"a", "b", "c"};
+    flat_hash_set<std::string> s2 = {"a", "b", "c"};
+    EXPECT_EQ(s1, s2);
+  }
 }
 
 }  // namespace

@@ -180,15 +180,4 @@ COPT_VARS = {
         # Object file doesn't export any previously undefined symbols
         "-ignore:4221",
     ],
-    # "HWAES" is an abbreviation for "hardware AES" (AES - Advanced Encryption
-    # Standard). These flags are used for detecting whether or not the target
-    # architecture has hardware support for AES instructions which can be used
-    # to improve performance of some random bit generators.
-    "ABSL_RANDOM_HWAES_ARM64_FLAGS": ["-march=armv8-a+crypto"],
-    "ABSL_RANDOM_HWAES_ARM32_FLAGS": ["-mfpu=neon"],
-    "ABSL_RANDOM_HWAES_X64_FLAGS": [
-        "-maes",
-        "-msse4.1",
-    ],
-    "ABSL_RANDOM_HWAES_MSVC_X64_FLAGS": [],
 }

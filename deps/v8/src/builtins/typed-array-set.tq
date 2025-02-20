@@ -241,6 +241,8 @@ transitioning macro TypedArrayPrototypeSetTypedArray(
     // Source and destination typed arrays have same elements kinds (modulo
     // Uint8-Uint8Clamped difference) so we can use targetElementsInfo for
     // calculations.
+    // Since the source and destination typed arrays already exist, the byte
+    // size can't be too big, so the error case is unreachable.
     const countBytes: uintptr =
         targetElementsInfo.CalculateByteLength(srcLength)
         otherwise unreachable;

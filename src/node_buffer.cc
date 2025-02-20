@@ -59,9 +59,11 @@ using v8::ArrayBuffer;
 using v8::ArrayBufferView;
 using v8::BackingStore;
 using v8::BackingStoreInitializationMode;
+using v8::CFunction;
 using v8::Context;
 using v8::EscapableHandleScope;
-using v8::FastApiTypedArray;
+using v8::FastApiCallbackOptions;
+using v8::FastOneByteString;
 using v8::FunctionCallbackInfo;
 using v8::Global;
 using v8::HandleScope;
@@ -152,7 +154,7 @@ CallbackInfo::CallbackInfo(Environment* env,
       hint_(hint),
       env_(env) {
   env->cleanable_queue()->PushFront(this);
-  env->isolate()->AdjustAmountOfExternalAllocatedMemory(sizeof(*this));
+  env->external_memory_accounter()->Increase(env->isolate(), sizeof(*this));
 }
 
 void CallbackInfo::Clean() {
@@ -180,8 +182,7 @@ void CallbackInfo::CallAndResetCallback() {
   if (callback != nullptr) {
     // Clean up all Environment-related state and run the callback.
     cleanable_queue_.Remove();
-    int64_t change_in_bytes = -static_cast<int64_t>(sizeof(*this));
-    env_->isolate()->AdjustAmountOfExternalAllocatedMemory(change_in_bytes);
+    env_->external_memory_accounter()->Decrease(env_->isolate(), sizeof(*this));
 
     callback(data_, hint_);
   }
@@ -513,9 +514,9 @@ MaybeLocal<Object> New(Environment* env,
     free(data);
   };
   std::unique_ptr<BackingStore> bs =
-      v8::ArrayBuffer::NewBackingStore(data, length, free_callback, nullptr);
+      ArrayBuffer::NewBackingStore(data, length, free_callback, nullptr);
 
-  Local<ArrayBuffer> ab = v8::ArrayBuffer::New(env->isolate(), std::move(bs));
+  Local<ArrayBuffer> ab = ArrayBuffer::New(env->isolate(), std::move(bs));
 
   Local<Object> obj;
   if (Buffer::New(env, ab, 0, length).ToLocal(&obj))
@@ -560,40 +561,47 @@ void StringSlice(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(ret);
 }
 
-// Assume caller has properly validated args.
-void SlowCopy(const FunctionCallbackInfo<Value>& args) {
-  Environment* env = Environment::GetCurrent(args);
-
-  ArrayBufferViewContents<char> source(args[0]);
-  SPREAD_BUFFER_ARG(args[1].As<Object>(), target);
-
-  const auto target_start = args[2]->Uint32Value(env->context()).ToChecked();
-  const auto source_start = args[3]->Uint32Value(env->context()).ToChecked();
-  const auto to_copy = args[4]->Uint32Value(env->context()).ToChecked();
+void CopyImpl(Local<Value> source_obj,
+              Local<Value> target_obj,
+              const uint32_t target_start,
+              const uint32_t source_start,
+              const uint32_t to_copy) {
+  ArrayBufferViewContents<char> source(source_obj);
+  SPREAD_BUFFER_ARG(target_obj, target);
 
   memmove(target_data + target_start, source.data() + source_start, to_copy);
+}
+
+// Assume caller has properly validated args.
+void SlowCopy(const FunctionCallbackInfo<Value>& args) {
+  Local<Value> source_obj = args[0];
+  Local<Value> target_obj = args[1];
+  const uint32_t target_start = args[2].As<Uint32>()->Value();
+  const uint32_t source_start = args[3].As<Uint32>()->Value();
+  const uint32_t to_copy = args[4].As<Uint32>()->Value();
+
+  CopyImpl(source_obj, target_obj, target_start, source_start, to_copy);
+
   args.GetReturnValue().Set(to_copy);
 }
 
 // Assume caller has properly validated args.
 uint32_t FastCopy(Local<Value> receiver,
-                  const v8::FastApiTypedArray<uint8_t>& source,
-                  const v8::FastApiTypedArray<uint8_t>& target,
+                  Local<Value> source_obj,
+                  Local<Value> target_obj,
                   uint32_t target_start,
                   uint32_t source_start,
-                  uint32_t to_copy) {
-  uint8_t* source_data;
-  CHECK(source.getStorageIfAligned(&source_data));
+                  uint32_t to_copy,
+                  // NOLINTNEXTLINE(runtime/references)
+                  FastApiCallbackOptions& options) {
+  HandleScope scope(options.isolate);
 
-  uint8_t* target_data;
-  CHECK(target.getStorageIfAligned(&target_data));
-
-  memmove(target_data + target_start, source_data + source_start, to_copy);
+  CopyImpl(source_obj, target_obj, target_start, source_start, to_copy);
 
   return to_copy;
 }
 
-static v8::CFunction fast_copy(v8::CFunction::Make(FastCopy));
+static CFunction fast_copy(CFunction::Make(FastCopy));
 
 void Fill(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
@@ -730,7 +738,7 @@ void SlowByteLengthUtf8(const FunctionCallbackInfo<Value>& args) {
 }
 
 uint32_t FastByteLengthUtf8(Local<Value> receiver,
-                            const v8::FastOneByteString& source) {
+                            const FastOneByteString& source) {
   // For short inputs, the function call overhead to simdutf is maybe
   // not worth it, reserve simdutf for long strings.
   if (source.length > 128) {
@@ -772,8 +780,7 @@ uint32_t FastByteLengthUtf8(Local<Value> receiver,
   return answer;
 }
 
-static v8::CFunction fast_byte_length_utf8(
-    v8::CFunction::Make(FastByteLengthUtf8));
+static CFunction fast_byte_length_utf8(CFunction::Make(FastByteLengthUtf8));
 
 // Normalize val to be an integer in the range of [1, -1] since
 // implementations of memcmp() can vary by platform.
@@ -836,39 +843,39 @@ void CompareOffset(const FunctionCallbackInfo<Value> &args) {
   args.GetReturnValue().Set(val);
 }
 
-void Compare(const FunctionCallbackInfo<Value> &args) {
-  Environment* env = Environment::GetCurrent(args);
-
-  THROW_AND_RETURN_UNLESS_BUFFER(env, args[0]);
-  THROW_AND_RETURN_UNLESS_BUFFER(env, args[1]);
-  ArrayBufferViewContents<char> a(args[0]);
-  ArrayBufferViewContents<char> b(args[1]);
-
-  size_t cmp_length = std::min(a.length(), b.length());
-
-  int val = normalizeCompareVal(cmp_length > 0 ?
-                                memcmp(a.data(), b.data(), cmp_length) : 0,
-                                a.length(), b.length());
-  args.GetReturnValue().Set(val);
-}
-
-int32_t FastCompare(v8::Local<v8::Value>,
-                    const FastApiTypedArray<uint8_t>& a,
-                    const FastApiTypedArray<uint8_t>& b) {
-  uint8_t* data_a;
-  uint8_t* data_b;
-  CHECK(a.getStorageIfAligned(&data_a));
-  CHECK(b.getStorageIfAligned(&data_b));
+int32_t CompareImpl(Local<Value> a_obj, Local<Value> b_obj) {
+  ArrayBufferViewContents<char> a(a_obj);
+  ArrayBufferViewContents<char> b(b_obj);
 
   size_t cmp_length = std::min(a.length(), b.length());
 
   return normalizeCompareVal(
-      cmp_length > 0 ? memcmp(data_a, data_b, cmp_length) : 0,
+      cmp_length > 0 ? memcmp(a.data(), b.data(), cmp_length) : 0,
       a.length(),
       b.length());
 }
 
-static v8::CFunction fast_compare(v8::CFunction::Make(FastCompare));
+void Compare(const FunctionCallbackInfo<Value> &args) {
+  Environment* env = Environment::GetCurrent(args);
+  THROW_AND_RETURN_UNLESS_BUFFER(env, args[0]);
+  THROW_AND_RETURN_UNLESS_BUFFER(env, args[1]);
+
+  int val = CompareImpl(args[0], args[1]);
+
+  args.GetReturnValue().Set(val);
+}
+
+int32_t FastCompare(Local<Value>,
+                    Local<Value> a_obj,
+                    Local<Value> b_obj,
+                    // NOLINTNEXTLINE(runtime/references)
+                    FastApiCallbackOptions& options) {
+  HandleScope scope(options.isolate);
+
+  return CompareImpl(a_obj, b_obj);
+}
+
+static CFunction fast_compare(CFunction::Make(FastCompare));
 
 // Computes the offset for starting an indexOf or lastIndexOf search.
 // Returns either a valid offset in [0...<length - 1>], ie inside the Buffer,
@@ -1098,11 +1105,13 @@ void IndexOfBuffer(const FunctionCallbackInfo<Value>& args) {
       result == haystack_length ? -1 : static_cast<int>(result));
 }
 
-int32_t IndexOfNumber(const uint8_t* buffer_data,
-                      size_t buffer_length,
-                      uint32_t needle,
-                      int64_t offset_i64,
-                      bool is_forward) {
+int32_t IndexOfNumberImpl(Local<Value> buffer_obj,
+                          const uint32_t needle,
+                          const int64_t offset_i64,
+                          const bool is_forward) {
+  ArrayBufferViewContents<uint8_t> buffer(buffer_obj);
+  const uint8_t* buffer_data = buffer.data();
+  const size_t buffer_length = buffer.length();
   int64_t opt_offset = IndexOfOffset(buffer_length, offset_i64, 1, is_forward);
   if (opt_offset <= -1 || buffer_length == 0) {
     return -1;
@@ -1126,29 +1135,28 @@ void SlowIndexOfNumber(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[3]->IsBoolean());
 
   THROW_AND_RETURN_UNLESS_BUFFER(Environment::GetCurrent(args), args[0]);
-  ArrayBufferViewContents<uint8_t> buffer(args[0]);
 
+  Local<Value> buffer_obj = args[0];
   uint32_t needle = args[1].As<Uint32>()->Value();
   int64_t offset_i64 = args[2].As<Integer>()->Value();
   bool is_forward = args[3]->IsTrue();
 
-  args.GetReturnValue().Set(IndexOfNumber(
-      buffer.data(), buffer.length(), needle, offset_i64, is_forward));
+  args.GetReturnValue().Set(
+      IndexOfNumberImpl(buffer_obj, needle, offset_i64, is_forward));
 }
 
-int32_t FastIndexOfNumber(v8::Local<v8::Value>,
-                          const FastApiTypedArray<uint8_t>& buffer,
+int32_t FastIndexOfNumber(Local<Value>,
+                          Local<Value> buffer_obj,
                           uint32_t needle,
                           int64_t offset_i64,
-                          bool is_forward) {
-  uint8_t* buffer_data;
-  CHECK(buffer.getStorageIfAligned(&buffer_data));
-  return IndexOfNumber(
-      buffer_data, buffer.length(), needle, offset_i64, is_forward);
+                          bool is_forward,
+                          // NOLINTNEXTLINE(runtime/references)
+                          FastApiCallbackOptions& options) {
+  HandleScope scope(options.isolate);
+  return IndexOfNumberImpl(buffer_obj, needle, offset_i64, is_forward);
 }
 
-static v8::CFunction fast_index_of_number(
-    v8::CFunction::Make(FastIndexOfNumber));
+static CFunction fast_index_of_number(CFunction::Make(FastIndexOfNumber));
 
 void Swap16(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
@@ -1491,29 +1499,30 @@ void SlowWriteString(const FunctionCallbackInfo<Value>& args) {
 
 template <encoding encoding>
 uint32_t FastWriteString(Local<Value> receiver,
-                         const v8::FastApiTypedArray<uint8_t>& dst,
-                         const v8::FastOneByteString& src,
+                         Local<Value> dst_obj,
+                         const FastOneByteString& src,
                          uint32_t offset,
-                         uint32_t max_length) {
-  uint8_t* dst_data;
-  CHECK(dst.getStorageIfAligned(&dst_data));
-  CHECK(offset <= dst.length());
-  CHECK(dst.length() - offset <= std::numeric_limits<uint32_t>::max());
+                         uint32_t max_length,
+                         // NOLINTNEXTLINE(runtime/references)
+                         FastApiCallbackOptions& options) {
+  HandleScope handle_scope(options.isolate);
+  SPREAD_BUFFER_ARG(dst_obj, dst);
+  CHECK(offset <= dst_length);
+  CHECK(dst_length - offset <= std::numeric_limits<uint32_t>::max());
   TRACK_V8_FAST_API_CALL("buffer.writeString");
 
   return WriteOneByteString<encoding>(
       src.data,
       src.length,
       reinterpret_cast<char*>(dst_data + offset),
-      std::min<uint32_t>(dst.length() - offset, max_length));
+      std::min<uint32_t>(dst_length - offset, max_length));
 }
 
-static v8::CFunction fast_write_string_ascii(
-    v8::CFunction::Make(FastWriteString<ASCII>));
-static v8::CFunction fast_write_string_latin1(
-    v8::CFunction::Make(FastWriteString<LATIN1>));
-static v8::CFunction fast_write_string_utf8(
-    v8::CFunction::Make(FastWriteString<UTF8>));
+static CFunction fast_write_string_ascii(
+    CFunction::Make(FastWriteString<ASCII>));
+static CFunction fast_write_string_latin1(
+    CFunction::Make(FastWriteString<LATIN1>));
+static CFunction fast_write_string_utf8(CFunction::Make(FastWriteString<UTF8>));
 
 void Initialize(Local<Object> target,
                 Local<Value> unused,

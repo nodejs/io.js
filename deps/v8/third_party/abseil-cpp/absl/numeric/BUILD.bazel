@@ -54,8 +54,8 @@ cc_binary(
         ":bits",
         "//absl/base:core_headers",
         "//absl/random",
-        "@com_github_google_benchmark//:benchmark_main",
-        "@com_google_googletest//:gtest",
+        "@google_benchmark//:benchmark_main",
+        "@googletest//:gtest",
     ],
 )
 
@@ -70,8 +70,8 @@ cc_test(
     deps = [
         ":bits",
         "//absl/random",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -109,8 +109,8 @@ cc_test(
         "//absl/meta:type_traits",
         "//absl/strings",
         "//absl/types:compare",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -123,8 +123,8 @@ cc_test(
     deps = [
         ":int128",
         "//absl/base:config",
-        "@com_github_google_benchmark//:benchmark_main",
-        "@com_google_googletest//:gtest",
+        "@google_benchmark//:benchmark_main",
+        "@googletest//:gtest",
     ],
 )
 

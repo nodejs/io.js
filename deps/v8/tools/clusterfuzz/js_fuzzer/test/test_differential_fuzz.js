@@ -16,6 +16,7 @@ const helpers = require('./helpers.js');
 const scriptMutator = require('../script_mutator.js');
 const sourceHelpers = require('../source_helpers.js');
 const random = require('../random.js');
+const runner = require('../runner.js');
 
 const { DifferentialFuzzMutator, DifferentialFuzzSuppressions } = require(
     '../mutators/differential_fuzz_mutator.js');
@@ -50,6 +51,10 @@ describe('Differential fuzzing', () => {
     // Fake fuzzer being called with --input_dir flag.
     this.oldInputDir = program.input_dir;
     program.input_dir = helpers.BASE_DIR;
+
+    // Make remaining places deterministic that don't use global settings, e.g.
+    // try-catch skip behavior.
+    helpers.deterministicRandom(sandbox);
   });
 
   afterEach(() => {
@@ -105,10 +110,10 @@ describe('Differential fuzzing', () => {
 
     // Load input files.
     const files = [
-      'differential_fuzz/input1.js',
-      'differential_fuzz/input2.js',
+      'v8/differential_fuzz/input1.js',
+      'v8/differential_fuzz/input2.js',
     ];
-    const sources = files.map(helpers.loadTestData);
+    const sources = files.map(helpers.loadV8TestData);
 
     // Apply top-level fuzzing, with all probabilistic configs switched off.
     this.settings['DIFF_FUZZ_EXTRA_PRINT'] = 0.0;
@@ -137,5 +142,69 @@ describe('Differential fuzzing', () => {
       '--second-config-extra-flags=--flag4'
     ];
     assert.deepEqual(expectedFlags, mutated.flags);
+  });
+
+  it('runs end to end with fuzzilli inputs', () => {
+    // Similar to the test above but using a Fuzzilli input as well.
+    const chooseOrigFlagsProb = 0.2;
+    sandbox.stub(random, 'choose').callsFake((p) => p >= chooseOrigFlagsProb);
+
+    const env = {
+      APP_DIR: 'test_data/differential_fuzz',
+      GENERATE: process.env.GENERATE,
+    };
+    sandbox.stub(process, 'env').value(env);
+
+    sandbox.stub(sourceHelpers, 'loadResource').callsFake(() => {
+      return helpers.loadTestData('differential_fuzz/fake_resource.js');
+    });
+
+    const sources = [
+      helpers.loadV8TestData('v8/differential_fuzz/input2.js'),
+      helpers.loadFuzzilliTestData('fuzzilli/fuzzdir-1/corpus/program_1.js'),
+    ];
+
+    this.settings['DIFF_FUZZ_EXTRA_PRINT'] = 0.0;
+    this.settings['DIFF_FUZZ_TRACK_CAUGHT'] = 0.0;
+    const mutator = new DifferentialScriptMutator(
+        this.settings, helpers.DB_DIR);
+    const mutated = mutator.mutateMultiple(sources);
+    helpers.assertExpectedResult(
+        'differential_fuzz/fuzzilli_combined_expected.js', mutated.code);
+
+    const expectedFlags = [
+      // Flags from v8_fuzz_experiments.json.
+      '--first-config=ignition',
+      '--second-config=ignition_turbo',
+      '--second-d8=d8',
+      // Flags from v8_fuzz_flags.json.
+      '--second-config-extra-flags=--foo1',
+      '--second-config-extra-flags=--foo2',
+      // Flags from the mjsunit input.
+      '--first-config-extra-flags=--flag4',
+      '--second-config-extra-flags=--flag4',
+      // Flags from the fuzzilli input.
+      '--first-config-extra-flags=--fuzzilli-flag1',
+      '--second-config-extra-flags=--fuzzilli-flag1',
+      '--first-config-extra-flags=--fuzzilli-flag2',
+      '--second-config-extra-flags=--fuzzilli-flag2',
+    ];
+    assert.deepEqual(expectedFlags, mutated.flags);
+  });
+
+  it('chooses fuzzilli runner', () => {
+    sandbox.stub(random, 'randInt').callsFake(() => 2);
+
+    const env = {
+      APP_DIR: 'test_data/differential_fuzz',
+      GENERATE: process.env.GENERATE,
+    };
+    sandbox.stub(process, 'env').value(env);
+
+    const mutator = new DifferentialScriptMutator(
+        this.settings, helpers.DB_DIR);
+
+    assert.deepEqual(
+        runner.RandomCorpusRunnerWithFuzzilli, mutator.runnerClass);
   });
 });

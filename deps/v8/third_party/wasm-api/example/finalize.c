@@ -12,15 +12,15 @@ const int iterations = 100000;
 int live_count = 0;
 
 void finalize(void* data) {
-  int i = (int)data;
-  if (i % (iterations / 10) == 0) printf("Finalizing #%d...\n", i);
+  intptr_t i = (intptr_t)data;
+  if (i % (iterations / 10) == 0) printf("Finalizing #%" PRIdPTR "...\n", i);
   --live_count;
 }
 
 void run_in_store(wasm_store_t* store) {
   // Load binary.
   printf("Loading binary...\n");
-  FILE* file = fopen("finalize.wasm", "r");
+  FILE* file = fopen("finalize.wasm", "rb");
   if (!file) {
     printf("> Error loading module!\n");
     exit(1);
@@ -50,8 +50,9 @@ void run_in_store(wasm_store_t* store) {
   printf("Instantiating modules...\n");
   for (int i = 0; i <= iterations; ++i) {
     if (i % (iterations / 10) == 0) printf("%d\n", i);
+    wasm_extern_vec_t imports = WASM_EMPTY_VEC;
     own wasm_instance_t* instance =
-      wasm_instance_new(store, module, NULL, NULL);
+      wasm_instance_new(store, module, &imports, NULL);
     if (!instance) {
       printf("> Error instantiating module %d!\n", i);
       exit(1);

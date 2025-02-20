@@ -138,7 +138,7 @@ TorqueCompilerResult CompileTorque(const std::string& source,
   return result;
 }
 
-TorqueCompilerResult CompileTorque(std::vector<std::string> files,
+TorqueCompilerResult CompileTorque(const std::vector<std::string>& files,
                                    TorqueCompilerOptions options) {
   TargetArchitecture::Scope target_architecture(options.force_32bit_output);
   SourceFileMap::Scope source_map_scope(options.v8_root);

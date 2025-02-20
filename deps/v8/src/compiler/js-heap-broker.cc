@@ -160,10 +160,9 @@ bool JSHeapBroker::IsArrayOrObjectPrototype(JSObjectRef object) const {
 
 bool JSHeapBroker::IsArrayOrObjectPrototype(Handle<JSObject> object) const {
   if (mode() == kDisabled) {
-    return isolate()->IsInAnyContext(*object,
-                                     Context::INITIAL_ARRAY_PROTOTYPE_INDEX) ||
-           isolate()->IsInAnyContext(*object,
-                                     Context::INITIAL_OBJECT_PROTOTYPE_INDEX);
+    return isolate()->IsInCreationContext(
+               *object, Context::INITIAL_ARRAY_PROTOTYPE_INDEX) ||
+           object->map(isolate_)->instance_type() == JS_OBJECT_PROTOTYPE_TYPE;
   }
   CHECK(!array_and_object_prototypes_.empty());
   return array_and_object_prototypes_.find(object) !=
@@ -238,6 +237,15 @@ ElementAccessFeedback const& ElementAccessFeedback::Refine(
   ZoneRefSet<Map> inferred(inferred_maps.begin(), inferred_maps.end(),
                            broker->zone());
   return Refine(broker, inferred, false);
+}
+
+NamedAccessFeedback const& ElementAccessFeedback::Refine(JSHeapBroker* broker,
+                                                         NameRef name) const {
+  // Allow swapping megamorphic elements accesses for named accesses when the
+  // key is know to be a known name.
+  CHECK(transition_groups_.empty());
+  ZoneVector<MapRef> maps(broker->zone());
+  return *broker->zone()->New<NamedAccessFeedback>(name, maps, slot_kind());
 }
 
 ElementAccessFeedback const& ElementAccessFeedback::Refine(
@@ -434,10 +442,14 @@ MegaDOMPropertyAccessFeedback::MegaDOMPropertyAccessFeedback(
   DCHECK(IsLoadICKind(slot_kind));
 }
 
-NamedAccessFeedback::NamedAccessFeedback(NameRef name,
-                                         ZoneVector<MapRef> const& maps,
-                                         FeedbackSlotKind slot_kind)
-    : ProcessedFeedback(kNamedAccess, slot_kind), name_(name), maps_(maps) {
+NamedAccessFeedback::NamedAccessFeedback(
+    NameRef name, ZoneVector<MapRef> const& maps, FeedbackSlotKind slot_kind,
+    bool has_deprecated_map_without_migration_target)
+    : ProcessedFeedback(kNamedAccess, slot_kind),
+      name_(name),
+      maps_(maps),
+      has_deprecated_map_without_migration_target_(
+          has_deprecated_map_without_migration_target) {
   DCHECK(IsLoadICKind(slot_kind) || IsSetNamedICKind(slot_kind) ||
          IsDefineNamedOwnICKind(slot_kind) || IsKeyedLoadICKind(slot_kind) ||
          IsKeyedHasICKind(slot_kind) || IsKeyedStoreICKind(slot_kind) ||
@@ -492,29 +504,33 @@ ProcessedFeedback const& JSHeapBroker::ReadFeedbackForPropertyAccess(
   if (nexus.IsUninitialized()) return NewInsufficientFeedback(kind);
 
   ZoneVector<MapRef> maps(zone());
-  {
-    std::vector<MapAndHandler> maps_and_handlers_unfiltered;
-    nexus.ExtractMapsAndFeedback(&maps_and_handlers_unfiltered);
-
-    for (const MapAndHandler& map_and_handler : maps_and_handlers_unfiltered) {
-      MapRef map = MakeRefAssumeMemoryFence(this, *map_and_handler.first);
-      // May change concurrently at any time - must be guarded by a dependency
-      // if non-deprecation is important.
-      if (map.is_deprecated()) {
-        // TODO(ishell): support fast map updating if we enable it.
-        CHECK(!v8_flags.fast_map_update);
-        std::optional<Tagged<Map>> maybe_map = MapUpdater::TryUpdateNoLock(
-            isolate(), *map.object(), ConcurrencyMode::kConcurrent);
-        if (maybe_map.has_value()) {
-          map = MakeRefAssumeMemoryFence(this, maybe_map.value());
-        } else {
-          continue;  // Couldn't update the deprecated map.
+  bool has_deprecated_map_without_migration_target = false;
+  nexus.IterateMapsWithUnclearedHandler(
+      [this, &maps, &has_deprecated_map_without_migration_target](
+          DirectHandle<Map> map_handle) {
+        MapRef map = MakeRefAssumeMemoryFence(this, *map_handle);
+        // May change concurrently at any time - must be guarded by a
+        // dependency if non-deprecation is important.
+        if (map.is_deprecated()) {
+          // TODO(ishell): support fast map updating if we enable it.
+          CHECK(!v8_flags.fast_map_update);
+          std::optional<Tagged<Map>> maybe_map = MapUpdater::TryUpdateNoLock(
+              isolate(), *map.object(), ConcurrencyMode::kConcurrent);
+          if (maybe_map.has_value()) {
+            map = MakeRefAssumeMemoryFence(this, maybe_map.value());
+          } else {
+            return;  // Couldn't update the deprecated map.
+          }
+          if (!map.is_migration_target()) {
+            // Maps are marked as migration targets only when an object
+            // migrates, so it's possible to have a deprecated map whose updated
+            // counterpart is not a migration target.
+            has_deprecated_map_without_migration_target = true;
+          }
         }
-      }
-      if (map.is_abandoned_prototype_map()) continue;
-      maps.push_back(map);
-    }
-  }
+        if (map.is_abandoned_prototype_map()) return;
+        maps.push_back(map);
+      });
 
   OptionalNameRef name =
       static_name.has_value() ? static_name : GetNameFeedback(nexus);
@@ -544,7 +560,8 @@ ProcessedFeedback const& JSHeapBroker::ReadFeedbackForPropertyAccess(
     // We rely on this invariant in JSGenericLowering.
     DCHECK_IMPLIES(maps.empty(),
                    nexus.ic_state() == InlineCacheState::MEGAMORPHIC);
-    return *zone()->New<NamedAccessFeedback>(*name, maps, kind);
+    return *zone()->New<NamedAccessFeedback>(
+        *name, maps, kind, has_deprecated_map_without_migration_target);
   } else if (nexus.GetKeyType() == IcCheckType::kElement && !maps.empty()) {
     return ProcessFeedbackMapsForElementAccess(
         maps, KeyedAccessMode::FromNexus(nexus), kind);
@@ -644,8 +661,9 @@ ProcessedFeedback const& JSHeapBroker::ReadFeedbackForInstanceOf(
 
   OptionalJSObjectRef optional_constructor;
   {
-    MaybeHandle<JSObject> maybe_constructor = nexus.GetConstructorFeedback();
-    Handle<JSObject> constructor;
+    MaybeDirectHandle<JSObject> maybe_constructor =
+        nexus.GetConstructorFeedback();
+    DirectHandle<JSObject> constructor;
     if (maybe_constructor.ToHandle(&constructor)) {
       optional_constructor = MakeRefAssumeMemoryFence(this, *constructor);
     }

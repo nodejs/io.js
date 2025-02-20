@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm --liftoff --no-wasm-tier-up --print-code --wasm-staging
+// Flags: --liftoff --no-wasm-tier-up --print-code --wasm-staging
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 

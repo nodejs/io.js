@@ -1,0 +1,75 @@
+Check that `using` and `await using` do not work in debug evaluate.
+{
+    id : <messageId>
+    result : {
+        exceptionDetails : {
+            columnNumber : 10
+            exception : {
+                className : SyntaxError
+                description : SyntaxError: Unexpected identifier 'x'     at <anonymous>:1:1
+                objectId : <objectId>
+                subtype : error
+                type : object
+            }
+            exceptionId : <exceptionId>
+            lineNumber : 1
+            scriptId : <scriptId>
+            stackTrace : {
+                callFrames : [
+                    [0] : {
+                        columnNumber : 0
+                        functionName :
+                        lineNumber : 0
+                        scriptId : <scriptId>
+                        url :
+                    }
+                ]
+            }
+            text : Uncaught
+        }
+        result : {
+            className : SyntaxError
+            description : SyntaxError: Unexpected identifier 'x'     at <anonymous>:1:1
+            objectId : <objectId>
+            subtype : error
+            type : object
+        }
+    }
+}
+{
+    id : <messageId>
+    result : {
+        exceptionDetails : {
+            columnNumber : 4
+            exception : {
+                className : SyntaxError
+                description : SyntaxError: await can not be used when evaluating code while paused in the debugger     at <anonymous>:1:1
+                objectId : <objectId>
+                subtype : error
+                type : object
+            }
+            exceptionId : <exceptionId>
+            lineNumber : 1
+            scriptId : <scriptId>
+            stackTrace : {
+                callFrames : [
+                    [0] : {
+                        columnNumber : 0
+                        functionName :
+                        lineNumber : 0
+                        scriptId : <scriptId>
+                        url :
+                    }
+                ]
+            }
+            text : Uncaught
+        }
+        result : {
+            className : SyntaxError
+            description : SyntaxError: await can not be used when evaluating code while paused in the debugger     at <anonymous>:1:1
+            objectId : <objectId>
+            subtype : error
+            type : object
+        }
+    }
+}

@@ -160,10 +160,12 @@ void ProfilerEventsProcessor::AddDeoptStack(Address from, int fp_to_sp_delta) {
   ticks_from_vm_buffer_.Enqueue(record);
 }
 
-void ProfilerEventsProcessor::AddCurrentStack(bool update_stats) {
+void ProfilerEventsProcessor::AddCurrentStack(
+    bool update_stats, const std::optional<uint64_t> trace_id) {
   TickSampleEventRecord record(last_code_event_id_);
   RegisterState regs;
-  StackFrameIterator it(isolate_);
+  StackFrameIterator it(isolate_, isolate_->thread_local_top(),
+                        StackFrameIterator::NoHandles{});
   if (!it.done()) {
     StackFrame* frame = it.frame();
     regs.sp = reinterpret_cast<void*>(frame->sp());
@@ -171,7 +173,7 @@ void ProfilerEventsProcessor::AddCurrentStack(bool update_stats) {
     regs.pc = reinterpret_cast<void*>(frame->pc());
   }
   record.sample.Init(isolate_, regs, TickSample::kSkipCEntryFrame, update_stats,
-                     false);
+                     false, base::TimeDelta(), trace_id);
   ticks_from_vm_buffer_.Enqueue(record);
 }
 
@@ -245,7 +247,8 @@ void SamplingEventsProcessor::SymbolizeAndAddToProfiles(
       tick_sample.update_stats_, tick_sample.sampling_interval_,
       tick_sample.state, tick_sample.embedder_state,
       reinterpret_cast<Address>(tick_sample.context),
-      reinterpret_cast<Address>(tick_sample.embedder_context));
+      reinterpret_cast<Address>(tick_sample.embedder_context),
+      tick_sample.trace_id_);
 }
 
 ProfilerEventsProcessor::SampleProcessingResult
@@ -461,12 +464,12 @@ namespace {
 class CpuProfilersManager {
  public:
   void AddProfiler(Isolate* isolate, CpuProfiler* profiler) {
-    base::MutexGuard lock(&mutex_);
+    base::SpinningMutexGuard lock(&mutex_);
     profilers_.emplace(isolate, profiler);
   }
 
   void RemoveProfiler(Isolate* isolate, CpuProfiler* profiler) {
-    base::MutexGuard lock(&mutex_);
+    base::SpinningMutexGuard lock(&mutex_);
     auto range = profilers_.equal_range(isolate);
     for (auto it = range.first; it != range.second; ++it) {
       if (it->second != profiler) continue;
@@ -476,16 +479,17 @@ class CpuProfilersManager {
     UNREACHABLE();
   }
 
-  void CallCollectSample(Isolate* isolate) {
-    base::MutexGuard lock(&mutex_);
+  void CallCollectSample(Isolate* isolate,
+                         const std::optional<uint64_t> trace_id) {
+    base::SpinningMutexGuard lock(&mutex_);
     auto range = profilers_.equal_range(isolate);
     for (auto it = range.first; it != range.second; ++it) {
-      it->second->CollectSample();
+      it->second->CollectSample(trace_id);
     }
   }
 
   size_t GetAllProfilersMemorySize(Isolate* isolate) {
-    base::MutexGuard lock(&mutex_);
+    base::SpinningMutexGuard lock(&mutex_);
     size_t estimated_memory = 0;
     auto range = profilers_.equal_range(isolate);
     for (auto it = range.first; it != range.second; ++it) {
@@ -496,7 +500,7 @@ class CpuProfilersManager {
 
  private:
   std::unordered_multimap<Isolate*, CpuProfiler*> profilers_;
-  base::Mutex mutex_;
+  base::SpinningMutex mutex_;
 };
 
 DEFINE_LAZY_LEAKY_OBJECT_GETTER(CpuProfilersManager, GetProfilersManager)
@@ -591,13 +595,16 @@ void CpuProfiler::AdjustSamplingInterval() {
 }
 
 // static
-void CpuProfiler::CollectSample(Isolate* isolate) {
-  GetProfilersManager()->CallCollectSample(isolate);
+// |trace_id| is an optional identifier stored in the sample record used
+// to associate the sample with a trace event.
+void CpuProfiler::CollectSample(Isolate* isolate,
+                                const std::optional<uint64_t> trace_id) {
+  GetProfilersManager()->CallCollectSample(isolate, trace_id);
 }
 
-void CpuProfiler::CollectSample() {
+void CpuProfiler::CollectSample(const std::optional<uint64_t> trace_id) {
   if (processor_) {
-    processor_->AddCurrentStack();
+    processor_->AddCurrentStack(false, trace_id);
   }
 }
 

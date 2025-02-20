@@ -101,11 +101,11 @@
 // clang-format on
 
 // V(name, value, string-name)
-#define SPECIAL_TOKEN_LIST(V)            \
-  V(kUninitialized, 0, "{uninitalized}") \
-  V(kEndOfInput, -1, "{end of input}")   \
-  V(kParseError, -2, "{parse error}")    \
-  V(kUnsigned, -3, "{unsigned value}")   \
+#define SPECIAL_TOKEN_LIST(V)             \
+  V(kUninitialized, 0, "{uninitialized}") \
+  V(kEndOfInput, -1, "{end of input}")    \
+  V(kParseError, -2, "{parse error}")     \
+  V(kUnsigned, -3, "{unsigned value}")    \
   V(kDouble, -4, "{double value}")
 
 #endif  // V8_ASMJS_ASM_NAMES_H_

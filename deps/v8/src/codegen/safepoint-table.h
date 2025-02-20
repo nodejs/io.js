@@ -10,6 +10,7 @@
 #include "src/common/assert-scope.h"
 #include "src/utils/allocation.h"
 #include "src/utils/bit-vector.h"
+#include "src/utils/utils.h"
 #include "src/zone/zone-containers.h"
 #include "src/zone/zone.h"
 
@@ -72,6 +73,8 @@ class SafepointTable {
   SafepointTable(const SafepointTable&) = delete;
   SafepointTable& operator=(const SafepointTable&) = delete;
 
+  int stack_slots() const { return stack_slots_; }
+
   int length() const { return length_; }
 
   int byte_size() const {
@@ -128,9 +131,16 @@ class SafepointTable {
   SafepointTable(Isolate* isolate, Address pc, Tagged<GcSafeCode> code);
 
   // Layout information.
-  static constexpr int kLengthOffset = 0;
-  static constexpr int kEntryConfigurationOffset = kLengthOffset + kIntSize;
-  static constexpr int kHeaderSize = kEntryConfigurationOffset + kUInt32Size;
+#define FIELD_LIST(V)                                           \
+  V(kStackSlotsOffset, sizeof(SafepointTableStackSlotsField_t)) \
+  V(kLengthOffset, kIntSize)                                    \
+  V(kEntryConfigurationOffset, kUInt32Size)                     \
+  V(kHeaderSize, 0)
+
+  DEFINE_FIELD_OFFSET_CONSTANTS(0, FIELD_LIST)
+#undef FIELD_LIST
+
+  static_assert(kStackSlotsOffset == kSafepointTableStackSlotsOffset);
 
   using HasDeoptDataField = base::BitField<bool, 0, 1>;
   using RegisterIndexesSizeField = HasDeoptDataField::Next<int, 3>;
@@ -176,6 +186,7 @@ class SafepointTable {
 
   // Safepoint table layout.
   const Address safepoint_table_address_;
+  const SafepointTableStackSlotsField_t stack_slots_;
   const int length_;
   const uint32_t entry_configuration_;
 
@@ -231,9 +242,8 @@ class SafepointTableBuilder : public SafepointTableBuilderBase {
   // pc_offset.
   Safepoint DefineSafepoint(Assembler* assembler, int pc_offset = 0);
 
-  // Emit the safepoint table after the body. The number of bits per
-  // entry must be enough to hold all the pointer indexes.
-  V8_EXPORT_PRIVATE void Emit(Assembler* assembler, int bits_per_entry);
+  // Emit the safepoint table after the body.
+  V8_EXPORT_PRIVATE void Emit(Assembler* assembler, int stack_slot_count);
 
   // Find the Deoptimization Info with pc offset {pc} and update its
   // trampoline field. Calling this function ensures that the safepoint

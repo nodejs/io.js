@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --fuzzing --turboshaft-from-maglev --jit-fuzzing
+// Flags: --fuzzing --turbolev --jit-fuzzing
 
 this.WScript = new Proxy({}, {
   get() {

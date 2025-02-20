@@ -90,7 +90,10 @@ def preprocess(input):
 
   # clang-format doesn't like decorators, so change them into line comments.
   input = re.sub(
-      r'^(\s*)@([a-zA-Z]+)\n', r'\1//@\2\n', input, flags=re.MULTILINE)
+      r'^(\s*)@([a-zA-Z]+)(\([^)]*\))?\n',
+      r'\1//@\2\3\n',
+      input,
+      flags=re.MULTILINE)
   input = re.sub(r'^(\s*)@export\b', r'\1//@eXpOrT', input, flags=re.MULTILINE)
 
   # includes are not recognized, change them into comments so that the
@@ -104,7 +107,10 @@ def postprocess(output):
   output = re.sub(
       r'^(\s*)//@eXpOrT\b', r'\1@export', output, flags=re.MULTILINE)
   output = re.sub(
-      r'^(\s*)//@([a-zA-Z]+)\n', r"\1@\2\n", output, flags=re.MULTILINE)
+      r'^(\s*)//@([a-zA-Z]+)(\([^)]*\))?\n',
+      r"\1@\2\3\n",
+      output,
+      flags=re.MULTILINE)
 
   output = re.sub(r'\/\*COxp\*\/', r'constexpr', output)
   output = re.sub(r'(\S+)\s*: type([,>])', r'\1: type\2', output)

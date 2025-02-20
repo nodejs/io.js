@@ -420,8 +420,8 @@ RegExpClassSetExpression::RegExpClassSetExpression(
     max_match_ = 2;
   } else {
     max_match_ = 0;
-    for (auto op : *operands) {
-      max_match_ = std::max(max_match_, op->max_match());
+    for (auto operand : *operands) {
+      max_match_ = std::max(max_match_, operand->max_match());
     }
   }
 }

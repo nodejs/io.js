@@ -59,8 +59,6 @@ Tagged<SourceTextModuleInfo> SourceTextModule::info() const {
   return GetSharedFunctionInfo()->scope_info()->ModuleDescriptorInfo();
 }
 
-OBJECT_CONSTRUCTORS_IMPL(SourceTextModuleInfo, FixedArray)
-
 Tagged<FixedArray> SourceTextModuleInfo::module_requests() const {
   return Cast<FixedArray>(get(kModuleRequestsIndex));
 }

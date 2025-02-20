@@ -217,13 +217,8 @@ absl_test("utf8_for_code_point_test") {
 }
 
 absl_source_set("leak_check") {
-  if (is_ios || is_win) {
-    sources = []
-    public = []
-  } else {
-    sources = [ "leak_check.cc" ]
-    public = [ "leak_check.h" ]
-  }
+  sources = [ "leak_check.cc" ]
+  public = [ "leak_check.h" ]
   deps = [
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",

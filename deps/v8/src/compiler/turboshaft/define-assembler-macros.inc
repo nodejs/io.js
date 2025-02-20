@@ -88,16 +88,9 @@
 // warning with Pragmas. Clang and GCC helpfully disagree on where the warning
 // is (on the if or the else), so they need separate macros.
 #if defined(__clang__)
-#if defined(DEBUG) || defined(GOOGLE3)
-// TODO(dmercadier,leszeks): re-enable forced unrolling in DEBUG build. This
-// requires figuring out why Clang doesn't manage to unroll the loop in DEBUG
-// builds. In google3, forced unrolling also caused problems. Disable it there
-// for now as well.
-// TODO(349411321): re-enable forced unrolling in google3 again.
+// TODO(chromium:377144577): re-enable force-unrolling once this has been fixed
+// in LLVM.
 #define FORCE_UNROLL_LOOP
-#else
-#define FORCE_UNROLL_LOOP _Pragma("clang loop unroll(full)")
-#endif
 #define SUPPRESSED_DANGLING_ELSE_WARNING_IF(...) if (__VA_ARGS__)
 #define SUPPRESSED_DANGLING_ELSE_WARNING_ELSE                             \
   _Pragma("GCC diagnostic push")                                          \
@@ -116,6 +109,11 @@
 #define SUPPRESSED_DANGLING_ELSE_WARNING_ELSE else
 #endif
 
+#define NO_SHADOW                \
+  _Pragma("GCC diagnostic push") \
+      _Pragma("GCC diagnostic ignored \"-Wshadow\"")
+#define RE_SHADOW _Pragma("GCC diagnostic pop")
+
 // IF/ELSE macros. These expand to a real C++ if-else, so that we can get
 // similar block syntax behaviour (with an optional `ELSE`). Since C++ will only
 // evaluate one side of the if-else, wrap it in a for loop that executes the
@@ -125,6 +123,7 @@
 // outside the for loop to make it easier for the compiler to unroll the three
 // loop iterations.
 #define IF(...)                                                                \
+  NO_SHADOW                                                                    \
   SUPPRESSED_DANGLING_ELSE_WARNING_IF(                                         \
       typename std::decay_t<decltype(Asm())>::ControlFlowHelper_IfState state; \
       true)                                                                    \
@@ -132,14 +131,16 @@
   for (int iteration = 0, bound = false; iteration < 3;                        \
        (bound ? Asm().ControlFlowHelper_FinishIfBlock(&state) : (void)0),      \
            bound = false, iteration++)                                         \
-    SUPPRESSED_DANGLING_ELSE_WARNING_IF(iteration == 2) {                      \
-      Asm().ControlFlowHelper_EndIf(&state);                                   \
-    }                                                                          \
+    RE_SHADOW                                                                  \
+  SUPPRESSED_DANGLING_ELSE_WARNING_IF(iteration == 2) {                        \
+    Asm().ControlFlowHelper_EndIf(&state);                                     \
+  }                                                                            \
   SUPPRESSED_DANGLING_ELSE_WARNING_ELSE if (                                   \
       iteration == 0 &&                                                        \
       (bound = Asm().ControlFlowHelper_BindIf(__VA_ARGS__, &state)))
 
 #define IF_NOT(...)                                                            \
+  NO_SHADOW                                                                    \
   SUPPRESSED_DANGLING_ELSE_WARNING_IF(                                         \
       typename std::decay_t<decltype(Asm())>::ControlFlowHelper_IfState state; \
       true)                                                                    \
@@ -147,9 +148,10 @@
   for (int iteration = 0, bound = false; iteration < 3;                        \
        (bound ? Asm().ControlFlowHelper_FinishIfBlock(&state) : (void)0),      \
            bound = false, iteration++)                                         \
-    SUPPRESSED_DANGLING_ELSE_WARNING_IF(iteration == 2) {                      \
-      Asm().ControlFlowHelper_EndIf(&state);                                   \
-    }                                                                          \
+    RE_SHADOW                                                                  \
+  SUPPRESSED_DANGLING_ELSE_WARNING_IF(iteration == 2) {                        \
+    Asm().ControlFlowHelper_EndIf(&state);                                     \
+  }                                                                            \
   SUPPRESSED_DANGLING_ELSE_WARNING_ELSE if (                                   \
       iteration == 0 &&                                                        \
       (bound = Asm().ControlFlowHelper_BindIfNot(__VA_ARGS__, &state)))

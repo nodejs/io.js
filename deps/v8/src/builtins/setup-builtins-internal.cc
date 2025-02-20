@@ -7,11 +7,13 @@
 #include "src/builtins/builtins-inl.h"
 #include "src/builtins/profile-data-reader.h"
 #include "src/codegen/assembler-inl.h"
+#include "src/codegen/compiler.h"
 #include "src/codegen/interface-descriptors.h"
 #include "src/codegen/macro-assembler-inl.h"
 #include "src/codegen/macro-assembler.h"
 #include "src/codegen/reloc-info-inl.h"
 #include "src/common/globals.h"
+#include "src/compiler-dispatcher/optimizing-compile-dispatcher.h"
 #include "src/compiler/code-assembler.h"
 #include "src/compiler/pipeline.h"
 #include "src/compiler/turboshaft/builtin-compiler.h"
@@ -35,12 +37,15 @@ namespace v8 {
 namespace internal {
 
 // Forward declarations for C++ builtins.
-#define FORWARD_DECLARE(Name) \
+#define FORWARD_DECLARE(Name, Argc) \
   Address Builtin_##Name(int argc, Address* args, Isolate* isolate);
 BUILTIN_LIST_C(FORWARD_DECLARE)
 #undef FORWARD_DECLARE
 
 namespace {
+
+using BuiltinCompilationScheduler =
+    compiler::CodeAssembler::BuiltinCompilationScheduler;
 
 const int kBufferSize = 128 * KB;
 
@@ -93,9 +98,13 @@ AssemblerOptions BuiltinAssemblerOptions(Isolate* isolate, Builtin builtin) {
 }
 
 using MacroAssemblerGenerator = void (*)(MacroAssembler*);
-using CodeAssemblerGenerator = void (*)(compiler::CodeAssemblerState*);
+using TurboshaftAssemblerGenerator =
+    void (*)(compiler::turboshaft::PipelineData*, Isolate*,
+             compiler::turboshaft::Graph&, Zone*);
+using CodeAssemblerGenerator = compiler::Pipeline::CodeAssemblerGenerator;
+using CodeAssemblerInstaller = compiler::Pipeline::CodeAssemblerInstaller;
 
-Handle<Code> BuildPlaceholder(Isolate* isolate, Builtin builtin) {
+DirectHandle<Code> BuildPlaceholder(Isolate* isolate, Builtin builtin) {
   HandleScope scope(isolate);
   uint8_t buffer[kBufferSize];
   MacroAssembler masm(isolate, CodeObjectRequired::kYes,
@@ -149,9 +158,10 @@ V8_NOINLINE Tagged<Code> BuildWithMacroAssembler(
         isolate->builtins()->cwasm_interpreter_entry_handler_offset());
 #endif  // V8_ENABLE_DRUMBRAKE
   }
-#if V8_ENABLE_WEBASSEMBLY &&                                              \
-    (V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_IA32 || \
-     V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_LOONG64)
+#if V8_ENABLE_WEBASSEMBLY &&                                                   \
+    (V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_IA32 ||      \
+     V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_LOONG64 || \
+     V8_TARGET_ARCH_PPC64)
   if (builtin == Builtin::kWasmReturnPromiseOnSuspendAsm) {
     handler_table_offset = HandlerTable::EmitReturnTableStart(&masm);
     HandlerTable::EmitReturnEntry(
@@ -183,13 +193,15 @@ Tagged<Code> BuildAdaptor(Isolate* isolate, Builtin builtin,
                       ExternalAssemblerBuffer(buffer, kBufferSize));
   masm.set_builtin(builtin);
   DCHECK(!masm.has_frame());
-  Builtins::Generate_Adaptor(&masm, builtin_address);
+  int formal_parameter_count = Builtins::GetFormalParameterCount(builtin);
+  Builtins::Generate_Adaptor(&masm, formal_parameter_count, builtin_address);
   CodeDesc desc;
   masm.GetCode(isolate, &desc);
   DirectHandle<Code> code =
       Factory::CodeBuilder(isolate, desc, CodeKind::BUILTIN)
           .set_self_reference(masm.CodeObject())
           .set_builtin(builtin)
+          .set_parameter_count(formal_parameter_count)
           .Build();
   return *code;
 }
@@ -200,33 +212,31 @@ V8_NOINLINE Tagged<Code> BuildWithTurboshaftAssemblerJS(
     compiler::turboshaft::TurboshaftAssemblerGenerator generator, int argc,
     const char* name) {
   HandleScope scope(isolate);
-  Handle<Code> code = compiler::turboshaft::BuildWithTurboshaftAssemblerImpl(
-      isolate, builtin, generator,
-      [argc](Zone* zone) {
-        return compiler::Linkage::GetJSCallDescriptor(
-            zone, false, argc, compiler::CallDescriptor::kCanUseRoots);
-      },
-      name, BuiltinAssemblerOptions(isolate, builtin));
+  DirectHandle<Code> code =
+      compiler::turboshaft::BuildWithTurboshaftAssemblerImpl(
+          isolate, builtin, generator,
+          [argc](Zone* zone) {
+            return compiler::Linkage::GetJSCallDescriptor(
+                zone, false, argc, compiler::CallDescriptor::kCanUseRoots);
+          },
+          name, BuiltinAssemblerOptions(isolate, builtin));
   return *code;
 }
 
-// Builder for builtins implemented in TurboFan with JS linkage.
-V8_NOINLINE Tagged<Code> BuildWithCodeStubAssemblerJS(
-    Isolate* isolate, Builtin builtin, CodeAssemblerGenerator generator,
-    int argc, const char* name) {
-  // TODO(nicohartmann): Remove this once `BuildWithTurboshaftAssemblerCS` has
+void CompileJSLinkageCodeStubBuiltin(Isolate* isolate, Builtin builtin,
+                                     CodeAssemblerGenerator generator,
+                                     CodeAssemblerInstaller installer, int argc,
+                                     const char* name, int finalize_order,
+                                     BuiltinCompilationScheduler& scheduler) {
+  // TODO(nicohartmann): Remove this once `BuildWithTurboshaftAssemblerJS` has
   // an actual use.
   USE(&BuildWithTurboshaftAssemblerJS);
-  HandleScope scope(isolate);
-
-  Zone zone(isolate->allocator(), ZONE_NAME, kCompressGraphZone);
-  compiler::CodeAssemblerState state(isolate, &zone, argc, CodeKind::BUILTIN,
-                                     name, builtin);
-  generator(&state);
-  DirectHandle<Code> code = compiler::CodeAssembler::GenerateCode(
-      &state, BuiltinAssemblerOptions(isolate, builtin),
-      ProfileDataFromFile::TryRead(name));
-  return *code;
+  std::unique_ptr<TurbofanCompilationJob> job(
+      compiler::Pipeline::NewJSLinkageCodeStubBuiltinCompilationJob(
+          isolate, builtin, generator, installer,
+          BuiltinAssemblerOptions(isolate, builtin), argc, name,
+          ProfileDataFromFile::TryRead(name), finalize_order));
+  scheduler.CompileCode(isolate, std::move(job));
 }
 
 // Builder for builtins implemented in Turboshaft with CallStub linkage.
@@ -235,41 +245,56 @@ V8_NOINLINE Tagged<Code> BuildWithTurboshaftAssemblerCS(
     compiler::turboshaft::TurboshaftAssemblerGenerator generator,
     CallDescriptors::Key interface_descriptor, const char* name) {
   HandleScope scope(isolate);
-  Handle<Code> code = compiler::turboshaft::BuildWithTurboshaftAssemblerImpl(
-      isolate, builtin, generator,
-      [interface_descriptor](Zone* zone) {
-        CallInterfaceDescriptor descriptor(interface_descriptor);
-        DCHECK_LE(0, descriptor.GetRegisterParameterCount());
-        return compiler::Linkage::GetStubCallDescriptor(
-            zone, descriptor, descriptor.GetStackParameterCount(),
-            compiler::CallDescriptor::kNoFlags,
-            compiler::Operator::kNoProperties);
-      },
-      name, BuiltinAssemblerOptions(isolate, builtin));
+  DirectHandle<Code> code =
+      compiler::turboshaft::BuildWithTurboshaftAssemblerImpl(
+          isolate, builtin, generator,
+          [interface_descriptor](Zone* zone) {
+            CallInterfaceDescriptor descriptor(interface_descriptor);
+            DCHECK_LE(0, descriptor.GetRegisterParameterCount());
+            return compiler::Linkage::GetStubCallDescriptor(
+                zone, descriptor, descriptor.GetStackParameterCount(),
+                compiler::CallDescriptor::kNoFlags,
+                compiler::Operator::kNoProperties);
+          },
+          name, BuiltinAssemblerOptions(isolate, builtin));
   return *code;
 }
 
 // Builder for builtins implemented in TurboFan with CallStub linkage.
-V8_NOINLINE Tagged<Code> BuildWithCodeStubAssemblerCS(
-    Isolate* isolate, Builtin builtin, CodeAssemblerGenerator generator,
-    CallDescriptors::Key interface_descriptor, const char* name) {
+void CompileCSLinkageCodeStubBuiltin(Isolate* isolate, Builtin builtin,
+                                     CodeAssemblerGenerator generator,
+                                     CodeAssemblerInstaller installer,
+                                     CallDescriptors::Key interface_descriptor,
+                                     const char* name, int finalize_order,
+                                     BuiltinCompilationScheduler& scheduler) {
   // TODO(nicohartmann): Remove this once `BuildWithTurboshaftAssemblerCS` has
   // an actual use.
   USE(&BuildWithTurboshaftAssemblerCS);
-  HandleScope scope(isolate);
-  Zone zone(isolate->allocator(), ZONE_NAME, kCompressGraphZone);
-  // The interface descriptor with given key must be initialized at this point
-  // and this construction just queries the details from the descriptors table.
-  CallInterfaceDescriptor descriptor(interface_descriptor);
-  // Ensure descriptor is already initialized.
-  DCHECK_LE(0, descriptor.GetRegisterParameterCount());
-  compiler::CodeAssemblerState state(isolate, &zone, descriptor,
-                                     CodeKind::BUILTIN, name, builtin);
-  generator(&state);
-  DirectHandle<Code> code = compiler::CodeAssembler::GenerateCode(
-      &state, BuiltinAssemblerOptions(isolate, builtin),
-      ProfileDataFromFile::TryRead(name));
-  return *code;
+  std::unique_ptr<TurbofanCompilationJob> job(
+      compiler::Pipeline::NewCSLinkageCodeStubBuiltinCompilationJob(
+          isolate, builtin, generator, installer,
+          BuiltinAssemblerOptions(isolate, builtin), interface_descriptor, name,
+          ProfileDataFromFile::TryRead(name), finalize_order));
+  scheduler.CompileCode(isolate, std::move(job));
+}
+
+void CompileBytecodeHandler(
+    Isolate* isolate, Builtin builtin, interpreter::OperandScale operand_scale,
+    interpreter::Bytecode bytecode,
+    compiler::Pipeline::CodeAssemblerInstaller installer, int finalize_order,
+    BuiltinCompilationScheduler& scheduler) {
+  DCHECK(interpreter::Bytecodes::BytecodeHasHandler(bytecode, operand_scale));
+  const char* name = Builtins::name(builtin);
+  auto generator = [bytecode,
+                    operand_scale](compiler::CodeAssemblerState* state) {
+    interpreter::GenerateBytecodeHandler(state, bytecode, operand_scale);
+  };
+  std::unique_ptr<TurbofanCompilationJob> job(
+      compiler::Pipeline::NewBytecodeHandlerCompilationJob(
+          isolate, builtin, generator, installer,
+          BuiltinAssemblerOptions(isolate, builtin), name,
+          ProfileDataFromFile::TryRead(name), finalize_order));
+  scheduler.CompileCode(isolate, std::move(job));
 }
 
 }  // anonymous namespace
@@ -312,7 +337,7 @@ void SetupIsolateDelegate::ReplacePlaceholders(Isolate* isolate) {
     Tagged<InstructionStream> istream = code->instruction_stream();
     WritableJitAllocation jit_allocation = ThreadIsolation::LookupJitAllocation(
         istream.address(), istream->Size(),
-        ThreadIsolation::JitAllocationType::kInstructionStream);
+        ThreadIsolation::JitAllocationType::kInstructionStream, true);
     bool flush_icache = false;
     for (WritableRelocIterator it(jit_allocation, istream,
                                   code->constant_pool(), kRelocMask);
@@ -347,20 +372,6 @@ void SetupIsolateDelegate::ReplacePlaceholders(Isolate* isolate) {
   }
 }
 
-namespace {
-
-V8_NOINLINE Tagged<Code> GenerateBytecodeHandler(
-    Isolate* isolate, Builtin builtin, interpreter::OperandScale operand_scale,
-    interpreter::Bytecode bytecode) {
-  DCHECK(interpreter::Bytecodes::BytecodeHasHandler(bytecode, operand_scale));
-  DirectHandle<Code> code = interpreter::GenerateBytecodeHandler(
-      isolate, Builtins::name(builtin), bytecode, operand_scale, builtin,
-      BuiltinAssemblerOptions(isolate, builtin));
-  return *code;
-}
-
-}  // namespace
-
 // static
 void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
   Builtins* builtins = isolate->builtins();
@@ -376,83 +387,114 @@ void SetupIsolateDelegate::SetupBuiltinsInternal(Isolate* isolate) {
   // Create a scope for the handles in the builtins.
   HandleScope scope(isolate);
 
-  int index = 0;
+  // Generated builtins are temporarily stored in this array to avoid data races
+  // on the isolate's builtin table.
+  std::array<Handle<Code>, Builtins::kBuiltinCount> generated_builtins;
+  auto install_generated_builtin = [&generated_builtins, isolate](
+                                       Builtin builtin, Handle<Code> code) {
+    DCHECK_EQ(ThreadId::Current(), isolate->thread_id());
+    USE(isolate);
+    generated_builtins[Builtins::ToInt(builtin)] = code;
+  };
+
+  int builtins_built_without_job_count = 0;
+  int job_creation_order = 0;
+  BuiltinCompilationScheduler scheduler;
   Tagged<Code> code;
-#define BUILD_CPP(Name)                                      \
+
+#define BUILD_CPP_WITHOUT_JOB(Name, Argc)                    \
   code = BuildAdaptor(isolate, Builtin::k##Name,             \
                       FUNCTION_ADDR(Builtin_##Name), #Name); \
-  AddBuiltin(builtins, Builtin::k##Name, code);              \
-  index++;
+  generated_builtins[Builtins::ToInt(Builtin::k##Name)] =    \
+      handle(code, isolate);                                 \
+  builtins_built_without_job_count++;
 
-#define BUILD_TSJ(Name, Argc, ...)                                         \
+#define BUILD_TSJ_WITHOUT_JOB(Name, Argc, ...)                             \
   code = BuildWithTurboshaftAssemblerJS(                                   \
       isolate, Builtin::k##Name, &Builtins::Generate_##Name, Argc, #Name); \
   AddBuiltin(builtins, Builtin::k##Name, code);                            \
-  index++;
+  builtins_built_without_job_count++;
 
-#define BUILD_TFJ(Name, Argc, ...)                                         \
-  code = BuildWithCodeStubAssemblerJS(                                     \
-      isolate, Builtin::k##Name, &Builtins::Generate_##Name, Argc, #Name); \
-  AddBuiltin(builtins, Builtin::k##Name, code);                            \
-  index++;
+#define BUILD_TFJ_WITH_JOB(Name, Argc, ...)                               \
+  CompileJSLinkageCodeStubBuiltin(isolate, Builtin::k##Name,              \
+                                  &Builtins::Generate_##Name,             \
+                                  install_generated_builtin, Argc, #Name, \
+                                  job_creation_order++, scheduler);
 
-#define BUILD_TSC(Name, InterfaceDescriptor)                      \
+#define BUILD_TSC_WITHOUT_JOB(Name, InterfaceDescriptor)          \
   /* Return size is from the provided CallInterfaceDescriptor. */ \
   code = BuildWithTurboshaftAssemblerCS(                          \
       isolate, Builtin::k##Name, &Builtins::Generate_##Name,      \
       CallDescriptors::InterfaceDescriptor, #Name);               \
-  AddBuiltin(builtins, Builtin::k##Name, code);                   \
-  index++;
+  generated_builtins[Builtins::ToInt(Builtin::k##Name)] =         \
+      handle(code, isolate);                                      \
+  builtins_built_without_job_count++;
 
-#define BUILD_TFC(Name, InterfaceDescriptor)                      \
-  /* Return size is from the provided CallInterfaceDescriptor. */ \
-  code = BuildWithCodeStubAssemblerCS(                            \
-      isolate, Builtin::k##Name, &Builtins::Generate_##Name,      \
-      CallDescriptors::InterfaceDescriptor, #Name);               \
-  AddBuiltin(builtins, Builtin::k##Name, code);                   \
-  index++;
+#define BUILD_TFC_WITH_JOB(Name, InterfaceDescriptor)                         \
+  /* Return size is from the provided CallInterfaceDescriptor. */             \
+  CompileCSLinkageCodeStubBuiltin(                                            \
+      isolate, Builtin::k##Name, &Builtins::Generate_##Name,                  \
+      install_generated_builtin, CallDescriptors::InterfaceDescriptor, #Name, \
+      job_creation_order++, scheduler);
 
-#define BUILD_TFS(Name, ...)                                            \
+#define BUILD_TFS_WITH_JOB(Name, ...)                                   \
   /* Return size for generic TF builtins (stub linkage) is always 1. */ \
-  code = BuildWithCodeStubAssemblerCS(isolate, Builtin::k##Name,        \
-                                      &Builtins::Generate_##Name,       \
-                                      CallDescriptors::Name, #Name);    \
-  AddBuiltin(builtins, Builtin::k##Name, code);                         \
-  index++;
+  CompileCSLinkageCodeStubBuiltin(                                      \
+      isolate, Builtin::k##Name, &Builtins::Generate_##Name,            \
+      install_generated_builtin, CallDescriptors::Name, #Name,          \
+      job_creation_order++, scheduler);
 
-#define BUILD_TFH(Name, InterfaceDescriptor)                 \
-  /* Return size for IC builtins/handlers is always 1. */    \
-  code = BuildWithCodeStubAssemblerCS(                       \
-      isolate, Builtin::k##Name, &Builtins::Generate_##Name, \
-      CallDescriptors::InterfaceDescriptor, #Name);          \
-  AddBuiltin(builtins, Builtin::k##Name, code);              \
-  index++;
+#define BUILD_TFH_WITH_JOB(Name, InterfaceDescriptor)                         \
+  /* Return size for IC builtins/handlers is always 1. */                     \
+  CompileCSLinkageCodeStubBuiltin(                                            \
+      isolate, Builtin::k##Name, &Builtins::Generate_##Name,                  \
+      install_generated_builtin, CallDescriptors::InterfaceDescriptor, #Name, \
+      job_creation_order++, scheduler);
 
-#define BUILD_BCH(Name, OperandScale, Bytecode)                           \
-  code = GenerateBytecodeHandler(isolate, Builtin::k##Name, OperandScale, \
-                                 Bytecode);                               \
-  AddBuiltin(builtins, Builtin::k##Name, code);                           \
-  index++;
+#define BUILD_BCH_WITH_JOB(Name, OperandScale, Bytecode)                    \
+  CompileBytecodeHandler(isolate, Builtin::k##Name, OperandScale, Bytecode, \
+                         install_generated_builtin, job_creation_order++,   \
+                         scheduler);
 
-#define BUILD_ASM(Name, InterfaceDescriptor)                        \
+#define BUILD_ASM_WITHOUT_JOB(Name, InterfaceDescriptor)            \
   code = BuildWithMacroAssembler(isolate, Builtin::k##Name,         \
                                  Builtins::Generate_##Name, #Name); \
-  AddBuiltin(builtins, Builtin::k##Name, code);                     \
-  index++;
+  generated_builtins[Builtins::ToInt(Builtin::k##Name)] =           \
+      handle(code, isolate);                                        \
+  builtins_built_without_job_count++;
 
-  BUILTIN_LIST(BUILD_CPP, BUILD_TSJ, BUILD_TFJ, BUILD_TSC, BUILD_TFC, BUILD_TFS,
-               BUILD_TFH, BUILD_BCH, BUILD_ASM);
+#define NOP(...)
 
-#undef BUILD_CPP
-#undef BUILD_TSJ
-#undef BUILD_TFJ
-#undef BUILD_TSC
-#undef BUILD_TFC
-#undef BUILD_TFS
-#undef BUILD_TFH
-#undef BUILD_BCH
-#undef BUILD_ASM
-  CHECK_EQ(Builtins::kBuiltinCount, index);
+  // Build all builtins without jobs first. When concurrent builtin generation
+  // is enabled, allocations needs to be deterministic. Having main-thread
+  // generated builtins in the middle of the list breaks determinism.
+  BUILTIN_LIST(BUILD_CPP_WITHOUT_JOB, BUILD_TSJ_WITHOUT_JOB, NOP,
+               BUILD_TSC_WITHOUT_JOB, NOP, NOP, NOP, NOP,
+               BUILD_ASM_WITHOUT_JOB);
+  BUILTIN_LIST(NOP, NOP, BUILD_TFJ_WITH_JOB, NOP, BUILD_TFC_WITH_JOB,
+               BUILD_TFS_WITH_JOB, BUILD_TFH_WITH_JOB, BUILD_BCH_WITH_JOB, NOP)
+
+#undef BUILD_CPP_WITHOUT_JOB
+#undef BUILD_TSJ_WITHOUT_JOB
+#undef BUILD_TFJ_WITH_JOB
+#undef BUILD_TSC_WITHOUT_JOB
+#undef BUILD_TFC_WITH_JOB
+#undef BUILD_TFS_WITH_JOB
+#undef BUILD_TFH_WITH_JOB
+#undef BUILD_BCH_WITH_JOB
+#undef BUILD_ASM_WITHOUT_JOB
+#undef NOP
+
+  scheduler.AwaitAndFinalizeCurrentBatch(isolate);
+  CHECK_EQ(Builtins::kBuiltinCount, builtins_built_without_job_count +
+                                        scheduler.builtins_installed_count());
+
+  // Add the generated builtins to the isolate.
+  for (Builtin builtin = Builtins::kFirst; builtin <= Builtins::kLast;
+       ++builtin) {
+    AddBuiltin(builtins, builtin,
+               *generated_builtins[Builtins::ToInt(builtin)]);
+  }
 
   ReplacePlaceholders(isolate);
 

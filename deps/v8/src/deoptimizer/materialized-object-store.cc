@@ -12,7 +12,7 @@
 namespace v8 {
 namespace internal {
 
-Handle<FixedArray> MaterializedObjectStore::Get(Address fp) {
+DirectHandle<FixedArray> MaterializedObjectStore::Get(Address fp) {
   int index = StackIdToIndex(fp);
   if (index == -1) {
     return Handle<FixedArray>::null();
@@ -58,13 +58,14 @@ int MaterializedObjectStore::StackIdToIndex(Address fp) {
              : static_cast<int>(std::distance(frame_fps_.begin(), it));
 }
 
-Handle<FixedArray> MaterializedObjectStore::GetStackEntries() {
-  return Handle<FixedArray>(isolate()->heap()->materialized_objects(),
-                            isolate());
+DirectHandle<FixedArray> MaterializedObjectStore::GetStackEntries() {
+  return DirectHandle<FixedArray>(isolate()->heap()->materialized_objects(),
+                                  isolate());
 }
 
-Handle<FixedArray> MaterializedObjectStore::EnsureStackEntries(int length) {
-  Handle<FixedArray> array = GetStackEntries();
+DirectHandle<FixedArray> MaterializedObjectStore::EnsureStackEntries(
+    int length) {
+  DirectHandle<FixedArray> array = GetStackEntries();
   if (array->length() >= length) {
     return array;
   }
@@ -74,7 +75,7 @@ Handle<FixedArray> MaterializedObjectStore::EnsureStackEntries(int length) {
     new_length = 2 * array->length();
   }
 
-  Handle<FixedArray> new_array =
+  DirectHandle<FixedArray> new_array =
       isolate()->factory()->NewFixedArray(new_length, AllocationType::kOld);
   for (int i = 0; i < array->length(); i++) {
     new_array->set(i, array->get(i));

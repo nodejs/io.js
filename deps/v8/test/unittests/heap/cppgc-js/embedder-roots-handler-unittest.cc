@@ -35,21 +35,10 @@ class V8_NODISCARD TemporaryEmbedderRootsHandleScope final {
 // TracedReference.
 class ClearingEmbedderRootsHandler final : public v8::EmbedderRootsHandler {
  public:
-START_ALLOW_USE_DEPRECATED()
   explicit ClearingEmbedderRootsHandler(v8::Isolate* isolate)
-      : EmbedderRootsHandler(EmbedderRootsHandler::RootHandling::
-                                 kDontQueryEmbedderForAnyReference),
-        isolate_(isolate) {}
-END_ALLOW_USE_DEPRECATED()
-
-  bool IsRoot(const v8::TracedReference<v8::Value>& handle) final {
-    // Every handle that's droppable will not be considered as root and thus
-    // dropped.
-    return false;
-  }
+      : EmbedderRootsHandler(), isolate_(isolate) {}
 
   void ResetRoot(const v8::TracedReference<v8::Value>& handle) final {
-    CHECK(!IsRoot(handle));
     // Convention for test: Objects that are optimized have use a back pointer
     // in the wrappable field.
     BasicTracedReference<v8::Value>* original_handle =
@@ -113,12 +102,16 @@ void TracedReferenceTest(v8::Isolate* isolate,
   v8::HandleScope scope(isolate);
   auto* traced_handles = i_isolate->traced_handles();
   const size_t initial_count = traced_handles->used_node_count();
-  auto gc_invisible_handle =
-      std::make_unique<v8::TracedReference<v8::Object>>();
-  construct_function(isolate, isolate->GetCurrentContext(),
-                     gc_invisible_handle.get());
-  ASSERT_TRUE(IsNewObjectInCorrectGeneration(isolate, *gc_invisible_handle));
-  modifier_function(*gc_invisible_handle);
+  // Store v8::TracedReference on the stack here on purpose. On Android storing
+  // it on the heap is problematic. This is because the native memory allocator
+  // on Android sets the top-byte of allocations for verification. However, in
+  // same tests we store the address of the v8::TracedReference in the
+  // CppHeapPointerTable to simulate a cppgc wrapper object. The table expectes
+  // the hightest 16-bit to be 0 for all entries.
+  v8::TracedReference<v8::Object> handle;
+  construct_function(isolate, isolate->GetCurrentContext(), &handle);
+  ASSERT_TRUE(IsNewObjectInCorrectGeneration(isolate, handle));
+  modifier_function(handle);
   const size_t after_modification_count = traced_handles->used_node_count();
   gc_function();
   // Cannot check the handle as it is not explicitly cleared by the GC. Instead

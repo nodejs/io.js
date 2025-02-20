@@ -20,8 +20,14 @@ LoadWithHoleCheck<FixedDoubleArray>(
     implicit context: Context)(elements: FixedArrayBase, index: Smi): JSAny
     labels IfHole {
   const elements: FixedDoubleArray = UnsafeCast<FixedDoubleArray>(elements);
-  const element: float64 = elements.floats[index].Value() otherwise IfHole;
-  return AllocateHeapNumberWithValue(element);
+  try {
+    const element: float64 =
+        elements.values[index].Value() otherwise IfUndefined,
+                   IfHole;
+    return AllocateHeapNumberWithValue(element);
+  } label IfUndefined {
+    return Undefined;
+  }
 }
 
 macro FastArrayLastIndexOf<Elements : type extends FixedArrayBase>(

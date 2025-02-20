@@ -7,7 +7,7 @@
 
 #include <cmath>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/macros.h"
 #include "src/base/numbers/double.h"
 #include "src/common/globals.h"

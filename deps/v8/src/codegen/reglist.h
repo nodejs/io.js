@@ -19,7 +19,7 @@
 #include "src/codegen/mips64/reglist-mips64.h"
 #elif V8_TARGET_ARCH_LOONG64
 #include "src/codegen/loong64/reglist-loong64.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/codegen/s390/reglist-s390.h"
 #elif V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
 #include "src/codegen/riscv/reglist-riscv.h"

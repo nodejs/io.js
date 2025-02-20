@@ -30,6 +30,8 @@ class GrowableFixedArray : public CodeStubAssembler {
   TVariable<IntPtrT>* var_length() { return &var_length_; }
   TVariable<IntPtrT>* var_capacity() { return &var_capacity_; }
 
+  void Reserve(TNode<IntPtrT> required_capacity);
+
   void Push(const TNode<Object> value);
 
   TNode<FixedArray> ToFixedArray();

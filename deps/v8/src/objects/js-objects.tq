@@ -131,8 +131,8 @@ extern class JSMessageObject extends JSObject {
   argument: Object;
   // [script]: the script from which the error message originated.
   script: Script;
-  // [stack_frames]: an array of stack frames for this error object.
-  stack_frames: Object;
+  // [stack_trace]: a StackTraceInfo for this error object.
+  stack_trace: StackTraceInfo|TheHole;
   shared_info: SharedFunctionInfo|Smi;
 
   // Raw data fields.

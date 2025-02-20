@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env vpython3
 # Copyright 2014 the V8 project authors. All rights reserved.
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
@@ -130,6 +130,7 @@ from statistics import mean, stdev
 
 import argparse
 import copy
+import hjson
 import json
 import logging
 import math
@@ -775,7 +776,7 @@ class CacheHandler:
   def read_cache(self):
     try:
       with open(self.cache_file) as f:
-        return json.load(f)
+        return hjson.load(f)
     except FileNotFoundError:
       logging.info(f"{self.cache_file} doesn't exist yet. Creating new.")
     return {}
@@ -850,7 +851,7 @@ class Platform(object):
     if not os.path.isfile(config_path):
       return {}
     with open(config_path) as f:
-      return json.load(f)
+      return hjson.load(f)
 
   @staticmethod
   def GetPlatform(args):
@@ -1320,7 +1321,7 @@ def Main(argv):
         continue
 
       with open(path) as f:
-        suite = json.loads(f.read())
+        suite = hjson.loads(f.read())
 
       # If no name is given, default to the file name without .json.
       suite.setdefault('name', os.path.splitext(os.path.basename(path))[0])

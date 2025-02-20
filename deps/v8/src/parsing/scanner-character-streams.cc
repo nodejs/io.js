@@ -312,10 +312,19 @@ class UnbufferedCharacterStream : public Utf16CharacterStream {
     DisallowGarbageCollection no_gc;
     Range<uint16_t> range =
         byte_stream_.GetDataAt(position, runtime_call_stats(), &no_gc);
+    if (range.length() == 0) {
+      // We should not set the buffer pointers to nullptr to avoid undefined
+      // behavior, for example when incrementing buffer_cursor_. So instead use
+      // this static array.
+      static const uint16_t empty_buffer[1] = {0};
+      buffer_start_ = empty_buffer;
+      buffer_end_ = empty_buffer;
+      buffer_cursor_ = empty_buffer;
+      return false;
+    }
     buffer_start_ = range.start;
     buffer_end_ = range.end;
     buffer_cursor_ = buffer_start_;
-    if (range.length() == 0) return false;
 
     DCHECK(!range.unaligned_start());
     DCHECK_LE(buffer_start_, buffer_end_);

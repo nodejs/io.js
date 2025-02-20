@@ -1,0 +1,21 @@
+Checks API for ignoring execution contexts and anonymous scripts
+
+Running test: testNoIgnore
+Setting blackbox patterns: {"patterns":["hidden.js"]}
+Setting blackbox execution context to different id
+Paused on line 2
+Paused on line 3
+Paused on line 4
+Paused on line 5
+Paused on line 6
+Exited normally
+
+Running test: testIgnoreAnonymous
+Setting blackbox patterns: {"patterns":[],"skipAnonymous":true}
+Setting blackbox execution context to different id
+Exited normally
+
+Running test: testIgnoreExecutionContext
+Setting blackbox patterns: {"patterns":["hidden.js"]}
+Setting blackbox execution context to same id
+Exited normally

@@ -57,7 +57,7 @@ inline Node* SkipValueIdentities(Node* node) {
   return node;
 }
 
-// A pattern matcher for abitrary value constants.
+// A pattern matcher for arbitrary value constants.
 //
 // Note that value identities on the input node are skipped when matching. The
 // resolved value may not be a parameter of the input node. The node() method
@@ -65,6 +65,13 @@ inline Node* SkipValueIdentities(Node* node) {
 // match value constants but delay reducing the node until a later phase.
 template <typename T, IrOpcode::Value kOpcode>
 struct ValueMatcher : public NodeMatcher {
+  // TODO(42203211): Although value matchers will work with if `T` is a direct
+  // handle type, the special instance for indirect handles uses handle location
+  // equality for performing the match. This is designed to work with canonical
+  // handles, used by the compiler. As of now, it is not clear if direct handles
+  // can replace such canonical handles, hence the following assertion.
+  static_assert(!is_direct_handle_v<T>);
+
   using ValueType = T;
 
   explicit ValueMatcher(Node* node)
@@ -218,11 +225,11 @@ using NumberMatcher = FloatMatcher<double, IrOpcode::kNumberConstant>;
 // A pattern matcher for heap object constants.
 template <IrOpcode::Value kHeapConstantOpcode>
 struct HeapObjectMatcherImpl final
-    : public ValueMatcher<Handle<HeapObject>, kHeapConstantOpcode> {
+    : public ValueMatcher<IndirectHandle<HeapObject>, kHeapConstantOpcode> {
   explicit HeapObjectMatcherImpl(Node* node)
-      : ValueMatcher<Handle<HeapObject>, kHeapConstantOpcode>(node) {}
+      : ValueMatcher<IndirectHandle<HeapObject>, kHeapConstantOpcode>(node) {}
 
-  bool Is(Handle<HeapObject> const& value) const {
+  bool Is(IndirectHandle<HeapObject> const& value) const {
     return this->HasResolvedValue() &&
            this->ResolvedValue().address() == value.address();
   }

@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --no-liftoff --no-wasm-lazy-compilation
-// Flags: --no-experimental-wasm-inlining --no-wasm-loop-unrolling
+// Flags: --no-wasm-inlining-call-indirect --no-wasm-loop-unrolling
 // Flags: --no-wasm-loop-peeling
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");

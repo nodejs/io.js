@@ -10,3 +10,6 @@ monorail {
   component: "Blink>JavaScript"
 }
 team_email: "v8-dev@googlegroups.com"
+buganizer_public: {
+  component_id: 1456824
+}

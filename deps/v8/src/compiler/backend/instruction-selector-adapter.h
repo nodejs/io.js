@@ -104,9 +104,9 @@ struct TurbofanAdapter {
     bool is_compressed_heap_object() const {
       return node_->opcode() == IrOpcode::kCompressedHeapConstant;
     }
-    Handle<HeapObject> heap_object_value() const {
+    IndirectHandle<HeapObject> heap_object_value() const {
       DCHECK(is_heap_object() || is_compressed_heap_object());
-      return OpParameter<Handle<HeapObject>>(node_->op());
+      return OpParameter<IndirectHandle<HeapObject>>(node_->op());
     }
     bool is_number() const {
       return node_->opcode() == IrOpcode::kNumberConstant;
@@ -214,7 +214,7 @@ struct TurbofanAdapter {
       *traps_on_null = false;
       return node_->opcode() == IrOpcode::kProtectedLoad ||
              (is_atomic() && AtomicLoadParametersOf(node_->op()).kind() ==
-                                 MemoryAccessKind::kProtected);
+                                 MemoryAccessKind::kProtectedByTrapHandler);
     }
     bool is_atomic() const {
       return node_->opcode() == IrOpcode::kWord32AtomicLoad ||
@@ -284,7 +284,7 @@ struct TurbofanAdapter {
           return MemoryAccessKind::kNormal;
         case IrOpcode::kProtectedStore:
         case IrOpcode::kStoreTrapOnNull:
-          return MemoryAccessKind::kProtected;
+          return MemoryAccessKind::kProtectedByTrapHandler;
         case IrOpcode::kWord32AtomicStore:
         case IrOpcode::kWord64AtomicStore:
           return AtomicStoreParametersOf(node_->op()).kind();
@@ -713,7 +713,7 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
     bool is_compressed_heap_object() const {
       return op_->kind == Kind::kCompressedHeapObject;
     }
-    Handle<HeapObject> heap_object_value() const {
+    IndirectHandle<HeapObject> heap_object_value() const {
       DCHECK(is_heap_object() || is_compressed_heap_object());
       return op_->handle();
     }
@@ -1004,8 +1004,9 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
       return std::nullopt;
     }
     MemoryAccessKind access_kind() const {
-      return op_->kind.with_trap_handler ? MemoryAccessKind::kProtected
-                                         : MemoryAccessKind::kNormal;
+      return op_->kind.with_trap_handler
+                 ? MemoryAccessKind::kProtectedByTrapHandler
+                 : MemoryAccessKind::kNormal;
     }
     bool is_atomic() const { return op_->kind.is_atomic; }
 
@@ -1423,13 +1424,15 @@ struct TurboshaftAdapter : public turboshaft::OperationMatcher {
   }
   bool IsCommutative(node_t node) const {
     const turboshaft::Operation& op = graph_->Get(node);
-    if (const auto binop = op.TryCast<turboshaft::WordBinopOp>()) {
-      return turboshaft::WordBinopOp::IsCommutative(binop->kind);
-    } else if (const auto binop =
+    if (const auto word_binop = op.TryCast<turboshaft::WordBinopOp>()) {
+      return turboshaft::WordBinopOp::IsCommutative(word_binop->kind);
+    } else if (const auto overflow_binop =
                    op.TryCast<turboshaft::OverflowCheckedBinopOp>()) {
-      return turboshaft::OverflowCheckedBinopOp::IsCommutative(binop->kind);
-    } else if (const auto binop = op.TryCast<turboshaft::FloatBinopOp>()) {
-      return turboshaft::FloatBinopOp::IsCommutative(binop->kind);
+      return turboshaft::OverflowCheckedBinopOp::IsCommutative(
+          overflow_binop->kind);
+    } else if (const auto float_binop =
+                   op.TryCast<turboshaft::FloatBinopOp>()) {
+      return turboshaft::FloatBinopOp::IsCommutative(float_binop->kind);
     } else if (const auto comparison = op.TryCast<turboshaft::ComparisonOp>()) {
       return turboshaft::ComparisonOp::IsCommutative(comparison->kind);
     }

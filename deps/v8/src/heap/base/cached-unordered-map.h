@@ -7,14 +7,15 @@
 
 #include <unordered_map>
 
-#include "src/base/functional.h"
+#include "absl/container/flat_hash_map.h"
+#include "src/base/hashing.h"
 
 namespace heap::base {
 
 // A cached map that speeds up `operator[]` if used in LRU fashion.
 template <typename _Key, typename _Value, typename _Hash = v8::base::hash<_Key>>
 class CachedUnorderedMap final {
-  using MapT = std::unordered_map<_Key, _Value, _Hash>;
+  using MapT = absl::flat_hash_map<_Key, _Value, _Hash>;
 
  public:
   using Key = typename MapT::key_type;
@@ -57,6 +58,8 @@ class CachedUnorderedMap final {
   typename MapT::iterator end() { return map_.end(); }
   typename MapT::const_iterator begin() const { return map_.begin(); }
   typename MapT::const_iterator end() const { return map_.begin(); }
+
+  bool contains(const Key& key) const { return map_.contains(key); }
 
   void clear() {
     last_key_ = nullptr;

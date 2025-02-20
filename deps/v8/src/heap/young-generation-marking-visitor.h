@@ -8,9 +8,9 @@
 #include <type_traits>
 
 #include "src/heap/ephemeron-remembered-set.h"
+#include "src/heap/heap-visitor.h"
 #include "src/heap/heap.h"
 #include "src/heap/marking-worklist.h"
-#include "src/heap/objects-visiting.h"
 #include "src/heap/pretenuring-handler.h"
 
 namespace v8 {
@@ -65,14 +65,17 @@ class YoungGenerationMarkingVisitor final
   }
 
   // Visitation specializations used for unified heap young gen marking.
-  V8_INLINE int VisitJSArrayBuffer(Tagged<Map> map,
-                                   Tagged<JSArrayBuffer> object);
+  V8_INLINE size_t VisitJSArrayBuffer(Tagged<Map> map,
+                                      Tagged<JSArrayBuffer> object,
+                                      MaybeObjectSize);
   // Visitation specializations used for collecting pretenuring feedback.
   template <typename T, typename TBodyDescriptor = typename T::BodyDescriptor>
-  V8_INLINE int VisitJSObjectSubclass(Tagged<Map> map, Tagged<T> object);
+  V8_INLINE size_t VisitJSObjectSubclass(Tagged<Map> map, Tagged<T> object,
+                                         MaybeObjectSize);
 
-  V8_INLINE int VisitEphemeronHashTable(Tagged<Map> map,
-                                        Tagged<EphemeronHashTable> table);
+  V8_INLINE size_t VisitEphemeronHashTable(Tagged<Map> map,
+                                           Tagged<EphemeronHashTable> table,
+                                           MaybeObjectSize);
 
 #ifdef V8_COMPRESS_POINTERS
   V8_INLINE void VisitExternalPointer(Tagged<HeapObject> host,

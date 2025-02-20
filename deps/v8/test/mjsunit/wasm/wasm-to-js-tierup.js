@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --wasm-to-js-generic-wrapper --wasm-staging --experimental-wasm-type-reflection
+// Flags: --wasm-generic-wrapper --wasm-staging
 // Flags: --wasm-wrapper-tiering-budget=1 --allow-natives-syntax
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');

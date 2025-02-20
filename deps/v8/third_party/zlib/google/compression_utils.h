@@ -43,12 +43,11 @@ bool GzipUncompress(const std::string& input, std::string* output);
 // needed. |output|'s size must be at least as large as the return value from
 // GetUncompressedSize.
 // Returns true for success.
-bool GzipUncompress(base::span<const char> input,
-                    base::span<const char> output);
+bool GzipUncompress(base::span<const char> input, base::span<char> output);
 
 // Like the above method, but using uint8_t instead.
 bool GzipUncompress(base::span<const uint8_t> input,
-                    base::span<const uint8_t> output);
+                    base::span<uint8_t> output);
 
 // Uncompresses the data in |input| using gzip, and writes the results to
 // |output|, which must NOT be the underlying string of |input|, and is resized

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-shared --no-experimental-wasm-inlining
+// Flags: --experimental-wasm-shared --no-wasm-inlining-call-indirect
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -189,7 +189,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
                                  [kExprRefFunc, adder.index]);
 
   assertThrows(() => builder.instantiate(), WebAssembly.CompileError,
-               /ref.func does not have a shared type/);
+               /Shared global 0 must have shared type, actual type \(ref 0\)/);
 })();
 
 (function DataSegmentInFunction() {

@@ -64,12 +64,6 @@ class ObjectAccess : public AllStatic {
     return ToTagged(JSFunction::kSharedFunctionInfoOffset);
   }
 
-  // Get the offset of the formal parameter count in a {SharedFunctionInfo}
-  // object.
-  static constexpr int FormalParameterCountOffsetInSharedFunctionInfo() {
-    return ToTagged(SharedFunctionInfo::kFormalParameterCountOffset);
-  }
-
   // Get the offset of the flags in a {SharedFunctionInfo} object.
   static constexpr int FlagsOffsetInSharedFunctionInfo() {
     return ToTagged(SharedFunctionInfo::kFlagsOffset);

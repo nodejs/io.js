@@ -5,6 +5,7 @@
 namespace promise {
 
 // https://tc39.es/proposal-promise-try/#sec-promise.try
+@incrementUseCounter('v8::Isolate::kPromiseTry')
 transitioning javascript builtin PromiseTry(
     js-implicit context: Context, receiver: JSAny)(...arguments): JSAny {
   // 1. Let C be the this value.

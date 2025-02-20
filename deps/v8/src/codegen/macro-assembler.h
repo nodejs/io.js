@@ -74,7 +74,7 @@ enum class ArgumentAdaptionMode { kAdapt, kDontAdapt };
 #elif V8_TARGET_ARCH_LOONG64
 #include "src/codegen/loong64/constants-loong64.h"
 #include "src/codegen/loong64/macro-assembler-loong64.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/codegen/s390/constants-s390.h"
 #include "src/codegen/s390/macro-assembler-s390.h"
 #elif V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64

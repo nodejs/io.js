@@ -29,14 +29,6 @@ config_setting(
 )
 
 config_setting(
-    name = "gcc_compiler",
-    flag_values = {
-        "@bazel_tools//tools/cpp:compiler": "gcc",
-    },
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
     name = "mingw_unspecified_compiler",
     flag_values = {
         "@bazel_tools//tools/cpp:compiler": "mingw",
@@ -53,91 +45,10 @@ config_setting(
 )
 
 config_setting(
-    name = "msvc_compiler",
-    flag_values = {
-        "@bazel_tools//tools/cpp:compiler": "msvc-cl",
-    },
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
-    name = "clang-cl_compiler",
-    flag_values = {
-        "@bazel_tools//tools/cpp:compiler": "clang-cl",
-    },
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
-    name = "osx",
-    constraint_values = [
-        "@platforms//os:osx",
-    ],
-)
-
-config_setting(
-    name = "ios",
-    constraint_values = [
-        "@platforms//os:ios",
-    ],
-)
-
-config_setting(
-    name = "ppc",
-    values = {
-        "cpu": "ppc",
-    },
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
-    name = "cpu_wasm",
-    values = {
-        "cpu": "wasm",
-    },
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
-    name = "cpu_wasm32",
-    values = {
-        "cpu": "wasm32",
-    },
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
-    name = "platforms_wasm32",
-    constraint_values = [
-        "@platforms//cpu:wasm32",
-    ],
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
-    name = "platforms_wasm64",
-    constraint_values = [
-        "@platforms//cpu:wasm64",
-    ],
-    visibility = [":__subpackages__"],
-)
-
-selects.config_setting_group(
-    name = "wasm",
-    match_any = [
-        ":cpu_wasm",
-        ":cpu_wasm32",
-        ":platforms_wasm32",
-        ":platforms_wasm64",
-    ],
-    visibility = [":__subpackages__"],
-)
-
-config_setting(
     name = "fuchsia",
-    values = {
-        "cpu": "fuchsia",
-    },
+    constraint_values = [
+        "@platforms//os:fuchsia",
+    ],
     visibility = [":__subpackages__"],
 )
 

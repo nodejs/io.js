@@ -68,7 +68,7 @@ class V8_BASE_EXPORT VirtualAddressSpacePageAllocator
   std::unordered_map<Address, size_t> resized_allocations_;
 
   // Mutex guarding the above map.
-  Mutex mutex_;
+  SpinningMutex mutex_;
 };
 
 }  // namespace base

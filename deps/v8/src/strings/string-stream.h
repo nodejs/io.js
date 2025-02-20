@@ -173,7 +173,7 @@ class StringStream final {
   void OutputToFile(FILE* out);
   void OutputToStdOut() { OutputToFile(stdout); }
   void Log(Isolate* isolate);
-  Handle<String> ToString(Isolate* isolate);
+  DirectHandle<String> ToString(Isolate* isolate);
   std::unique_ptr<char[]> ToCString() const;
   int length() const { return length_; }
 
@@ -181,10 +181,13 @@ class StringStream final {
   void PrintName(Tagged<Object> o);
   void PrintFixedArray(Tagged<FixedArray> array, unsigned int limit);
   void PrintByteArray(Tagged<ByteArray> ba);
-  void PrintUsingMap(Tagged<JSObject> js_object);
-  void PrintPrototype(Tagged<JSFunction> fun, Tagged<Object> receiver);
-  void PrintSecurityTokenIfChanged(Tagged<JSFunction> function);
-  void PrintFunction(Tagged<JSFunction> function, Tagged<Object> receiver);
+  void PrintUsingMap(Isolate* isolate, Tagged<JSObject> js_object);
+  void PrintPrototype(Isolate* isolate, Tagged<JSFunction> fun,
+                      Tagged<Object> receiver);
+  void PrintSecurityTokenIfChanged(Isolate* isolate,
+                                   Tagged<JSFunction> function);
+  void PrintFunction(Isolate* isolate, Tagged<JSFunction> function,
+                     Tagged<Object> receiver);
 
   // Reset the stream.
   void Reset() {

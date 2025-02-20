@@ -1489,7 +1489,7 @@ The externally maintained libraries used by Node.js are:
         This code is copyrighted by Sun Microsystems Inc. and released
         under a 3-clause BSD license.
 
-      - Valgrind client API header, located at src/third_party/valgrind/valgrind.h
+      - Valgrind client API header, located at third_party/valgrind/valgrind.h
         This is released under the BSD license.
 
       - The Wasm C/C++ API headers, located at third_party/wasm-api/wasm.{h,hh}
@@ -1774,7 +1774,7 @@ The externally maintained libraries used by Node.js are:
        limitations under the License.
   """
 
-- simdutf, located at deps/simdutf, is licensed as follows:
+- simdutf, located at deps/v8/third_party/simdutf, is licensed as follows:
   """
     Copyright 2021 The simdutf authors
 

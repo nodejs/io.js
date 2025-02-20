@@ -158,6 +158,24 @@ constexpr Register BaselineLeaveFrameDescriptor::WeightRegister() { return a3; }
 // static
 constexpr Register TypeConversionDescriptor::ArgumentRegister() { return a0; }
 
+#ifdef V8_ENABLE_MAGLEV
+// static
+constexpr Register
+MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::FlagsRegister() {
+  return t4;
+}
+// static
+constexpr Register MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::
+    FeedbackVectorRegister() {
+  return a6;
+}
+// static
+constexpr Register
+MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::TemporaryRegister() {
+  return a5;
+}
+#endif  // V8_ENABLE_MAGLEV
+
 // static
 constexpr auto TypeofDescriptor::registers() { return RegisterArray(a0); }
 

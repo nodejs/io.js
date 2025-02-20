@@ -14,8 +14,8 @@ Hit breakpoints: []
 Instantiating module.
 Paused at v8://test/instantiate with reason "instrumentation".
 Hit breakpoints: []
-Paused at wasm://wasm/20da547a with reason "instrumentation".
-Script wasm://wasm/20da547a byte offset 26: Wasm opcode 0x01 (kExprNop)
+Paused at wasm://wasm/341d515e with reason "instrumentation".
+Script wasm://wasm/341d515e byte offset 26: Wasm opcode 0x01 (kExprNop)
 Hit breakpoints: []
 Instantiating a second time (should trigger no breakpoint).
 Paused at v8://test/instantiate2 with reason "instrumentation".
@@ -33,14 +33,14 @@ Setting instrumentation breakpoint
 Instantiating module.
 Paused at v8://test/instantiate with reason "instrumentation".
 Hit breakpoints: []
-Paused at wasm://wasm/20da547a with reason "instrumentation".
-Script wasm://wasm/20da547a byte offset 26: Wasm opcode 0x01 (kExprNop)
+Paused at wasm://wasm/341d515e with reason "instrumentation".
+Script wasm://wasm/341d515e byte offset 26: Wasm opcode 0x01 (kExprNop)
 Hit breakpoints: []
 Instantiating a second time (should trigger another breakpoint).
 Paused at v8://test/instantiate with reason "instrumentation".
 Hit breakpoints: []
-Paused at wasm://wasm/20da547a with reason "instrumentation".
-Script wasm://wasm/20da547a byte offset 26: Wasm opcode 0x01 (kExprNop)
+Paused at wasm://wasm/341d515e with reason "instrumentation".
+Script wasm://wasm/341d515e byte offset 26: Wasm opcode 0x01 (kExprNop)
 Hit breakpoints: []
 Done.
 
@@ -58,8 +58,8 @@ Hit breakpoints: []
 Calling exported function 'func' (should trigger a breakpoint).
 Paused at v8://test/call_func with reason "instrumentation".
 Hit breakpoints: []
-Paused at wasm://wasm/8c388106 with reason "instrumentation".
-Script wasm://wasm/8c388106 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Paused at wasm://wasm/aa8b4c12 with reason "instrumentation".
+Script wasm://wasm/aa8b4c12 byte offset 33: Wasm opcode 0x01 (kExprNop)
 Hit breakpoints: []
 Calling exported function 'func' a second time (should trigger no breakpoint).
 Paused at v8://test/call_func with reason "instrumentation".
@@ -78,8 +78,8 @@ Instantiating wasm module without source map.
 Calling exported function 'func' (should trigger no breakpoint).
 Instantiating wasm module with source map.
 Calling exported function 'func' (should trigger a breakpoint).
-Paused at wasm://wasm/c8e3a856 with reason "instrumentation".
-Script wasm://wasm/c8e3a856 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Paused at wasm://wasm/b2871d1e with reason "instrumentation".
+Script wasm://wasm/b2871d1e byte offset 33: Wasm opcode 0x01 (kExprNop)
 Hit breakpoints: []
 Done.
 
@@ -125,8 +125,8 @@ Hit breakpoints: []
 Instantiating module should trigger a break.
 Paused at v8://test/instantiate with reason "instrumentation".
 Hit breakpoints: []
-Paused at wasm://wasm/20da547a with reason "instrumentation".
-Script wasm://wasm/20da547a byte offset 26: Wasm opcode 0x01 (kExprNop)
+Paused at wasm://wasm/341d515e with reason "instrumentation".
+Script wasm://wasm/341d515e byte offset 26: Wasm opcode 0x01 (kExprNop)
 Hit breakpoints: []
 Remove instrumentation breakpoint..
 Compiling another wasm module.

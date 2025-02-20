@@ -97,7 +97,7 @@ class StringForwardingTable {
   // current BlockVector.
   std::vector<std::unique_ptr<BlockVector>> block_vector_storage_;
   std::atomic<int> next_free_index_;
-  base::Mutex grow_mutex_;
+  base::SpinningMutex grow_mutex_;
 };
 
 }  // namespace internal

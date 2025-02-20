@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 function add3(a, b, c) { return a + b + c; }
 function add2(a, b) { return a + b; }

@@ -46,7 +46,7 @@ using DisasmIa320Test = TestWithIsolate;
 #define __ assm.
 
 TEST_F(DisasmIa320Test, DisasmIa320) {
-  HandleScope scope(isolate());
+  HandleScope handle_scope(isolate());
   uint8_t buffer[8192];
   Assembler assm(AssemblerOptions{},
                  ExternalAssemblerBuffer(buffer, sizeof buffer));

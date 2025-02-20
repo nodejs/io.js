@@ -203,9 +203,10 @@ class Simulator : public SimulatorBase {
   // Accessor to the internal simulator stack area. Adds a safety
   // margin to prevent overflows.
   uintptr_t StackLimit(uintptr_t c_limit) const;
-  // Return current stack view, without additional safety margins.
+
+  // Return central stack view, without additional safety margins.
   // Users, for example wasm::StackMemory, can add their own.
-  base::Vector<uint8_t> GetCurrentStackView() const;
+  base::Vector<uint8_t> GetCentralStackView() const;
 
   // Executes PPC instructions until the PC reaches end_sim_pc.
   void Execute();
@@ -221,10 +222,10 @@ class Simulator : public SimulatorBase {
   double CallFPReturnsDouble(Address entry, double d0, double d1);
 
   // Push an address onto the JS stack.
-  uintptr_t PushAddress(uintptr_t address);
+  V8_EXPORT_PRIVATE uintptr_t PushAddress(uintptr_t address);
 
   // Pop an address from the JS stack.
-  uintptr_t PopAddress();
+  V8_EXPORT_PRIVATE uintptr_t PopAddress();
 
   // Debugger input.
   void set_last_debugger_input(char* input);
@@ -241,6 +242,11 @@ class Simulator : public SimulatorBase {
   // Returns true if pc register contains one of the 'special_values' defined
   // below (bad_lr, end_sim_pc).
   bool has_bad_pc() const;
+
+  // Manage instruction tracing.
+  bool InstructionTracingEnabled();
+
+  void ToggleInstructionTracing();
 
   enum special_values {
     // Known bad pc value to ensure that the simulator does not execute
@@ -276,6 +282,10 @@ class Simulator : public SimulatorBase {
   void HandleVList(Instruction* inst);
   void SoftwareInterrupt(Instruction* instr);
   void DebugAtNextPC();
+
+  // Take a copy of v8 simulator tracing flag because flags are frozen after
+  // start.
+  bool instruction_tracing_ = v8_flags.trace_sim;
 
   // Stop helper functions.
   inline bool isStopInstruction(Instruction* instr);
@@ -470,7 +480,7 @@ class Simulator : public SimulatorBase {
     simd_registers_[reg] = value;
   }
 
-  // Simulator support.
+  // Simulator support for the stack.
   uint8_t* stack_;
   static const size_t kStackProtectionSize = 256 * kSystemPointerSize;
   // This includes a protection margin at each end of the stack area.

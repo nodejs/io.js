@@ -636,7 +636,7 @@ snippet: "
 "
 frame size: 16
 parameter count: 2
-bytecode array length: 152
+bytecode array length: 154
 bytecodes: [
                 B(Mov), R(closure), R(5),
                 B(Mov), R(this), R(6),
@@ -709,6 +709,8 @@ bytecodes: [
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionResolve), R(6), U8(2),
   /*   60 S> */ B(Return),
                 B(Star7),
+                B(LdaTheHole),
+                B(SetPendingMessage),
                 B(Mov), R(0), R(6),
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(6), U8(2),
                 B(Return),
@@ -734,7 +736,7 @@ snippet: "
 "
 frame size: 15
 parameter count: 2
-bytecode array length: 186
+bytecode array length: 188
 bytecodes: [
                 B(SwitchOnGeneratorState), R(0), U8(0), U8(1),
                 B(Mov), R(closure), R(4),
@@ -820,6 +822,8 @@ bytecodes: [
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionResolve), R(5), U8(2),
   /*   54 S> */ B(Return),
                 B(Star6),
+                B(LdaTheHole),
+                B(SetPendingMessage),
                 B(Mov), R(0), R(5),
                 B(InvokeIntrinsic), U8(Runtime::k_AsyncFunctionReject), R(5), U8(2),
                 B(Return),

@@ -148,53 +148,51 @@ class SnapshotTable {
   // only on the fact that the updates collectively transform the table into the
   // new state. The motivation for this feature are secondary indices that need
   // to be kept in sync with the main table.
-  template <class ChangeCallback = NoChangeCallback,
-            std::enable_if_t<std::is_invocable_v<ChangeCallback, Key, Value,
-                                                 Value>>* = nullptr>
+  template <class ChangeCallback = NoChangeCallback>
   void StartNewSnapshot(base::Vector<const Snapshot> predecessors,
-                        const ChangeCallback& change_callback = {}) {
+                        const ChangeCallback& change_callback = {})
+    requires(std::is_invocable_v<ChangeCallback, Key, Value, Value>)
+  {
     DCHECK(current_snapshot_->IsSealed());
     MoveToNewSnapshot(predecessors, change_callback);
 #ifdef DEBUG
     snapshot_was_created_with_merge = false;
 #endif
   }
-  template <class ChangeCallback = NoChangeCallback,
-            std::enable_if_t<std::is_invocable_v<ChangeCallback, Key, Value,
-                                                 Value>>* = nullptr>
+  template <class ChangeCallback = NoChangeCallback>
   void StartNewSnapshot(std::initializer_list<Snapshot> predecessors = {},
-                        const ChangeCallback& change_callback = {}) {
+                        const ChangeCallback& change_callback = {})
+    requires(std::is_invocable_v<ChangeCallback, Key, Value, Value>)
+  {
     StartNewSnapshot(base::VectorOf(predecessors), change_callback);
   }
-  template <class ChangeCallback = NoChangeCallback,
-            std::enable_if_t<std::is_invocable_v<ChangeCallback, Key, Value,
-                                                 Value>>* = nullptr>
+  template <class ChangeCallback = NoChangeCallback>
   void StartNewSnapshot(Snapshot parent,
-                        const ChangeCallback& change_callback = {}) {
+                        const ChangeCallback& change_callback = {})
+    requires(std::is_invocable_v<ChangeCallback, Key, Value, Value>)
+  {
     StartNewSnapshot({parent}, change_callback);
   }
-  template <
-      class MergeFun, class ChangeCallback = NoChangeCallback,
-      std::enable_if_t<
-          std::is_invocable_v<MergeFun, Key, base::Vector<const Value>> &&
-          std::is_invocable_v<ChangeCallback, Key, Value, Value>>* = nullptr>
+  template <class MergeFun, class ChangeCallback = NoChangeCallback>
   void StartNewSnapshot(base::Vector<const Snapshot> predecessors,
                         const MergeFun& merge_fun,
-                        const ChangeCallback& change_callback = {}) {
+                        const ChangeCallback& change_callback = {})
+    requires(std::is_invocable_v<MergeFun, Key, base::Vector<const Value>> &&
+             std::is_invocable_v<ChangeCallback, Key, Value, Value>)
+  {
     StartNewSnapshot(predecessors, change_callback);
     MergePredecessors(predecessors, merge_fun, change_callback);
 #ifdef DEBUG
     snapshot_was_created_with_merge = true;
 #endif
   }
-  template <
-      class MergeFun, class ChangeCallback = NoChangeCallback,
-      std::enable_if_t<
-          std::is_invocable_v<MergeFun, Key, base::Vector<const Value>> &&
-          std::is_invocable_v<ChangeCallback, Key, Value, Value>>* = nullptr>
+  template <class MergeFun, class ChangeCallback = NoChangeCallback>
   void StartNewSnapshot(std::initializer_list<Snapshot> predecessors,
                         const MergeFun& merge_fun,
-                        const ChangeCallback& change_callback = {}) {
+                        const ChangeCallback& change_callback = {})
+    requires(std::is_invocable_v<MergeFun, Key, base::Vector<const Value>> &&
+             std::is_invocable_v<ChangeCallback, Key, Value, Value>)
+  {
     StartNewSnapshot(base::VectorOf(predecessors), merge_fun, change_callback);
   }
 
@@ -370,9 +368,9 @@ struct SnapshotTable<Value, KeyData>::SnapshotData {
     }
     return self;
   }
-  void Seal(size_t log_end) {
+  void Seal(size_t end) {
     DCHECK_WITH_MSG(!IsSealed(), "A Snapshot can only be sealed once");
-    this->log_end = log_end;
+    this->log_end = end;
   }
 
   bool IsSealed() const { return log_end != kInvalidOffset; }
@@ -536,22 +534,22 @@ class ChangeTrackingSnapshotTable : public SnapshotTable<Value, KeyData> {
     StartNewSnapshot(base::VectorOf(predecessors));
   }
   void StartNewSnapshot(Snapshot parent) { StartNewSnapshot({parent}); }
-  template <class MergeFun,
-            std::enable_if_t<std::is_invocable_v<
-                MergeFun, Key, base::Vector<const Value>>>* = nullptr>
+  template <class MergeFun>
   void StartNewSnapshot(base::Vector<const Snapshot> predecessors,
-                        const MergeFun& merge_fun) {
+                        const MergeFun& merge_fun)
+    requires(std::is_invocable_v<MergeFun, Key, base::Vector<const Value>>)
+  {
     Super::StartNewSnapshot(
         predecessors, merge_fun,
         [this](Key key, const Value& old_value, const Value& new_value) {
           static_cast<Derived*>(this)->OnValueChange(key, old_value, new_value);
         });
   }
-  template <class MergeFun,
-            std::enable_if_t<std::is_invocable_v<
-                MergeFun, Key, base::Vector<const Value>>>* = nullptr>
+  template <class MergeFun>
   void StartNewSnapshot(std::initializer_list<Snapshot> predecessors,
-                        const MergeFun& merge_fun) {
+                        const MergeFun& merge_fun)
+    requires(std::is_invocable_v<MergeFun, Key, base::Vector<const Value>>)
+  {
     StartNewSnapshot(base::VectorOf(predecessors), merge_fun);
   }
 

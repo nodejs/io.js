@@ -1357,3 +1357,8 @@ builtin TestCallNever(implicit context: Context)(a: Smi): Smi {
   }
   return a;
 }
+
+@incrementUseCounter('v8::Isolate::kArraySpeciesModified')
+builtin TestIncrementArraySpeciesModified(implicit context: Context)(): Smi {
+  return 0;
+}

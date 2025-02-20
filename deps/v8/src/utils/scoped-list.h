@@ -23,7 +23,7 @@ template <typename T>
 class ZoneList;
 
 // ScopedList is a scope-lifetime list with a std::vector backing that can be
-// re-used between ScopedLists. Note that a ScopedList in an outer scope cannot
+// reused between ScopedLists. Note that a ScopedList in an outer scope cannot
 // add any entries if there is a ScopedList with the same backing in an inner
 // scope.
 template <typename T, typename TBacking = T>

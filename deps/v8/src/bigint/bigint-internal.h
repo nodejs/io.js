@@ -64,9 +64,10 @@ class ProcessorImpl : public Processor {
 
   // {out_length} initially contains the allocated capacity of {out}, and
   // upon return will be set to the actual length of the result string.
-  void ToString(char* out, int* out_length, Digits X, int radix, bool sign);
-  void ToStringImpl(char* out, int* out_length, Digits X, int radix, bool sign,
-                    bool use_fast_algorithm);
+  void ToString(char* out, uint32_t* out_length, Digits X, int radix,
+                bool sign);
+  void ToStringImpl(char* out, uint32_t* out_length, Digits X, int radix,
+                    bool sign, bool use_fast_algorithm);
 
   void FromString(RWDigits Z, FromStringAccumulator* accumulator);
   void FromStringClassic(RWDigits Z, FromStringAccumulator* accumulator);

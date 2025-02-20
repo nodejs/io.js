@@ -49,7 +49,7 @@ class BasicBlockProfilerData {
   // Copy the data from this object into an equivalent object stored on the JS
   // heap, so that it can survive snapshotting and relocation. This must
   // happen on the main thread during finalization of the compilation.
-  Handle<OnHeapBasicBlockProfilerData> CopyToJSHeap(Isolate* isolate);
+  DirectHandle<OnHeapBasicBlockProfilerData> CopyToJSHeap(Isolate* isolate);
 
   void Log(Isolate* isolate, std::ostream& os);
 
@@ -97,7 +97,7 @@ class BasicBlockProfiler {
 
  private:
   DataList data_list_;
-  base::Mutex data_list_mutex_;
+  base::SpinningMutex data_list_mutex_;
 };
 
 std::ostream& operator<<(std::ostream& os, const BasicBlockProfilerData& s);

@@ -32,6 +32,7 @@ extern class JSFunction extends JSFunctionOrBoundFunctionOrWrappedFunction {
   // TODO(saelo): drop this field once we call through the dispatch_handle.
   @ifnot(V8_ENABLE_LEAPTIERING) code: TrustedPointer<Code>;
   @if(V8_ENABLE_LEAPTIERING) dispatch_handle: int32;
+  @if(V8_ENABLE_LEAPTIERING_TAGGED_SIZE_8_BYTES) padding: int32;
   shared_function_info: SharedFunctionInfo;
   context: Context;
   feedback_cell: FeedbackCell;

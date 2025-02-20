@@ -15,6 +15,7 @@
 #include "absl/strings/escaping.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
@@ -24,6 +25,7 @@
 #include <utility>
 
 #include "absl/base/config.h"
+#include "absl/base/internal/endian.h"
 #include "absl/base/internal/raw_logging.h"
 #include "absl/base/internal/unaligned_access.h"
 #include "absl/base/nullability.h"
@@ -368,7 +370,7 @@ std::string CEscapeInternal(absl::string_view src, bool use_hex,
 }
 
 /* clang-format off */
-constexpr unsigned char kCEscapedLen[256] = {
+constexpr std::array<unsigned char, 256> kCEscapedLen = {
     4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 4, 4, 2, 4, 4,  // \t, \n, \r
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
     1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1,  // ", '
@@ -387,6 +389,40 @@ constexpr unsigned char kCEscapedLen[256] = {
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
 };
 /* clang-format on */
+
+constexpr uint32_t MakeCEscapedLittleEndianUint32(size_t c) {
+  size_t char_len = kCEscapedLen[c];
+  if (char_len == 1) {
+    return static_cast<uint32_t>(c);
+  }
+  if (char_len == 2) {
+    switch (c) {
+      case '\n':
+        return '\\' | (static_cast<uint32_t>('n') << 8);
+      case '\r':
+        return '\\' | (static_cast<uint32_t>('r') << 8);
+      case '\t':
+        return '\\' | (static_cast<uint32_t>('t') << 8);
+      case '\"':
+        return '\\' | (static_cast<uint32_t>('\"') << 8);
+      case '\'':
+        return '\\' | (static_cast<uint32_t>('\'') << 8);
+      case '\\':
+        return '\\' | (static_cast<uint32_t>('\\') << 8);
+    }
+  }
+  return static_cast<uint32_t>('\\' | (('0' + (c / 64)) << 8) |
+                               (('0' + ((c % 64) / 8)) << 16) |
+                               (('0' + (c % 8)) << 24));
+}
+
+template <size_t... indexes>
+inline constexpr std::array<uint32_t, sizeof...(indexes)>
+MakeCEscapedLittleEndianUint32Array(std::index_sequence<indexes...>) {
+  return {MakeCEscapedLittleEndianUint32(indexes)...};
+}
+constexpr std::array<uint32_t, 256> kCEscapedLittleEndianUint32Array =
+    MakeCEscapedLittleEndianUint32Array(std::make_index_sequence<256>());
 
 // Calculates the length of the C-style escaped version of 'src'.
 // Assumes that non-printable characters are escaped using octal sequences, and
@@ -421,59 +457,31 @@ void CEscapeAndAppendInternal(absl::string_view src,
     return;
   }
 
+  // We keep 3 slop bytes so that we can call `little_endian::Store32`
+  // invariably regardless of the length of the escaped character.
+  constexpr size_t slop_bytes = 3;
   size_t cur_dest_len = dest->size();
-  ABSL_INTERNAL_CHECK(
-      cur_dest_len <= std::numeric_limits<size_t>::max() - escaped_len,
-      "std::string size overflow");
-  strings_internal::STLStringResizeUninitialized(dest,
-                                                 cur_dest_len + escaped_len);
+  size_t new_dest_len = cur_dest_len + escaped_len + slop_bytes;
+  ABSL_INTERNAL_CHECK(new_dest_len > cur_dest_len, "std::string size overflow");
+  strings_internal::AppendUninitializedTraits<std::string>::Append(
+      dest, escaped_len + slop_bytes);
   char* append_ptr = &(*dest)[cur_dest_len];
 
   for (char c : src) {
-    size_t char_len = kCEscapedLen[static_cast<unsigned char>(c)];
-    if (char_len == 1) {
-      *append_ptr++ = c;
-    } else if (char_len == 2) {
-      switch (c) {
-        case '\n':
-          *append_ptr++ = '\\';
-          *append_ptr++ = 'n';
-          break;
-        case '\r':
-          *append_ptr++ = '\\';
-          *append_ptr++ = 'r';
-          break;
-        case '\t':
-          *append_ptr++ = '\\';
-          *append_ptr++ = 't';
-          break;
-        case '\"':
-          *append_ptr++ = '\\';
-          *append_ptr++ = '\"';
-          break;
-        case '\'':
-          *append_ptr++ = '\\';
-          *append_ptr++ = '\'';
-          break;
-        case '\\':
-          *append_ptr++ = '\\';
-          *append_ptr++ = '\\';
-          break;
-      }
-    } else {
-      *append_ptr++ = '\\';
-      *append_ptr++ = '0' + static_cast<unsigned char>(c) / 64;
-      *append_ptr++ = '0' + (static_cast<unsigned char>(c) % 64) / 8;
-      *append_ptr++ = '0' + static_cast<unsigned char>(c) % 8;
-    }
+    unsigned char uc = static_cast<unsigned char>(c);
+    size_t char_len = kCEscapedLen[uc];
+    uint32_t little_endian_uint32 = kCEscapedLittleEndianUint32Array[uc];
+    little_endian::Store32(append_ptr, little_endian_uint32);
+    append_ptr += char_len;
   }
+  dest->resize(new_dest_len - slop_bytes);
 }
 
 // Reverses the mapping in Base64EscapeInternal; see that method's
 // documentation for details of the mapping.
 bool Base64UnescapeInternal(absl::Nullable<const char*> src_param, size_t szsrc,
                             absl::Nullable<char*> dest, size_t szdest,
-                            absl::Nonnull<const signed char*> unbase64,
+                            const std::array<signed char, 256>& unbase64,
                             absl::Nonnull<size_t*> len) {
   static const char kPad64Equals = '=';
   static const char kPad64Dot = '.';
@@ -738,7 +746,7 @@ bool Base64UnescapeInternal(absl::Nullable<const char*> src_param, size_t szsrc,
 // where the value of "Base64[]" was replaced by one of k(WebSafe)Base64Chars
 // in the internal escaping.cc.
 /* clang-format off */
-constexpr signed char kUnBase64[] = {
+constexpr std::array<signed char, 256> kUnBase64 = {
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1,
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1,
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1,
@@ -773,7 +781,7 @@ constexpr signed char kUnBase64[] = {
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1
 };
 
-constexpr signed char kUnWebSafeBase64[] = {
+constexpr std::array<signed char, 256> kUnWebSafeBase64 = {
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1,
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1,
     -1,      -1,      -1,      -1,      -1,      -1,      -1,      -1,
@@ -812,7 +820,7 @@ constexpr signed char kUnWebSafeBase64[] = {
 template <typename String>
 bool Base64UnescapeInternal(absl::Nullable<const char*> src, size_t slen,
                             absl::Nonnull<String*> dest,
-                            absl::Nonnull<const signed char*> unbase64) {
+                            const std::array<signed char, 256>& unbase64) {
   // Determine the size of the output string.  Base64 encodes every 3 bytes into
   // 4 characters.  Any leftover chars are added directly for good measure.
   const size_t dest_len = 3 * (slen / 4) + (slen % 4);
@@ -837,7 +845,7 @@ bool Base64UnescapeInternal(absl::Nullable<const char*> src, size_t slen,
 }
 
 /* clang-format off */
-constexpr char kHexValueLenient[256] = {
+constexpr std::array<char, 256> kHexValueLenient = {
     0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -856,7 +864,7 @@ constexpr char kHexValueLenient[256] = {
     0,  0,  0,  0,  0,  0,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 };
 
-constexpr signed char kHexValueStrict[256] = {
+constexpr std::array<signed char, 256> kHexValueStrict = {
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,

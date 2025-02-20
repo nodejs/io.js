@@ -119,7 +119,7 @@ class RecursionLevel;
 class ToStringFormatter {
  public:
   ToStringFormatter(Digits X, int radix, bool sign, char* out,
-                    int chars_available, ProcessorImpl* processor)
+                    uint32_t chars_available, ProcessorImpl* processor)
       : digits_(X),
         radix_(radix),
         sign_(sign),
@@ -414,13 +414,22 @@ void RecursionLevel::ComputeInverse(ProcessorImpl* processor,
 Digits RecursionLevel::GetInverse(int dividend_length) {
   DCHECK(inverse_.len() != 0);
   int inverse_len = dividend_length - divisor_.len();
-  DCHECK(inverse_len <= inverse_.len());
+  // If the bits in memory are reliable, then we always have enough digits
+  // in the inverse available. This is a Release-mode CHECK because malicious
+  // concurrent heap mutation can throw off the decisions made by the recursive
+  // procedure, and this is a good bottleneck to catch them.
+  CHECK(inverse_len <= inverse_.len());
   return inverse_ + (inverse_.len() - inverse_len);
 }
 
 void ToStringFormatter::Fast() {
+  // As a sandbox proofing measure, we round up here. Using {BitLength(digits_)}
+  // would be technically optimal, but vulnerable to a malicious worker that
+  // uses an in-sandbox corruption primitive to concurrently toggle the MSD bits
+  // between the invocations of {CreateLevels} and {ProcessLevel}.
+  int target_bit_length = digits_.len() * kDigitBits;
   std::unique_ptr<RecursionLevel> recursion_levels(RecursionLevel::CreateLevels(
-      chunk_divisor_, chunk_chars_, BitLength(digits_), processor_));
+      chunk_divisor_, chunk_chars_, target_bit_length, processor_));
   if (processor_->should_terminate()) return;
   out_ = ProcessLevel(recursion_levels.get(), digits_, out_, true);
 }
@@ -546,17 +555,17 @@ char* ToStringFormatter::ProcessLevel(RecursionLevel* level, Digits chunk,
 
 }  // namespace
 
-void ProcessorImpl::ToString(char* out, int* out_length, Digits X, int radix,
-                             bool sign) {
+void ProcessorImpl::ToString(char* out, uint32_t* out_length, Digits X,
+                             int radix, bool sign) {
   const bool use_fast_algorithm = X.len() >= kToStringFastThreshold;
   ToStringImpl(out, out_length, X, radix, sign, use_fast_algorithm);
 }
 
 // Factored out so that tests can call it.
-void ProcessorImpl::ToStringImpl(char* out, int* out_length, Digits X,
+void ProcessorImpl::ToStringImpl(char* out, uint32_t* out_length, Digits X,
                                  int radix, bool sign, bool fast) {
 #if DEBUG
-  for (int i = 0; i < *out_length; i++) out[i] = kStringZapValue;
+  for (uint32_t i = 0; i < *out_length; i++) out[i] = kStringZapValue;
 #endif
   ToStringFormatter formatter(X, radix, sign, out, *out_length, this);
   if (IsPowerOfTwo(radix)) {
@@ -578,18 +587,18 @@ void ProcessorImpl::ToStringImpl(char* out, int* out_length, Digits X,
   memset(out + *out_length, 0, excess);
 }
 
-Status Processor::ToString(char* out, int* out_length, Digits X, int radix,
+Status Processor::ToString(char* out, uint32_t* out_length, Digits X, int radix,
                            bool sign) {
   ProcessorImpl* impl = static_cast<ProcessorImpl*>(this);
   impl->ToString(out, out_length, X, radix, sign);
   return impl->get_and_clear_status();
 }
 
-int ToStringResultLength(Digits X, int radix, bool sign) {
-  const int bit_length = BitLength(X);
-  int result;
+uint32_t ToStringResultLength(Digits X, int radix, bool sign) {
+  const uint32_t bit_length = BitLength(X);
+  uint32_t result;
   if (IsPowerOfTwo(radix)) {
-    const int bits_per_char = CountTrailingZeros(radix);
+    const uint32_t bits_per_char = CountTrailingZeros(radix);
     result = DIV_CEIL(bit_length, bits_per_char) + sign;
   } else {
     // Maximum number of bits we can represent with one character.
@@ -602,8 +611,8 @@ int ToStringResultLength(Digits X, int radix, bool sign) {
     chars_required *= kBitsPerCharTableMultiplier;
     chars_required = DIV_CEIL(chars_required, min_bits_per_char);
     DCHECK(chars_required <
-           static_cast<uint64_t>(std::numeric_limits<int>::max()));
-    result = static_cast<int>(chars_required);
+           static_cast<uint64_t>(std::numeric_limits<uint32_t>::max()));
+    result = static_cast<uint32_t>(chars_required);
   }
   result += sign;
   return result;

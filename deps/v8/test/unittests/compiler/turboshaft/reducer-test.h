@@ -5,7 +5,7 @@
 #include <map>
 
 #include "src/compiler/backend/instruction.h"
-#include "src/compiler/graph-visualizer.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 #include "src/compiler/turboshaft/assembler.h"
 #include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/variable-reducer.h"
@@ -119,7 +119,7 @@ class TestInstance {
     FrameStateFunctionInfo* function_info =
         zone_->template New<FrameStateFunctionInfo>(
             FrameStateType::kUnoptimizedFunction, 0, 0, 0,
-            Handle<SharedFunctionInfo>{});
+            Handle<SharedFunctionInfo>{}, Handle<BytecodeArray>{});
     const FrameStateInfo* frame_state_info =
         zone_->template New<FrameStateInfo>(BytecodeOffset(0),
                                             OutputFrameStateCombine::Ignore(),
@@ -182,8 +182,9 @@ class TestInstance {
       size_t len = strlen("test_generated_function") + 1;
       auto name = std::make_unique<char[]>(len);
       snprintf(name.get(), len, "test_generated_function");
-      JsonPrintFunctionSource(*stream_, -1, std::move(name), Handle<Script>{},
-                              isolate_, Handle<SharedFunctionInfo>{});
+      JsonPrintFunctionSource(*stream_, -1, std::move(name),
+                              DirectHandle<Script>{}, isolate_,
+                              DirectHandle<SharedFunctionInfo>{});
       *stream_ << ",\n\"phases\":[";
     }
     PrintTurboshaftGraphForTurbolizer(*stream_, graph(), phase_name, nullptr,

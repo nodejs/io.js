@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --jit-fuzzing --turboshaft-from-maglev  --no-maglev
+// Flags: --jit-fuzzing --turbolev  --no-maglev
 
 function Foo() { }
 const v17 = new Foo();

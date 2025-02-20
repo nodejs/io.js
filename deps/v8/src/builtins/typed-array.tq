@@ -26,7 +26,7 @@ type RabGsabUint8Elements extends ElementsKind;
 struct TypedArrayElementsInfo {
   // Calculates the number of bytes required for specified number of elements.
   macro CalculateByteLength(length: uintptr): uintptr labels IfInvalid {
-    const maxArrayLength = kArrayBufferMaxByteLength >>> this.sizeLog2;
+    const maxArrayLength = ArrayBufferMaxByteLength() >>> this.sizeLog2;
     if (length > maxArrayLength) goto IfInvalid;
     const byteLength = length << this.sizeLog2;
     return byteLength;

@@ -137,7 +137,8 @@ constexpr bool WasmOpcodes::IsRelaxedSimdOpcode(WasmOpcode opcode) {
 }
 
 constexpr bool WasmOpcodes::IsFP16SimdOpcode(WasmOpcode opcode) {
-  return opcode >= kExprF16x8Splat && opcode <= kExprF16x8Qfms;
+  return (opcode >= kExprF16x8Splat && opcode <= kExprF16x8ReplaceLane) ||
+         (opcode >= kExprF16x8Abs && opcode <= kExprF16x8Qfms);
 }
 
 #if DEBUG
@@ -170,17 +171,18 @@ enum WasmOpcodeSig : uint8_t {
   FOREACH_SIGNATURE(DECLARE_SIG_ENUM)
 };
 #undef DECLARE_SIG_ENUM
-#define DECLARE_SIG(name, ...)                                                \
-  constexpr ValueType kTypes_##name[] = {__VA_ARGS__};                        \
-  constexpr int kReturnsCount_##name = kTypes_##name[0] == kWasmVoid ? 0 : 1; \
-  constexpr FunctionSig kSig_##name(                                          \
-      kReturnsCount_##name, static_cast<int>(arraysize(kTypes_##name)) - 1,   \
+#define DECLARE_SIG(name, ...)                                              \
+  constexpr inline ValueType kTypes_##name[] = {__VA_ARGS__};               \
+  constexpr inline int kReturnsCount_##name =                               \
+      kTypes_##name[0] == kWasmVoid ? 0 : 1;                                \
+  constexpr inline FunctionSig kSig_##name(                                 \
+      kReturnsCount_##name, static_cast<int>(arraysize(kTypes_##name)) - 1, \
       kTypes_##name + (1 - kReturnsCount_##name));
 FOREACH_SIGNATURE(DECLARE_SIG)
 #undef DECLARE_SIG
 
 #define DECLARE_SIG_ENTRY(name, ...) &kSig_##name,
-constexpr const FunctionSig* kCachedSigs[] = {
+constexpr inline const FunctionSig* kCachedSigs[] = {
     nullptr, FOREACH_SIGNATURE(DECLARE_SIG_ENTRY)};
 #undef DECLARE_SIG_ENTRY
 

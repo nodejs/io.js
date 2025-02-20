@@ -117,8 +117,8 @@ HeapBase::HeapBase(
                         *prefinalizer_handler_, *oom_handler_,
                         garbage_collector),
       sweeper_(*this),
-      strong_persistent_region_(*oom_handler_),
-      weak_persistent_region_(*oom_handler_),
+      strong_persistent_region_(*this, *oom_handler_),
+      weak_persistent_region_(*this, *oom_handler_),
       strong_cross_thread_persistent_region_(*oom_handler_),
       weak_cross_thread_persistent_region_(*oom_handler_),
 #if defined(CPPGC_YOUNG_GENERATION)
@@ -346,6 +346,10 @@ bool HeapBase::IsGCAllowed() const {
   // GC is prohibited in a GC forbidden scope, or when currently sweeping an
   // object.
   return !sweeper().IsSweepingOnMutatorThread() && !in_no_gc_scope();
+}
+
+bool HeapBase::CurrentThreadIsHeapThread() const {
+  return heap_thread_id_ == v8::base::OS::GetCurrentThreadId();
 }
 
 ClassNameAsHeapObjectNameScope::ClassNameAsHeapObjectNameScope(HeapBase& heap)

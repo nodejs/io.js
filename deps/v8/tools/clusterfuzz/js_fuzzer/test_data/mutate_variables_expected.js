@@ -52,3 +52,10 @@ console.log(
 REPLACED);
 
 __f_0();
+
+let __v_10 =
+/* VariableMutator: Replaced __v_0 with REPLACED */
+REPLACED;
+let {
+  prop: __v_11
+} = {};

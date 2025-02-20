@@ -14,9 +14,9 @@ namespace v8 {
 namespace internal {
 
 // static
-MaybeHandle<Context> ContextDeserializer::DeserializeContext(
+MaybeDirectHandle<Context> ContextDeserializer::DeserializeContext(
     Isolate* isolate, const SnapshotData* data, size_t context_index,
-    bool can_rehash, Handle<JSGlobalProxy> global_proxy,
+    bool can_rehash, DirectHandle<JSGlobalProxy> global_proxy,
     DeserializeEmbedderFieldsCallback embedder_fields_deserializer) {
   TRACE_EVENT0("v8", "V8.DeserializeContext");
   RCS_SCOPE(isolate, RuntimeCallCounterId::kDeserializeContext);
@@ -26,7 +26,7 @@ MaybeHandle<Context> ContextDeserializer::DeserializeContext(
       isolate->counters()->snapshot_deserialize_context());
 
   ContextDeserializer d(isolate, data, can_rehash);
-  MaybeHandle<Object> maybe_result =
+  MaybeDirectHandle<Object> maybe_result =
       d.Deserialize(isolate, global_proxy, embedder_fields_deserializer);
 
   if (V8_UNLIKELY(v8_flags.profile_deserialization)) {
@@ -38,21 +38,21 @@ MaybeHandle<Context> ContextDeserializer::DeserializeContext(
            context_index, bytes, ms);
   }
 
-  Handle<Object> result;
+  DirectHandle<Object> result;
   if (!maybe_result.ToHandle(&result)) return {};
 
   return Cast<Context>(result);
 }
 
-MaybeHandle<Object> ContextDeserializer::Deserialize(
-    Isolate* isolate, Handle<JSGlobalProxy> global_proxy,
+MaybeDirectHandle<Object> ContextDeserializer::Deserialize(
+    Isolate* isolate, DirectHandle<JSGlobalProxy> global_proxy,
     DeserializeEmbedderFieldsCallback embedder_fields_deserializer) {
   // Replace serialized references to the global proxy and its map with the
   // given global proxy and its map.
   AddAttachedObject(global_proxy);
-  AddAttachedObject(handle(global_proxy->map(), isolate));
+  AddAttachedObject(direct_handle(global_proxy->map(), isolate));
 
-  Handle<Object> result;
+  DirectHandle<Object> result;
   {
     // There's no code deserialized here. If this assert fires then that's
     // changed and logging should be added to notify the profiler et al. of
@@ -93,7 +93,7 @@ class PlainBuffer {
 };
 
 void ContextDeserializer::DeserializeEmbedderFields(
-    Handle<NativeContext> context,
+    DirectHandle<NativeContext> context,
     DeserializeEmbedderFieldsCallback embedder_fields_deserializer) {
   if (!source()->HasMore() || source()->Peek() != kEmbedderFieldsData) {
     return;
@@ -109,14 +109,14 @@ void ContextDeserializer::DeserializeEmbedderFields(
   for (int code = source()->Get(); code != kSynchronize;
        code = source()->Get()) {
     HandleScope scope(isolate());
-    Handle<HeapObject> heap_object =
+    DirectHandle<HeapObject> heap_object =
         Cast<HeapObject>(GetBackReferencedObject());
     const int index = source()->GetUint30();
     const int size = source()->GetUint30();
     buffer.EnsureCapacity(size);
     source()->CopyRaw(buffer.data(), size);
     if (IsJSObject(*heap_object)) {
-      Handle<JSObject> obj = Cast<JSObject>(heap_object);
+      DirectHandle<JSObject> obj = Cast<JSObject>(heap_object);
       v8::DeserializeInternalFieldsCallback callback =
           embedder_fields_deserializer.js_object_callback;
       DCHECK_NOT_NULL(callback.callback);
@@ -151,7 +151,8 @@ void ContextDeserializer::DeserializeApiWrapperFields(
   for (int code = source()->Get(); code != kSynchronize;
        code = source()->Get()) {
     HandleScope scope(isolate());
-    Handle<JSObject> js_object = Cast<JSObject>(GetBackReferencedObject());
+    DirectHandle<JSObject> js_object =
+        Cast<JSObject>(GetBackReferencedObject());
     const int size = source()->GetUint30();
     buffer.EnsureCapacity(size);
     source()->CopyRaw(buffer.data(), size);

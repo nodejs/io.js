@@ -6,6 +6,7 @@
 #define V8_OBJECTS_ARGUMENTS_H_
 
 #include "src/objects/fixed-array.h"
+#include "src/objects/hole.h"
 #include "src/objects/js-objects.h"
 #include "src/objects/struct.h"
 
@@ -73,6 +74,20 @@ class AliasedArgumentsEntry
   TQ_OBJECT_CONSTRUCTORS(AliasedArgumentsEntry)
 };
 
+class SloppyArgumentsElementsShape final : public AllStatic {
+ public:
+  using ElementT = UnionOf<Smi, Hole>;
+  using CompressionScheme = V8HeapCompressionScheme;
+  static constexpr RootIndex kMapRootIndex =
+      RootIndex::kSloppyArgumentsElementsMap;
+  static constexpr bool kLengthEqualsCapacity = true;
+
+  V8_ARRAY_EXTRA_FIELDS({
+    TaggedMember<Context> context_;
+    TaggedMember<UnionOf<FixedArray, NumberDictionary>> arguments_;
+  });
+};
+
 // Helper class to access FAST_ and SLOW_SLOPPY_ARGUMENTS_ELEMENTS, dividing
 // arguments into two types for a given SloppyArgumentsElements object:
 // mapped and unmapped.
@@ -123,44 +138,27 @@ class AliasedArgumentsEntry
 // the outer JSArgumentsObject:
 // - FAST_SLOPPY_ARGUMENTS_ELEMENTS: HOLEY_ELEMENTS
 // - SLOW_SLOPPY_ARGUMENTS_ELEMENTS: DICTIONARY_ELEMENTS
-class SloppyArgumentsElements : public FixedArrayBase {
-  OBJECT_CONSTRUCTORS(SloppyArgumentsElements, FixedArrayBase);
-
+class SloppyArgumentsElements
+    : public TaggedArrayBase<SloppyArgumentsElements,
+                             SloppyArgumentsElementsShape> {
  public:
   inline Tagged<Context> context() const;
   inline void set_context(Tagged<Context> value,
                           WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
-  // Returns: FixedArray|NumberDictionary.
-  inline Tagged<FixedArray> arguments() const;
-  inline void set_arguments(Tagged<FixedArray> value,
+  inline Tagged<UnionOf<FixedArray, NumberDictionary>> arguments() const;
+  inline void set_arguments(Tagged<UnionOf<FixedArray, NumberDictionary>> value,
                             WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // Returns: Smi|TheHole.
-  inline Tagged<Object> mapped_entries(int index, RelaxedLoadTag) const;
-  inline void set_mapped_entries(int index, Tagged<Object> value);
-  inline void set_mapped_entries(int index, Tagged<Object> value,
+  inline Tagged<UnionOf<Smi, Hole>> mapped_entries(int index,
+                                                   RelaxedLoadTag) const;
+  inline void set_mapped_entries(int index, Tagged<UnionOf<Smi, Hole>> value);
+  inline void set_mapped_entries(int index, Tagged<UnionOf<Smi, Hole>> value,
                                  RelaxedStoreTag);
-
-  inline int AllocatedSize() const;
-
-  static constexpr int SizeFor(int length) { return OffsetOfElementAt(length); }
-  static constexpr int OffsetOfElementAt(int index) {
-    return kHeaderSize + index * kTaggedSize;
-  }
 
   DECL_PRINTER(SloppyArgumentsElements)
   DECL_VERIFIER(SloppyArgumentsElements)
-
-#define FIELD_LIST(V)                                                   \
-  V(kContextOffset, kTaggedSize)                                        \
-  V(kArgumentsOffset, kTaggedSize)                                      \
-  V(kUnalignedHeaderSize, OBJECT_POINTER_PADDING(kUnalignedHeaderSize)) \
-  V(kHeaderSize, 0)                                                     \
-  V(kMappedEntriesOffset, 0)  // mapped_entries[length]
-
-  DEFINE_FIELD_OFFSET_CONSTANTS(FixedArrayBase::kHeaderSize, FIELD_LIST)
-#undef FIELD_LIST
 
   class BodyDescriptor;
 };

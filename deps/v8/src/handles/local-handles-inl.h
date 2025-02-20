@@ -59,8 +59,9 @@ LocalHandleScope::~LocalHandleScope() {
   }
 }
 
-template <typename T>
-Handle<T> LocalHandleScope::CloseAndEscape(Handle<T> handle_value) {
+template <typename T, template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+HandleType<T> LocalHandleScope::CloseAndEscape(HandleType<T> handle_value) {
   HandleScopeData* current;
   Tagged<T> value = *handle_value;
   // Throw away all handles in the current scope.
@@ -76,7 +77,7 @@ Handle<T> LocalHandleScope::CloseAndEscape(Handle<T> handle_value) {
   }
   // Allocate one handle in the parent scope.
   DCHECK(current->level > current->sealed_level);
-  Handle<T> result(value, local_heap_);
+  HandleType<T> result(value, local_heap_);
   // Reinitialize the current scope (so that it's ready
   // to be used or closed again).
   prev_next_ = current->next;
@@ -99,7 +100,7 @@ void LocalHandleScope::CloseScope(LocalHeap* local_heap, Address* prev_next,
     old_limit = handles->scope_.limit;
   }
 
-#ifdef ENABLE_HANDLE_ZAPPING
+#ifdef ENABLE_LOCAL_HANDLE_ZAPPING
   LocalHandles::ZapRange(handles->scope_.next, old_limit);
 #endif
 

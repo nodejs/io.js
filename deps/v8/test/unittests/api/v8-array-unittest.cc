@@ -34,6 +34,7 @@ TEST_F(ArrayTest, IterateOneElement) {
     int sentinel;
     Local<Context> context;
     Isolate* isolate;
+    int invocation_count = 0;
   };
   Data data{42, context(), isolate()};
   const Local<Value> kSmi = Number::New(isolate(), 333);
@@ -44,11 +45,16 @@ TEST_F(ArrayTest, IterateOneElement) {
       [](uint32_t index, Local<Value> element, void* data) -> CbResult {
     Data* d = reinterpret_cast<Data*>(data);
     CHECK_EQ(42, d->sentinel);
-    CHECK_EQ(kIndex, index);
+    ++d->invocation_count;
+    if (index != kIndex) {
+      CHECK(element->IsUndefined());
+      return CbResult::kContinue;
+    }
     CHECK_EQ(333, element->NumberValue(d->context).FromJust());
     return CbResult::kContinue;
   };
   CHECK(smi_array->Iterate(context(), smi_callback, &data).IsJust());
+  CHECK_EQ(kIndex + 1, data.invocation_count);
 
   const Local<Value> kDouble = Number::New(isolate(), 1.5);
   CHECK(double_array->Set(context(), kIndex, kDouble).FromJust());
@@ -56,7 +62,10 @@ TEST_F(ArrayTest, IterateOneElement) {
       [](uint32_t index, Local<Value> element, void* data) -> CbResult {
     Data* d = reinterpret_cast<Data*>(data);
     CHECK_EQ(42, d->sentinel);
-    CHECK_EQ(kIndex, index);
+    if (index != kIndex) {
+      CHECK(element->IsUndefined());
+      return CbResult::kContinue;
+    }
     CHECK_EQ(1.5, element->NumberValue(d->context).FromJust());
     return CbResult::kContinue;
   };
@@ -69,6 +78,10 @@ TEST_F(ArrayTest, IterateOneElement) {
       [](uint32_t index, Local<Value> element, void* data) -> CbResult {
     Data* d = reinterpret_cast<Data*>(data);
     CHECK_EQ(42, d->sentinel);
+    if (index != kIndex) {
+      CHECK(element->IsUndefined());
+      return CbResult::kContinue;
+    }
     CHECK_EQ(kIndex, index);
     Local<String> str = element->ToString(d->context).ToLocalChecked();
     CHECK_EQ(0, strcmp("foo", *String::Utf8Value(d->isolate, str)));

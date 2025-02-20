@@ -190,7 +190,7 @@ TYPED_TEST(UniformRealDistributionTest, ParamSerializeTest) {
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable:4756)  // Constant arithmetic overflow.
+#pragma warning(disable : 4756)  // Constant arithmetic overflow.
 #endif
 TYPED_TEST(UniformRealDistributionTest, ViolatesPreconditionsDeathTest) {
   using DistributionType = absl::uniform_real_distribution<TypeParam>;

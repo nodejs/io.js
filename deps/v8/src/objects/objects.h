@@ -134,7 +134,7 @@ class Object : public AllStatic {
 
   // ES6, #sec-isarray.  NOT to be confused with %_IsArray.
   V8_INLINE
-  V8_WARN_UNUSED_RESULT static Maybe<bool> IsArray(Handle<Object> object);
+  V8_WARN_UNUSED_RESULT static Maybe<bool> IsArray(DirectHandle<Object> object);
 
   // Extract the double value of a Number (Smi or HeapNumber).
   static inline double NumberValue(Tagged<Number> obj);
@@ -183,15 +183,24 @@ class Object : public AllStatic {
 
   // ES6 section 7.2.11 Abstract Relational Comparison
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static Maybe<ComparisonResult>
-  Compare(Isolate* isolate, Handle<Object> x, Handle<Object> y);
+  Compare(Isolate* isolate, DirectHandle<Object> x, DirectHandle<Object> y);
 
   // ES6 section 7.2.12 Abstract Equality Comparison
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static Maybe<bool> Equals(
-      Isolate* isolate, Handle<Object> x, Handle<Object> y);
+      Isolate* isolate, DirectHandle<Object> x, DirectHandle<Object> y);
 
   // ES6 section 7.2.13 Strict Equality Comparison
   V8_EXPORT_PRIVATE static bool StrictEquals(Tagged<Object> obj,
                                              Tagged<Object> that);
+
+  // TODO(b/42203211): ToObject, ToString and other conversion methods are
+  // templatized by the handle type and by the object type, so that passing a
+  // Handle<T> is not ambiguous when T is a subtype of Object (it could be
+  // implicitly converted both to Handle<Object> and to DirectHandle<Object>).
+  // Here, T should be a subtype of Object, which is enforced by the last
+  // template argument and the similar restriction on Handle's constructor. When
+  // the migration to DirectHandle is complete, these functions can again accept
+  // simply a DirectHandle<Object>.
 
   // ES6 section 7.1.13 ToObject
   // Convert to a JSObject if needed.
@@ -200,64 +209,66 @@ class Object : public AllStatic {
   // Passing a non-null method_name allows us to give a more informative
   // error message for those cases where ToObject is being called on
   // the receiver of a built-in method.
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<JSReceiver> ToObject(
-      Isolate* isolate, Handle<Object> object,
-      const char* method_name = nullptr);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<JSReceiver>::MaybeType
+  ToObject(Isolate* isolate, HandleType<T> object,
+           const char* method_name = nullptr);
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> ToObjectImpl(
       Isolate* isolate, DirectHandle<Object> object,
       const char* method_name = nullptr);
 
   // ES6 section 9.2.1.2, OrdinaryCallBindThis for sloppy callee.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> ConvertReceiver(
-      Isolate* isolate, Handle<Object> object);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSReceiver> ConvertReceiver(
+      Isolate* isolate, DirectHandle<Object> object);
 
   // ES6 section 7.1.14 ToPropertyKey
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Name> ToName(
-      Isolate* isolate, Handle<Object> input);
+  template <template <typename> typename HandleType>
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Name>::MaybeType
+  ToName(Isolate* isolate, HandleType<Object> input)
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>);
 
   // ES6 section 7.1.1 ToPrimitive
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToPrimitive(
-      Isolate* isolate, Handle<Object> input,
-      ToPrimitiveHint hint = ToPrimitiveHint::kDefault);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Object>::MaybeType
+  ToPrimitive(Isolate* isolate, HandleType<T> input,
+              ToPrimitiveHint hint = ToPrimitiveHint::kDefault);
 
   // ES6 section 7.1.3 ToNumber
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Number> ToNumber(
-      Isolate* isolate, Handle<Object> input);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Number>::MaybeType
+  ToNumber(Isolate* isolate, HandleType<T> input);
 
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToNumeric(
-      Isolate* isolate, Handle<Object> input);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Object>::MaybeType
+  ToNumeric(Isolate* isolate, HandleType<T> input);
 
   // ES6 section 7.1.4 ToInteger
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Number> ToInteger(
-      Isolate* isolate, Handle<Object> input);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Number>::MaybeType
+  ToInteger(Isolate* isolate, HandleType<T> input);
 
   // ES6 section 7.1.5 ToInt32
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Number> ToInt32(
-      Isolate* isolate, Handle<Object> input);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Number>::MaybeType
+  ToInt32(Isolate* isolate, HandleType<T> input);
 
   // ES6 section 7.1.6 ToUint32
-  V8_WARN_UNUSED_RESULT inline static MaybeHandle<Number> ToUint32(
-      Isolate* isolate, Handle<Object> input);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Number>::MaybeType
+  ToUint32(Isolate* isolate, HandleType<T> input);
 
   // ES6 section 7.1.12 ToString
-  // TODO(b/42203211): ToString is templatized so that passing a Handle<T>
-  // is not ambiguous when T is a subtype of Object (it could be implicitly
-  // converted both to Handle<Object> and to DirectHandle<Object>). Here, T
-  // should be a subtype of Object, which is enforced by the second template
-  // argument and the similar restriction on Handle's constructor. When the
-  // migration to DirectHandle is complete, this function can accept simply
-  // a DirectHandle<Object>.
-  template <typename T, typename = std::enable_if_t<
-                            std::is_convertible_v<Handle<T>, Handle<Object>>>>
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<String> ToString(
-      Isolate* isolate, Handle<T> input);
-
-#ifdef V8_ENABLE_DIRECT_HANDLE
-  template <typename T, typename = std::enable_if_t<std::is_convertible_v<
-                            DirectHandle<T>, DirectHandle<Object>>>>
-  V8_WARN_UNUSED_RESULT static inline MaybeDirectHandle<String> ToString(
-      Isolate* isolate, DirectHandle<T> input);
-#endif
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<String>::MaybeType
+  ToString(Isolate* isolate, HandleType<T> input);
 
   V8_EXPORT_PRIVATE static MaybeDirectHandle<String> NoSideEffectsToMaybeString(
       Isolate* isolate, DirectHandle<Object> input);
@@ -266,56 +277,61 @@ class Object : public AllStatic {
       Isolate* isolate, DirectHandle<Object> input);
 
   // ES6 section 7.1.14 ToPropertyKey
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToPropertyKey(
-      Isolate* isolate, Handle<Object> value);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Object>::MaybeType
+  ToPropertyKey(Isolate* isolate, HandleType<T> value);
 
   // ES6 section 7.1.15 ToLength
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToLength(
-      Isolate* isolate, Handle<Object> input);
+      Isolate* isolate, DirectHandle<Object> input);
 
   // ES6 section 7.1.17 ToIndex
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> ToIndex(
-      Isolate* isolate, Handle<Object> input, MessageTemplate error_index);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  V8_WARN_UNUSED_RESULT static inline typename HandleType<Object>::MaybeType
+  ToIndex(Isolate* isolate, HandleType<T> input, MessageTemplate error_index);
 
   // ES6 section 7.3.9 GetMethod
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> GetMethod(
-      Isolate* isolate, Handle<JSReceiver> receiver, Handle<Name> name);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<Object> GetMethod(
+      Isolate* isolate, DirectHandle<JSReceiver> receiver,
+      DirectHandle<Name> name);
 
   // ES6 section 7.3.17 CreateListFromArrayLike
-  V8_WARN_UNUSED_RESULT static MaybeHandle<FixedArray> CreateListFromArrayLike(
-      Isolate* isolate, Handle<Object> object, ElementTypes element_types);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<FixedArray>
+  CreateListFromArrayLike(Isolate* isolate, DirectHandle<Object> object,
+                          ElementTypes element_types);
 
   // Get length property and apply ToLength.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> GetLengthFromArrayLike(
-      Isolate* isolate, Handle<JSReceiver> object);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<Object> GetLengthFromArrayLike(
+      Isolate* isolate, DirectHandle<JSReceiver> object);
 
   // ES6 section 12.5.6 The typeof Operator
   static Handle<String> TypeOf(Isolate* isolate, DirectHandle<Object> object);
 
   // ES6 section 12.7 Additive Operators
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> Add(Isolate* isolate,
-                                                       Handle<Object> lhs,
-                                                       Handle<Object> rhs);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<Object> Add(
+      Isolate* isolate, Handle<Object> lhs, Handle<Object> rhs);
 
   // ES6 section 12.9 Relational Operators
-  V8_WARN_UNUSED_RESULT static inline Maybe<bool> GreaterThan(Isolate* isolate,
-                                                              Handle<Object> x,
-                                                              Handle<Object> y);
+  V8_WARN_UNUSED_RESULT static inline Maybe<bool> GreaterThan(
+      Isolate* isolate, DirectHandle<Object> x, DirectHandle<Object> y);
   V8_WARN_UNUSED_RESULT static inline Maybe<bool> GreaterThanOrEqual(
-      Isolate* isolate, Handle<Object> x, Handle<Object> y);
-  V8_WARN_UNUSED_RESULT static inline Maybe<bool> LessThan(Isolate* isolate,
-                                                           Handle<Object> x,
-                                                           Handle<Object> y);
+      Isolate* isolate, DirectHandle<Object> x, DirectHandle<Object> y);
+  V8_WARN_UNUSED_RESULT static inline Maybe<bool> LessThan(
+      Isolate* isolate, DirectHandle<Object> x, DirectHandle<Object> y);
   V8_WARN_UNUSED_RESULT static inline Maybe<bool> LessThanOrEqual(
-      Isolate* isolate, Handle<Object> x, Handle<Object> y);
+      Isolate* isolate, DirectHandle<Object> x, DirectHandle<Object> y);
 
   // ES6 section 7.3.19 OrdinaryHasInstance (C, O).
   V8_WARN_UNUSED_RESULT static MaybeHandle<Object> OrdinaryHasInstance(
-      Isolate* isolate, Handle<Object> callable, Handle<Object> object);
+      Isolate* isolate, DirectHandle<JSAny> callable,
+      DirectHandle<JSAny> object);
 
   // ES6 section 12.10.4 Runtime Semantics: InstanceofOperator(O, C)
   V8_WARN_UNUSED_RESULT static MaybeHandle<Object> InstanceOf(
-      Isolate* isolate, Handle<Object> object, Handle<Object> callable);
+      Isolate* isolate, DirectHandle<JSAny> object,
+      DirectHandle<JSAny> callable);
 
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object>
   GetProperty(LookupIterator* it, bool is_global_reference = false);
@@ -328,37 +344,37 @@ class Object : public AllStatic {
   // argument.  These cases are either in accordance with the spec or not
   // covered by it (eg., concerning API callbacks).
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static Maybe<bool> SetProperty(
-      LookupIterator* it, Handle<Object> value, StoreOrigin store_origin,
+      LookupIterator* it, DirectHandle<Object> value, StoreOrigin store_origin,
       Maybe<ShouldThrow> should_throw = Nothing<ShouldThrow>());
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object>
-  SetProperty(Isolate* isolate, Handle<Object> object, Handle<Name> name,
-              Handle<Object> value,
+  SetProperty(Isolate* isolate, DirectHandle<JSAny> object,
+              DirectHandle<Name> name, DirectHandle<Object> value,
               StoreOrigin store_origin = StoreOrigin::kMaybeKeyed,
               Maybe<ShouldThrow> should_throw = Nothing<ShouldThrow>());
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> SetPropertyOrElement(
-      Isolate* isolate, Handle<Object> object, Handle<Name> name,
-      Handle<Object> value,
-      Maybe<ShouldThrow> should_throw = Nothing<ShouldThrow>(),
-      StoreOrigin store_origin = StoreOrigin::kMaybeKeyed);
+  V8_WARN_UNUSED_RESULT static inline MaybeDirectHandle<Object>
+  SetPropertyOrElement(Isolate* isolate, DirectHandle<JSAny> object,
+                       DirectHandle<Name> name, DirectHandle<Object> value,
+                       Maybe<ShouldThrow> should_throw = Nothing<ShouldThrow>(),
+                       StoreOrigin store_origin = StoreOrigin::kMaybeKeyed);
 
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetSuperProperty(
-      LookupIterator* it, Handle<Object> value, StoreOrigin store_origin,
+      LookupIterator* it, DirectHandle<Object> value, StoreOrigin store_origin,
       Maybe<ShouldThrow> should_throw = Nothing<ShouldThrow>());
 
   V8_WARN_UNUSED_RESULT static Maybe<bool> CannotCreateProperty(
-      Isolate* isolate, Handle<Object> receiver, Handle<Object> name,
+      Isolate* isolate, DirectHandle<JSAny> receiver, DirectHandle<Object> name,
       DirectHandle<Object> value, Maybe<ShouldThrow> should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> WriteToReadOnlyProperty(
       LookupIterator* it, DirectHandle<Object> value,
       Maybe<ShouldThrow> should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> WriteToReadOnlyProperty(
-      Isolate* isolate, Handle<Object> receiver, Handle<Object> name,
+      Isolate* isolate, DirectHandle<JSAny> receiver, DirectHandle<Object> name,
       DirectHandle<Object> value, ShouldThrow should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> RedefineIncompatibleProperty(
-      Isolate* isolate, Handle<Object> name, DirectHandle<Object> value,
+      Isolate* isolate, DirectHandle<Object> name, DirectHandle<Object> value,
       Maybe<ShouldThrow> should_throw);
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetDataProperty(
-      LookupIterator* it, Handle<Object> value);
+      LookupIterator* it, DirectHandle<Object> value);
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static Maybe<bool> AddDataProperty(
       LookupIterator* it, DirectHandle<Object> value,
       PropertyAttributes attributes, Maybe<ShouldThrow> should_throw,
@@ -371,30 +387,31 @@ class Object : public AllStatic {
       StoreOrigin store_origin);
 
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> GetPropertyOrElement(
-      Isolate* isolate, Handle<Object> object, Handle<Name> name);
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> GetPropertyOrElement(
-      Handle<Object> receiver, Handle<Name> name, Handle<JSReceiver> holder);
+      Isolate* isolate, DirectHandle<JSAny> object, DirectHandle<Name> name);
+  V8_WARN_UNUSED_RESULT static inline MaybeDirectHandle<Object>
+  GetPropertyOrElement(DirectHandle<JSAny> receiver, DirectHandle<Name> name,
+                       DirectHandle<JSReceiver> holder);
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> GetProperty(
-      Isolate* isolate, Handle<Object> object, Handle<Name> name);
+      Isolate* isolate, DirectHandle<JSAny> object, DirectHandle<Name> name);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithAccessor(
       LookupIterator* it);
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyWithAccessor(
-      LookupIterator* it, Handle<Object> value,
+      LookupIterator* it, DirectHandle<Object> value,
       Maybe<ShouldThrow> should_throw);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetPropertyWithDefinedGetter(
-      Handle<Object> receiver, Handle<JSReceiver> getter);
+      DirectHandle<JSAny> receiver, DirectHandle<JSReceiver> getter);
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyWithDefinedSetter(
-      Handle<Object> receiver, Handle<JSReceiver> setter, Handle<Object> value,
-      Maybe<ShouldThrow> should_throw);
+      DirectHandle<JSAny> receiver, DirectHandle<JSReceiver> setter,
+      DirectHandle<Object> value, Maybe<ShouldThrow> should_throw);
 
   V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> GetElement(
-      Isolate* isolate, Handle<Object> object, uint32_t index);
+      Isolate* isolate, DirectHandle<JSAny> object, uint32_t index);
 
-  V8_WARN_UNUSED_RESULT static inline MaybeHandle<Object> SetElement(
-      Isolate* isolate, Handle<Object> object, uint32_t index,
-      Handle<Object> value, ShouldThrow should_throw);
+  V8_WARN_UNUSED_RESULT static inline MaybeDirectHandle<Object> SetElement(
+      Isolate* isolate, DirectHandle<JSAny> object, uint32_t index,
+      DirectHandle<Object> value, ShouldThrow should_throw);
 
   // Returns the permanent hash code associated with this object. May return
   // undefined if not yet created.
@@ -423,13 +440,13 @@ class Object : public AllStatic {
   static bool SameValueZero(Tagged<Object> obj, Tagged<Object> other);
 
   // ES6 section 9.4.2.3 ArraySpeciesCreate (part of it)
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> ArraySpeciesConstructor(
-      Isolate* isolate, Handle<Object> original_array);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<Object>
+  ArraySpeciesConstructor(Isolate* isolate, DirectHandle<JSAny> original_array);
 
   // ES6 section 7.3.20 SpeciesConstructor ( O, defaultConstructor )
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> SpeciesConstructor(
-      Isolate* isolate, Handle<JSReceiver> recv,
-      Handle<JSFunction> default_ctor);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<Object> SpeciesConstructor(
+      Isolate* isolate, DirectHandle<JSReceiver> recv,
+      DirectHandle<JSFunction> default_ctor);
 
   // Tries to convert an object to an array length. Returns true and sets the
   // output parameter if it succeeds.
@@ -516,13 +533,17 @@ class Object : public AllStatic {
 
   // Returns an equivalent value that's safe to share across Isolates if
   // possible. Acts as the identity function when value->IsShared().
-  static inline MaybeHandle<Object> Share(
-      Isolate* isolate, Handle<Object> value,
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  static inline typename HandleType<Object>::MaybeType Share(
+      Isolate* isolate, HandleType<T> value,
       ShouldThrow throw_if_cannot_be_shared);
 
-  static MaybeHandle<Object> ShareSlow(Isolate* isolate,
-                                       Handle<HeapObject> value,
-                                       ShouldThrow throw_if_cannot_be_shared);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  static typename HandleType<Object>::MaybeType ShareSlow(
+      Isolate* isolate, HandleType<HeapObject> value,
+      ShouldThrow throw_if_cannot_be_shared);
 
   // Whether this Object can be held weakly, i.e. whether it can be used as a
   // key in WeakMap, as a key in WeakSet, as the target of a WeakRef, or as a
@@ -551,30 +572,51 @@ class Object : public AllStatic {
   // Helper for SetProperty and SetSuperProperty.
   // Return value is only meaningful if [found] is set to true on return.
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPropertyInternal(
-      LookupIterator* it, Handle<Object> value, Maybe<ShouldThrow> should_throw,
-      StoreOrigin store_origin, bool* found);
+      LookupIterator* it, DirectHandle<Object> value,
+      Maybe<ShouldThrow> should_throw, StoreOrigin store_origin, bool* found);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Name> ConvertToName(
-      Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> ConvertToPropertyKey(
-      Isolate* isolate, Handle<Object> value);
-  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<String>
-  ConvertToString(Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Number> ConvertToNumber(
-      Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Numeric> ConvertToNumeric(
-      Isolate* isolate, Handle<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  V8_WARN_UNUSED_RESULT static typename HandleType<Name>::MaybeType
+  ConvertToName(Isolate* isolate, HandleType<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  V8_WARN_UNUSED_RESULT static typename HandleType<Object>::MaybeType
+  ConvertToPropertyKey(Isolate* isolate, HandleType<Object> value);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) V8_WARN_UNUSED_RESULT static
+      typename HandleType<String>::MaybeType
+      ConvertToString(Isolate* isolate, HandleType<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  V8_WARN_UNUSED_RESULT static typename HandleType<Number>::MaybeType
+  ConvertToNumber(Isolate* isolate, HandleType<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  V8_WARN_UNUSED_RESULT static typename HandleType<Numeric>::MaybeType
+  ConvertToNumeric(Isolate* isolate, HandleType<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) V8_WARN_UNUSED_RESULT static
+      typename HandleType<Number>::MaybeType
+      ConvertToInteger(Isolate* isolate, HandleType<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  V8_WARN_UNUSED_RESULT static HandleType<Number>::MaybeType ConvertToInt32(
+      Isolate* isolate, HandleType<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  V8_WARN_UNUSED_RESULT static HandleType<Number>::MaybeType ConvertToUint32(
+      Isolate* isolate, HandleType<Object> input);
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Number>
-  ConvertToInteger(Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Number> ConvertToInt32(
-      Isolate* isolate, Handle<Object> input);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Number> ConvertToUint32(
-      Isolate* isolate, Handle<Object> input);
-  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Number>
-  ConvertToLength(Isolate* isolate, Handle<Object> input);
-  V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Number>
-  ConvertToIndex(Isolate* isolate, Handle<Object> input,
-                 MessageTemplate error_index);
+  ConvertToLength(Isolate* isolate, DirectHandle<Object> input);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) V8_WARN_UNUSED_RESULT static
+      typename HandleType<Number>::MaybeType
+      ConvertToIndex(Isolate* isolate, HandleType<Object> input,
+                     MessageTemplate error_index);
 };
 
 V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,

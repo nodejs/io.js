@@ -8,10 +8,15 @@
 #include <cstddef>
 #include <optional>
 
+#include "include/v8config.h"
 #include "src/base/macros.h"
 #include "src/base/sanitizer/asan.h"
 #include "src/heap/cppgc/memory.h"
 #include "src/heap/cppgc/platform.h"
+
+#if V8_OS_POSIX
+#include <errno.h>
+#endif
 
 namespace cppgc {
 namespace internal {
@@ -19,37 +24,19 @@ namespace internal {
 namespace {
 
 V8_WARN_UNUSED_RESULT bool TryUnprotect(PageAllocator& allocator,
-                                        const PageMemory& page_memory) {
-  if (SupportsCommittingGuardPages(allocator)) {
-    return allocator.SetPermissions(page_memory.writeable_region().base(),
-                                    page_memory.writeable_region().size(),
-                                    PageAllocator::Permission::kReadWrite);
-  }
-  // No protection using guard pages in case the allocator cannot commit at
-  // the required granularity. Only protect if the allocator supports
-  // committing at that granularity.
-  //
+                                        const MemoryRegion& memory_region) {
   // The allocator needs to support committing the overall range.
-  CHECK_EQ(0u,
-           page_memory.overall_region().size() % allocator.CommitPageSize());
-  return allocator.SetPermissions(page_memory.overall_region().base(),
-                                  page_memory.overall_region().size(),
+  CHECK_EQ(0u, memory_region.size() % allocator.CommitPageSize());
+  return allocator.SetPermissions(memory_region.base(), memory_region.size(),
                                   PageAllocator::Permission::kReadWrite);
 }
 
 V8_WARN_UNUSED_RESULT bool TryDiscard(PageAllocator& allocator,
-                                      const PageMemory& page_memory) {
-  if (SupportsCommittingGuardPages(allocator)) {
-    // Swap the same region, providing the OS with a chance for fast lookup and
-    // change.
-    return allocator.DiscardSystemPages(page_memory.writeable_region().base(),
-                                        page_memory.writeable_region().size());
-  }
+                                      const MemoryRegion& memory_region) {
   // See Unprotect().
-  CHECK_EQ(0u,
-           page_memory.overall_region().size() % allocator.CommitPageSize());
-  return allocator.DiscardSystemPages(page_memory.overall_region().base(),
-                                      page_memory.overall_region().size());
+  CHECK_EQ(0u, memory_region.size() % allocator.CommitPageSize());
+  return allocator.DiscardSystemPages(memory_region.base(),
+                                      memory_region.size());
 }
 
 std::optional<MemoryRegion> ReserveMemoryRegion(PageAllocator& allocator,
@@ -86,8 +73,7 @@ std::unique_ptr<PageMemoryRegion> CreateNormalPageMemoryRegion(
 std::unique_ptr<PageMemoryRegion> CreateLargePageMemoryRegion(
     PageAllocator& allocator, size_t length) {
   const auto region = ReserveMemoryRegion(
-      allocator,
-      RoundUp(length + 2 * kGuardPageSize, allocator.AllocatePageSize()));
+      allocator, RoundUp(length, allocator.AllocatePageSize()));
   if (!region) return {};
   auto result = std::unique_ptr<PageMemoryRegion>(
       new PageMemoryRegion(allocator, *region));
@@ -101,11 +87,11 @@ PageMemoryRegion::PageMemoryRegion(PageAllocator& allocator,
     : allocator_(allocator), reserved_region_(reserved_region) {}
 
 PageMemoryRegion::~PageMemoryRegion() {
-  FreeMemoryRegion(allocator_, reserved_region());
+  FreeMemoryRegion(allocator_, region());
 }
 
 void PageMemoryRegion::UnprotectForTesting() {
-  CHECK(TryUnprotect(allocator_, GetPageMemory()));
+  CHECK(TryUnprotect(allocator_, region()));
 }
 
 PageMemoryRegionTree::PageMemoryRegionTree() = default;
@@ -114,25 +100,25 @@ PageMemoryRegionTree::~PageMemoryRegionTree() = default;
 
 void PageMemoryRegionTree::Add(PageMemoryRegion* region) {
   DCHECK(region);
-  auto result = set_.emplace(region->reserved_region().base(), region);
+  const auto result = set_.emplace(region->region().base(), region);
   USE(result);
   DCHECK(result.second);
 }
 
 void PageMemoryRegionTree::Remove(PageMemoryRegion* region) {
   DCHECK(region);
-  auto size = set_.erase(region->reserved_region().base());
+  const auto size = set_.erase(region->region().base());
   USE(size);
   DCHECK_EQ(1u, size);
 }
 
 void NormalPageMemoryPool::Add(PageMemoryRegion* pmr) {
   DCHECK_NOT_NULL(pmr);
-  DCHECK_EQ(pmr->GetPageMemory().overall_region().size(), kPageSize);
+  DCHECK_EQ(pmr->region().size(), kPageSize);
   // Oilpan requires the pages to be zero-initialized.
   {
-    void* base = pmr->GetPageMemory().writeable_region().base();
-    const size_t size = pmr->GetPageMemory().writeable_region().size();
+    void* base = pmr->region().base();
+    const size_t size = pmr->region().size();
     AsanUnpoisonScope unpoison_for_memset(base, size);
     std::memset(base, 0, size);
   }
@@ -144,8 +130,8 @@ PageMemoryRegion* NormalPageMemoryPool::Take() {
   PooledPageMemoryRegion entry = pool_.back();
   DCHECK_NOT_NULL(entry.region);
   pool_.pop_back();
-  void* base = entry.region->GetPageMemory().writeable_region().base();
-  const size_t size = entry.region->GetPageMemory().writeable_region().size();
+  void* base = entry.region->region().base();
+  const size_t size = entry.region->region().size();
   ASAN_UNPOISON_MEMORY_REGION(base, size);
 
   DCHECK_IMPLIES(!decommit_pooled_pages_, !entry.is_decommitted);
@@ -153,8 +139,20 @@ PageMemoryRegion* NormalPageMemoryPool::Take() {
     // Also need to make the pages accessible.
     CHECK(entry.region->allocator().RecommitPages(
         base, size, v8::PageAllocator::kReadWrite));
-    CHECK(entry.region->allocator().SetPermissions(
-        base, size, v8::PageAllocator::kReadWrite));
+    bool ok = entry.region->allocator().SetPermissions(
+        base, size, v8::PageAllocator::kReadWrite);
+    if (!ok) {
+#if V8_OS_POSIX
+      // Changing permissions can return ENOMEM in several cases, including
+      // (since there is PROT_WRITE) when it would exceed the RLIMIT_DATA
+      // resource limit, at least on Linux. Check errno in this case, and
+      // declare that this is an OOM in this case.
+      if (errno == ENOMEM) {
+        GetGlobalOOMHandler()("Cannot change page permissions");
+      }
+#endif
+      CHECK(false);
+    }
   }
 #if DEBUG
   CheckMemoryIsZero(base, size);
@@ -168,16 +166,16 @@ size_t NormalPageMemoryPool::PooledMemory() const {
     if (entry.is_decommitted || entry.is_discarded) {
       continue;
     }
-    total_size += entry.region->GetPageMemory().writeable_region().size();
+    total_size += entry.region->region().size();
   }
   return total_size;
 }
 
-void NormalPageMemoryPool::DiscardPooledPages(PageAllocator& page_allocator) {
+void NormalPageMemoryPool::ReleasePooledPages(PageAllocator& page_allocator) {
   for (auto& entry : pool_) {
     DCHECK_NOT_NULL(entry.region);
-    void* base = entry.region->GetPageMemory().writeable_region().base();
-    size_t size = entry.region->GetPageMemory().writeable_region().size();
+    void* base = entry.region->region().base();
+    size_t size = entry.region->region().size();
     // Unpoison the memory before giving back to the OS.
     ASAN_UNPOISON_MEMORY_REGION(base, size);
     if (decommit_pooled_pages_) {
@@ -190,7 +188,7 @@ void NormalPageMemoryPool::DiscardPooledPages(PageAllocator& page_allocator) {
       if (entry.is_discarded) {
         continue;
       }
-      CHECK(TryDiscard(page_allocator, entry.region->GetPageMemory()));
+      CHECK(TryDiscard(page_allocator, entry.region->region()));
       entry.is_discarded = true;
     }
   }
@@ -204,59 +202,52 @@ PageBackend::PageBackend(PageAllocator& normal_page_allocator,
 PageBackend::~PageBackend() = default;
 
 Address PageBackend::TryAllocateNormalPageMemory() {
-  v8::base::MutexGuard guard(&mutex_);
+  v8::base::SpinningMutexGuard guard(&mutex_);
   if (PageMemoryRegion* cached = page_pool_.Take()) {
-    const auto writeable_region = cached->GetPageMemory().writeable_region();
+    const auto region = cached->region();
     DCHECK_NE(normal_page_memory_regions_.end(),
               normal_page_memory_regions_.find(cached));
     page_memory_region_tree_.Add(cached);
-    return writeable_region.base();
+    return region.base();
   }
   auto pmr = CreateNormalPageMemoryRegion(normal_page_allocator_);
   if (!pmr) {
     return nullptr;
   }
-  const PageMemory pm = pmr->GetPageMemory();
-  if (V8_LIKELY(TryUnprotect(normal_page_allocator_, pm))) {
+  const auto memory_region = pmr->region();
+  if (V8_LIKELY(TryUnprotect(normal_page_allocator_, memory_region))) {
     page_memory_region_tree_.Add(pmr.get());
     normal_page_memory_regions_.emplace(pmr.get(), std::move(pmr));
-    return pm.writeable_region().base();
+    return memory_region.base();
   }
   return nullptr;
 }
 
-void PageBackend::FreeNormalPageMemory(
-    Address writeable_base, FreeMemoryHandling free_memory_handling) {
-  v8::base::MutexGuard guard(&mutex_);
+void PageBackend::FreeNormalPageMemory(Address writeable_base) {
+  v8::base::SpinningMutexGuard guard(&mutex_);
   auto* pmr = page_memory_region_tree_.Lookup(writeable_base);
   DCHECK_NOT_NULL(pmr);
   page_memory_region_tree_.Remove(pmr);
   page_pool_.Add(pmr);
-  if (free_memory_handling == FreeMemoryHandling::kDiscardWherePossible) {
-    // Unpoison the memory before giving back to the OS.
-    ASAN_UNPOISON_MEMORY_REGION(pmr->GetPageMemory().writeable_region().base(),
-                                pmr->GetPageMemory().writeable_region().size());
-    CHECK(TryDiscard(normal_page_allocator_, pmr->GetPageMemory()));
-  }
 }
 
 Address PageBackend::TryAllocateLargePageMemory(size_t size) {
-  v8::base::MutexGuard guard(&mutex_);
+  v8::base::SpinningMutexGuard guard(&mutex_);
   auto pmr = CreateLargePageMemoryRegion(large_page_allocator_, size);
   if (!pmr) {
     return nullptr;
   }
-  const PageMemory pm = pmr->GetPageMemory();
-  if (V8_LIKELY(TryUnprotect(large_page_allocator_, pm))) {
+  const auto memory_region = pmr->region();
+  if (V8_LIKELY(TryUnprotect(large_page_allocator_, memory_region))) {
     page_memory_region_tree_.Add(pmr.get());
     large_page_memory_regions_.emplace(pmr.get(), std::move(pmr));
-    return pm.writeable_region().base();
+    return memory_region.base();
   }
   return nullptr;
 }
 
 void PageBackend::FreeLargePageMemory(Address writeable_base) {
-  v8::base::MutexGuard guard(&mutex_);
+  v8::base::SpinningMutexGuard guard(&mutex_);
   PageMemoryRegion* pmr = page_memory_region_tree_.Lookup(writeable_base);
   page_memory_region_tree_.Remove(pmr);
   auto size = large_page_memory_regions_.erase(pmr);
@@ -264,8 +255,8 @@ void PageBackend::FreeLargePageMemory(Address writeable_base) {
   DCHECK_EQ(1u, size);
 }
 
-void PageBackend::DiscardPooledPages() {
-  page_pool_.DiscardPooledPages(normal_page_allocator_);
+void PageBackend::ReleasePooledPages() {
+  page_pool_.ReleasePooledPages(normal_page_allocator_);
 }
 
 }  // namespace internal

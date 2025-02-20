@@ -9,6 +9,9 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
 function testOptimized(run, fctToOptimize) {
   fctToOptimize = fctToOptimize ?? run;
+  // Make sure there's no left over optimized code from other
+  // instances of the function.
+  %DeoptimizeFunction(fctToOptimize);
   %PrepareFunctionForOptimization(fctToOptimize);
   for (let i = 0; i < 10; ++i) {
     run();
@@ -647,7 +650,7 @@ function testStackTrace(error, expected) {
         testStackTrace(e, [
           /RuntimeError: illegal cast/,
           /at getField \(wasm:\/\/wasm\/[0-9a-f]+:wasm-function\[1\]:0x50/,
-          /at getTrap .*\.js:639:19/,
+          /at getTrap .*\.js:642:19/,
         ]);
       }
     };
@@ -672,8 +675,8 @@ function testStackTrace(error, expected) {
       testStackTrace(e, [
         /RuntimeError: illegal cast/,
         /at getField \(wasm:\/\/wasm\/[0-9a-f]+:wasm-function\[1\]:0x50/,
-        /at inlined .*\.js:661:40/,
-        /at getTrapNested .*\.js:660:14/,
+        /at inlined .*\.js:664:40/,
+        /at getTrapNested .*\.js:663:14/,
       ]);
       assertOptimized(getTrapNested);
     }

@@ -183,11 +183,11 @@ class DeadCodeAnalysis {
                   &graph),
         entry_control_state_(graph.block_count(), ControlState::Unreachable(),
                              phase_zone),
-        rewritable_branch_targets_(phase_zone) {}
+        rewritable_branch_targets_(phase_zone, &graph) {}
 
   template <bool trace_analysis>
   std::pair<FixedOpIndexSidetable<OperationState::Liveness>,
-            ZoneMap<uint32_t, BlockIndex>>
+            SparseOpIndexSideTable<BlockIndex>>
   Run() {
     if constexpr (trace_analysis) {
       std::cout << "===== Running Dead Code Analysis =====\n";
@@ -271,15 +271,12 @@ class DeadCodeAnalysis {
           if (control_state.kind == ControlState::kBlock) {
             BlockIndex target = control_state.block;
             DCHECK(target.valid());
-            rewritable_branch_targets_[index.id()] = target;
+            rewritable_branch_targets_[index] = target;
           }
         } else {
           // Branch is live. We cannot rewrite it.
           op_state = OperationState::kLive;
-          auto it = rewritable_branch_targets_.find(index.id());
-          if (it != rewritable_branch_targets_.end()) {
-            rewritable_branch_targets_.erase(it);
-          }
+          rewritable_branch_targets_.remove(index);
         }
       } else if (op.IsRequiredWhenUnused()) {
         op_state = OperationState::kLive;
@@ -410,7 +407,7 @@ class DeadCodeAnalysis {
   Graph& graph_;
   FixedOpIndexSidetable<OperationState::Liveness> liveness_;
   FixedBlockSidetable<ControlState> entry_control_state_;
-  ZoneMap<uint32_t, BlockIndex> rewritable_branch_targets_;
+  SparseOpIndexSideTable<BlockIndex> rewritable_branch_targets_;
   // The stack check at function entry of leaf functions can be eliminated, as
   // it is guaranteed that another stack check will be hit eventually. This flag
   // records if the current function is a leaf function.
@@ -440,8 +437,8 @@ class DeadCodeEliminationReducer
     Next::Analyze();
   }
 
-  OpIndex REDUCE_INPUT_GRAPH(Branch)(OpIndex ig_index, const BranchOp& branch) {
-    if (TryRewriteBranch(ig_index)) return OpIndex::Invalid();
+  V<None> REDUCE_INPUT_GRAPH(Branch)(V<None> ig_index, const BranchOp& branch) {
+    if (TryRewriteBranch(ig_index)) return V<None>::Invalid();
     return Next::ReduceInputGraphBranch(ig_index, branch);
   }
 
@@ -462,16 +459,16 @@ class DeadCodeEliminationReducer
 
  private:
   bool TryRewriteBranch(OpIndex index) {
-    auto it = branch_rewrite_targets_.find(index.id());
-    if (it != branch_rewrite_targets_.end()) {
-      BlockIndex goto_target = it->second;
-      Asm().Goto(Asm().MapToNewGraph(&Asm().input_graph().Get(goto_target)));
+    const BlockIndex* goto_target;
+    if (branch_rewrite_targets_.contains(index, &goto_target)) {
+      Asm().Goto(Asm().MapToNewGraph(&Asm().input_graph().Get(*goto_target)));
       return true;
     }
     return false;
   }
   std::optional<FixedOpIndexSidetable<OperationState::Liveness>> liveness_;
-  ZoneMap<uint32_t, BlockIndex> branch_rewrite_targets_{Asm().phase_zone()};
+  SparseOpIndexSideTable<BlockIndex> branch_rewrite_targets_{
+      Asm().phase_zone(), &Asm().input_graph()};
   DeadCodeAnalysis analyzer_{Asm().modifiable_input_graph(),
                              Asm().phase_zone()};
 };

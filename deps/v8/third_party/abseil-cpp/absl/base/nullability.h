@@ -135,17 +135,9 @@
 //   ...
 // };
 //
-// Note: For the time being, nullability-compatible classes should additionally
-// be marked with an `absl_nullability_compatible` nested type (this will soon
-// be deprecated). The actual definition of this inner type is not relevant as
-// it is used merely as a marker. It is common to use a using declaration of
-// `absl_nullability_compatible` set to void.
-//
-// // Example:
-// struct MyPtr {
-//   using absl_nullability_compatible = void;
-//   ...
-// };
+// Note: Compilers that don't support the `nullability_on_classes` feature will
+// allow nullability annotations to be applied to any type, not just ones
+// marked with `ABSL_NULLABILITY_COMPATIBLE`.
 //
 // DISCLAIMER:
 // ===========================================================================
@@ -279,10 +271,36 @@ ABSL_NAMESPACE_END
 // struct ABSL_NULLABILITY_COMPATIBLE MyPtr {
 //   ...
 // };
+//
+// Note: Compilers that don't support the `nullability_on_classes` feature will
+// allow nullability annotations to be applied to any type, not just ones marked
+// with `ABSL_NULLABILITY_COMPATIBLE`.
 #if ABSL_HAVE_FEATURE(nullability_on_classes)
 #define ABSL_NULLABILITY_COMPATIBLE _Nullable
 #else
 #define ABSL_NULLABILITY_COMPATIBLE
+#endif
+
+// ABSL_NONNULL
+// ABSL_NULLABLE
+// ABSL_NULLABILITY_UNKNOWN
+//
+// These macros are analogues of the alias template nullability annotations
+// above.
+//
+// Example:
+// int* ABSL_NULLABLE foo;
+// Is equivalent to:
+// absl::Nullable<int*> foo;
+#if defined(__clang__) && !defined(__OBJC__) && \
+    ABSL_HAVE_FEATURE(nullability_on_classes)
+#define ABSL_NONNULL _Nonnull
+#define ABSL_NULLABLE _Nullable
+#define ABSL_NULLABILITY_UNKNOWN _Null_unspecified
+#else
+#define ABSL_NONNULL
+#define ABSL_NULLABLE
+#define ABSL_NULLABILITY_UNKNOWN
 #endif
 
 #endif  // ABSL_BASE_NULLABILITY_H_

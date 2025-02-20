@@ -12,6 +12,7 @@
 #include "src/codegen/assembler.h"
 #include "src/codegen/flush-instruction-cache.h"
 #include "src/debug/debug.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/smi.h"
 #include "src/objects/tagged.h"
@@ -27,7 +28,7 @@ void WritableRelocInfo::apply(intptr_t delta) {
     // Absolute code pointer inside code object moves with the code object.
     intptr_t internal_ref = ReadUnalignedValue<intptr_t>(pc_);
     internal_ref += delta;  // Relocate entry.
-    WriteUnalignedValue<intptr_t>(pc_, internal_ref);
+    jit_allocation_.WriteUnalignedValue<intptr_t>(pc_, internal_ref);
   } else {
     Instruction* instr = reinterpret_cast<Instruction*>(pc_);
     if (instr->IsBranchAndLink() || instr->IsUnconditionalBranch()) {
@@ -35,7 +36,7 @@ void WritableRelocInfo::apply(intptr_t delta) {
           reinterpret_cast<Address>(instr->ImmPCOffsetTarget());
       Address new_target = old_target - delta;
       instr->SetBranchImmTarget<UncondBranchType>(
-          reinterpret_cast<Instruction*>(new_target));
+          reinterpret_cast<Instruction*>(new_target), &jit_allocation_);
     }
   }
 }
@@ -551,41 +552,24 @@ int Assembler::deserialization_special_target_size(Address location) {
   }
 }
 
-void Assembler::deserialization_set_special_target_at(Address location,
-                                                      Tagged<Code> code,
-                                                      Address target) {
-  Instruction* instr = reinterpret_cast<Instruction*>(location);
-  if (instr->IsBranchAndLink() || instr->IsUnconditionalBranch()) {
-    if (target == 0) {
-      // We are simply wiping the target out for serialization. Set the offset
-      // to zero instead.
-      target = location;
-    }
-    instr->SetBranchImmTarget<UncondBranchType>(
-        reinterpret_cast<Instruction*>(target));
-    FlushInstructionCache(location, kInstrSize);
-  } else {
-    DCHECK_EQ(instr->InstructionBits(), 0);
-    Memory<Address>(location) = target;
-    // Intuitively, we would think it is necessary to always flush the
-    // instruction cache after patching a target address in the code. However,
-    // in this case, only the constant pool contents change. The instruction
-    // accessing the constant pool remains unchanged, so a flush is not
-    // required.
-  }
-}
-
 void Assembler::deserialization_set_target_internal_reference_at(
-    Address pc, Address target, RelocInfo::Mode mode) {
-  WriteUnalignedValue<Address>(pc, target);
+    Address pc, Address target, WritableJitAllocation& jit_allocation,
+    RelocInfo::Mode mode) {
+  jit_allocation.WriteUnalignedValue<Address>(pc, target);
 }
 
 void Assembler::set_target_address_at(Address pc, Address constant_pool,
                                       Address target,
+                                      WritableJitAllocation* jit_allocation,
                                       ICacheFlushMode icache_flush_mode) {
   Instruction* instr = reinterpret_cast<Instruction*>(pc);
   if (instr->IsLdrLiteralX()) {
-    Memory<Address>(target_pointer_address_at(pc)) = target;
+    if (jit_allocation) {
+      jit_allocation->WriteValue<Address>(target_pointer_address_at(pc),
+                                          target);
+    } else {
+      Memory<Address>(target_pointer_address_at(pc)) = target;
+    }
     // Intuitively, we would think it is necessary to always flush the
     // instruction cache after patching a target address in the code. However,
     // in this case, only the constant pool contents change. The instruction
@@ -599,7 +583,7 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
       target = pc;
     }
     instr->SetBranchImmTarget<UncondBranchType>(
-        reinterpret_cast<Instruction*>(target));
+        reinterpret_cast<Instruction*>(target), jit_allocation);
     if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
       FlushInstructionCache(pc, kInstrSize);
     }
@@ -608,10 +592,14 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
 
 void Assembler::set_target_compressed_address_at(
     Address pc, Address constant_pool, Tagged_t target,
-    ICacheFlushMode icache_flush_mode) {
+    WritableJitAllocation* jit_allocation, ICacheFlushMode icache_flush_mode) {
   Instruction* instr = reinterpret_cast<Instruction*>(pc);
   CHECK(instr->IsLdrLiteralW());
-  Memory<Tagged_t>(target_pointer_address_at(pc)) = target;
+  if (jit_allocation) {
+    jit_allocation->WriteValue(target_pointer_address_at(pc), target);
+  } else {
+    Memory<Tagged_t>(target_pointer_address_at(pc)) = target;
+  }
 }
 
 int RelocInfo::target_address_size() {
@@ -674,7 +662,7 @@ Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
   }
 }
 
-Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
+DirectHandle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
   if (IsEmbeddedObjectMode(rmode_)) {
     return origin->target_object_handle_at(pc_);
   } else {
@@ -691,16 +679,17 @@ void WritableRelocInfo::set_target_object(Tagged<HeapObject> target,
     // We must not compress pointers to objects outside of the main pointer
     // compression cage as we wouldn't be able to decompress them with the
     // correct cage base.
-    DCHECK_IMPLIES(V8_ENABLE_SANDBOX_BOOL, !IsTrustedSpaceObject(target));
-    DCHECK_IMPLIES(V8_EXTERNAL_CODE_SPACE_BOOL, !IsCodeSpaceObject(target));
+    DCHECK_IMPLIES(V8_ENABLE_SANDBOX_BOOL, !HeapLayout::InTrustedSpace(target));
+    DCHECK_IMPLIES(V8_EXTERNAL_CODE_SPACE_BOOL,
+                   !HeapLayout::InCodeSpace(target));
     Assembler::set_target_compressed_address_at(
         pc_, constant_pool_,
-        V8HeapCompressionScheme::CompressObject(target.ptr()),
+        V8HeapCompressionScheme::CompressObject(target.ptr()), &jit_allocation_,
         icache_flush_mode);
   } else {
     DCHECK(IsFullEmbeddedObject(rmode_));
     Assembler::set_target_address_at(pc_, constant_pool_, target.ptr(),
-                                     icache_flush_mode);
+                                     &jit_allocation_, icache_flush_mode);
   }
 }
 
@@ -713,7 +702,19 @@ void WritableRelocInfo::set_target_external_reference(
     Address target, ICacheFlushMode icache_flush_mode) {
   DCHECK(rmode_ == RelocInfo::EXTERNAL_REFERENCE);
   Assembler::set_target_address_at(pc_, constant_pool_, target,
-                                   icache_flush_mode);
+                                   &jit_allocation_, icache_flush_mode);
+}
+
+WasmCodePointer RelocInfo::wasm_code_pointer_table_entry() const {
+  DCHECK(rmode_ == WASM_CODE_POINTER_TABLE_ENTRY);
+  return WasmCodePointer{Assembler::uint32_constant_at(pc_, constant_pool_)};
+}
+
+void WritableRelocInfo::set_wasm_code_pointer_table_entry(
+    WasmCodePointer target, ICacheFlushMode icache_flush_mode) {
+  DCHECK(rmode_ == RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY);
+  Assembler::set_uint32_constant_at(pc_, constant_pool_, target.value(),
+                                    &jit_allocation_, icache_flush_mode);
 }
 
 Address RelocInfo::target_internal_reference() {
@@ -724,6 +725,11 @@ Address RelocInfo::target_internal_reference() {
 Address RelocInfo::target_internal_reference_address() {
   DCHECK(rmode_ == INTERNAL_REFERENCE);
   return pc_;
+}
+
+JSDispatchHandle RelocInfo::js_dispatch_handle() {
+  DCHECK(rmode_ == JS_DISPATCH_HANDLE);
+  return JSDispatchHandle(Assembler::uint32_constant_at(pc_, constant_pool_));
 }
 
 Builtin RelocInfo::target_builtin_at(Assembler* origin) {
@@ -744,10 +750,16 @@ uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
 
 void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
                                        uint32_t new_constant,
+                                       WritableJitAllocation* jit_allocation,
                                        ICacheFlushMode icache_flush_mode) {
   Instruction* instr = reinterpret_cast<Instruction*>(pc);
   CHECK(instr->IsLdrLiteralW());
-  WriteUnalignedValue<uint32_t>(target_pointer_address_at(pc), new_constant);
+  if (jit_allocation) {
+    jit_allocation->WriteUnalignedValue<uint32_t>(target_pointer_address_at(pc),
+                                                  new_constant);
+  } else {
+    WriteUnalignedValue<uint32_t>(target_pointer_address_at(pc), new_constant);
+  }
   // Icache flushing not needed for Ldr via the constant pool.
 }
 

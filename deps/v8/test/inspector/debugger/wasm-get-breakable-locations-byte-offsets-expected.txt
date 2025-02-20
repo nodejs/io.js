@@ -3,7 +3,7 @@ Tests breakable locations in wasm
 Running test: test
 Running testFunction...
 Script nr 0 parsed. URL: v8://test/instantiate
-Script nr 1 parsed. URL: wasm://wasm/354ada0e
+Script nr 1 parsed. URL: wasm://wasm/f3bba79a
 This is a wasm script (nr 0).
 Querying breakable locations for all wasm scripts now...
 Requesting all breakable locations in wasm script 0
@@ -32,46 +32,46 @@ Requesting breakable locations in offsets [50,60)
 [3] 0:57 || byte=11
 [4] 0:58 || byte=11
 Setting a breakpoint on each breakable location...
-Setting at wasm://wasm/354ada0e:0:40
+Setting at wasm://wasm/f3bba79a:0:40
 Success!
-Setting at wasm://wasm/354ada0e:0:41
+Setting at wasm://wasm/f3bba79a:0:41
 Success!
-Setting at wasm://wasm/354ada0e:0:43
+Setting at wasm://wasm/f3bba79a:0:43
 Success!
-Setting at wasm://wasm/354ada0e:0:45
+Setting at wasm://wasm/f3bba79a:0:45
 Success!
-Setting at wasm://wasm/354ada0e:0:48
+Setting at wasm://wasm/f3bba79a:0:48
 Success!
-Setting at wasm://wasm/354ada0e:0:50
+Setting at wasm://wasm/f3bba79a:0:50
 Success!
-Setting at wasm://wasm/354ada0e:0:54
+Setting at wasm://wasm/f3bba79a:0:54
 Success!
-Setting at wasm://wasm/354ada0e:0:56
+Setting at wasm://wasm/f3bba79a:0:56
 Success!
-Setting at wasm://wasm/354ada0e:0:57
+Setting at wasm://wasm/f3bba79a:0:57
 Success!
-Setting at wasm://wasm/354ada0e:0:58
+Setting at wasm://wasm/f3bba79a:0:58
 Success!
 Running wasm code...
 Missing breakpoints: 10
 Script nr 2 parsed. URL: v8://test/runWasm
-Stopped at wasm://wasm/354ada0e:0:48
+Stopped at wasm://wasm/f3bba79a:0:48
 Missing breakpoints: 9
-Stopped at wasm://wasm/354ada0e:0:50
+Stopped at wasm://wasm/f3bba79a:0:50
 Missing breakpoints: 8
-Stopped at wasm://wasm/354ada0e:0:54
+Stopped at wasm://wasm/f3bba79a:0:54
 Missing breakpoints: 7
-Stopped at wasm://wasm/354ada0e:0:40
+Stopped at wasm://wasm/f3bba79a:0:40
 Missing breakpoints: 6
-Stopped at wasm://wasm/354ada0e:0:41
+Stopped at wasm://wasm/f3bba79a:0:41
 Missing breakpoints: 5
-Stopped at wasm://wasm/354ada0e:0:43
+Stopped at wasm://wasm/f3bba79a:0:43
 Missing breakpoints: 4
-Stopped at wasm://wasm/354ada0e:0:45
+Stopped at wasm://wasm/f3bba79a:0:45
 Missing breakpoints: 3
-Stopped at wasm://wasm/354ada0e:0:56
+Stopped at wasm://wasm/f3bba79a:0:56
 Missing breakpoints: 2
-Stopped at wasm://wasm/354ada0e:0:57
+Stopped at wasm://wasm/f3bba79a:0:57
 Missing breakpoints: 1
-Stopped at wasm://wasm/354ada0e:0:58
+Stopped at wasm://wasm/f3bba79a:0:58
 Missing breakpoints: 0

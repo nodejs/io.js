@@ -16,7 +16,6 @@
 #include "src/compiler/common-operator.h"
 #include "src/compiler/compiler-source-position-table.h"
 #include "src/compiler/diamond.h"
-#include "src/compiler/graph-visualizer.h"
 #include "src/compiler/js-heap-broker.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/node-matchers.h"
@@ -27,6 +26,7 @@
 #include "src/compiler/representation-change.h"
 #include "src/compiler/simplified-lowering-verifier.h"
 #include "src/compiler/simplified-operator.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 #include "src/compiler/type-cache.h"
 #include "src/numbers/conversions-inl.h"
 #include "src/objects/objects.h"
@@ -99,7 +99,7 @@ MachineRepresentation MachineRepresentationFromArrayType(
     case kExternalBigUint64Array:
       return MachineRepresentation::kWord64;
     case kExternalFloat16Array:
-      UNIMPLEMENTED();
+      return MachineRepresentation::kWord16;
   }
   UNREACHABLE();
 }
@@ -494,6 +494,11 @@ class RepresentationSelector {
                                    info->restriction_type(), graph_zone());
         break;
 
+      case IrOpcode::kCheckNumberFitsInt32:
+        new_type = Type::Intersect(op_typer_.CheckNumberFitsInt32(input0_type),
+                                   info->restriction_type(), graph_zone());
+        break;
+
       case IrOpcode::kPhi: {
         new_type = TypePhi(node);
         if (!type.IsInvalid()) {
@@ -514,6 +519,14 @@ class RepresentationSelector {
       }
 
       case IrOpcode::kSelect: {
+        const auto& p = SelectParametersOf(node->op());
+        if (p.semantics() == BranchSemantics::kMachine) {
+          if (type.IsInvalid()) {
+            GetInfo(node)->set_feedback_type(NodeProperties::GetType(node));
+            return true;
+          }
+          return false;
+        }
         new_type = TypeSelect(node);
         break;
       }
@@ -758,7 +771,7 @@ class RepresentationSelector {
     }
   }
 
-  void RunVerifyPhase(OptimizedCompilationInfo* info) {
+  void RunVerifyPhase(OptimizedCompilationInfo* compilation_info) {
     DCHECK_NOT_NULL(verifier_);
 
     TRACE("--{Verify Phase}--\n");
@@ -790,11 +803,11 @@ class RepresentationSelector {
     }
 
     // Print graph.
-    if (info != nullptr && info->trace_turbo_json()) {
+    if (compilation_info != nullptr && compilation_info->trace_turbo_json()) {
       UnparkedScopeIfNeeded scope(broker_);
       AllowHandleDereference allow_deref;
 
-      TurboJsonFile json_of(info, std::ios_base::app);
+      TurboJsonFile json_of(compilation_info, std::ios_base::app);
       JSONGraphWriter writer(json_of, graph(), source_positions_,
                              node_origins_);
       writer.PrintPhase("V8.TFSimplifiedLowering [after lower]");
@@ -806,11 +819,11 @@ class RepresentationSelector {
     }
 
     // Print graph.
-    if (info != nullptr && info->trace_turbo_json()) {
+    if (compilation_info != nullptr && compilation_info->trace_turbo_json()) {
       UnparkedScopeIfNeeded scope(broker_);
       AllowHandleDereference allow_deref;
 
-      TurboJsonFile json_of(info, std::ios_base::app);
+      TurboJsonFile json_of(compilation_info, std::ios_base::app);
       JSONGraphWriterWithVerifierTypes writer(
           json_of, graph(), source_positions_, node_origins_, verifier_);
       writer.PrintPhase("V8.TFSimplifiedLowering [after verify]");
@@ -1943,6 +1956,7 @@ class RepresentationSelector {
   UseInfo UseInfoForFastApiCallArgument(CTypeInfo type,
                                         CFunctionInfo::Int64Representation repr,
                                         FeedbackSource const& feedback) {
+    START_ALLOW_USE_DEPRECATED()
     switch (type.GetSequenceType()) {
       case CTypeInfo::SequenceType::kScalar: {
         uint8_t flags = uint8_t(type.GetFlags());
@@ -1993,13 +2007,11 @@ class RepresentationSelector {
         CHECK_EQ(type.GetType(), CTypeInfo::Type::kVoid);
         return UseInfo::AnyTagged();
       }
-      case CTypeInfo::SequenceType::kIsTypedArray: {
-        return UseInfo::AnyTagged();
-      }
       default: {
         UNREACHABLE();  // TODO(mslekova): Implement array buffers.
       }
     }
+    END_ALLOW_USE_DEPRECATED()
   }
 
   static constexpr int kInitialArgumentsCount = 10;
@@ -2013,7 +2025,7 @@ class RepresentationSelector {
     // argument, which must be a JSArray in one function and a TypedArray in the
     // other function, and both JSArrays and TypedArrays have the same UseInfo
     // UseInfo::AnyTagged(). All the other argument types must match.
-    const CFunctionInfo* c_signature = op_params.c_functions()[0].signature;
+    const CFunctionInfo* c_signature = op_params.c_function().signature;
     const int c_arg_count = c_signature->ArgumentCount();
     CallDescriptor* call_descriptor = op_params.descriptor();
     // Arguments for CallApiCallbackOptimizedXXX builtin (including context)
@@ -2055,12 +2067,8 @@ class RepresentationSelector {
 
     // Effect and Control.
     ProcessRemainingInputs<T>(node, value_input_count);
-    if (op_params.c_functions().empty()) {
-      SetOutput<T>(node, MachineRepresentation::kTagged);
-      return;
-    }
 
-    CTypeInfo return_type = op_params.c_functions()[0].signature->ReturnInfo();
+    CTypeInfo return_type = op_params.c_function().signature->ReturnInfo();
     switch (return_type.GetType()) {
       case CTypeInfo::Type::kBool:
         SetOutput<T>(node, MachineRepresentation::kBit);
@@ -2208,7 +2216,8 @@ class RepresentationSelector {
   }
 
 #if V8_ENABLE_WEBASSEMBLY
-  static MachineType MachineTypeForWasmReturnType(wasm::ValueType type) {
+  static MachineType MachineTypeForWasmReturnType(
+      wasm::CanonicalValueType type) {
     switch (type.kind()) {
       case wasm::kI32:
         return MachineType::Int32();
@@ -2226,7 +2235,8 @@ class RepresentationSelector {
     }
   }
 
-  UseInfo UseInfoForJSWasmCallArgument(Node* input, wasm::ValueType type,
+  UseInfo UseInfoForJSWasmCallArgument(Node* input,
+                                       wasm::CanonicalValueType type,
                                        FeedbackSource const& feedback) {
     // If the input type is a Number or Oddball, we can directly convert the
     // input into the Wasm native type of the argument. If not, we return
@@ -2260,7 +2270,7 @@ class RepresentationSelector {
     JSWasmCallNode n(node);
 
     JSWasmCallParameters const& params = n.Parameters();
-    const wasm::FunctionSig* wasm_signature = params.signature();
+    const wasm::CanonicalSig* wasm_signature = params.signature();
     int wasm_arg_count = static_cast<int>(wasm_signature->parameter_count());
     DCHECK_EQ(wasm_arg_count, n.ArgumentCount());
 
@@ -2439,8 +2449,19 @@ class RepresentationSelector {
         ProcessInput<T>(node, 0, UseInfo::TruncatingWord32());
         EnqueueInput<T>(node, NodeProperties::FirstControlIndex(node));
         return;
-      case IrOpcode::kSelect:
-        return VisitSelect<T>(node, truncation, lowering);
+      case IrOpcode::kSelect: {
+        const auto& p = SelectParametersOf(node->op());
+        if (p.semantics() == BranchSemantics::kMachine) {
+          // If this is a machine select, all inputs are machine operators.
+          ProcessInput<T>(node, 0, UseInfo::Any());
+          ProcessInput<T>(node, 1, UseInfo::Any());
+          ProcessInput<T>(node, 2, UseInfo::Any());
+          SetOutput<T>(node, p.representation());
+        } else {
+          VisitSelect<T>(node, truncation, lowering);
+        }
+        return;
+      }
       case IrOpcode::kPhi:
         return VisitPhi<T>(node, truncation, lowering);
       case IrOpcode::kCall:
@@ -3441,6 +3462,20 @@ class RepresentationSelector {
         }
         return;
       }
+      case IrOpcode::kNumberToFloat16RawBits: {
+        VisitUnop<T>(node, UseInfo::TruncatingFloat64(),
+                     MachineRepresentation::kWord16);
+
+        if (lower<T>()) lowering->DoNumberToFloat16RawBits(node);
+        return;
+      }
+      case IrOpcode::kFloat16RawBitsToNumber: {
+        VisitUnop<T>(node, UseInfo::TruncatingFloat16RawBits(),
+                     MachineRepresentation::kFloat64);
+
+        if (lower<T>()) lowering->DoFloat16RawBitsToNumber(node);
+        return;
+      }
       case IrOpcode::kIntegral32OrMinusZeroToBigInt: {
         VisitUnop<T>(node, UseInfo::Word64(kIdentifyZeros),
                      MachineRepresentation::kWord64);
@@ -3717,12 +3752,18 @@ class RepresentationSelector {
         SetOutput<T>(node, MachineRepresentation::kTaggedSigned);
         return;
       }
-      case IrOpcode::kStringLength: {
+      case IrOpcode::kStringLength:
+      case IrOpcode::kStringWrapperLength: {
         // TODO(bmeurer): The input representation should be TaggedPointer.
         // Fix this once we have a dedicated StringConcat/JSStringAdd
         // operator, which marks it's output as TaggedPointer properly.
         VisitUnop<T>(node, UseInfo::AnyTagged(),
                      MachineRepresentation::kWord32);
+        return;
+      }
+      case IrOpcode::kTypedArrayLength: {
+        VisitUnop<T>(node, UseInfo::AnyTagged(),
+                     MachineType::PointerRepresentation());
         return;
       }
       case IrOpcode::kStringSubstring: {
@@ -3766,6 +3807,16 @@ class RepresentationSelector {
       case IrOpcode::kCheckNumber: {
         Type const input_type = TypeOf(node->InputAt(0));
         if (input_type.Is(Type::Number())) {
+          VisitNoop<T>(node, truncation);
+        } else {
+          VisitUnop<T>(node, UseInfo::AnyTagged(),
+                       MachineRepresentation::kTagged);
+        }
+        return;
+      }
+      case IrOpcode::kCheckNumberFitsInt32: {
+        Type const input_type = TypeOf(node->InputAt(0));
+        if (input_type.Is(Type::Signed32())) {
           VisitNoop<T>(node, truncation);
         } else {
           VisitUnop<T>(node, UseInfo::AnyTagged(),
@@ -4461,6 +4512,11 @@ class RepresentationSelector {
             MachineRepresentation::kNone);
       }
       case IrOpcode::kTransitionElementsKind: {
+        return VisitUnop<T>(
+            node, UseInfo::CheckedHeapObjectAsTaggedPointer(FeedbackSource()),
+            MachineRepresentation::kNone);
+      }
+      case IrOpcode::kTransitionElementsKindOrCheckMap: {
         return VisitUnop<T>(
             node, UseInfo::CheckedHeapObjectAsTaggedPointer(FeedbackSource()),
             MachineRepresentation::kNone);
@@ -5617,6 +5673,14 @@ void SimplifiedLowering::DoIntegerToUint8Clamped(Node* node) {
           max));
   node->AppendInput(graph()->zone(), min);
   ChangeOp(node, common()->Select(MachineRepresentation::kFloat64));
+}
+
+void SimplifiedLowering::DoNumberToFloat16RawBits(Node* node) {
+  ChangeOp(node, machine()->TruncateFloat64ToFloat16RawBits().placeholder());
+}
+
+void SimplifiedLowering::DoFloat16RawBitsToNumber(Node* node) {
+  ChangeOp(node, machine()->ChangeFloat16RawBitsToFloat64().placeholder());
 }
 
 void SimplifiedLowering::DoNumberToUint8Clamped(Node* node) {

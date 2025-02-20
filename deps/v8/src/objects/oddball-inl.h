@@ -29,17 +29,17 @@ void Oddball::set_to_number_raw_as_bits(uint64_t bits) {
 
 Tagged<String> Oddball::to_string() const { return to_string_.load(); }
 void Oddball::set_to_string(Tagged<String> value, WriteBarrierMode mode) {
-  to_string_.store(this, value);
+  to_string_.store(this, value, mode);
 }
 
 Tagged<Number> Oddball::to_number() const { return to_number_.load(); }
 void Oddball::set_to_number(Tagged<Number> value, WriteBarrierMode mode) {
-  to_number_.store(this, value);
+  to_number_.store(this, value, mode);
 }
 
 Tagged<String> Oddball::type_of() const { return type_of_.load(); }
 void Oddball::set_type_of(Tagged<String> value, WriteBarrierMode mode) {
-  type_of_.store(this, value);
+  type_of_.store(this, value, mode);
 }
 
 uint8_t Oddball::kind() const { return kind_.load().value(); }

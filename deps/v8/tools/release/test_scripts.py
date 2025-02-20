@@ -35,7 +35,6 @@ import unittest
 
 import auto_push
 from auto_push import LastReleaseBailout
-import auto_roll
 import common_includes
 from common_includes import *
 import create_release
@@ -503,104 +502,6 @@ test_tag
 """
     self.assertEqual(watchlists_content, expected_watchlists_content)
 
-  C_V8_22624_LOG = """V8 CL.
-
-git-svn-id: https://v8.googlecode.com/svn/branches/bleeding_edge@22624 123
-
-"""
-
-  C_V8_123455_LOG = """V8 CL.
-
-git-svn-id: https://v8.googlecode.com/svn/branches/bleeding_edge@123455 123
-
-"""
-
-  C_V8_123456_LOG = """V8 CL.
-
-git-svn-id: https://v8.googlecode.com/svn/branches/bleeding_edge@123456 123
-
-"""
-
-  ROLL_HASH = "1234567890123456789012345678901234567890"
-  HASH_ALT_1 = "9999999999999999999999999999999999999999"
-  ROLL_COMMIT_MSG = f"""Update V8 to version 3.22.4.
-
-Summary of changes available at:
-https://chromium.googlesource.com/v8/v8/+log/last_rol..{ROLL_HASH[:8]}
-
-Please follow these instructions for assigning/CC'ing issues:
-https://v8.dev/docs/triage-issues
-
-Please close rolling in case of a roll revert:
-https://v8-roll.appspot.com/
-This only works with a Google account.
-
-CQ_INCLUDE_TRYBOTS=luci.chromium.try:linux-blink-rel
-CQ_INCLUDE_TRYBOTS=luci.chromium.try:linux_optional_gpu_tests_rel
-CQ_INCLUDE_TRYBOTS=luci.chromium.try:mac_optional_gpu_tests_rel
-CQ_INCLUDE_TRYBOTS=luci.chromium.try:win_optional_gpu_tests_rel
-CQ_INCLUDE_TRYBOTS=luci.chromium.try:android_optional_gpu_tests_rel
-CQ_INCLUDE_TRYBOTS=luci.chromium.try:dawn-linux-x64-deps-rel
-
-R=reviewer@chromium.org"""
-
-  # Snippet from the original DEPS file.
-  FAKE_DEPS = """
-vars = {
-  "v8_revision": "last_roll_hsh",
-}
-deps = {
-  "src/v8":
-    (Var("googlecode_url") % "v8") + "/" + Var("v8_branch") + "@" +
-    Var("v8_revision"),
-}
-"""
-
-  def testChromiumRoll(self):
-    # Setup fake directory structures.
-    TEST_CONFIG["CHROMIUM"] = self.MakeEmptyTempDirectory()
-    json_output_file = os.path.join(TEST_CONFIG["CHROMIUM"], "out.json")
-    TextToFile(self.FAKE_DEPS, os.path.join(TEST_CONFIG["CHROMIUM"], "DEPS"))
-    TextToFile("", os.path.join(TEST_CONFIG["CHROMIUM"], ".git"))
-    chrome_dir = TEST_CONFIG["CHROMIUM"]
-    os.makedirs(os.path.join(chrome_dir, "v8"))
-
-    def WriteDeps():
-      TextToFile("Some line\n   \"v8_revision\": \"22624\",\n  some line",
-                 os.path.join(chrome_dir, "DEPS"))
-
-    expectations = [
-      Cmd("git fetch origin", ""),
-      Cmd("git fetch origin +refs/tags/*:refs/tags/*", ""),
-      Cmd(f"git log -1 --format=%s {self.ROLL_HASH}", "Version 3.22.4\n"),
-      Cmd(f"git tag --points-at {self.ROLL_HASH}", "3.22.4\n3.22.4-pgo"),
-      Cmd("git tag --points-at last_roll_hsh", "3.22.2.1\n22.2.1-pgo"),
-      Cmd("git checkout -f main", "", cwd=chrome_dir),
-      Cmd("git branch", "", cwd=chrome_dir),
-      Cmd("git new-branch work-branch", "", cwd=chrome_dir),
-      Cmd(f"gclient setdep -r src/v8@{self.ROLL_HASH}", "", cb=WriteDeps,
-          cwd=chrome_dir),
-      Cmd("git add \"DEPS\"", "", cwd=chrome_dir),
-      Cmd(("git -c diff.ignoreSubmodules=all commit -m \"%s\" "
-           "--author \"author@chromium.org <author@chromium.org>\"" %
-           self.ROLL_COMMIT_MSG),
-          "", cwd=chrome_dir),
-      Cmd("git cl upload --send-mail -f "
-          "--cq-dry-run --set-bot-commit --bypass-hooks", "",
-          cwd=chrome_dir),
-      Cmd("git checkout -f main", "", cwd=chrome_dir),
-      Cmd("git branch -D work-branch", "", cwd=chrome_dir),
-    ]
-    self.Expect(expectations)
-
-    args = ["-a", "author@chromium.org", "-c", chrome_dir,
-            "--last-roll", "last_roll_hsh", "--revision", self.ROLL_HASH,
-            "-r", "reviewer@chromium.org", "--json-output", json_output_file]
-    auto_roll.AutoRoll(TEST_CONFIG, self).Run(args)
-
-    deps = FileToText(os.path.join(chrome_dir, "DEPS"))
-    self.assertTrue(re.search("\"v8_revision\": \"22624\"", deps))
-
   def testCheckLastPushRecently(self):
     self.Expect([
       Cmd("git fetch origin +refs/tags/*:refs/tags/*", ""),
@@ -806,9 +707,6 @@ Merged: Revert \"Something\"
 Revision: ab56789
 
 BUG=123,234,345,456,567,v8:123
-NOTRY=true
-NOPRESUBMIT=true
-NOTREECHECKS=true
 """
 
     def VerifyLand():

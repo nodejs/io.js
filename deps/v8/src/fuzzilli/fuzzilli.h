@@ -31,8 +31,8 @@ class FuzzilliExtension : public v8::Extension {
 
  private:
   static const char* BuildSource(char* buf, size_t size, const char* fun_name) {
-    base::SNPrintF(base::Vector<char>(buf, static_cast<int>(size)),
-                   "native function %s();", fun_name);
+    base::SNPrintF(base::VectorOf(buf, size), "native function %s();",
+                   fun_name);
     return buf;
   }
 

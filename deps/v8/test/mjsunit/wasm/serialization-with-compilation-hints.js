@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --wasm-dynamic-tiering --liftoff
-// Flags: --no-wasm-native-module-cache-enabled
+// Flags: --no-wasm-native-module-cache
 // Make the test faster:
 // Flags: --wasm-tiering-budget=1000
 

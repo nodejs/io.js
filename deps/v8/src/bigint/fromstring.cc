@@ -59,7 +59,7 @@ void ProcessorImpl::FromStringClassic(RWDigits Z,
 //   just copy the previous result. (In theory we could even de-dupe them, but
 //   as the parts/multipliers grow, we'll need most of the memory anyway.)
 //   Copied results are marked with a * below.
-// - We can re-use memory using a system of three buffers whose usage rotates:
+// - We can reuse memory using a system of three buffers whose usage rotates:
 //   - one is considered empty, and is overwritten with the new parts,
 //   - one holds the multipliers (and will be "empty" in the next round), and
 //   - one initially holds the parts and is overwritten with the new multipliers

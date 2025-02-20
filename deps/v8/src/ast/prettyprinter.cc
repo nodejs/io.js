@@ -51,13 +51,13 @@ CallPrinter::ErrorHint CallPrinter::GetErrorHint() const {
   return ErrorHint::kNone;
 }
 
-Handle<String> CallPrinter::Print(FunctionLiteral* program, int position) {
+DirectHandle<String> CallPrinter::Print(FunctionLiteral* program,
+                                        int position) {
   num_prints_ = 0;
   position_ = position;
   Find(program);
-  return indirect_handle(builder_.Finish().ToHandleChecked(), isolate_);
+  return builder_.Finish().ToHandleChecked();
 }
-
 
 void CallPrinter::Find(AstNode* node, bool print) {
   if (found_) {
@@ -432,14 +432,17 @@ void CallPrinter::VisitProperty(Property* node) {
 void CallPrinter::VisitCall(Call* node) {
   bool was_found = false;
   if (node->position() == position_) {
-    if (error_in_spread_args_ == SpreadErrorInArgsHint::kErrorInArgs) {
-      found_ = true;
-      spread_arg_ = node->arguments()->last()->AsSpread()->expression();
-      Find(spread_arg_, true);
+    if (error_in_spread_args_ == SpreadErrorInArgsHint::kErrorInArgs &&
+        !node->arguments()->is_empty()) {
+      if (const Spread* spread = node->arguments()->last()->AsSpread()) {
+        found_ = true;
+        spread_arg_ = spread->expression();
+        Find(spread_arg_, true);
 
-      done_ = true;
-      found_ = false;
-      return;
+        done_ = true;
+        found_ = false;
+        return;
+      }
     }
 
     is_call_error_ = true;
@@ -468,14 +471,17 @@ void CallPrinter::VisitCall(Call* node) {
 void CallPrinter::VisitCallNew(CallNew* node) {
   bool was_found = false;
   if (node->position() == position_) {
-    if (error_in_spread_args_ == SpreadErrorInArgsHint::kErrorInArgs) {
-      found_ = true;
-      spread_arg_ = node->arguments()->last()->AsSpread()->expression();
-      Find(spread_arg_, true);
+    if (error_in_spread_args_ == SpreadErrorInArgsHint::kErrorInArgs &&
+        !node->arguments()->is_empty()) {
+      if (const Spread* spread = node->arguments()->last()->AsSpread()) {
+        found_ = true;
+        spread_arg_ = spread->expression();
+        Find(spread_arg_, true);
 
-      done_ = true;
-      found_ = false;
-      return;
+        done_ = true;
+        found_ = false;
+        return;
+      }
     }
 
     is_call_error_ = true;
@@ -618,7 +624,7 @@ void CallPrinter::FindArguments(const ZonePtrList<Expression>* arguments) {
   }
 }
 
-void CallPrinter::PrintLiteral(Handle<Object> value, bool quote) {
+void CallPrinter::PrintLiteral(DirectHandle<Object> value, bool quote) {
   if (IsString(*value)) {
     if (quote) Print("\"");
     Print(Cast<String>(value));
@@ -635,10 +641,10 @@ void CallPrinter::PrintLiteral(Handle<Object> value, bool quote) {
     Print(isolate_->factory()->NumberToString(value));
   } else if (IsSymbol(*value)) {
     // Symbols can only occur as literals if they were inserted by the parser.
-    PrintLiteral(handle(Cast<Symbol>(value)->description(), isolate_), false);
+    PrintLiteral(direct_handle(Cast<Symbol>(value)->description(), isolate_),
+                 false);
   }
 }
-
 
 void CallPrinter::PrintLiteral(const AstRawString* value, bool quote) {
   PrintLiteral(value->string(), quote);
@@ -695,6 +701,9 @@ void AstPrinter::PrintLiteral(Literal* literal, bool quote) {
   switch (literal->type()) {
     case Literal::kString:
       PrintLiteral(literal->AsRawString(), quote);
+      break;
+    case Literal::kConsString:
+      PrintLiteral(literal->AsConsString(), quote);
       break;
     case Literal::kSmi:
       Print("%d", Smi::ToInt(literal->AsSmiLiteral()));
@@ -1209,7 +1218,7 @@ void AstPrinter::VisitConditionalChain(ConditionalChain* node) {
   PrintIndentedVisit("CONDITION", node->condition_at(0));
   PrintIndentedVisit("THEN", node->then_expression_at(0));
   for (size_t i = 1; i < node->conditional_chain_length(); ++i) {
-    IndentedScope indent(this, "ELSE IF", node->condition_position_at(i));
+    IndentedScope inner_indent(this, "ELSE IF", node->condition_position_at(i));
     PrintIndentedVisit("CONDITION", node->condition_at(i));
     PrintIndentedVisit("THEN", node->then_expression_at(i));
   }

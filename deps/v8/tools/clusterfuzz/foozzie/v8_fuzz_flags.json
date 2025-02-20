@@ -28,9 +28,12 @@
   [0.25, "--no-lazy-feedback-allocation"],
   [0.1, "--no-wasm-generic-wrapper"],
   [0.2, "--turboshaft"],
-  [0.05, "--turboshaft-from-maglev"],
+  [0.05, "--turbolev"],
+  [0.5, "--optimize-on-next-call-optimizes-to-maglev"],
   [0.0001, "--simulate-errors"],
-  [0.25, "--minor-ms"],
+  [0.1, "--minor-ms"],
   [0.1, "--shared-string-table"],
-  [0.1, "--stress-wasm-memory-moving"]
+  [0.1, "--shared-heap"],
+  [0.1, "--stress-wasm-memory-moving"],
+  [0.1, "--stress-scavenger-pinning-objects-random"]
 ]

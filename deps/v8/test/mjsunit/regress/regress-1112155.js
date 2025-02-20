@@ -14,9 +14,9 @@ f(v);
 f(v);
 assertOptimized(f);
 v.b = {x: 20};
-assertEquals(f(v).x, 20);
 // Must deoptimize because of field-rep changes for field 'b'
 assertUnoptimized(f);
+assertEquals(f(v).x, 20);
 
 function f0(v) {
   return v.b;

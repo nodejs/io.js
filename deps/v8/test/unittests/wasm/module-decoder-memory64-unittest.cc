@@ -22,9 +22,12 @@ class Memory64DecodingTest : public TestWithIsolateAndZone {
     static constexpr WasmEnabledFeatures kEnabledFeatures{
         WasmEnabledFeature::memory64};
     bool kValidateFunctions = true;
+    WasmDetectedFeatures detected_features;
     ModuleResult result =
         DecodeWasmModule(kEnabledFeatures, base::VectorOf(module_bytes),
-                         kValidateFunctions, kWasmOrigin);
+                         kValidateFunctions, kWasmOrigin, &detected_features);
+    CHECK_EQ(WasmDetectedFeatures{{WasmDetectedFeature::memory64}},
+             detected_features);
     EXPECT_TRUE(result.ok()) << result.error().message();
     return result.ok() ? std::move(result).value() : nullptr;
   }
@@ -39,7 +42,7 @@ TEST_F(Memory64DecodingTest, MemoryLimitLEB64) {
   const WasmMemory* memory = &module->memories[0];
   EXPECT_EQ(5u, memory->initial_pages);
   EXPECT_FALSE(memory->has_maximum_pages);
-  EXPECT_TRUE(memory->is_memory64);
+  EXPECT_TRUE(memory->is_memory64());
 
   // 2 bytes LEB (32-bit range), with maximum.
   module = DecodeModule({SECTION(Memory, ENTRY_COUNT(1), kMemory64WithMaximum,
@@ -50,7 +53,7 @@ TEST_F(Memory64DecodingTest, MemoryLimitLEB64) {
   EXPECT_EQ(7u, memory->initial_pages);
   EXPECT_TRUE(memory->has_maximum_pages);
   EXPECT_EQ(47u, memory->maximum_pages);
-  EXPECT_TRUE(memory->is_memory64);
+  EXPECT_TRUE(memory->is_memory64());
 
   // 10 bytes LEB, 32-bit range, no maximum.
   module = DecodeModule(
@@ -60,7 +63,7 @@ TEST_F(Memory64DecodingTest, MemoryLimitLEB64) {
   memory = &module->memories[0];
   EXPECT_EQ(2u, memory->initial_pages);
   EXPECT_FALSE(memory->has_maximum_pages);
-  EXPECT_TRUE(memory->is_memory64);
+  EXPECT_TRUE(memory->is_memory64());
 
   // 10 bytes LEB, 32-bit range, with maximum.
   module = DecodeModule({SECTION(Memory, ENTRY_COUNT(1), kMemory64WithMaximum,
@@ -71,7 +74,7 @@ TEST_F(Memory64DecodingTest, MemoryLimitLEB64) {
   EXPECT_EQ(2u, memory->initial_pages);
   EXPECT_TRUE(memory->has_maximum_pages);
   EXPECT_EQ(6u, memory->maximum_pages);
-  EXPECT_TRUE(memory->is_memory64);
+  EXPECT_TRUE(memory->is_memory64());
 
   // TODO(clemensb): Test numbers outside the 32-bit range once that's
   // supported.

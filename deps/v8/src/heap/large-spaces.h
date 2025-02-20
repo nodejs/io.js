@@ -103,7 +103,7 @@ class V8_EXPORT_PRIVATE LargeObjectSpace : public Space {
     pending_object_.store(0, std::memory_order_release);
   }
 
-  base::SharedMutex* pending_allocation_mutex() {
+  base::SpinningMutex* pending_allocation_mutex() {
     return &pending_allocation_mutex_;
   }
 
@@ -133,7 +133,7 @@ class V8_EXPORT_PRIVATE LargeObjectSpace : public Space {
   std::atomic<Address> pending_object_;
 
   // Used to protect pending_object_.
-  base::SharedMutex pending_allocation_mutex_;
+  base::SpinningMutex pending_allocation_mutex_;
 
   AllocationCounter allocation_counter_;
 

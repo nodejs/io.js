@@ -17,14 +17,14 @@
 // -----------------------------------------------------------------------------
 //
 // This file contains mock distribution functions for use alongside an
-// `absl::MockingBitGen` object within the Googletest testing framework. Such
+// `absl::MockingBitGen` object within the GoogleTest testing framework. Such
 // mocks are useful to provide deterministic values as return values within
 // (otherwise random) Abseil distribution functions.
 //
 // The return type of each function is a mock expectation object which
 // is used to set the match result.
 //
-// More information about the Googletest testing framework is available at
+// More information about the GoogleTest testing framework is available at
 // https://github.com/google/googletest
 //
 // EXPECT_CALL and ON_CALL need to be made within the same DLL component as

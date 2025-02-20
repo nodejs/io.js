@@ -61,7 +61,7 @@ void SameThreadEnabledCheckingPolicyBase::CheckPointerImpl(
   // Member references should never mix heaps.
   DCHECK_EQ(heap_, &base_page->heap());
 
-  DCHECK_EQ(heap_->GetCreationThreadId(), v8::base::OS::GetCurrentThreadId());
+  DCHECK(heap_->CurrentThreadIsHeapThread());
 
   // Header checks.
   const HeapObjectHeader* header = nullptr;

@@ -27,7 +27,7 @@ class TemplateObjectDescription final
     : public TorqueGeneratedTemplateObjectDescription<TemplateObjectDescription,
                                                       Struct> {
  public:
-  static Handle<JSArray> GetTemplateObject(
+  static DirectHandle<JSArray> GetTemplateObject(
       Isolate* isolate, DirectHandle<NativeContext> native_context,
       DirectHandle<TemplateObjectDescription> description,
       DirectHandle<SharedFunctionInfo> shared_info, int slot_id);

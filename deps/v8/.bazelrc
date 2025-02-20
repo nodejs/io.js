@@ -2,10 +2,14 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
+# Enable Bzlmod for every Bazel command
+common --enable_bzlmod
+
 # Pass CC, CXX and PATH from the environment
 build --action_env=CC
 build --action_env=CXX
 build --action_env=PATH
+build --copt=-std=c++20
 
 # Use Clang compiler
 build:clang --action_env=BAZEL_COMPILER=clang
@@ -17,7 +21,8 @@ build:debug --compilation_mode=dbg
 build:debug --config=v8_enable_debugging_features
 build:debug --//:v8_enable_fast_mksnapshot
 build:debug --//:v8_enable_backtrace
-build:debug --//:v8_enable_handle_zapping
+build:debug --//:v8_enable_local_handle_zapping
+build:debug --//:v8_enable_global_handle_zapping
 
 # v8_enable_debugging_features flags
 build:v8_enable_debugging_features --//:v8_enable_verify_heap

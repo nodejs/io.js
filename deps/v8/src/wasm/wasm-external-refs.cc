@@ -14,6 +14,7 @@
 #include "src/common/assert-scope.h"
 #include "src/execution/pointer-authentication.h"
 #include "src/numbers/conversions.h"
+#include "src/numbers/ieee754.h"
 #include "src/roots/roots-inl.h"
 #include "src/utils/memcopy.h"
 #include "src/wasm/float16.h"
@@ -361,7 +362,7 @@ uint64_t word64_ror_wrapper(uint64_t input, uint32_t shift) {
 void float64_pow_wrapper(Address data) {
   double x = ReadUnalignedValue<double>(data);
   double y = ReadUnalignedValue<double>(data + sizeof(x));
-  WriteUnalignedValue<double>(data, base::ieee754::pow(x, y));
+  WriteUnalignedValue<double>(data, math::pow(x, y));
 }
 
 template <typename T, T (*float_round_op)(T)>
@@ -834,7 +835,8 @@ void array_copy_wrapper(Address raw_dst_array, uint32_t dst_index,
       dst_array.ptr() == src_array.ptr() &&
       (dst_index < src_index ? dst_index + length > src_index
                              : src_index + length > dst_index);
-  wasm::ValueType element_type = src_array->type()->element_type();
+  wasm::CanonicalValueType element_type =
+      src_array->map()->wasm_type_info()->element_type();
   if (element_type.is_reference()) {
     ObjectSlot dst_slot = dst_array->ElementSlot(dst_index);
     ObjectSlot src_slot = src_array->ElementSlot(src_index);
@@ -867,24 +869,23 @@ void array_fill_wrapper(Address raw_array, uint32_t index, uint32_t length,
   ValueType type = ValueType::FromRawBitField(raw_type);
   int8_t* initial_element_address = reinterpret_cast<int8_t*>(
       ArrayElementAddress(raw_array, index, type.value_kind_size()));
-  // Stack pointers are only aligned to 4 bytes.
-  int64_t initial_value = base::ReadUnalignedValue<int64_t>(initial_value_addr);
   const int bytes_to_set = length * type.value_kind_size();
-
-  // If the initial value is zero, we memset the array.
-  if (type.is_numeric() && initial_value == 0) {
-    std::memset(initial_element_address, 0, bytes_to_set);
-    return;
-  }
 
   // We implement the general case by setting the first 8 bytes manually, then
   // filling the rest by exponentially growing {memcpy}s.
 
-  DCHECK_GE(static_cast<size_t>(bytes_to_set), sizeof(int64_t));
+  CHECK_GE(static_cast<size_t>(bytes_to_set), sizeof(int64_t));
 
   switch (type.kind()) {
     case kI64:
     case kF64: {
+      // Stack pointers are only aligned to 4 bytes.
+      int64_t initial_value =
+          base::ReadUnalignedValue<int64_t>(initial_value_addr);
+      if (initial_value == 0) {
+        std::memset(initial_element_address, 0, bytes_to_set);
+        return;
+      }
       // Array elements are only aligned to 4 bytes, therefore
       // `initial_element_address` may be misaligned as a 64-bit pointer.
       base::WriteUnalignedValue<int64_t>(
@@ -893,38 +894,62 @@ void array_fill_wrapper(Address raw_array, uint32_t index, uint32_t length,
     }
     case kI32:
     case kF32: {
+      int32_t initial_value = *reinterpret_cast<int32_t*>(initial_value_addr);
+      if (initial_value == 0) {
+        std::memset(initial_element_address, 0, bytes_to_set);
+        return;
+      }
       int32_t* base = reinterpret_cast<int32_t*>(initial_element_address);
-      base[0] = base[1] = static_cast<int32_t>(initial_value);
+      base[0] = base[1] = initial_value;
       break;
     }
     case kF16:
     case kI16: {
+      // The array.fill input is an i32!
+      int16_t initial_value = *reinterpret_cast<int32_t*>(initial_value_addr);
+      if (initial_value == 0) {
+        std::memset(initial_element_address, 0, bytes_to_set);
+        return;
+      }
       int16_t* base = reinterpret_cast<int16_t*>(initial_element_address);
-      base[0] = base[1] = base[2] = base[3] =
-          static_cast<int16_t>(initial_value);
+      base[0] = base[1] = base[2] = base[3] = initial_value;
       break;
     }
     case kI8: {
+      // The array.fill input is an i32!
+      int8_t initial_value = *reinterpret_cast<int32_t*>(initial_value_addr);
+      if (initial_value == 0) {
+        std::memset(initial_element_address, 0, bytes_to_set);
+        return;
+      }
       int8_t* base = reinterpret_cast<int8_t*>(initial_element_address);
       for (size_t i = 0; i < sizeof(int64_t); i++) {
-        base[i] = static_cast<int8_t>(initial_value);
+        base[i] = initial_value;
       }
       break;
     }
     case kRefNull:
-    case kRef:
+    case kRef: {
+      intptr_t uncompressed_pointer =
+          base::ReadUnalignedValue<intptr_t>(initial_value_addr);
       if constexpr (kTaggedSize == 4) {
         int32_t* base = reinterpret_cast<int32_t*>(initial_element_address);
-        base[0] = base[1] = static_cast<int32_t>(initial_value);
+        base[0] = base[1] = static_cast<int32_t>(uncompressed_pointer);
       } else {
-        // We use WriteUnalignedValue; see above.
         base::WriteUnalignedValue(
-            reinterpret_cast<Address>(initial_element_address), initial_value);
+            reinterpret_cast<Address>(initial_element_address),
+            uncompressed_pointer);
       }
       break;
+    }
     case kS128:
+      // S128 can only be filled with zeros.
+      DCHECK_EQ(base::ReadUnalignedValue<int64_t>(initial_value_addr), 0);
+      std::memset(initial_element_address, 0, bytes_to_set);
+      return;
     case kRtt:
     case kVoid:
+    case kTop:
     case kBottom:
       UNREACHABLE();
   }
@@ -1010,25 +1035,24 @@ void switch_from_the_central_stack(Isolate* isolate) {
 }
 
 intptr_t switch_to_the_central_stack_for_js(Isolate* isolate, Address fp) {
-  auto active_suspender =
-      Cast<WasmSuspenderObject>(isolate->root(RootIndex::kActiveSuspender));
+  auto active_continuation = Cast<WasmContinuationObject>(
+      isolate->root(RootIndex::kActiveContinuation));
   ThreadLocalTop* thread_local_top = isolate->thread_local_top();
   StackGuard* stack_guard = isolate->stack_guard();
-  auto* stack = reinterpret_cast<StackMemory*>(
-      Cast<WasmContinuationObject>(active_suspender->continuation())->stack());
-  stack->set_stack_switch_info(fp, thread_local_top->central_stack_sp_);
+  auto* stack = reinterpret_cast<StackMemory*>(active_continuation->stack());
+  Address central_stack_sp = thread_local_top->central_stack_sp_;
+  stack->set_stack_switch_info(fp, central_stack_sp);
   stack_guard->SetStackLimitForStackSwitching(
       thread_local_top->central_stack_limit_);
   thread_local_top->is_on_central_stack_flag_ = true;
-  return thread_local_top->central_stack_sp_;
+  return central_stack_sp;
 }
 
 void switch_from_the_central_stack_for_js(Isolate* isolate) {
   // The stack only contains wasm frames after this JS call.
-  auto active_suspender =
-      Cast<WasmSuspenderObject>(isolate->root(RootIndex::kActiveSuspender));
-  auto* stack = reinterpret_cast<StackMemory*>(
-      Cast<WasmContinuationObject>(active_suspender->continuation())->stack());
+  auto active_continuation = Cast<WasmContinuationObject>(
+      isolate->root(RootIndex::kActiveContinuation));
+  auto* stack = reinterpret_cast<StackMemory*>(active_continuation->stack());
   stack->clear_stack_switch_info();
   ThreadLocalTop* thread_local_top = isolate->thread_local_top();
   thread_local_top->is_on_central_stack_flag_ = false;

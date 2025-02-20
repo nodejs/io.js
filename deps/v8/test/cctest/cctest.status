@@ -99,6 +99,8 @@
   # Slow tests.
   'test-api/FastApiCalls': [PASS, SLOW],
   'test-api/InternalFieldsSubclassing': [PASS, SLOW],
+  'test-concurrent-allocation/ConcurrentAllocationInLargeSpace': [PASS, SLOW],
+  'test-cpu-profiler/NoProfilingProtectorCPUProfiler': [PASS, SLOW],
   'test-debug/CallFunctionInDebugger': [PASS, ['mode == debug', SLOW]],
   'test-heap/TestInternalWeakLists': [PASS, SLOW],
   'test-heap-profiler/ManyLocalsInSharedContext': [PASS, SLOW],
@@ -117,11 +119,11 @@
   'test-lockers/LockTwiceAndUnlock': [PASS, HEAVY],
   'test-lockers/SeparateIsolatesLocksNonexclusive': [PASS, HEAVY],
   'test-ptr-compr-cage/SharedPtrComprCageRace': [PASS, HEAVY],
-  'test-serialize/ContextSerializerContext': [PASS, HEAVY],
-  'test-serialize/ContextSerializerCustomContext': [PASS, HEAVY],
+  'test-serialize/ContextSerializerContext': [PASS, SLOW, HEAVY],
+  'test-serialize/ContextSerializerCustomContext': [PASS, SLOW, HEAVY],
   'test-serialize/SnapshotCompression': [PASS, HEAVY],
-  'test-serialize/StartupSerializerOnceRunScript': [PASS, HEAVY],
-  'test-serialize/StartupSerializerTwiceRunScript': [PASS, HEAVY],
+  'test-serialize/StartupSerializerOnceRunScript': [PASS, SLOW, HEAVY],
+  'test-serialize/StartupSerializerTwiceRunScript': [PASS, SLOW, HEAVY],
   'test-serialize/StaticRootsPredictableSnapshot': [PASS, SLOW, HEAVY],
   'test-spaces/OldLargeObjectSpace': [PASS, HEAVY],
   'test-spaces/OldSpace': [PASS, HEAVY],
@@ -132,6 +134,13 @@
   # to verify this tests assumptions (static_assert). We should improve it and
   # reenable this test.
   'test-torque/TestLoadEliminationVariable': [SKIP],
+
+  # TODO(nicohartmann): Currently broken with Turboshaft backend. Needs to be
+  # ported.
+  'test-basic-block-profiler/*': [SKIP],
+  'test-run-load-store/*': [SKIP],
+  'test-run-machops/*': [SKIP],
+  'test-select-combine/*': [SKIP],
 }],  # ALWAYS
 
 ##############################################################################
@@ -183,6 +192,9 @@
   # Apple silicon. See:
   # https://developer.apple.com/library/archive/documentation/Xcode/Conceptual/iPhoneOSABIReference/Articles/ARM64FunctionCallingConventions.html
   'test-assembler-arm64/printf_no_preserve': [SKIP],
+
+  # https://crbug.com/42204313
+  'test-concurrent-allocation/ConcurrentAllocationInOldSpace': [PASS, ['mode == debug', SKIP]],
 }],  # arch == arm64 and system == macos and not simulator_run
 
 ##############################################################################
@@ -281,6 +293,7 @@
 ['full_debug', {
   # Tests too slow in non-optimized debug mode.
   'test-api/InternalFieldsSubclassing': [SKIP],
+  'test-api/Threading8': [SKIP],
   'test-concurrent-allocation/ConcurrentAllocationInLargeSpace': [SKIP],
   'test-heap/TestInternalWeakLists': [SKIP],
   'test-serialize/StartupSerializerOnce': [SKIP],
@@ -313,7 +326,6 @@
   'test-serialize/StartupSerializerTwiceRunScript': [SKIP],
   'test-serialize/StaticRootsPredictableSnapshot': [SKIP],
   'test-serialize/StartupSerializerTwice': [SKIP],
-
 }],  # 'system == windows and arch == x64 and mode == debug'
 
 ##############################################################################
@@ -479,13 +491,13 @@
 }],  # 'arch == ppc64 and simulator_run'
 
 ##############################################################################
-['arch == ppc64 or arch == s390 or arch == s390x', {
+['arch == ppc64 or arch == s390x', {
 
   # TODO(ppc/s390): support concurrent patching of jump table
   'test-jump-table-assembler/*': [SKIP],
 
   'test-wasm-breakpoints/*' : [SKIP],
-}],  # 'arch == ppc64 or arch == s390 or arch == s390x'
+}],  # 'arch == ppc64 or arch == s390x'
 
 ##############################################################################
 ['variant == stress_incremental_marking', {
@@ -768,18 +780,22 @@
   'test-run-wasm-simd/RunWasmTurbofan_I32x8ExtMulI16x8U': [SKIP],
   'test-run-wasm-simd/RunWasmTurbofan_I64x4ExtMulI32x4S': [SKIP],
   'test-run-wasm-simd/RunWasmTurbofan_I64x4ExtMulI32x4U': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_F64x4Abs': [SKIP],
+  'test-run-wasm-simd/RunWasmTurbofan_F64x4Neg': [SKIP],
   'test-run-wasm-relaxed-simd/RunWasm_I8x32RelaxedLaneSelect': [SKIP],
   'test-run-wasm-relaxed-simd/RunWasm_I16x16RelaxedLaneSelect': [SKIP],
   'test-run-wasm-relaxed-simd/RunWasm_I32x8RelaxedLaneSelect': [SKIP],
   'test-run-wasm-relaxed-simd/RunWasm_I64x4RelaxedLaneSelect': [SKIP],
   'test-run-wasm-relaxed-simd/RunWasm_I32x8DotI8x32I7x32AddS': [SKIP],
   'test-run-wasm-relaxed-simd/RunWasm_I16x16DotI8x32I7x32S': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I32x8RelaxedTruncF32x8S': [SKIP],
+  'test-run-wasm-relaxed-simd/RunWasm_I32x8RelaxedTruncF32x8U': [SKIP],
 }],  # variant != turboshaft and variant != future
 
 ##############################################################################
 # Behavioural differences between Maglev and Turbofan when the former is used
-# for OptimizeFunctionOnNextCall.
-['variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)', {
+# for OptimizeFunctionOnNextCall or as a frontend for Turboshaft.
+['variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan, turbolev)', {
   # Maglev doesn't support compiler::NodeObserver machinery.
   'test-js-to-wasm/TestFastJSWasmCall_I32Arg': [FAIL],
   'test-js-to-wasm/TestFastJSWasmCall_Nop': [FAIL],
@@ -812,6 +828,7 @@
   'test-calls-with-arraylike-or-spread/ReduceJSCreateBoundFunction': [FAIL],
   'test-calls-with-arraylike-or-spread/ReduceJSCreateClosure': [FAIL],
   'test-verify-type/TestVerifyType': [FAIL],
+  'test-js-to-wasm/*': [SKIP],
   # Maglev doesn't support FastApi calls.
   'test-api/FastApiCalls': [FAIL],
   'test-api/FastApiCallWithAllocationAndGCInJS': [FAIL],
@@ -820,7 +837,16 @@
   'test-api/FastApiCallRecursionNoException': [FAIL],
   'test-api/FastApiCallRecursionWithException': [FAIL],
   'test-api/FastApiCallWithThrowInReentrantCode': [FAIL],
-}],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan)
+  'test-api/FastApiCallsString': [FAIL],
+}],  # variant in (stress_maglev, stress_maglev_future, stress_maglev_no_turbofan, maglev_no_turbofan, turbolev)
+
+# Maglev is still missing some optimizations compared to Turbofan, which means
+# that some old Turbofan tests don't pass when using Maglev as a frontend for
+# Turboshaft.
+['variant == turbolev', {
+  'test-cpu-profiler/FastApiCPUProfiler': [SKIP],
+  'test-run-unwinding-info/RunUnwindingInfo': [SKIP],
+}],
 
 ['conservative_stack_scanning', {
   # Needs --predictable.
@@ -842,4 +868,12 @@
   # Skip tests that test the old tiering behavior.
   'test-heap/TestUseOfIncrementalBarrierOnCompileLazy': [SKIP],
 }],  # 'leaptiering'
+
+##############################################################################
+
+['variant == stress_pinning_scavenger', {
+  'test-run-wasm-64/RunWasmLiftoff_I64WasmRunner': [SLOW],
+  'test-run-wasm-64/RunWasmTurbofan_I64WasmRunner': [SLOW],
+  'test-strings/Traverse': [SLOW],
+}],  # variant == stress_pinning_scavenger
 ]

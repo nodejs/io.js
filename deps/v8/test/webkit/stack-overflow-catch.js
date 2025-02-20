@@ -34,7 +34,7 @@ function test1()
 
     try {
         level = level + 1;
-        // Dummy code to make this funciton different from test2()
+        // Dummy code to make this function different from test2()
         dummy = level * level + 1;
         if (dummy == 0)
             debug('Should never get here!!!!');
@@ -53,7 +53,7 @@ function test2()
 {
     var myLevel = level;
 
-    // Dummy code to make this funciton different from test1()
+    // Dummy code to make this function different from test1()
     if (gotWrongCatch)
         debug('Should never get here!!!!');
 

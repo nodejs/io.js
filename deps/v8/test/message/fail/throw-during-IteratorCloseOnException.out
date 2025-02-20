@@ -2,5 +2,5 @@
 Object.fromEntries([0]);
        ^
 TypeError: Iterator value 0 is not an entry object
-    at Function.fromEntries (<anonymous>)
+    at Object.fromEntries (<anonymous>)
     at *%(basename)s:10:8

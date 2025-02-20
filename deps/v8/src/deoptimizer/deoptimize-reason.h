@@ -63,6 +63,7 @@ namespace internal {
   V(NotAnArrayIndex, "not an array index")                                     \
   V(NotASmi, "not a Smi")                                                      \
   V(NotAString, "not a String")                                                \
+  V(NotAStringWrapper, "not a string wrapper")                                 \
   V(NotAStringOrStringWrapper, "not a String or a string wrapper")             \
   V(NotASymbol, "not a Symbol")                                                \
   V(NotDetectableReceiver, "not a detectable receiver")                        \
@@ -96,6 +97,34 @@ enum class DeoptimizeReason : uint8_t {
 #undef DEOPTIMIZE_REASON
 };
 
+#define LAZY_DEOPTIMIZE_REASON_LIST(V)                                        \
+  V(MapDeprecated, "dependent map was deprecated")                            \
+  V(PrototypeChange, "dependent prototype chain changed")                     \
+  V(PropertyCellChange, "dependent property cell changed")                    \
+  V(FieldTypeConstChange, "dependent field type constness changed")           \
+  V(FieldTypeChange, "dependent field type changed")                          \
+  V(FieldRepresentationChange, "dependent field representation changed")      \
+  V(InitialMapChange, "dependent initial map changed")                        \
+  V(AllocationSiteTenuringChange,                                             \
+    "dependent allocation site tenuring changed")                             \
+  V(AllocationSiteTransitionChange,                                           \
+    "dependent allocation site transition changed")                           \
+  V(ScriptContextSlotPropertyChange,                                          \
+    "dependent script context slot property changed")                         \
+  V(EmptyContextExtensionChange, "dependent empty context extension changed") \
+  V(WeakObjects, "embedded weak objects cleared")                             \
+  V(Debugger, "JS debugger attached")                                         \
+  V(Testing, "for testing")                                                   \
+  V(ExceptionCaught, "exception with omitted catch handler")                  \
+  V(EagerDeopt, "marked due to eager deopt")                                  \
+  V(FrameValueMaterialized, "value in stack frame was materialized")
+
+enum class LazyDeoptimizeReason : uint8_t {
+#define LAZY_DEOPTIMIZE_REASON(Name, message) k##Name,
+  LAZY_DEOPTIMIZE_REASON_LIST(LAZY_DEOPTIMIZE_REASON)
+#undef LAZY_DEOPTIMIZE_REASON
+};
+
 constexpr DeoptimizeReason kFirstDeoptimizeReason =
     DeoptimizeReason::kArrayBufferWasDetached;
 constexpr DeoptimizeReason kLastDeoptimizeReason =
@@ -109,6 +138,8 @@ V8_EXPORT_PRIVATE std::ostream& operator<<(std::ostream&, DeoptimizeReason);
 size_t hash_value(DeoptimizeReason reason);
 
 V8_EXPORT_PRIVATE char const* DeoptimizeReasonToString(DeoptimizeReason reason);
+V8_EXPORT_PRIVATE char const* DeoptimizeReasonToString(
+    LazyDeoptimizeReason reason);
 
 constexpr bool IsDeoptimizationWithoutCodeInvalidation(
     DeoptimizeReason reason) {

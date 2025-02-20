@@ -76,7 +76,12 @@ class V8_EXPORT SourceLocation final {
    *
    * \returns a human-readable string representing source location information.
    */
-  std::string ToString() const;
+  std::string ToString() const {
+    if (!file_) {
+      return {};
+    }
+    return std::string(function_) + "@" + file_ + ":" + std::to_string(line_);
+  }
 
  private:
   constexpr SourceLocation(const char* function, const char* file, size_t line)

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 function string_char_code(s, c) {
   return String.fromCharCode(73) + s.charCodeAt(1) + s.codePointAt(1);

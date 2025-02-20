@@ -36,16 +36,17 @@ Handle<CompilationCacheTable> CompilationCacheEvalOrScript::GetTable() {
   return handle(Cast<CompilationCacheTable>(table_), isolate());
 }
 
-Handle<CompilationCacheTable> CompilationCacheRegExp::GetTable(int generation) {
+DirectHandle<CompilationCacheTable> CompilationCacheRegExp::GetTable(
+    int generation) {
   DCHECK_LT(generation, kGenerations);
-  Handle<CompilationCacheTable> result;
+  DirectHandle<CompilationCacheTable> result;
   if (IsUndefined(tables_[generation], isolate())) {
     result = CompilationCacheTable::New(isolate(), kInitialCacheSize);
     tables_[generation] = *result;
   } else {
     Tagged<CompilationCacheTable> table =
         Cast<CompilationCacheTable>(tables_[generation]);
-    result = Handle<CompilationCacheTable>(table, isolate());
+    result = DirectHandle<CompilationCacheTable>(table, isolate());
   }
   return result;
 }
@@ -170,9 +171,9 @@ CompilationCacheScript::LookupResult CompilationCacheScript::Lookup(
   // Once outside the manacles of the handle scope, we need to recheck
   // to see if we actually found a cached script. If so, we return a
   // handle created in the caller's handle scope.
-  Handle<Script> script;
+  DirectHandle<Script> script;
   if (result.script().ToHandle(&script)) {
-    Handle<SharedFunctionInfo> sfi;
+    DirectHandle<SharedFunctionInfo> sfi;
     if (result.toplevel_sfi().ToHandle(&sfi)) {
       isolate()->counters()->compilation_cache_hits()->Increment();
       LOG(isolate(), CompilationCacheEvent("hit", "script", *sfi));
@@ -193,11 +194,10 @@ void CompilationCacheScript::Put(
                                              function_info, isolate());
 }
 
-InfoCellPair CompilationCacheEval::Lookup(Handle<String> source,
-                                          Handle<SharedFunctionInfo> outer_info,
-                                          DirectHandle<Context> native_context,
-                                          LanguageMode language_mode,
-                                          int position) {
+InfoCellPair CompilationCacheEval::Lookup(
+    DirectHandle<String> source, DirectHandle<SharedFunctionInfo> outer_info,
+    DirectHandle<NativeContext> native_context, LanguageMode language_mode,
+    int position) {
   HandleScope scope(isolate());
   // Make sure not to leak the table into the surrounding handle
   // scope. Otherwise, we risk keeping old tables around even after
@@ -214,26 +214,26 @@ InfoCellPair CompilationCacheEval::Lookup(Handle<String> source,
   return result;
 }
 
-void CompilationCacheEval::Put(Handle<String> source,
-                               Handle<SharedFunctionInfo> outer_info,
+void CompilationCacheEval::Put(DirectHandle<String> source,
+                               DirectHandle<SharedFunctionInfo> outer_info,
                                DirectHandle<SharedFunctionInfo> function_info,
-                               DirectHandle<Context> native_context,
+                               DirectHandle<NativeContext> native_context,
                                DirectHandle<FeedbackCell> feedback_cell,
                                int position) {
   HandleScope scope(isolate());
-  Handle<CompilationCacheTable> table = GetTable();
+  DirectHandle<CompilationCacheTable> table = GetTable();
   table_ =
       *CompilationCacheTable::PutEval(table, source, outer_info, function_info,
                                       native_context, feedback_cell, position);
 }
 
-MaybeHandle<RegExpData> CompilationCacheRegExp::Lookup(Handle<String> source,
-                                                       JSRegExp::Flags flags) {
+MaybeDirectHandle<RegExpData> CompilationCacheRegExp::Lookup(
+    DirectHandle<String> source, JSRegExp::Flags flags) {
   HandleScope scope(isolate());
   // Make sure not to leak the table into the surrounding handle
   // scope. Otherwise, we risk keeping old tables around even after
   // having cleared the cache.
-  Handle<Object> result = isolate()->factory()->undefined_value();
+  DirectHandle<Object> result = isolate()->factory()->undefined_value();
   int generation;
   for (generation = 0; generation < kGenerations; generation++) {
     DirectHandle<CompilationCacheTable> table = GetTable(generation);
@@ -250,14 +250,15 @@ MaybeHandle<RegExpData> CompilationCacheRegExp::Lookup(Handle<String> source,
     return scope.CloseAndEscape(data);
   } else {
     isolate()->counters()->compilation_cache_misses()->Increment();
-    return MaybeHandle<RegExpData>();
+    return MaybeDirectHandle<RegExpData>();
   }
 }
 
-void CompilationCacheRegExp::Put(Handle<String> source, JSRegExp::Flags flags,
+void CompilationCacheRegExp::Put(DirectHandle<String> source,
+                                 JSRegExp::Flags flags,
                                  DirectHandle<RegExpData> data) {
   HandleScope scope(isolate());
-  Handle<CompilationCacheTable> table = GetTable(0);
+  DirectHandle<CompilationCacheTable> table = GetTable(0);
   tables_[0] =
       *CompilationCacheTable::PutRegExp(isolate(), table, source, flags, data);
 }
@@ -277,24 +278,24 @@ CompilationCacheScript::LookupResult CompilationCache::LookupScript(
   return script_.Lookup(source, script_details);
 }
 
-InfoCellPair CompilationCache::LookupEval(Handle<String> source,
-                                          Handle<SharedFunctionInfo> outer_info,
-                                          DirectHandle<Context> context,
-                                          LanguageMode language_mode,
-                                          int position) {
+InfoCellPair CompilationCache::LookupEval(
+    DirectHandle<String> source, DirectHandle<SharedFunctionInfo> outer_info,
+    DirectHandle<Context> context, LanguageMode language_mode, int position) {
   InfoCellPair result;
   if (!IsEnabledScriptAndEval()) return result;
 
   const char* cache_type;
 
-  if (IsNativeContext(*context)) {
-    result = eval_global_.Lookup(source, outer_info, context, language_mode,
-                                 position);
+  DirectHandle<NativeContext> maybe_native_context;
+  if (TryCast<NativeContext>(context, &maybe_native_context)) {
+    result = eval_global_.Lookup(source, outer_info, maybe_native_context,
+                                 language_mode, position);
     cache_type = "eval-global";
 
   } else {
     DCHECK_NE(position, kNoSourcePosition);
-    DirectHandle<Context> native_context(context->native_context(), isolate());
+    DirectHandle<NativeContext> native_context(context->native_context(),
+                                               isolate());
     result = eval_contextual_.Lookup(source, outer_info, native_context,
                                      language_mode, position);
     cache_type = "eval-contextual";
@@ -307,8 +308,8 @@ InfoCellPair CompilationCache::LookupEval(Handle<String> source,
   return result;
 }
 
-MaybeHandle<RegExpData> CompilationCache::LookupRegExp(Handle<String> source,
-                                                       JSRegExp::Flags flags) {
+MaybeDirectHandle<RegExpData> CompilationCache::LookupRegExp(
+    DirectHandle<String> source, JSRegExp::Flags flags) {
   return reg_exp_.Lookup(source, flags);
 }
 
@@ -321,8 +322,8 @@ void CompilationCache::PutScript(
   script_.Put(source, function_info);
 }
 
-void CompilationCache::PutEval(Handle<String> source,
-                               Handle<SharedFunctionInfo> outer_info,
+void CompilationCache::PutEval(DirectHandle<String> source,
+                               DirectHandle<SharedFunctionInfo> outer_info,
                                DirectHandle<Context> context,
                                DirectHandle<SharedFunctionInfo> function_info,
                                DirectHandle<FeedbackCell> feedback_cell,
@@ -331,13 +332,15 @@ void CompilationCache::PutEval(Handle<String> source,
 
   const char* cache_type;
   HandleScope scope(isolate());
-  if (IsNativeContext(*context)) {
-    eval_global_.Put(source, outer_info, function_info, context, feedback_cell,
-                     position);
+  DirectHandle<NativeContext> maybe_native_context;
+  if (TryCast<NativeContext>(context, &maybe_native_context)) {
+    eval_global_.Put(source, outer_info, function_info, maybe_native_context,
+                     feedback_cell, position);
     cache_type = "eval-global";
   } else {
     DCHECK_NE(position, kNoSourcePosition);
-    DirectHandle<Context> native_context(context->native_context(), isolate());
+    DirectHandle<NativeContext> native_context(context->native_context(),
+                                               isolate());
     eval_contextual_.Put(source, outer_info, function_info, native_context,
                          feedback_cell, position);
     cache_type = "eval-contextual";
@@ -345,7 +348,8 @@ void CompilationCache::PutEval(Handle<String> source,
   LOG(isolate(), CompilationCacheEvent("put", cache_type, *function_info));
 }
 
-void CompilationCache::PutRegExp(Handle<String> source, JSRegExp::Flags flags,
+void CompilationCache::PutRegExp(DirectHandle<String> source,
+                                 JSRegExp::Flags flags,
                                  DirectHandle<RegExpData> data) {
   reg_exp_.Put(source, flags, data);
 }

@@ -37,8 +37,10 @@
 #include <cstdint>
 #include <istream>
 #include <limits>
+#include <ostream>
 #include <type_traits>
 
+#include "absl/base/config.h"
 #include "absl/meta/type_traits.h"
 #include "absl/random/internal/fast_uniform_bits.h"
 #include "absl/random/internal/generate_real.h"

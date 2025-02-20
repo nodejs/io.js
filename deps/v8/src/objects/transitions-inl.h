@@ -5,6 +5,7 @@
 #ifndef V8_OBJECTS_TRANSITIONS_INL_H_
 #define V8_OBJECTS_TRANSITIONS_INL_H_
 
+#include <ranges>
 #include <type_traits>
 
 #include "src/objects/fixed-array-inl.h"
@@ -39,16 +40,14 @@ Tagged<TransitionArray> TransitionsAccessor::transitions() {
   return GetTransitionArray(isolate_, raw_transitions_);
 }
 
-OBJECT_CONSTRUCTORS_IMPL(TransitionArray, WeakFixedArray)
-
 bool TransitionArray::HasPrototypeTransitions() {
-  return get(kPrototypeTransitionsIndex) != Smi::zero();
+  return get(kPrototypeTransitionsIndex, kAcquireLoad) != Smi::zero();
 }
 
 Tagged<WeakFixedArray> TransitionArray::GetPrototypeTransitions() {
   DCHECK(HasPrototypeTransitions());  // Callers must check first.
   Tagged<Object> prototype_transitions =
-      get(kPrototypeTransitionsIndex).GetHeapObjectAssumeStrong();
+      get(kPrototypeTransitionsIndex, kAcquireLoad).GetHeapObjectAssumeStrong();
   return Cast<WeakFixedArray>(prototype_transitions);
 }
 
@@ -100,6 +99,12 @@ Tagged<WeakFixedArray> TransitionArray::GetSideStepTransitions() {
   return Cast<WeakFixedArray>(transitions);
 }
 
+void TransitionArray::SetSideStepTransitions(
+    Tagged<WeakFixedArray> transitions) {
+  DCHECK(IsWeakFixedArray(transitions));
+  WeakFixedArray::set(kSideStepTransitionsIndex, transitions);
+}
+
 HeapObjectSlot TransitionArray::GetKeySlot(int transition_number) {
   DCHECK(transition_number < number_of_transitions());
   return HeapObjectSlot(RawFieldOfElementAt(ToKeyIndex(transition_number)));
@@ -108,7 +113,7 @@ HeapObjectSlot TransitionArray::GetKeySlot(int transition_number) {
 void TransitionArray::SetPrototypeTransitions(
     Tagged<WeakFixedArray> transitions) {
   DCHECK(IsWeakFixedArray(transitions));
-  WeakFixedArray::set(kPrototypeTransitionsIndex, transitions);
+  WeakFixedArray::set(kPrototypeTransitionsIndex, transitions, kReleaseStore);
 }
 
 int TransitionArray::NumberOfPrototypeTransitions(
@@ -123,10 +128,6 @@ Tagged<Name> TransitionArray::GetKey(int transition_number) {
   DCHECK(transition_number < number_of_transitions());
   return Cast<Name>(
       get(ToKeyIndex(transition_number)).GetHeapObjectAssumeStrong());
-}
-
-Tagged<Name> TransitionArray::GetKey(InternalIndex index) {
-  return GetKey(index.as_int());
 }
 
 Tagged<Name> TransitionsAccessor::GetKey(int transition_number) {
@@ -159,7 +160,7 @@ HeapObjectSlot TransitionArray::GetTargetSlot(int transition_number) {
 // static
 PropertyDetails TransitionsAccessor::GetTargetDetails(Tagged<Name> name,
                                                       Tagged<Map> target) {
-  DCHECK(!IsSpecialTransition(name->GetReadOnlyRoots(), name));
+  DCHECK(!IsSpecialTransition(GetReadOnlyRoots(), name));
   InternalIndex descriptor = target->LastAdded();
   Tagged<DescriptorArray> descriptors =
       target->instance_descriptors(kRelaxedLoad);
@@ -258,8 +259,82 @@ int TransitionArray::SearchSpecial(Tagged<Symbol> symbol,
 int TransitionArray::SearchName(Tagged<Name> name, bool concurrent_search,
                                 int* out_insertion_index) {
   DCHECK(IsUniqueName(name));
-  return internal::Search<ALL_ENTRIES>(this, name, number_of_entries(),
-                                       out_insertion_index, concurrent_search);
+  SLOW_DCHECK_IMPLIES(!concurrent_search, IsSortedNoDuplicates());
+
+  if (number_of_transitions() == 0) {
+    if (out_insertion_index != nullptr) {
+      *out_insertion_index = 0;
+    }
+    return kNotFound;
+  }
+
+  // Do linear search for small arrays, and for searches in the background
+  // thread.
+  const int kMaxElementsForLinearSearch = 8;
+  if (number_of_transitions() <= kMaxElementsForLinearSearch ||
+      concurrent_search) {
+    return LinearSearchName(name, out_insertion_index);
+  }
+
+  return BinarySearchName(name, out_insertion_index);
+}
+
+int TransitionArray::BinarySearchName(Tagged<Name> name,
+                                      int* out_insertion_index) {
+  int end = number_of_transitions();
+  uint32_t hash = name->hash();
+
+  // Find the first index whose key's hash is greater-than-or-equal-to the
+  // search hash.
+  int i = *std::ranges::lower_bound(std::views::iota(0, end), hash,
+                                    std::less<>(), [&](int i) {
+                                      Tagged<Name> entry = GetKey(i);
+                                      return entry->hash();
+                                    });
+
+  // There may have been hash collisions, so search for the name from the first
+  // index until the first non-matching hash.
+  for (; i < end; ++i) {
+    Tagged<Name> entry = GetKey(i);
+    if (entry == name) {
+      return i;
+    }
+    uint32_t entry_hash = entry->hash();
+    if (entry_hash != hash) {
+      if (out_insertion_index != nullptr) {
+        *out_insertion_index = i + (entry_hash > hash ? 0 : 1);
+      }
+      return kNotFound;
+    }
+  }
+
+  if (out_insertion_index != nullptr) {
+    *out_insertion_index = end;
+  }
+  return kNotFound;
+}
+
+int TransitionArray::LinearSearchName(Tagged<Name> name,
+                                      int* out_insertion_index) {
+  int len = number_of_transitions();
+  if (out_insertion_index != nullptr) {
+    uint32_t hash = name->hash();
+    for (int i = 0; i < len; i++) {
+      Tagged<Name> entry = GetKey(i);
+      if (entry == name) return i;
+      if (entry->hash() > hash) {
+        *out_insertion_index = i;
+        return kNotFound;
+      }
+    }
+    *out_insertion_index = len;
+    return kNotFound;
+  } else {
+    for (int i = 0; i < len; i++) {
+      if (GetKey(i) == name) return i;
+    }
+    return kNotFound;
+  }
 }
 
 TransitionsAccessor::TransitionsAccessor(Isolate* isolate, Tagged<Map> map,
@@ -380,14 +455,6 @@ void TransitionArray::Set(int transition_number, Tagged<Name> key,
   WeakFixedArray::set(ToTargetIndex(transition_number), target);
 }
 
-Tagged<Name> TransitionArray::GetSortedKey(int transition_number) {
-  return GetKey(transition_number);
-}
-
-int TransitionArray::number_of_entries() const {
-  return number_of_transitions();
-}
-
 int TransitionArray::Capacity() {
   if (length() <= kFirstIndex) return 0;
   return (length() - kFirstIndex) / kEntrySize;
@@ -434,13 +501,13 @@ std::pair<Handle<String>, Handle<Map>> TransitionsAccessor::ExpectedTransition(
     case kFullTransitionArray: {
       Tagged<TransitionArray> array =
           Cast<TransitionArray>(raw_transitions_.GetHeapObjectAssumeStrong());
-      int entries = array->number_of_entries();
+      int entries = array->number_of_transitions();
       // Do linear search for small entries.
       const int kMaxEntriesForLinearSearch = 8;
       if (entries > kMaxEntriesForLinearSearch)
         return {Handle<String>::null(), Handle<Map>::null()};
       for (int i = entries - 1; i >= 0; i--) {
-        Tagged<Name> name = array->GetKey(InternalIndex(i));
+        Tagged<Name> name = array->GetKey(i);
         Tagged<Map> target = array->GetTarget(i);
         if (IsExpectedTransition(name, target, key_chars)) {
           return {handle(Cast<String>(name), isolate_),
@@ -475,8 +542,8 @@ void TransitionsAccessor::ForEachTransitionWithKey(
       return;
     }
     case kFullTransitionArray: {
-      base::SharedMutexGuardIf<base::kShared> scope(
-          isolate_->full_transition_array_access(), concurrent_access_);
+      base::SpinningMutexGuardIf scope(isolate_->full_transition_array_access(),
+                                       concurrent_access_);
       Tagged<TransitionArray> transition_array = transitions();
       int num_transitions = transition_array->number_of_transitions();
       ReadOnlyRoots roots(isolate_);

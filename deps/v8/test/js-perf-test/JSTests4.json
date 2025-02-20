@@ -201,7 +201,7 @@
       "main": "run.js",
       "resources": ["small.js", "medium.js", "large.js"],
       "run_count": 1,
-      "timeout": 300,
+      "timeout": 360,
       "flags": [ "--allow-natives-syntax" ],
       "variants": [
         {"name": "default", "flags": []},

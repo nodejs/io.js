@@ -186,6 +186,13 @@ V8_INLINE Dest bit_cast(Source const& source) {
 #endif
 #endif
 
+// Define V8_USE_SAFE_STACK macro.
+#if defined(__has_feature)
+#if __has_feature(safe_stack)
+#define V8_USE_SAFE_STACK 1
+#endif  // __has_feature(safe_stack)
+#endif  // defined(__has_feature)
+
 // DISABLE_CFI_PERF -- Disable Control Flow Integrity checks for Perf reasons.
 #define DISABLE_CFI_PERF V8_CLANG_NO_SANITIZE("cfi")
 
@@ -349,14 +356,14 @@ inline uint64_t make_uint64(uint32_t high, uint32_t low) {
 
 // Return the largest multiple of m which is <= x.
 template <typename T>
-inline T RoundDown(T x, intptr_t m) {
+constexpr T RoundDown(T x, intptr_t m) {
   static_assert(std::is_integral<T>::value);
   // m must be a power of two.
   DCHECK(m != 0 && ((m & (m - 1)) == 0));
   return x & static_cast<T>(-m);
 }
 template <intptr_t m, typename T>
-constexpr inline T RoundDown(T x) {
+constexpr T RoundDown(T x) {
   static_assert(std::is_integral<T>::value);
   // m must be a power of two.
   static_assert(m != 0 && ((m & (m - 1)) == 0));
@@ -365,7 +372,7 @@ constexpr inline T RoundDown(T x) {
 
 // Return the smallest multiple of m which is >= x.
 template <typename T>
-inline T RoundUp(T x, intptr_t m) {
+constexpr T RoundUp(T x, intptr_t m) {
   static_assert(std::is_integral<T>::value);
   DCHECK_GE(x, 0);
   DCHECK_GE(std::numeric_limits<T>::max() - x, m - 1);  // Overflow check.
@@ -373,7 +380,7 @@ inline T RoundUp(T x, intptr_t m) {
 }
 
 template <intptr_t m, typename T>
-constexpr inline T RoundUp(T x) {
+constexpr T RoundUp(T x) {
   static_assert(std::is_integral<T>::value);
   DCHECK_GE(x, 0);
   DCHECK_GE(std::numeric_limits<T>::max() - x, m - 1);  // Overflow check.
@@ -487,6 +494,15 @@ bool is_inbounds(float_t v) {
 #define IF_INTL(V, ...)
 #endif  // V8_INTL_SUPPORT
 
+// Defines IF_SHADOW_STACK, to be used in macro lists for elements that should
+// only be there if CET shadow stack is enabled.
+#ifdef V8_ENABLE_CET_SHADOW_STACK
+// EXPAND is needed to work around MSVC's broken __VA_ARGS__ expansion.
+#define IF_SHADOW_STACK(V, ...) EXPAND(V(__VA_ARGS__))
+#else
+#define IF_SHADOW_STACK(V, ...)
+#endif  // V8_ENABLE_CET_SHADOW_STACK
+
 // Defines IF_TARGET_ARCH_64_BIT, to be used in macro lists for elements that
 // should only be there if the target architecture is a 64-bit one.
 #if V8_TARGET_ARCH_64_BIT
@@ -496,16 +512,17 @@ bool is_inbounds(float_t v) {
 #define IF_TARGET_ARCH_64_BIT(V, ...)
 #endif  // V8_TARGET_ARCH_64_BIT
 
-// Defines IF_OFFICIAL_BUILD and IF_NO_OFFICIAL_BUILD, to be used in macro lists
-// for elements that should only be there in official / non-official builds.
-#ifdef OFFICIAL_BUILD
+// Defines IF_V8_WASM_RANDOM_FUZZERS and IF_NO_V8_WASM_RANDOM_FUZZERS, to be
+// used in macro lists for elements that should only be there/absent when
+// building the Wasm fuzzers.
+#ifdef V8_WASM_RANDOM_FUZZERS
 // EXPAND is needed to work around MSVC's broken __VA_ARGS__ expansion.
-#define IF_OFFICIAL_BUILD(V, ...) EXPAND(V(__VA_ARGS__))
-#define IF_NO_OFFICIAL_BUILD(V, ...)
+#define IF_V8_WASM_RANDOM_FUZZERS(V, ...) EXPAND(V(__VA_ARGS__))
+#define IF_NO_V8_WASM_RANDOM_FUZZERS(V, ...)
 #else
-#define IF_OFFICIAL_BUILD(V, ...)
-#define IF_NO_OFFICIAL_BUILD(V, ...) EXPAND(V(__VA_ARGS__))
-#endif  // OFFICIAL_BUILD
+#define IF_V8_WASM_RANDOM_FUZZERS(V, ...)
+#define IF_NO_V8_WASM_RANDOM_FUZZERS(V, ...) EXPAND(V(__VA_ARGS__))
+#endif  // V8_WASM_RANDOM_FUZZERS
 
 #ifdef GOOGLE3
 // Disable FRIEND_TEST macro in Google3.

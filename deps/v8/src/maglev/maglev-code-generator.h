@@ -58,6 +58,7 @@ class MaglevCodeGenerator final {
   MaglevAssembler masm_;
   Graph* const graph_;
 
+  IdentityMap<int, base::DefaultAllocationPolicy> protected_deopt_literals_;
   IdentityMap<int, base::DefaultAllocationPolicy> deopt_literals_;
   int deopt_exit_start_offset_ = -1;
   int handler_table_offset_ = 0;
@@ -65,8 +66,8 @@ class MaglevCodeGenerator final {
 
   bool code_gen_succeeded_ = false;
 
-  Handle<DeoptimizationData> deopt_data_;
-  MaybeHandle<Code> code_;
+  IndirectHandle<DeoptimizationData> deopt_data_;
+  MaybeIndirectHandle<Code> code_;
   GlobalHandleVector<Map> retained_maps_;
   bool is_context_specialized_;
   Zone* zone_;

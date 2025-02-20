@@ -231,8 +231,7 @@ struct Field {
 
   bool custom_weak_marking;
   bool const_qualified;
-  FieldSynchronization read_synchronization;
-  FieldSynchronization write_synchronization;
+  FieldSynchronization synchronization;
 };
 
 std::ostream& operator<<(std::ostream& os, const Field& name_and_type);

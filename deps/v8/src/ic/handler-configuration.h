@@ -169,7 +169,7 @@ class LoadHandler final : public DataHandler {
   static inline Handle<Smi> LoadConstantFromPrototype(Isolate* isolate);
 
   // Creates a Smi-handler for calling a getter on a fast object.
-  static inline Handle<Smi> LoadAccessorFromPrototype(Isolate* isolate);
+  static inline DirectHandle<Smi> LoadAccessorFromPrototype(Isolate* isolate);
 
   // Creates a Smi-handler for calling a getter on a proxy.
   static inline Handle<Smi> LoadProxy(Isolate* isolate);
@@ -187,26 +187,27 @@ class LoadHandler final : public DataHandler {
   // dictionary.
   static inline Handle<Smi> LoadModuleExport(Isolate* isolate, int index);
 
-  static inline Handle<Smi> LoadWasmStructField(Isolate* isolate,
-                                                WasmValueType type, int offset);
-  static inline Handle<Smi> LoadWasmArrayElement(Isolate* isolate,
-                                                 WasmValueType type);
+  static inline DirectHandle<Smi> LoadWasmStructField(Isolate* isolate,
+                                                      WasmValueType type,
+                                                      int offset);
+  static inline DirectHandle<Smi> LoadWasmArrayElement(Isolate* isolate,
+                                                       WasmValueType type);
 
   // Creates a data handler that represents a load of a non-existent property.
   // {holder} is the object from which the property is loaded. If no holder is
   // needed (e.g., for "nonexistent"), null_value() may be passed in.
   static Handle<Object> LoadFullChain(Isolate* isolate,
-                                      Handle<Map> receiver_map,
-                                      const MaybeObjectHandle& holder,
+                                      DirectHandle<Map> receiver_map,
+                                      const MaybeObjectDirectHandle& holder,
                                       Handle<Smi> smi_handler);
 
   // Creates a data handler that represents a prototype chain check followed
   // by given Smi-handler that encoded a load from the holder.
   static Handle<Object> LoadFromPrototype(
-      Isolate* isolate, Handle<Map> receiver_map, Handle<JSReceiver> holder,
-      Tagged<Smi> smi_handler,
-      MaybeObjectHandle maybe_data1 = MaybeObjectHandle(),
-      MaybeObjectHandle maybe_data2 = MaybeObjectHandle());
+      Isolate* isolate, DirectHandle<Map> receiver_map,
+      DirectHandle<JSReceiver> holder, Tagged<Smi> smi_handler,
+      MaybeObjectDirectHandle maybe_data1 = MaybeObjectDirectHandle(),
+      MaybeObjectDirectHandle maybe_data2 = MaybeObjectDirectHandle());
 
   // Creates a Smi-handler for loading a non-existent property. Works only as
   // a part of prototype chain check.
@@ -320,33 +321,35 @@ class StoreHandler final : public DataHandler {
                                                     int descriptor);
 
   // Creates a Smi-handler for calling a setter on a fast object.
-  static inline Handle<Smi> StoreAccessorFromPrototype(Isolate* isolate);
+  static inline DirectHandle<Smi> StoreAccessorFromPrototype(Isolate* isolate);
 
   // Creates a Smi-handler for calling a native setter on a fast object.
-  static inline Handle<Smi> StoreApiSetter(Isolate* isolate,
-                                           bool holder_is_receiver);
+  static inline DirectHandle<Smi> StoreApiSetter(Isolate* isolate,
+                                                 bool holder_is_receiver);
 
   static Handle<Object> StoreThroughPrototype(
-      Isolate* isolate, Handle<Map> receiver_map, Handle<JSReceiver> holder,
-      Tagged<Smi> smi_handler,
-      MaybeObjectHandle maybe_data1 = MaybeObjectHandle(),
-      MaybeObjectHandle maybe_data2 = MaybeObjectHandle());
+      Isolate* isolate, DirectHandle<Map> receiver_map,
+      DirectHandle<JSReceiver> holder, Tagged<Smi> smi_handler,
+      MaybeObjectDirectHandle maybe_data1 = MaybeObjectDirectHandle(),
+      MaybeObjectDirectHandle maybe_data2 = MaybeObjectDirectHandle());
 
   static Handle<Object> StoreElementTransition(
       Isolate* isolate, DirectHandle<Map> receiver_map,
       DirectHandle<Map> transition, KeyedAccessStoreMode store_mode,
-      MaybeHandle<UnionOf<Smi, Cell>> prev_validity_cell = kNullMaybeHandle);
+      MaybeDirectHandle<UnionOf<Smi, Cell>> prev_validity_cell =
+          kNullMaybeHandle);
 
-  static Handle<Object> StoreProxy(Isolate* isolate, Handle<Map> receiver_map,
+  static Handle<Object> StoreProxy(Isolate* isolate,
+                                   DirectHandle<Map> receiver_map,
                                    Handle<JSProxy> proxy,
-                                   Handle<JSReceiver> receiver);
+                                   DirectHandle<JSReceiver> receiver);
 
   // Creates a handler for storing a property to the property cell of a global
   // object.
   static MaybeObjectHandle StoreGlobal(Handle<PropertyCell> cell);
 
   // Creates a Smi-handler for storing a property to a global proxy object.
-  static inline Handle<Smi> StoreGlobalProxy(Isolate* isolate);
+  static inline DirectHandle<Smi> StoreGlobalProxy(Isolate* isolate);
 
   // Creates a Smi-handler for storing a property to a slow object.
   static inline Handle<Smi> StoreNormal(Isolate* isolate);
@@ -358,7 +361,7 @@ class StoreHandler final : public DataHandler {
       Isolate* isolate, KeyedAccessStoreMode mode);
   static inline Handle<Code> StoreFastElementBuiltin(Isolate* isolate,
                                                      KeyedAccessStoreMode mode);
-  static inline Handle<Code> ElementsTransitionAndStoreBuiltin(
+  static inline DirectHandle<Code> ElementsTransitionAndStoreBuiltin(
       Isolate* isolate, KeyedAccessStoreMode mode);
 
   // Creates a Smi-handler for storing a property.

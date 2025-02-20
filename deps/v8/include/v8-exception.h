@@ -45,6 +45,8 @@ class V8_EXPORT Exception {
                                     Local<Value> options = {});
   static Local<Value> WasmRuntimeError(Local<String> message,
                                        Local<Value> options = {});
+  static Local<Value> WasmSuspendError(Local<String> message,
+                                       Local<Value> options = {});
   static Local<Value> Error(Local<String> message, Local<Value> options = {});
 
   /**

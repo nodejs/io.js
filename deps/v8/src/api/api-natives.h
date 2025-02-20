@@ -25,44 +25,45 @@ class ApiNatives {
 
   // A convenient internal wrapper around FunctionTemplate::New() for creating
   // getter/setter callback function templates.
-  static Handle<FunctionTemplateInfo> CreateAccessorFunctionTemplateInfo(
+  static DirectHandle<FunctionTemplateInfo> CreateAccessorFunctionTemplateInfo(
       Isolate* isolate, FunctionCallback callback, int length,
       v8::SideEffectType side_effect_type);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSFunction> InstantiateFunction(
-      Isolate* isolate, Handle<NativeContext> native_context,
-      Handle<FunctionTemplateInfo> data,
-      MaybeHandle<Name> maybe_name = MaybeHandle<Name>());
+      Isolate* isolate, DirectHandle<NativeContext> native_context,
+      DirectHandle<FunctionTemplateInfo> data,
+      MaybeDirectHandle<Name> maybe_name = {});
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSFunction> InstantiateFunction(
-      Isolate* isolate, Handle<FunctionTemplateInfo> data,
-      MaybeHandle<Name> maybe_name = MaybeHandle<Name>());
+      Isolate* isolate, DirectHandle<FunctionTemplateInfo> data,
+      MaybeDirectHandle<Name> maybe_name = {});
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSObject> InstantiateObject(
-      Isolate* isolate, Handle<ObjectTemplateInfo> data,
-      Handle<JSReceiver> new_target = Handle<JSReceiver>());
+      Isolate* isolate, DirectHandle<ObjectTemplateInfo> data,
+      DirectHandle<JSReceiver> new_target = {});
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSObject> InstantiateRemoteObject(
       DirectHandle<ObjectTemplateInfo> data);
 
   static Handle<JSFunction> CreateApiFunction(
-      Isolate* isolate, Handle<NativeContext> native_context,
-      DirectHandle<FunctionTemplateInfo> obj, Handle<Object> prototype,
-      InstanceType type, MaybeHandle<Name> name = MaybeHandle<Name>());
+      Isolate* isolate, DirectHandle<NativeContext> native_context,
+      DirectHandle<FunctionTemplateInfo> obj, DirectHandle<Object> prototype,
+      InstanceType type, MaybeDirectHandle<Name> name = {});
 
   static void AddDataProperty(Isolate* isolate, DirectHandle<TemplateInfo> info,
-                              Handle<Name> name, Handle<Object> value,
+                              DirectHandle<Name> name,
+                              DirectHandle<Object> value,
                               PropertyAttributes attributes);
 
   static void AddDataProperty(Isolate* isolate, DirectHandle<TemplateInfo> info,
-                              Handle<Name> name, v8::Intrinsic intrinsic,
+                              DirectHandle<Name> name, v8::Intrinsic intrinsic,
                               PropertyAttributes attributes);
 
   static void AddAccessorProperty(Isolate* isolate,
                                   DirectHandle<TemplateInfo> info,
-                                  Handle<Name> name,
-                                  Handle<FunctionTemplateInfo> getter,
-                                  Handle<FunctionTemplateInfo> setter,
+                                  DirectHandle<Name> name,
+                                  DirectHandle<FunctionTemplateInfo> getter,
+                                  DirectHandle<FunctionTemplateInfo> setter,
                                   PropertyAttributes attributes);
 
   static void AddNativeDataProperty(Isolate* isolate,

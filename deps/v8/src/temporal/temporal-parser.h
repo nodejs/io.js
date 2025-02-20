@@ -127,7 +127,7 @@ struct ParsedISO8601Duration {
  * TemporalParser is low level parsing functions to support the implementation
  * of various ParseTemporal*String Abstract Operations listed after
  * #sec-temporal-parsetemporalinstantstring.
- * All the methods take an Isolate, a Handle<String> as input, and also a
+ * All the methods take an Isolate, a DirectHandle<String> as input, and also a
  * pointer to a bool to answer the "satisfy the syntax of a Temporal*String"
  * question and return the parsed result.
  */
@@ -135,7 +135,7 @@ class V8_EXPORT_PRIVATE TemporalParser {
  public:
 #define DEFINE_PARSE_METHOD(R, NAME)                         \
   V8_WARN_UNUSED_RESULT static std::optional<R> Parse##NAME( \
-      Isolate* isolate, Handle<String> iso_string)
+      Isolate* isolate, DirectHandle<String> iso_string)
   DEFINE_PARSE_METHOD(ParsedISO8601Result, TemporalDateString);
   DEFINE_PARSE_METHOD(ParsedISO8601Result, TemporalDateTimeString);
   DEFINE_PARSE_METHOD(ParsedISO8601Result, TemporalTimeString);

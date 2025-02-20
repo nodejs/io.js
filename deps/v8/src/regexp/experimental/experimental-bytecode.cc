@@ -33,6 +33,10 @@ std::ostream& operator<<(std::ostream& os, const RegExpInstruction& inst) {
       os << "]";
       break;
     }
+    case RegExpInstruction::RANGE_COUNT: {
+      os << "RANGE_COUNT " << inst.payload.num_ranges;
+      break;
+    }
     case RegExpInstruction::ASSERTION:
       os << "ASSERTION ";
       switch (inst.payload.assertion_type) {
@@ -80,6 +84,9 @@ std::ostream& operator<<(std::ostream& os, const RegExpInstruction& inst) {
     case RegExpInstruction::FILTER_GROUP:
       os << "FILTER_GROUP " << inst.payload.group_id;
       break;
+    case RegExpInstruction::FILTER_LOOKAROUND:
+      os << "FILTER_LOOKAROUND " << inst.payload.lookaround_id;
+      break;
     case RegExpInstruction::FILTER_CHILD:
       os << "FILTER_CHILD " << inst.payload.pc;
       break;
@@ -89,15 +96,17 @@ std::ostream& operator<<(std::ostream& os, const RegExpInstruction& inst) {
     case RegExpInstruction::END_LOOP:
       os << "END_LOOP";
       break;
-    case RegExpInstruction::WRITE_LOOKBEHIND_TABLE:
-      os << "WRITE_LOOKBEHIND_TABLE " << inst.payload.looktable_index;
+    case RegExpInstruction::START_LOOKAROUND:
+      os << "START_LOOKAROUND " << inst.payload.lookaround;
       break;
-    case RegExpInstruction::READ_LOOKBEHIND_TABLE:
-      os << "READ_LOOKBEHIND_TABLE "
-         << inst.payload.read_lookbehind.lookbehind_index() << " ("
-         << (inst.payload.read_lookbehind.is_positive() ? "positive"
-                                                        : "negative")
-         << ")";
+    case RegExpInstruction::END_LOOKAROUND:
+      os << "END_LOOKAROUND";
+      break;
+    case RegExpInstruction::WRITE_LOOKAROUND_TABLE:
+      os << "WRITE_LOOKAROUND_TABLE " << inst.payload.lookaround_id;
+      break;
+    case RegExpInstruction::READ_LOOKAROUND_TABLE:
+      os << "READ_LOOKAROUND_TABLE " << inst.payload.lookaround;
       break;
   }
   return os;
@@ -130,6 +139,14 @@ std::ostream& operator<<(std::ostream& os,
        << std::endl;
   }
   return os;
+}
+
+std::ostream& operator<<(std::ostream& os,
+                         const RegExpInstruction::LookaroundPayload& payload) {
+  return os << payload.index() << " ("
+            << (payload.type() == RegExpLookaround::Type::LOOKAHEAD ? "ahead"
+                                                                    : "behind")
+            << ", " << (payload.is_positive() ? "positive" : "negative") << ")";
 }
 
 }  // namespace internal

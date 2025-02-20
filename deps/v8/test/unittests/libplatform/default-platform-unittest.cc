@@ -248,7 +248,8 @@ TEST(CustomDefaultPlatformTest, RunBackgroundTask) {
   StrictMock<TestBackgroundTask>* task =
       new StrictMock<TestBackgroundTask>(&sem, &task_executed);
   EXPECT_CALL(*task, Die());
-  platform.CallOnWorkerThread(std::unique_ptr<Task>(task));
+  platform.PostTaskOnWorkerThread(TaskPriority::kUserVisible,
+                                  std::unique_ptr<Task>(task));
   EXPECT_TRUE(sem.WaitFor(base::TimeDelta::FromSeconds(1)));
   EXPECT_TRUE(task_executed);
 }

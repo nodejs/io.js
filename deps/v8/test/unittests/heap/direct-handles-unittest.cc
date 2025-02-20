@@ -25,7 +25,7 @@ TEST_F(DirectHandlesTest, CreateDirectHandleFromLocal) {
 
 TEST_F(DirectHandlesTest, CreateLocalFromDirectHandle) {
   HandleScope scope(isolate());
-  i::Handle<i::String> handle =
+  i::DirectHandle<i::String> handle =
       i_isolate()->factory()->NewStringFromAsciiChecked("foo");
   i::DirectHandle<i::String> direct = handle;
 
@@ -42,7 +42,7 @@ TEST_F(DirectHandlesTest, CreateMaybeDirectHandle) {
   i::DirectHandle<i::String> direct = handle;
 
   i::MaybeDirectHandle<i::String> maybe_direct(direct);
-  i::MaybeHandle<i::String> maybe_handle(handle);
+  i::MaybeDirectHandle<i::String> maybe_handle(handle);
 
   EXPECT_EQ(*maybe_direct.ToHandleChecked(), *maybe_handle.ToHandleChecked());
 }
@@ -98,10 +98,12 @@ TEST_F(DirectHandlesTest, MaybeObjectDirectHandleIsIdenticalTo) {
 }
 
 // Tests to check DirectHandle usage.
-// Such usage violations are only detected in debug builds, with the
-// compile-time flag for enabling direct handles.
+// Such usage violations are only detected in debug builds with slow DCHECKs.
 
-#if defined(DEBUG) && defined(V8_ENABLE_DIRECT_HANDLE)
+#ifdef ENABLE_SLOW_DCHECKS
+// TODO(42203211): The check for stack-allocation is still not enabled in
+// non-CSS builds.
+#ifdef V8_ENABLE_DIRECT_HANDLE
 
 namespace {
 template <typename Callback>
@@ -110,10 +112,48 @@ void ExpectFailure(Callback callback) {
 }
 }  // anonymous namespace
 
-TEST_F(DirectHandlesTest, DirectHandleOutOfStackFails) {
-  // Out-of-stack allocation of direct handles should fail.
+// Out-of-stack allocation of direct handles should fail.
+
+TEST_F(DirectHandlesTest, DirectHandleOutOfStackFailsDefault) {
   ExpectFailure([]() {
+    // Default constructor.
     auto ptr = std::make_unique<i::DirectHandle<i::String>>();
+    USE(ptr);
+  });
+}
+
+TEST_F(DirectHandlesTest, DirectHandleOutOfStackFailsInit) {
+  ExpectFailure([isolate = i_isolate()]() {
+    i::Tagged<i::String> object;
+    // Constructor with initialization.
+    auto ptr = std::make_unique<i::DirectHandle<i::String>>(object, isolate);
+    USE(ptr);
+  });
+}
+
+TEST_F(DirectHandlesTest, DirectHandleOutOfStackFailsCopy) {
+  ExpectFailure([]() {
+    i::DirectHandle<i::String> h;
+    // Copy constructor.
+    auto ptr = std::make_unique<i::DirectHandle<i::String>>(h);
+    USE(ptr);
+  });
+}
+
+TEST_F(DirectHandlesTest, DirectHandleOutOfStackFailsCopyHeteroDirect) {
+  ExpectFailure([]() {
+    i::DirectHandle<i::String> h;
+    // Copy of heterogeneous direct handle.
+    auto ptr = std::make_unique<i::DirectHandle<i::HeapObject>>(h);
+    USE(ptr);
+  });
+}
+
+TEST_F(DirectHandlesTest, DirectHandleOutOfStackFailsCopyHeteroIndirect) {
+  ExpectFailure([]() {
+    i::IndirectHandle<i::String> h;
+    // Copy of heterogeneous indirect handle.
+    auto ptr = std::make_unique<i::DirectHandle<i::HeapObject>>(h);
     USE(ptr);
   });
 }
@@ -228,6 +268,7 @@ TEST_F(DirectHandlesSharedTest, DirectHandleInParkedClientBackgroundThread) {
 }
 
 #endif  // V8_CAN_CREATE_SHARED_HEAP_BOOL
-#endif  // DEBUG && V8_ENABLE_DIRECT_HANDLE
+#endif  // V8_ENABLE_DIRECT_HANDLE
+#endif  // ENABLE_SLOW_DCHECKS
 
 }  // namespace v8

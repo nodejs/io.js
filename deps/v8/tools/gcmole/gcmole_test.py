@@ -426,8 +426,13 @@ class ArgsTest(unittest.TestCase):
 
       with open(temp_dir / 'out' / 'v8_gcmole.args') as f:
         self.assertEqual(f.read().split(), [
-            '-DUSE_GLIB=1', '-DV8_TARGET_ARCH_X64', '-I.', '-Iout/gen',
-            '-Iinclude', '-Iout/gen/include',
+            '-DUSE_GLIB=1',
+            '-DV8_TARGET_ARCH_X64',
+            '-I.',
+            '-Iout/gen',
+            '-Iinclude',
+            '-Iout/gen/include',
+            '-isystem../buildtools/third_party/libc++/trunk/include',
             '--sysroot=build/linux/debian_bullseye_amd64-sysroot',
         ])
 

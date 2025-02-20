@@ -31,7 +31,7 @@ MaybeHandle<Derived> OrderedHashTable<Derived, entrysize>::Allocate(
   }
   int num_buckets = capacity / kLoadFactor;
   Handle<FixedArray> backing_store = isolate->factory()->NewFixedArrayWithMap(
-      Derived::GetMap(ReadOnlyRoots(isolate)),
+      Derived::GetMap(isolate->roots_table()),
       HashTableStartIndex() + num_buckets + (capacity * kEntrySize),
       allocation);
   Handle<Derived> table = Cast<Derived>(backing_store);
@@ -55,7 +55,7 @@ MaybeHandle<Derived> OrderedHashTable<Derived, entrysize>::AllocateEmpty(
   DCHECK(!ReadOnlyRoots(isolate).is_initialized(root_index));
 
   Handle<FixedArray> backing_store = isolate->factory()->NewFixedArrayWithMap(
-      Derived::GetMap(ReadOnlyRoots(isolate)), HashTableStartIndex(),
+      Derived::GetMap(isolate->roots_table()), HashTableStartIndex(),
       allocation);
   Handle<Derived> table = Cast<Derived>(backing_store);
   DisallowHandleAllocation no_gc;
@@ -109,7 +109,7 @@ Handle<Derived> OrderedHashTable<Derived, entrysize>::Clear(
     Isolate* isolate, Handle<Derived> table) {
   DCHECK(!table->IsObsolete());
 
-  AllocationType allocation_type = Heap::InYoungGeneration(*table)
+  AllocationType allocation_type = HeapLayout::InYoungGeneration(*table)
                                        ? AllocationType::kYoung
                                        : AllocationType::kOld;
 
@@ -222,7 +222,7 @@ Handle<FixedArray> OrderedHashSet::ConvertToKeysArray(
   // Convert the dictionary to a linear list.
   Handle<FixedArray> result = Cast<FixedArray>(table);
   // From this point on table is no longer a valid OrderedHashSet.
-  result->set_map(ReadOnlyRoots(isolate).fixed_array_map());
+  result->set_map(isolate, ReadOnlyRoots(isolate).fixed_array_map());
   int const kMaxStringTableEntries =
       isolate->heap()->MaxNumberToStringCacheSize();
   for (int i = 0; i < length; i++) {
@@ -265,11 +265,11 @@ MaybeHandle<Derived> OrderedHashTable<Derived, entrysize>::Rehash(
     Isolate* isolate, Handle<Derived> table, int new_capacity) {
   DCHECK(!table->IsObsolete());
 
-  MaybeHandle<Derived> new_table_candidate =
-      Derived::Allocate(isolate, new_capacity,
-                        Heap::InYoungGeneration(*table) ? AllocationType::kYoung
-                                                        : AllocationType::kOld);
-  Handle<Derived> new_table;
+  MaybeHandle<Derived> new_table_candidate = Derived::Allocate(
+      isolate, new_capacity,
+      HeapLayout::InYoungGeneration(*table) ? AllocationType::kYoung
+                                            : AllocationType::kOld);
+  DirectHandle<Derived> new_table;
   if (!new_table_candidate.ToHandle(&new_table)) {
     return new_table_candidate;
   }
@@ -338,7 +338,7 @@ MaybeHandle<OrderedNameDictionary> OrderedNameDictionary::Rehash(
     Isolate* isolate, Handle<OrderedNameDictionary> table, int new_capacity) {
   MaybeHandle<OrderedNameDictionary> new_table_candidate =
       Base::Rehash(isolate, table, new_capacity);
-  Handle<OrderedNameDictionary> new_table;
+  DirectHandle<OrderedNameDictionary> new_table;
   if (new_table_candidate.ToHandle(&new_table)) {
     new_table->SetHash(table->Hash());
   }
@@ -549,7 +549,7 @@ MaybeHandle<OrderedNameDictionary> OrderedNameDictionary::Allocate(
     Isolate* isolate, int capacity, AllocationType allocation) {
   MaybeHandle<OrderedNameDictionary> table_candidate =
       Base::Allocate(isolate, capacity, allocation);
-  Handle<OrderedNameDictionary> table;
+  DirectHandle<OrderedNameDictionary> table;
   if (table_candidate.ToHandle(&table)) {
     table->SetHash(PropertyArray::kNoHashSentinel);
   }
@@ -573,7 +573,7 @@ MaybeHandle<OrderedNameDictionary> OrderedNameDictionary::AllocateEmpty(
   RootIndex ri = RootIndex::kEmptyOrderedPropertyDictionary;
   MaybeHandle<OrderedNameDictionary> table_candidate =
       Base::AllocateEmpty(isolate, allocation, ri);
-  Handle<OrderedNameDictionary> table;
+  DirectHandle<OrderedNameDictionary> table;
   if (table_candidate.ToHandle(&table)) {
     table->SetHash(PropertyArray::kNoHashSentinel);
   }
@@ -931,8 +931,8 @@ Handle<Derived> SmallOrderedHashTable<Derived>::Rehash(Isolate* isolate,
 
   Handle<Derived> new_table = SmallOrderedHashTable<Derived>::Allocate(
       isolate, new_capacity,
-      Heap::InYoungGeneration(*table) ? AllocationType::kYoung
-                                      : AllocationType::kOld);
+      HeapLayout::InYoungGeneration(*table) ? AllocationType::kYoung
+                                            : AllocationType::kOld);
   int new_entry = 0;
 
   {
@@ -1411,7 +1411,7 @@ int OrderedNameDictionaryHandler::Capacity(Tagged<HeapObject> table) {
   return Cast<OrderedNameDictionary>(table)->Capacity();
 }
 
-Handle<HeapObject> OrderedNameDictionaryHandler::Shrink(
+DirectHandle<HeapObject> OrderedNameDictionaryHandler::Shrink(
     Isolate* isolate, Handle<HeapObject> table) {
   if (IsSmallOrderedNameDictionary(*table)) {
     Handle<SmallOrderedNameDictionary> small_dict =
@@ -1423,7 +1423,7 @@ Handle<HeapObject> OrderedNameDictionaryHandler::Shrink(
   return OrderedNameDictionary::Shrink(isolate, large_dict);
 }
 
-Handle<HeapObject> OrderedNameDictionaryHandler::DeleteEntry(
+DirectHandle<HeapObject> OrderedNameDictionaryHandler::DeleteEntry(
     Isolate* isolate, Handle<HeapObject> table, InternalIndex entry) {
   DisallowGarbageCollection no_gc;
   if (IsSmallOrderedNameDictionary(*table)) {

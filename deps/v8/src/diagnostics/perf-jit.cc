@@ -222,7 +222,8 @@ uint64_t LinuxPerfJitLogger::GetTimestamp() {
 
 void LinuxPerfJitLogger::LogRecordedBuffer(
     Tagged<AbstractCode> abstract_code,
-    MaybeHandle<SharedFunctionInfo> maybe_sfi, const char* name, int length) {
+    MaybeHandle<SharedFunctionInfo> maybe_sfi, const char* name,
+    size_t length) {
   DisallowGarbageCollection no_gc;
   if (v8_flags.perf_basic_prof_only_functions) {
     CodeKind code_kind = abstract_code->kind(isolate_);
@@ -264,7 +265,7 @@ void LinuxPerfJitLogger::LogRecordedBuffer(
 
 #if V8_ENABLE_WEBASSEMBLY
 void LinuxPerfJitLogger::LogRecordedBuffer(const wasm::WasmCode* code,
-                                           const char* name, int length) {
+                                           const char* name, size_t length) {
   base::LockGuard<base::RecursiveMutex> guard_file(GetFileMutex().Pointer());
 
   if (perf_output_handle_ == nullptr) return;
@@ -279,10 +280,11 @@ void LinuxPerfJitLogger::LogRecordedBuffer(const wasm::WasmCode* code,
 void LinuxPerfJitLogger::WriteJitCodeLoadEntry(const uint8_t* code_pointer,
                                                uint32_t code_size,
                                                const char* name,
-                                               int name_length) {
+                                               size_t name_length) {
   PerfJitCodeLoad code_load;
   code_load.event_ = PerfJitCodeLoad::kLoad;
-  code_load.size_ = sizeof(code_load) + name_length + 1 + code_size;
+  code_load.size_ =
+      static_cast<uint32_t>(sizeof(code_load) + name_length + 1 + code_size);
   code_load.time_stamp_ = GetTimestamp();
   code_load.process_id_ = static_cast<uint32_t>(process_id_);
   code_load.thread_id_ = static_cast<uint32_t>(base::OS::GetCurrentThreadId());
@@ -317,11 +319,9 @@ base::Vector<const char> GetScriptName(Tagged<Object> maybeScript,
       return {reinterpret_cast<char*>(str->GetChars(no_gc)),
               static_cast<size_t>(str->length())};
     } else if (IsString(name_or_url)) {
-      int length;
-      *storage =
-          Cast<String>(name_or_url)
-              ->ToCString(DISALLOW_NULLS, FAST_STRING_TRAVERSAL, &length);
-      return {storage->get(), static_cast<size_t>(length)};
+      size_t length;
+      *storage = Cast<String>(name_or_url)->ToCString(&length);
+      return {storage->get(), length};
     }
   }
   return {kUnknownScriptNameString, kUnknownScriptNameStringLen};
@@ -413,8 +413,7 @@ void LinuxPerfJitLogger::LogWriteDebugInfo(Tagged<Code> code,
     LogWriteBytes(reinterpret_cast<const char*>(&entry), sizeof(entry));
     Tagged<Object> current_script = *info.script;
     auto name_string = script_names[script_names_index];
-    LogWriteBytes(name_string.begin(),
-                  static_cast<uint32_t>(name_string.size()));
+    LogWriteBytes(name_string.begin(), name_string.size());
     LogWriteBytes(kStringTerminator, sizeof(kStringTerminator));
     if (current_script != last_script) {
       if (last_script != Smi::zero()) script_names_index++;
@@ -489,7 +488,7 @@ void LinuxPerfJitLogger::LogWriteDebugInfo(const wasm::WasmCode* code) {
     entry.column_ = 1;
     LogWriteBytes(reinterpret_cast<const char*>(&entry), sizeof(entry));
     std::string name_string = source_map->GetFilename(offset);
-    LogWriteBytes(name_string.c_str(), static_cast<int>(name_string.size()));
+    LogWriteBytes(name_string.c_str(), name_string.size());
     LogWriteBytes(kStringTerminator, sizeof(kStringTerminator));
   }
 
@@ -530,12 +529,12 @@ void LinuxPerfJitLogger::LogWriteUnwindingInfo(Tagged<Code> code) {
 
   char padding_bytes[] = "\0\0\0\0\0\0\0\0";
   DCHECK_LT(padding_size, static_cast<int>(sizeof(padding_bytes)));
-  LogWriteBytes(padding_bytes, static_cast<int>(padding_size));
+  LogWriteBytes(padding_bytes, padding_size);
 }
 
-void LinuxPerfJitLogger::LogWriteBytes(const char* bytes, int size) {
+void LinuxPerfJitLogger::LogWriteBytes(const char* bytes, size_t size) {
   size_t rv = fwrite(bytes, 1, size, perf_output_handle_);
-  DCHECK(static_cast<size_t>(size) == rv);
+  DCHECK_EQ(size, rv);
   USE(rv);
 }
 

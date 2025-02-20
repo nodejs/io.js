@@ -4,6 +4,7 @@ specific_include_rules = {
     # The only allowed include is 'src/codegen' for assembler headers.
     "-src",
     "+src/codegen",
+    "+src/base/sanitizer/ubsan.h",
     "+src/wasm/jump-table-assembler.h",
   ],
   "c-api\.cc": [
@@ -46,6 +47,10 @@ specific_include_rules = {
     "+src/compiler/wasm-call-descriptors.h",
   ],
   "liftoff-assembler\.cc": [
+    # The LiftoffAssembler needs to know CallDescriptors.
+    "+src/compiler/linkage.h",
+  ],
+  "liftoff-assembler-(x64|arm64|loong64|mips64|riscv)-inl\.h": [
     # The LiftoffAssembler needs to know CallDescriptors.
     "+src/compiler/linkage.h",
   ],

@@ -12,16 +12,21 @@
 #include "src/base/bits.h"
 #include "src/base/platform/memory.h"
 
+namespace v8::internal {
+class WriteBarrierCodeStubAssembler;
+}  // namespace v8::internal
+
 namespace heap {
 namespace base {
 
 enum SlotCallbackResult { KEEP_SLOT, REMOVE_SLOT };
 
-// Data structure for maintaining a set of slots in a standard (non-large)
-// page.
-// The data structure assumes that the slots are pointer size aligned and
-// splits the valid slot offset range into buckets.
-// Each bucket is a bitmap with a bit corresponding to a single slot offset.
+// Data structure for maintaining a set of slots.
+//
+// On a high-level the set implements a 2-level bitmap. The set assumes that the
+// slots are `SlotGranularity`-aligned and splits the valid slot offset range
+// into buckets. Each bucket is a bitmap with a bit corresponding to a single
+// slot offset.
 template <size_t SlotGranularity>
 class BasicSlotSet {
   static constexpr auto kSystemPointerSize = sizeof(void*);
@@ -46,48 +51,39 @@ class BasicSlotSet {
     //                           |
     //                           v
     //         +-----------------+-------------------------+
-    //         | initial buckets |     buckets array       |
+    //         |    num buckets  |     buckets array       |
     //         +-----------------+-------------------------+
-    //            pointer-sized    pointer-sized * buckets
+    //                size_t          Bucket* buckets
     //
     //
     // The BasicSlotSet pointer points to the beginning of the buckets array for
-    // faster access in the write barrier. The number of buckets is needed for
-    // calculating the size of this data structure.
-    size_t buckets_size = buckets * sizeof(Bucket*);
-    size_t size = kInitialBucketsSize + buckets_size;
+    // faster access in the write barrier. The number of buckets is maintained
+    // for checking bounds for the heap sandbox.
+    const size_t buckets_size = buckets * sizeof(Bucket*);
+    const size_t size = kNumBucketsSize + buckets_size;
     void* allocation = v8::base::AlignedAlloc(size, kSystemPointerSize);
     CHECK(allocation);
     BasicSlotSet* slot_set = reinterpret_cast<BasicSlotSet*>(
-        reinterpret_cast<uint8_t*>(allocation) + kInitialBucketsSize);
+        reinterpret_cast<uint8_t*>(allocation) + kNumBucketsSize);
     DCHECK(
         IsAligned(reinterpret_cast<uintptr_t>(slot_set), kSystemPointerSize));
-#ifdef DEBUG
-    *slot_set->initial_buckets() = buckets;
-#endif
+    slot_set->set_num_buckets(buckets);
     for (size_t i = 0; i < buckets; i++) {
       *slot_set->bucket(i) = nullptr;
     }
     return slot_set;
   }
 
-  static void Delete(BasicSlotSet* slot_set, size_t buckets) {
-    if (slot_set == nullptr) return;
+  static void Delete(BasicSlotSet* slot_set) {
+    if (slot_set == nullptr) {
+      return;
+    }
 
-    for (size_t i = 0; i < buckets; i++) {
+    for (size_t i = 0; i < slot_set->num_buckets(); i++) {
       slot_set->ReleaseBucket(i);
     }
-
-#ifdef DEBUG
-    size_t initial_buckets = *slot_set->initial_buckets();
-
-    for (size_t i = buckets; i < initial_buckets; i++) {
-      DCHECK_NULL(*slot_set->bucket(i));
-    }
-#endif
-
     v8::base::AlignedFree(reinterpret_cast<uint8_t*>(slot_set) -
-                          kInitialBucketsSize);
+                          kNumBucketsSize);
   }
 
   constexpr static size_t BucketsForSize(size_t size) {
@@ -169,7 +165,18 @@ class BasicSlotSet {
     SlotToIndices(start_offset, &start_bucket, &start_cell, &start_bit);
     size_t end_bucket;
     int end_cell, end_bit;
-    SlotToIndices(end_offset, &end_bucket, &end_cell, &end_bit);
+    // SlotToIndices() checks that bucket index is within `size`. Since the API
+    // allow for an exclusive end interval, we compute  the inclusive index and
+    // then increment the bit again (with overflows).
+    SlotToIndices(end_offset - SlotGranularity, &end_bucket, &end_cell,
+                  &end_bit);
+    if (++end_bit >= kBitsPerCell) {
+      end_bit = 0;
+      if (++end_cell >= kCellsPerBucket) {
+        end_cell = 0;
+        end_bucket++;
+      }
+    }
     uint32_t start_mask = (1u << start_bit) - 1;
     uint32_t end_mask = ~((1u << end_bit) - 1);
     Bucket* bucket;
@@ -273,14 +280,8 @@ class BasicSlotSet {
       kCellsPerBucketLog2 + kBitsPerCellLog2;
 
   class Bucket final {
-    uint32_t cells_[kCellsPerBucket];
-
    public:
-    Bucket() {
-      for (int i = 0; i < kCellsPerBucket; i++) {
-        cells_[i] = 0;
-      }
-    }
+    Bucket() = default;
 
     uint32_t* cells() { return cells_; }
     const uint32_t* cells() const { return cells_; }
@@ -298,7 +299,7 @@ class BasicSlotSet {
     template <AccessMode access_mode = AccessMode::ATOMIC>
     void SetCellBits(int cell_index, uint32_t mask) {
       if constexpr (access_mode == AccessMode::ATOMIC) {
-        v8::base::AsAtomic32::SetBits(cell(cell_index), mask, mask);
+        v8::base::AsAtomic32::Release_SetBits(cell(cell_index), mask, mask);
       } else {
         uint32_t* c = cell(cell_index);
         *c = (*c & ~mask) | mask;
@@ -308,7 +309,7 @@ class BasicSlotSet {
     template <AccessMode access_mode = AccessMode::ATOMIC>
     void ClearCellBits(int cell_index, uint32_t mask) {
       if constexpr (access_mode == AccessMode::ATOMIC) {
-        v8::base::AsAtomic32::SetBits(cell(cell_index), 0u, mask);
+        v8::base::AsAtomic32::Release_SetBits(cell(cell_index), 0u, mask);
       } else {
         *cell(cell_index) &= ~mask;
       }
@@ -326,7 +327,14 @@ class BasicSlotSet {
       }
       return true;
     }
+
+   private:
+    uint32_t cells_[kCellsPerBucket] = {0};
   };
+
+  size_t num_buckets() const {
+    return *(reinterpret_cast<const size_t*>(this) - 1);
+  }
 
  protected:
   template <AccessMode access_mode = AccessMode::ATOMIC, typename Callback,
@@ -441,11 +449,13 @@ class BasicSlotSet {
   }
 
   // Converts the slot offset into bucket/cell/bit index.
-  static void SlotToIndices(size_t slot_offset, size_t* bucket_index,
-                            int* cell_index, int* bit_index) {
+  void SlotToIndices(size_t slot_offset, size_t* bucket_index, int* cell_index,
+                     int* bit_index) {
     DCHECK(IsAligned(slot_offset, SlotGranularity));
     size_t slot = slot_offset / SlotGranularity;
     *bucket_index = slot >> kBitsPerBucketLog2;
+    // No SBXCHECK() in base.
+    CHECK(*bucket_index < (num_buckets()));
     *cell_index =
         static_cast<int>((slot >> kBitsPerCellLog2) & (kCellsPerBucket - 1));
     *bit_index = static_cast<int>(slot & (kBitsPerCell - 1));
@@ -454,12 +464,14 @@ class BasicSlotSet {
   Bucket** buckets() { return reinterpret_cast<Bucket**>(this); }
   Bucket** bucket(size_t bucket_index) { return buckets() + bucket_index; }
 
-#ifdef DEBUG
-  size_t* initial_buckets() { return reinterpret_cast<size_t*>(this) - 1; }
-  static const int kInitialBucketsSize = sizeof(size_t);
-#else
-  static const int kInitialBucketsSize = 0;
-#endif
+  void set_num_buckets(size_t num_buckets) {
+    *(reinterpret_cast<size_t*>(this) - 1) = num_buckets;
+  }
+
+  static constexpr int kNumBucketsSize = sizeof(size_t);
+
+  // For kNumBucketsSize.
+  friend class v8::internal::WriteBarrierCodeStubAssembler;
 };
 
 }  // namespace base

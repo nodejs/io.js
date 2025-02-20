@@ -59,8 +59,8 @@ cc_test(
         "//absl/synchronization",
         "//absl/synchronization:thread_pool",
         "//absl/time",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -88,8 +88,8 @@ cc_test(
     deps = [
         ":exponential_biased",
         "//absl/strings",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -119,8 +119,8 @@ cc_test(
     deps = [
         ":periodic_sampler",
         "//absl/base:core_headers",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -135,6 +135,6 @@ cc_binary(
     deps = [
         ":periodic_sampler",
         "//absl/base:core_headers",
-        "@com_github_google_benchmark//:benchmark_main",
+        "@google_benchmark//:benchmark_main",
     ],
 )

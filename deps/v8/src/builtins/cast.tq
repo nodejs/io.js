@@ -335,6 +335,25 @@ Cast<Number|TheHole>(o: Object): Number|TheHole labels CastError {
   }
 }
 
+@if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+  Cast<Number|Undefined|TheHole>(o: Object): Number|Undefined|
+      TheHole labels CastError {
+    typeswitch (o) {
+      case (o: Number): {
+        return o;
+      }
+      case (o: Undefined): {
+        return o;
+      }
+      case (o: TheHole): {
+        return o;
+      }
+      case (Object): {
+        goto CastError;
+      }
+    }
+  }
+
 Cast<Context|Zero|Undefined>(o: Object): Context|Zero|Undefined
     labels CastError {
   typeswitch (o) {

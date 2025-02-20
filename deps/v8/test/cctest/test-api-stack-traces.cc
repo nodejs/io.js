@@ -184,7 +184,8 @@ static void checkStackFrame(const char* expected_script_name,
                             const char* expected_script_source_mapping_url,
                             const char* expected_func_name,
                             int expected_line_number, int expected_column,
-                            bool is_eval, bool is_constructor,
+                            int expected_source_position, bool is_eval,
+                            bool is_constructor,
                             v8::Local<v8::StackFrame> frame) {
   v8::HandleScope scope(CcTest::isolate());
   v8::String::Utf8Value func_name(CcTest::isolate(), frame->GetFunctionName());
@@ -214,6 +215,7 @@ static void checkStackFrame(const char* expected_script_name,
   CHECK_EQ(expected_column, frame->GetColumn());
   CHECK_EQ(is_eval, frame->IsEval());
   CHECK_EQ(is_constructor, frame->IsConstructor());
+  CHECK_EQ(expected_source_position, frame->GetSourcePosition());
   CHECK(frame->IsUserJavaScript());
 }
 
@@ -299,50 +301,50 @@ static void AnalyzeStackInNativeCode(
         info.GetIsolate(), 10, v8::StackTrace::kOverview);
     CHECK_EQ(4, stackTrace->GetFrameCount());
     checkStackFrame(origin, overview_source, "//foobar.com/overview.ts", "bar",
-                    2, 10, false, false,
+                    2, 10, 26, false, false,
                     stackTrace->GetFrame(info.GetIsolate(), 0));
     checkStackFrame(origin, overview_source, "//foobar.com/overview.ts", "foo",
-                    6, 3, false, true, stackTrace->GetFrame(isolate, 1));
+                    6, 3, 77, false, true, stackTrace->GetFrame(isolate, 1));
     // This is the source string inside the eval which has the call to foo.
-    checkStackFrame(nullptr, "new foo();", nullptr, "", 1, 1, true, false,
+    checkStackFrame(nullptr, "new foo();", nullptr, "", 1, 1, 0, true, false,
                     stackTrace->GetFrame(isolate, 2));
     // The last frame is an anonymous function which has the initial eval call.
     checkStackFrame(origin, overview_source, "//foobar.com/overview.ts", "", 9,
-                    7, false, false, stackTrace->GetFrame(isolate, 3));
+                    7, 143, false, false, stackTrace->GetFrame(isolate, 3));
   } else if (testGroup == kDetailedTest) {
     v8::Local<v8::StackTrace> stackTrace = v8::StackTrace::CurrentStackTrace(
         info.GetIsolate(), 10, v8::StackTrace::kDetailed);
     CHECK_EQ(4, stackTrace->GetFrameCount());
-    checkStackFrame(origin, detailed_source, nullptr, "bat", 4, 22, false,
+    checkStackFrame(origin, detailed_source, nullptr, "bat", 4, 22, 16, false,
                     false, stackTrace->GetFrame(isolate, 0));
-    checkStackFrame(origin, detailed_source, nullptr, "baz", 8, 3, false, true,
-                    stackTrace->GetFrame(isolate, 1));
+    checkStackFrame(origin, detailed_source, nullptr, "baz", 8, 3, 67, false,
+                    true, stackTrace->GetFrame(isolate, 1));
     bool is_eval = true;
     // This is the source string inside the eval which has the call to baz.
-    checkStackFrame(nullptr, "new baz();", nullptr, "", 1, 1, is_eval, false,
+    checkStackFrame(nullptr, "new baz();", nullptr, "", 1, 1, 0, is_eval, false,
                     stackTrace->GetFrame(isolate, 2));
     // The last frame is an anonymous function which has the initial eval call.
-    checkStackFrame(origin, detailed_source, nullptr, "", 10, 1, false, false,
-                    stackTrace->GetFrame(isolate, 3));
+    checkStackFrame(origin, detailed_source, nullptr, "", 10, 1, 76, false,
+                    false, stackTrace->GetFrame(isolate, 3));
   } else if (testGroup == kFunctionName) {
     v8::Local<v8::StackTrace> stackTrace = v8::StackTrace::CurrentStackTrace(
         info.GetIsolate(), 5, v8::StackTrace::kOverview);
     CHECK_EQ(3, stackTrace->GetFrameCount());
     checkStackFrame(nullptr, function_name_source_anon3, nullptr,
-                    "function.name", 3, 1, true, false,
+                    "function.name", 3, 1, 25, true, false,
                     stackTrace->GetFrame(isolate, 0));
   } else if (testGroup == kFunctionNameAndDisplayName) {
     v8::Local<v8::StackTrace> stackTrace = v8::StackTrace::CurrentStackTrace(
         info.GetIsolate(), 5, v8::StackTrace::kOverview);
     CHECK_EQ(3, stackTrace->GetFrameCount());
     checkStackFrame(nullptr, function_name_source_anon4, nullptr,
-                    "function.name", 3, 1, true, false,
+                    "function.name", 3, 1, 25, true, false,
                     stackTrace->GetFrame(isolate, 0));
   } else if (testGroup == kFunctionNameIsNotString) {
     v8::Local<v8::StackTrace> stackTrace = v8::StackTrace::CurrentStackTrace(
         info.GetIsolate(), 5, v8::StackTrace::kOverview);
     CHECK_EQ(3, stackTrace->GetFrameCount());
-    checkStackFrame(nullptr, function_name_source_anon5, nullptr, "", 3, 1,
+    checkStackFrame(nullptr, function_name_source_anon5, nullptr, "", 3, 1, 25,
                     true, false, stackTrace->GetFrame(isolate, 0));
   }
 }
@@ -410,10 +412,10 @@ static void StackTraceForUncaughtExceptionListener(
   report_count++;
   v8::Local<v8::StackTrace> stack_trace = message->GetStackTrace();
   CHECK_EQ(2, stack_trace->GetFrameCount());
-  checkStackFrame("origin", uncaught_exception_source, nullptr, "foo", 2, 3,
+  checkStackFrame("origin", uncaught_exception_source, nullptr, "foo", 2, 3, 19,
                   false, false,
                   stack_trace->GetFrame(message->GetIsolate(), 0));
-  checkStackFrame("origin", uncaught_exception_source, nullptr, "bar", 5, 3,
+  checkStackFrame("origin", uncaught_exception_source, nullptr, "bar", 5, 3, 50,
                   false, false,
                   stack_trace->GetFrame(message->GetIsolate(), 1));
 }
@@ -456,8 +458,8 @@ static void StackTraceForUncaughtExceptionAndSettersListener(
   report_count++;
   v8::Local<v8::StackTrace> stack_trace = message->GetStackTrace();
   CHECK_EQ(1, stack_trace->GetFrameCount());
-  checkStackFrame(nullptr, "throw 'exception';", nullptr, nullptr, 1, 1, false,
-                  false, stack_trace->GetFrame(isolate, 0));
+  checkStackFrame(nullptr, "throw 'exception';", nullptr, nullptr, 1, 1, 0,
+                  false, false, stack_trace->GetFrame(isolate, 0));
   v8::Local<v8::StackFrame> stack_frame = stack_trace->GetFrame(isolate, 0);
   v8::Local<v8::Object> object = v8::Local<v8::Object>::Cast(value);
   CHECK(object
@@ -519,19 +521,19 @@ static void StackTraceFunctionNameListener(v8::Local<v8::Message> message,
   v8::Isolate* isolate = message->GetIsolate();
   CHECK_EQ(5, stack_trace->GetFrameCount());
   checkStackFrame("origin", functions_with_function_name, "local/functional.sc",
-                  "foo:0", 4, 7, false, false,
+                  "foo:0", 4, 7, 86, false, false,
                   stack_trace->GetFrame(isolate, 0));
   checkStackFrame("origin", functions_with_function_name, "local/functional.sc",
-                  "foo:1", 5, 27, false, false,
+                  "foo:1", 5, 27, 121, false, false,
                   stack_trace->GetFrame(isolate, 1));
   checkStackFrame("origin", functions_with_function_name, "local/functional.sc",
-                  "foo", 5, 27, false, false,
+                  "foo", 5, 27, 121, false, false,
                   stack_trace->GetFrame(isolate, 2));
   checkStackFrame("origin", functions_with_function_name, "local/functional.sc",
-                  "foo", 5, 27, false, false,
+                  "foo", 5, 27, 121, false, false,
                   stack_trace->GetFrame(isolate, 3));
   checkStackFrame("origin", functions_with_function_name_caller, nullptr, "", 1,
-                  14, false, false, stack_trace->GetFrame(isolate, 4));
+                  14, 13, false, false, stack_trace->GetFrame(isolate, 4));
 }
 
 TEST(GetStackTraceContainsFunctionsWithFunctionName) {

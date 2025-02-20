@@ -23,7 +23,7 @@ AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
   actual: Error: foo
       at assert.throws.bar (*assert_throws_stack.js:*)
       at getActual (node:assert:*)
-      at Function.throws (node:assert:*)
+      at strict.throws (node:assert:*)
       at Object.<anonymous> (*assert_throws_stack.js:*:*)
       at *
       at *

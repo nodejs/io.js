@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --turboshaft-wasm --no-liftoff --no-wasm-lazy-compilation
+// Flags: --no-liftoff --no-wasm-lazy-compilation
 // Flags: --no-wasm-loop-unrolling --no-wasm-loop-peeling
 
 // This test case creates nested loops which contain struct.get calls that

@@ -14,13 +14,18 @@ namespace v8 {
 namespace internal {
 
 void CppHeapPointerTableEntry::MakePointerEntry(Address value,
-                                                CppHeapPointerTag tag) {
+                                                CppHeapPointerTag tag,
+                                                bool mark_as_alive) {
   // Top bits must be zero, otherwise we'd loose information when shifting.
   DCHECK_EQ(0, value >> (kBitsPerSystemPointer - kCppHeapPointerPayloadShift));
   DCHECK_NE(tag, CppHeapPointerTag::kFreeEntryTag);
   DCHECK_NE(tag, CppHeapPointerTag::kEvacuationEntryTag);
 
   Payload new_payload(value, tag);
+  DCHECK(!new_payload.HasMarkBitSet());
+  if (V8_UNLIKELY(mark_as_alive)) {
+    new_payload.SetMarkBit();
+  }
   payload_.store(new_payload, std::memory_order_relaxed);
 }
 
@@ -127,7 +132,7 @@ CppHeapPointerHandle CppHeapPointerTable::AllocateAndInitializeEntry(
     Space* space, Address initial_value, CppHeapPointerTag tag) {
   DCHECK(space->BelongsTo(this));
   uint32_t index = AllocateEntry(space);
-  at(index).MakePointerEntry(initial_value, tag);
+  at(index).MakePointerEntry(initial_value, tag, space->allocate_black());
 
   CppHeapPointerHandle handle = IndexToHandle(index);
 

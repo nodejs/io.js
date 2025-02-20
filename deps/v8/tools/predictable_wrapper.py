@@ -20,7 +20,7 @@ from testrunner.local import command
 from testrunner.local import utils
 
 
-MAX_TRIES = 3
+MAX_TRIES = 7
 TIMEOUT = 120
 
 # Predictable mode works only when run on the host os.

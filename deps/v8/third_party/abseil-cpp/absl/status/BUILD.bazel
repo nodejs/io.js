@@ -58,6 +58,7 @@ cc_library(
         "//absl/base:raw_logging_internal",
         "//absl/base:strerror",
         "//absl/container:inlined_vector",
+        "//absl/debugging:leak_check",
         "//absl/debugging:stacktrace",
         "//absl/debugging:symbolize",
         "//absl/functional:function_ref",
@@ -80,8 +81,8 @@ cc_test(
         "//absl/strings",
         "//absl/strings:cord",
         "//absl/strings:str_format",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -126,8 +127,8 @@ cc_test(
         "//absl/types:any",
         "//absl/types:variant",
         "//absl/utility",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -146,7 +147,7 @@ cc_library(
         ":statusor",
         "//absl/base:config",
         "//absl/strings:string_view",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -161,7 +162,7 @@ cc_test(
         ":status_matchers",
         ":statusor",
         "//absl/strings",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )

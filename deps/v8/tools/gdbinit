@@ -81,9 +81,12 @@ class PrintV8InternalHandleCommand(PrintV8HandleCommand):
     # Indirect handles contain a location_.
     if gdb.types.has_field(value.type, "location_"):
       return self.print_indirect(value["location_"], from_tty)
-    # Direct handles contain a obj_.
+    # With v8_enable_direct_handle=true, direct handles contain a obj_.
     if gdb.types.has_field(value.type, "obj_"):
       return self.print_direct(value["obj_"], from_tty)
+    # Without v8_enable_direct_handle=true, direct handles contain a handle_.
+    if gdb.types.has_field(value.type, "handle_"):
+      return self.print_handle(value["handle_"], from_tty)
     # We don't know how to print this...
     return False
 
@@ -108,12 +111,21 @@ Print a v8 Code object from an internal code address
 Usage: jco pc
 end
 
+# Print JSDispatchEntry object in the JSDispatchTable with the given dispatch handle
+define jdh
+  call (void) _v8_internal_Print_Dispatch_Handle((uint32_t)($arg0))
+end
+document jdh
+Print JSDispatchEntry object in the JSDispatchTable with the given dispatch handle
+Usage: jdh dispatch_handle
+end
+
 # Print Code objects assembly code surrounding given PC.
 define jca
   if $argc == 0
     call (void) _v8_internal_Print_OnlyCode((void*)($pc), 30)
   else
-    if $argc == 0
+    if $argc == 1
       call (void) _v8_internal_Print_OnlyCode((void*)($arg0), 30)
     else
       call (void) _v8_internal_Print_OnlyCode((void*)($arg0), (size_t)($arg1))
@@ -309,15 +321,21 @@ def v8_stop_handler(event):
     # walk if we see this frame.
     if frame.type() == gdb.DUMMY_FRAME: break
 
-    if frame.name() == 'V8_Dcheck':
-      frame_message = gdb.lookup_symbol('message', frame.block())[0]
-      if frame_message:
-        message = frame_message.value(frame).string()
+    frame_name = frame.name()
+    if frame_name is None:
+      frame = frame.older()
+      continue
+    if frame_name == 'V8_Dcheck' or frame_name.endswith('::DefaultDcheckHandler'):
+      try:
+        frame_message = gdb.lookup_symbol('message', frame.block())[0]
+        if frame_message:
+          message = frame_message.value(frame).string()
+      except:
+        pass
       select_frame = frame.older()
-      break
-    if frame.name() is not None and frame.name().startswith('V8_Fatal'):
+    if frame_name.startswith('V8_Fatal'):
       select_frame = frame.older()
-    if frame.name() == 'v8::base::OS::DebugBreak':
+    if frame_name == 'v8::base::OS::DebugBreak':
       select_frame = frame.older()
     frame = frame.older()
 
@@ -325,7 +343,7 @@ def v8_stop_handler(event):
     select_frame.select()
     gdb.execute('frame')
     if message:
-      print('DCHECK error: {}'.format(message))
+      print('==> DCHECK error: {}'.format(message))
 
 gdb.events.stop.connect(v8_stop_handler)
 end
@@ -383,24 +401,6 @@ gdb.execute("set environment V8_GDBINIT_SOURCED=1")
 end
 
 ### CppGC helpers.
-
-# Print compressed pointer.
-define cpcp
-call _cppgc_internal_Decompress_Compressed_Pointer((unsigned)($arg0))
-end
-document cpcp
-Prints compressed pointer (raw value) after decompression.
-Usage: cpcp compressed_pointer
-end
-
-# Print member.
-define cpm
-call _cppgc_internal_Print_Member((cppgc::internal::MemberBase*)(&$arg0))
-end
-document cpm
-Prints member, compressed or not.
-Usage: cpm member
-end
 
 # Pretty printer for cppgc::Member.
 python

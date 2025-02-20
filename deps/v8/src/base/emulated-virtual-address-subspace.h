@@ -118,7 +118,7 @@ class V8_BASE_EXPORT EmulatedVirtualAddressSubspace final
 
   // Mutex guarding the non-threadsafe RegionAllocator and
   // RandomNumberGenerator.
-  Mutex mutex_;
+  SpinningMutex mutex_;
 
   // RegionAllocator to manage the page allocation and divide it into further
   // regions as necessary.

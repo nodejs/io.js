@@ -1274,7 +1274,8 @@ void InstructionSelectorT<TurbofanAdapter>::VisitWordCompareZero(
         }
         break;
       case IrOpcode::kWord32And:
-        return VisitWordCompare(this, value, kRiscvTst32, cont, true);
+        VisitWordCompare(this, value, kRiscvTst32, cont, true);
+        return;
       case IrOpcode::kStackPointerGreaterThan:
         cont->OverwriteAndNegateIfEqual(kStackPointerGreaterThanCondition);
         return VisitStackPointerGreaterThan(value, cont);

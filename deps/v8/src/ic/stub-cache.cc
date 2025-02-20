@@ -70,8 +70,8 @@ bool CommonStubCacheChecks(StubCache* stub_cache, Tagged<Name> name,
                            Tagged<Map> map, Tagged<MaybeObject> handler) {
   // Validate that the name and handler do not move on scavenge, and that we
   // can use identity checks instead of structural equality checks.
-  DCHECK(!Heap::InYoungGeneration(name));
-  DCHECK(!Heap::InYoungGeneration(handler));
+  DCHECK(!HeapLayout::InYoungGeneration(name));
+  DCHECK(!HeapLayout::InYoungGeneration(handler));
   DCHECK(IsUniqueName(name));
   if (handler.ptr() != kNullAddress) DCHECK(IC::IsHandler(handler));
   return true;

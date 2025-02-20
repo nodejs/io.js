@@ -128,6 +128,8 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kArm64Float32RoundUp:
     case kArm64Float32ToFloat64:
     case kArm64Float64ToFloat32:
+    case kArm64Float64ToFloat16RawBits:
+    case kArm64Float16RawBitsToFloat64:
     case kArm64Float32ToInt32:
     case kArm64Float64ToInt32:
     case kArm64Float32ToUint32:
@@ -265,6 +267,8 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kArm64S128AndNot:
     case kArm64Ssra:
     case kArm64Usra:
+    case kArm64S64x2UnzipLeft:
+    case kArm64S64x2UnzipRight:
     case kArm64S32x4ZipLeft:
     case kArm64S32x4ZipRight:
     case kArm64S32x4UnzipLeft:
@@ -272,6 +276,7 @@ int InstructionScheduler::GetTargetInstructionFlags(
     case kArm64S32x4TransposeLeft:
     case kArm64S32x4TransposeRight:
     case kArm64S32x4OneLaneSwizzle:
+    case kArm64S64x2Shuffle:
     case kArm64S32x4Shuffle:
     case kArm64S16x8ZipLeft:
     case kArm64S16x8ZipRight:
@@ -539,6 +544,8 @@ int InstructionScheduler::GetInstructionLatency(const Instruction* instr) {
 
     case kArm64Float32ToFloat64:
     case kArm64Float64ToFloat32:
+    case kArm64Float64ToFloat16RawBits:
+    case kArm64Float16RawBitsToFloat64:
     case kArm64Float64ToInt32:
     case kArm64Float64ToUint32:
     case kArm64Float32ToInt64:

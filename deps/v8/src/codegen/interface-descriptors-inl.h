@@ -24,7 +24,7 @@
 #include "src/codegen/arm/interface-descriptors-arm-inl.h"
 #elif V8_TARGET_ARCH_PPC64
 #include "src/codegen/ppc/interface-descriptors-ppc-inl.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/codegen/s390/interface-descriptors-s390-inl.h"
 #elif V8_TARGET_ARCH_MIPS64
 #include "src/codegen/mips64/interface-descriptors-mips64-inl.h"
@@ -78,6 +78,13 @@ StaticCallInterfaceDescriptor<DerivedDescriptor>::return_double_registers() {
 template <typename DerivedDescriptor>
 constexpr auto StaticJSCallInterfaceDescriptor<DerivedDescriptor>::registers() {
   return CallInterfaceDescriptor::DefaultJSRegisterArray();
+}
+
+// static
+constexpr auto JSTrampolineDescriptor::registers() {
+  return RegisterArray(
+      kJavaScriptCallTargetRegister, kJavaScriptCallNewTargetRegister,
+      kJavaScriptCallArgCountRegister, kJavaScriptCallDispatchHandleRegister);
 }
 
 // static
@@ -265,7 +272,8 @@ constexpr DoubleRegister
 StaticCallInterfaceDescriptor<DerivedDescriptor>::GetDoubleRegisterParameter(
     int i) {
   DCHECK(IsFloatingPoint(GetParameterType(i).representation()));
-  return DoubleRegister::from_code(DerivedDescriptor::registers()[i].code());
+  return DoubleRegister::from_code(
+      DerivedDescriptor::double_registers()[i].code());
 }
 
 // static
@@ -455,8 +463,8 @@ constexpr auto LoadWithReceiverBaselineDescriptor::registers() {
 // static
 constexpr auto BaselineOutOfLinePrologueDescriptor::registers() {
   // TODO(v8:11421): Implement on other platforms.
-#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_ARM ||      \
-    V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390 || V8_TARGET_ARCH_RISCV64 || \
+#if V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_ARM ||       \
+    V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390X || V8_TARGET_ARCH_RISCV64 || \
     V8_TARGET_ARCH_MIPS64 || V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV32
   return RegisterArray(
       kContextRegister, kJSFunctionRegister, kJavaScriptCallArgCountRegister,
@@ -475,9 +483,9 @@ constexpr auto BaselineOutOfLinePrologueDescriptor::registers() {
 // static
 constexpr auto BaselineLeaveFrameDescriptor::registers() {
   // TODO(v8:11421): Implement on other platforms.
-#if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || \
-    V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390 || \
-    V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_MIPS64 ||                   \
+#if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 ||  \
+    V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_PPC64 || V8_TARGET_ARCH_S390X || \
+    V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_MIPS64 ||                    \
     V8_TARGET_ARCH_LOONG64 || V8_TARGET_ARCH_RISCV32
   return RegisterArray(ParamsSizeRegister(), WeightRegister());
 #else
@@ -513,6 +521,12 @@ constexpr Register OnStackReplacementDescriptor::MaybeTargetCodeRegister() {
   // Picking the first register on purpose because it's convenient that this
   // register is the same as the platform's return-value register.
   return registers()[0];
+}
+
+// static
+constexpr Register
+OnStackReplacementDescriptor::ExpectedParameterCountRegister() {
+  return registers()[1];
 }
 
 // static

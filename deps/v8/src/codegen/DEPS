@@ -14,3 +14,7 @@ specific_include_rules = {
     "+src/compiler/turboshaft",
   ]
 }
+
+include_rules = [
+  "+third_party/valgrind/valgrind.h"
+]

@@ -129,6 +129,9 @@ class V8_BASE_EXPORT CPU final {
 
   // riscv-specific part codes
   bool has_rvv() const { return has_rvv_; }
+  bool has_zba() const { return has_zba_; }
+  bool has_zbb() const { return has_zbb_; }
+  bool has_zbs() const { return has_zbs_; }
   enum class RV_MMU_MODE {
     kRiscvSV39,
     kRiscvSV48,
@@ -196,6 +199,9 @@ class V8_BASE_EXPORT CPU final {
   bool has_msa_;
   RV_MMU_MODE riscv_mmu_;
   bool has_rvv_;
+  bool has_zba_;
+  bool has_zbb_;
+  bool has_zbs_;
 };
 
 }  // namespace base

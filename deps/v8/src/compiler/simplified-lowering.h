@@ -50,6 +50,8 @@ class V8_EXPORT_PRIVATE SimplifiedLowering final {
   void DoNumberToUint8Clamped(Node* node);
   void DoSigned32ToUint8Clamped(Node* node);
   void DoUnsigned32ToUint8Clamped(Node* node);
+  void DoNumberToFloat16RawBits(Node* node);
+  void DoFloat16RawBitsToNumber(Node* node);
 
  private:
   // The purpose of this nested class is to hide method

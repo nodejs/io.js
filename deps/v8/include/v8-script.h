@@ -155,7 +155,7 @@ class V8_EXPORT ModuleRequest : public Data {
    */
   Local<FixedArray> GetImportAttributes() const;
 
-  V8_DEPRECATE_SOON("Use GetImportAttributes instead")
+  V8_DEPRECATED("Use GetImportAttributes instead")
   Local<FixedArray> GetImportAssertions() const {
     return GetImportAttributes();
   }
@@ -272,6 +272,13 @@ class V8_EXPORT Module : public Data {
    * The module's status must be at least kInstantiated.
    */
   bool IsGraphAsync() const;
+
+  /**
+   * Returns whether this module is individually asynchronous (for example,
+   * if it's a Source Text Module Record containing a top-level await).
+   * See [[HasTLA]] in https://tc39.es/ecma262/#sec-cyclic-module-records
+   */
+  bool HasTopLevelAwait() const;
 
   /**
    * Returns whether the module is a SourceTextModule.

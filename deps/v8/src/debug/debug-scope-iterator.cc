@@ -82,7 +82,8 @@ v8::debug::ScopeIterator::ScopeType DebugScopeIterator::GetType() {
 
 v8::Local<v8::Object> DebugScopeIterator::GetObject() {
   DCHECK(!Done());
-  Handle<JSObject> value = iterator_.ScopeObject(i::ScopeIterator::Mode::ALL);
+  DirectHandle<JSObject> value =
+      iterator_.ScopeObject(i::ScopeIterator::Mode::ALL);
   return Utils::ToLocal(value);
 }
 
@@ -93,7 +94,7 @@ int DebugScopeIterator::GetScriptId() {
 
 v8::Local<v8::Value> DebugScopeIterator::GetFunctionDebugName() {
   DCHECK(!Done());
-  Handle<Object> name = iterator_.GetFunctionDebugName();
+  DirectHandle<Object> name = iterator_.GetFunctionDebugName();
   return Utils::ToLocal(name);
 }
 
@@ -117,7 +118,7 @@ bool DebugScopeIterator::SetVariableValue(v8::Local<v8::String> name,
                                           v8::Local<v8::Value> value) {
   DCHECK(!Done());
   return iterator_.SetVariableValue(Utils::OpenHandle(*name),
-                                    Utils::OpenHandle(*value));
+                                    Utils::OpenDirectHandle(*value));
 }
 
 }  // namespace internal

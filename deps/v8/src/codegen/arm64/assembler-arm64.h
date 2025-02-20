@@ -10,7 +10,6 @@
 #include <memory>
 #include <optional>
 
-#include "absl/container/btree_map.h"
 #include "absl/container/flat_hash_map.h"
 #include "src/codegen/arm64/constants-arm64.h"
 #include "src/codegen/arm64/instructions-arm64.h"
@@ -19,6 +18,7 @@
 #include "src/codegen/constant-pool.h"
 #include "src/common/globals.h"
 #include "src/utils/utils.h"
+#include "src/zone/zone-containers.h"
 
 // Windows arm64 SDK defines mvn to NEON intrinsic neon_not which will not
 // be used here.
@@ -164,6 +164,26 @@ class MemOperand {
   unsigned shift_amount_;
 };
 
+class AssemblerZone {
+ public:
+  explicit AssemblerZone(const MaybeAssemblerZone& zone)
+      // Create a fresh Zone unless one is already provided.
+      : maybe_local_zone_(
+            std::holds_alternative<Zone*>(zone)
+                ? std::nullopt
+                : std::make_optional<Zone>(std::get<AccountingAllocator*>(zone),
+                                           ZONE_NAME)),
+        zone_(std::holds_alternative<Zone*>(zone)
+                  ? std::get<Zone*>(zone)
+                  : &maybe_local_zone_.value()) {}
+
+  Zone* get() const { return zone_; }
+
+ private:
+  std::optional<Zone> maybe_local_zone_ = std::nullopt;
+  Zone* zone_;
+};
+
 // -----------------------------------------------------------------------------
 // Assembler.
 
@@ -174,12 +194,18 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // relocation information starting from the end of the buffer. See CodeDesc
   // for a detailed comment on the layout (globals.h).
   //
+  // When available, a zone should be provided for the assembler to manage
+  // temporary state, as long as the assembler does not outlive it. An
+  // AccountingAllocator can be provided instead.
+  //
   // If the provided buffer is nullptr, the assembler allocates and grows its
   // own buffer. Otherwise it takes ownership of the provided buffer.
-  explicit Assembler(const AssemblerOptions&,
-                     std::unique_ptr<AssemblerBuffer> = {});
+  Assembler(const MaybeAssemblerZone&, const AssemblerOptions&,
+            std::unique_ptr<AssemblerBuffer> = {});
 
   ~Assembler() override;
+
+  Zone* zone() const { return zone_.get(); }
 
   void AbortedCodeGeneration() override;
 
@@ -258,10 +284,12 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
                                                       Address constant_pool);
   inline static void set_target_address_at(
       Address pc, Address constant_pool, Address target,
+      WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   inline static void set_target_compressed_address_at(
       Address pc, Address constant_pool, Tagged_t target,
+      WritableJitAllocation* jit_allocation,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // Returns the handle for the code object called at 'pc'.
@@ -278,25 +306,19 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // code is moved into the code space.
   static inline Builtin target_builtin_at(Address pc);
 
-  // This sets the branch destination. 'location' here can be either the pc of
-  // an immediate branch or the address of an entry in the constant pool.
-  // This is for calls and branches within generated code.
-  inline static void deserialization_set_special_target_at(Address location,
-                                                           Tagged<Code> code,
-                                                           Address target);
-
   // Get the size of the special target encoded at 'location'.
   inline static int deserialization_special_target_size(Address location);
 
   // This sets the internal reference at the pc.
   inline static void deserialization_set_target_internal_reference_at(
-      Address pc, Address target,
+      Address pc, Address target, WritableJitAllocation& jit_allocation,
       RelocInfo::Mode mode = RelocInfo::INTERNAL_REFERENCE);
 
   // Read/modify the uint32 constant used at pc.
   static inline uint32_t uint32_constant_at(Address pc, Address constant_pool);
   static inline void set_uint32_constant_at(
       Address pc, Address constant_pool, uint32_t new_constant,
+      WritableJitAllocation* jit_allocation = nullptr,
       ICacheFlushMode icache_flush_mode = FLUSH_ICACHE_IF_NEEDED);
 
   // This value is used in the serialization process and must be zero for
@@ -3308,7 +3330,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   }
 
   // Emission of the veneer pools may be blocked in some code sequences.
-  int veneer_pool_blocked_nesting_;  // Block emission if this is not zero.
+  int veneer_pool_blocked_nesting_ = 0;  // Block emission if this is not zero.
 
   // Relocation info generation
   // Each relocation is encoded as a variable size value
@@ -3349,6 +3371,8 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
 #endif
 
  protected:
+  const AssemblerZone zone_;
+
   // Information about unresolved (forward) branches.
   // The Assembler is only allowed to delete out-of-date information from here
   // after a label is bound. The MacroAssembler uses this information to
@@ -3369,7 +3393,7 @@ class V8_EXPORT_PRIVATE Assembler : public AssemblerBase {
   // Note that the maximum reachable offset (first member of the pairs) should
   // always be positive but has the same type as the return value for
   // pc_offset() for convenience.
-  absl::btree_map<int, Label*> unresolved_branches_;
+  ZoneAbslBTreeMap<int, Label*> unresolved_branches_;
 
   // Back edge offsets for the link chain - the forward edge is stored in the
   // generated code. This is used to accelerate removing branches from the
@@ -3439,9 +3463,9 @@ class PatchingAssembler : public Assembler {
   // relocation information takes space in the buffer, the PatchingAssembler
   // will crash trying to grow the buffer.
   // Note that the instruction cache will not be flushed.
-  PatchingAssembler(const AssemblerOptions& options, uint8_t* start,
+  PatchingAssembler(Zone* zone, const AssemblerOptions& options, uint8_t* start,
                     unsigned count)
-      : Assembler(options,
+      : Assembler(zone, options,
                   ExternalAssemblerBuffer(start, count * kInstrSize + kGap)),
         block_constant_pool_emission_scope(this) {}
 

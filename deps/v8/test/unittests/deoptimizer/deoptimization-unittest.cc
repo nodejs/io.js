@@ -49,7 +49,7 @@ using ::v8::base::OS;
 
 class DeoptimizationTest : public TestWithContext {
  public:
-  Handle<JSFunction> GetJSFunction(const char* property_name) {
+  DirectHandle<JSFunction> GetJSFunction(const char* property_name) {
     v8::Local<v8::Function> fun = v8::Local<v8::Function>::Cast(
         context()
             ->Global()

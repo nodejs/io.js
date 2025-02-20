@@ -27,6 +27,7 @@
 #include "node_errors.h"
 #include "simdutf.h"
 #include "util.h"
+#include "v8-external-memory-accounter.h"
 
 #include <climits>
 #include <cstring>  // memcpy
@@ -40,6 +41,7 @@
 
 namespace node {
 
+using v8::ExternalMemoryAccounter;
 using v8::HandleScope;
 using v8::Isolate;
 using v8::Just;
@@ -57,7 +59,8 @@ class ExternString: public ResourceType {
  public:
   ~ExternString() override {
     free(const_cast<TypeName*>(data_));
-    isolate()->AdjustAmountOfExternalAllocatedMemory(-byte_length());
+    external_memory_accounter_->Decrease(isolate(), byte_length());
+    delete external_memory_accounter_;
   }
 
   const TypeName* data() const override {
@@ -68,9 +71,7 @@ class ExternString: public ResourceType {
     return length_;
   }
 
-  int64_t byte_length() const {
-    return length() * sizeof(*data());
-  }
+  size_t byte_length() const { return length() * sizeof(*data()); }
 
   static MaybeLocal<Value> NewFromCopy(Isolate* isolate,
                                        const TypeName* data,
@@ -120,8 +121,6 @@ class ExternString: public ResourceType {
       return MaybeLocal<Value>();
     }
 
-    isolate->AdjustAmountOfExternalAllocatedMemory(h_str->byte_length());
-
     return str;
   }
 
@@ -129,7 +128,12 @@ class ExternString: public ResourceType {
 
  private:
   ExternString(Isolate* isolate, const TypeName* data, size_t length)
-    : isolate_(isolate), data_(data), length_(length) { }
+      : isolate_(isolate),
+        external_memory_accounter_(new ExternalMemoryAccounter()),
+        data_(data),
+        length_(length) {
+    external_memory_accounter_->Increase(isolate, byte_length());
+  }
   static MaybeLocal<Value> NewExternal(Isolate* isolate,
                                        ExternString* h_str);
 
@@ -140,6 +144,7 @@ class ExternString: public ResourceType {
                                              Local<Value>* error);
 
   Isolate* isolate_;
+  ExternalMemoryAccounter* external_memory_accounter_;
   const TypeName* data_;
   size_t length_;
 };

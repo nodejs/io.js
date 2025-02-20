@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/heap/conservative-stack-visitor.h"
+#include "src/heap/conservative-stack-visitor-inl.h"
 #include "src/heap/gc-tracer.h"
 #include "test/unittests/heap/heap-utils.h"
 #include "test/unittests/test-utils.h"
@@ -20,8 +20,7 @@ class WithInnerPointerResolutionMixin : public TMixin {
   Address ResolveInnerPointer(Address maybe_inner_ptr) {
     // This can only resolve inner pointers in the regular cage.
     PtrComprCageBase cage_base{this->isolate()};
-    return ConservativeStackVisitor::ForTesting(
-               this->isolate(), GarbageCollector::MARK_COMPACTOR)
+    return ConservativeStackVisitor(this->isolate(), nullptr)
         .FindBasePtr(maybe_inner_ptr, cage_base);
   }
 };
@@ -202,7 +201,8 @@ class InnerPointerResolutionTest
         DCHECK_LE(2 * kTaggedSize, object.size);
         ReadOnlyRoots roots(heap());
         Tagged<HeapObject> heap_object(HeapObject::FromAddress(object.address));
-        heap_object->set_map_after_allocation(roots.unchecked_fixed_array_map(),
+        heap_object->set_map_after_allocation(heap()->isolate(),
+                                              roots.unchecked_fixed_array_map(),
                                               SKIP_WRITE_BARRIER);
         Tagged<FixedArray> arr(Cast<FixedArray>(heap_object));
         arr->set_length((object.size - FixedArray::SizeFor(0)) / kTaggedSize);
@@ -599,7 +599,7 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
 
   {
     PtrComprCageBase cage_base{isolate()};
-    HandleScope scope(isolate());
+    HandleScope handle_scope(isolate());
 
     // Allocate two objects, large enough that they fall in two different young
     // generation pages. Keep weak references to these objects.
@@ -631,9 +631,9 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
     auto page3 = MemoryChunk::FromHeapObject(obj3);
     EXPECT_TRUE(page3 == page1 || page3 == page2);
     if (page3 == page1) {
-      EXPECT_EQ(obj3.address(), obj1.address() + obj1->Size(cage_base));
+      EXPECT_EQ(obj3.address(), obj1.address() + obj1->Size());
     } else {
-      EXPECT_EQ(obj3.address(), obj2.address() + obj2->Size(cage_base));
+      EXPECT_EQ(obj3.address(), obj2.address() + obj2->Size());
     }
 
     // Keep inner pointers to all objects.
@@ -644,12 +644,12 @@ TEST_F(InnerPointerResolutionHeapTest, UnusedRegularYoungPages) {
     // Keep pointers to the end of the pages, after the objects.
     outside_ptr1 = page1->Metadata()->area_end() - 3 * kTaggedSize;
     outside_ptr2 = page2->Metadata()->area_end() - 2 * kTaggedSize;
-    EXPECT_LE(obj1.address() + obj1->Size(cage_base), outside_ptr1);
-    EXPECT_LE(obj2.address() + obj2->Size(cage_base), outside_ptr2);
+    EXPECT_LE(obj1.address() + obj1->Size(), outside_ptr1);
+    EXPECT_LE(obj2.address() + obj2->Size(), outside_ptr2);
     if (page3 == page1) {
-      EXPECT_LE(obj3.address() + obj3->Size(cage_base), outside_ptr1);
+      EXPECT_LE(obj3.address() + obj3->Size(), outside_ptr1);
     } else {
-      EXPECT_LE(obj3.address() + obj3->Size(cage_base), outside_ptr2);
+      EXPECT_LE(obj3.address() + obj3->Size(), outside_ptr2);
     }
 
     // Ensure the young generation space is iterable.

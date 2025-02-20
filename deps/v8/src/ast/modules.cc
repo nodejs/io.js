@@ -129,11 +129,12 @@ Handle<UnionOf<String, Undefined>> ToStringOrUndefined(IsolateT* isolate,
 }  // namespace
 
 template <typename IsolateT>
-Handle<ModuleRequest> SourceTextModuleDescriptor::AstModuleRequest::Serialize(
+DirectHandle<ModuleRequest>
+SourceTextModuleDescriptor::AstModuleRequest::Serialize(
     IsolateT* isolate) const {
   // The import attributes will be stored in this array in the form:
   // [key1, value1, location1, key2, value2, location2, ...]
-  Handle<FixedArray> import_attributes_array =
+  DirectHandle<FixedArray> import_attributes_array =
       isolate->factory()->NewFixedArray(
           static_cast<int>(import_attributes()->size() *
                            ModuleRequest::kAttributeEntrySize),
@@ -155,15 +156,15 @@ Handle<ModuleRequest> SourceTextModuleDescriptor::AstModuleRequest::Serialize(
                                           phase_, import_attributes_array,
                                           position());
 }
-template Handle<ModuleRequest>
+template DirectHandle<ModuleRequest>
 SourceTextModuleDescriptor::AstModuleRequest::Serialize(Isolate* isolate) const;
-template Handle<ModuleRequest>
+template DirectHandle<ModuleRequest>
 SourceTextModuleDescriptor::AstModuleRequest::Serialize(
     LocalIsolate* isolate) const;
 
 template <typename IsolateT>
-Handle<SourceTextModuleInfoEntry> SourceTextModuleDescriptor::Entry::Serialize(
-    IsolateT* isolate) const {
+DirectHandle<SourceTextModuleInfoEntry>
+SourceTextModuleDescriptor::Entry::Serialize(IsolateT* isolate) const {
   CHECK(Smi::IsValid(module_request));  // TODO(neis): Check earlier?
   return SourceTextModuleInfoEntry::New(
       isolate, ToStringOrUndefined(isolate, export_name),
@@ -171,19 +172,19 @@ Handle<SourceTextModuleInfoEntry> SourceTextModuleDescriptor::Entry::Serialize(
       ToStringOrUndefined(isolate, import_name), module_request, cell_index,
       location.beg_pos, location.end_pos);
 }
-template Handle<SourceTextModuleInfoEntry>
+template DirectHandle<SourceTextModuleInfoEntry>
 SourceTextModuleDescriptor::Entry::Serialize(Isolate* isolate) const;
-template Handle<SourceTextModuleInfoEntry>
+template DirectHandle<SourceTextModuleInfoEntry>
 SourceTextModuleDescriptor::Entry::Serialize(LocalIsolate* isolate) const;
 
 template <typename IsolateT>
-Handle<FixedArray> SourceTextModuleDescriptor::SerializeRegularExports(
+DirectHandle<FixedArray> SourceTextModuleDescriptor::SerializeRegularExports(
     IsolateT* isolate, Zone* zone) const {
   // We serialize regular exports in a way that lets us later iterate over their
   // local names and for each local name immediately access all its export
   // names.  (Regular exports have neither import name nor module request.)
 
-  ZoneVector<Handle<Object>> data(
+  ZoneVector<IndirectHandle<Object>> data(
       SourceTextModuleInfo::kRegularExportLength * regular_exports_.size(),
       zone);
   int index = 0;
@@ -224,17 +225,19 @@ Handle<FixedArray> SourceTextModuleDescriptor::SerializeRegularExports(
 
   // We cannot create the FixedArray earlier because we only now know the
   // precise size.
-  Handle<FixedArray> result =
+  DirectHandle<FixedArray> result =
       isolate->factory()->NewFixedArray(index, AllocationType::kOld);
   for (int i = 0; i < index; ++i) {
     result->set(i, *data[i]);
   }
   return result;
 }
-template Handle<FixedArray> SourceTextModuleDescriptor::SerializeRegularExports(
-    Isolate* isolate, Zone* zone) const;
-template Handle<FixedArray> SourceTextModuleDescriptor::SerializeRegularExports(
-    LocalIsolate* isolate, Zone* zone) const;
+template DirectHandle<FixedArray>
+SourceTextModuleDescriptor::SerializeRegularExports(Isolate* isolate,
+                                                    Zone* zone) const;
+template DirectHandle<FixedArray>
+SourceTextModuleDescriptor::SerializeRegularExports(LocalIsolate* isolate,
+                                                    Zone* zone) const;
 
 void SourceTextModuleDescriptor::MakeIndirectExportsExplicit(Zone* zone) {
   for (auto it = regular_exports_.begin(); it != regular_exports_.end();) {

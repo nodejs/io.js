@@ -106,6 +106,9 @@ struct Vector {
     if (!this.onlySmis) {
       if (this.onlyNumbers) {
         kind = ElementsKind::PACKED_DOUBLE_ELEMENTS;
+      } else if (this.onlyNumbersAndUndefined) {
+        dcheck(kEnableExperimentalUndefinedDouble);
+        kind = ElementsKind::HOLEY_DOUBLE_ELEMENTS;
       } else {
         kind = ElementsKind::PACKED_ELEMENTS;
       }
@@ -131,12 +134,27 @@ struct Vector {
           AllocateFixedDoubleArrayWithHoles(SmiUntag(length));
       a = NewJSArray(map, this.fixedArray);
       for (let i: Smi = 0; i < validLength; i++) {
-        typeswitch (
-            UnsafeCast<(Number | TheHole)>(this.fixedArray.objects[i])) {
-          case (n: Number): {
-            elements.floats[i] = Convert<float64_or_hole>(n);
+        @if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE) {
+          typeswitch (UnsafeCast<(Number | Undefined | TheHole)>(
+              this.fixedArray.objects[i])) {
+            case (n: Number): {
+              elements.values[i] = Convert<float64_or_undefined_or_hole>(n);
+            }
+            case (Undefined): {
+              elements.values[i] = kDoubleUndefined;
+            }
+            case (TheHole): {
+            }
           }
-          case (TheHole): {
+        }
+        @ifnot(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE) {
+          typeswitch (
+              UnsafeCast<(Number | TheHole)>(this.fixedArray.objects[i])) {
+            case (n: Number): {
+              elements.values[i] = Convert<float64_or_undefined_or_hole>(n);
+            }
+            case (TheHole): {
+            }
           }
         }
       }
@@ -161,18 +179,30 @@ struct Vector {
         this.onlySmis = false;
         this.fixedArray.objects[index] = s;
       }
-      case (s: JSAnyNotNumber): {
+      case (s: Undefined): {
         this.onlySmis = false;
         this.onlyNumbers = false;
+        @ifnot(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE) {
+          // If we are running without undefined doubles, we don't distinguish
+          // undefineds here.
+          this.onlyNumbersAndUndefined = false;
+        }
+        this.fixedArray.objects[index] = s;
+      }
+      case (s: JSAnyNotNumberOrUndefined): {
+        this.onlySmis = false;
+        this.onlyNumbers = false;
+        this.onlyNumbersAndUndefined = false;
         this.fixedArray.objects[index] = s;
       }
     }
   }
 
   fixedArray: FixedArray;
-  onlySmis: bool;         // initially true.
-  onlyNumbers: bool;      // initially true.
-  skippedElements: bool;  // initially false.
+  onlySmis: bool;                 // initially true.
+  onlyNumbers: bool;              // initially true.
+  onlyNumbersAndUndefined: bool;  // initially true.
+  skippedElements: bool;          // initially false.
 }
 
 macro NewVector(implicit context: Context)(length: Smi): Vector {
@@ -183,6 +213,7 @@ macro NewVector(implicit context: Context)(length: Smi): Vector {
     fixedArray,
     onlySmis: true,
     onlyNumbers: true,
+    onlyNumbersAndUndefined: true,
     skippedElements: false
   };
 }

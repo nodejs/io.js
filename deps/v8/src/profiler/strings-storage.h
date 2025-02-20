@@ -57,14 +57,14 @@ class V8_EXPORT_PRIVATE StringsStorage {
   static bool StringsMatch(void* key1, void* key2);
   // Adds the string to storage and returns it, or if a matching string exists
   // in the storage, deletes str and returns the matching string instead.
-  const char* AddOrDisposeString(char* str, int len);
-  base::CustomMatcherHashMap::Entry* GetEntry(const char* str, int len);
+  const char* AddOrDisposeString(char* str, size_t len);
+  base::CustomMatcherHashMap::Entry* GetEntry(const char* str, size_t len);
   PRINTF_FORMAT(2, 0)
   const char* GetVFormatted(const char* format, va_list args);
   const char* GetSymbol(Tagged<Symbol> sym);
 
   base::CustomMatcherHashMap names_;
-  base::Mutex mutex_;
+  base::SpinningMutex mutex_;
   size_t string_size_ = 0;
 };
 

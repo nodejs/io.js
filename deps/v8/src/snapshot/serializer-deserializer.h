@@ -37,8 +37,8 @@ class SerializerDeserializer : public RootVisitor {
 
   // clang-format off
 #define UNUSED_SERIALIZER_BYTE_CODES(V)                           \
-  /* Free range 0x21..0x2f */                                     \
-          V(0x21) V(0x22) V(0x23) V(0x24) V(0x25) V(0x26) V(0x27) \
+  /* Free range 0x22..0x2f */                                     \
+                  V(0x22) V(0x23) V(0x24) V(0x25) V(0x26) V(0x27) \
   V(0x28) V(0x29) V(0x2a) V(0x2b) V(0x2c) V(0x2d) V(0x2e) V(0x2f) \
   /* Free range 0x30..0x3f */                                     \
   V(0x30) V(0x31) V(0x32) V(0x33) V(0x34) V(0x35) V(0x36) V(0x37) \
@@ -140,7 +140,7 @@ class SerializerDeserializer : public RootVisitor {
     // object.
     kResolvePendingForwardRef,
     // Special construction bytecodes for the metamaps. In theory we could
-    // re-use forward-references for this, but then the forward reference would
+    // reuse forward-references for this, but then the forward reference would
     // be registered during object map deserialization, before the object is
     // allocated, so there wouldn't be a allocated object whose map field we can
     // register as the pending field. We could either hack around this, or
@@ -162,6 +162,8 @@ class SerializerDeserializer : public RootVisitor {
     // JSDispatchTable for the host object and store the corresponding dispatch
     // handle into the current slot.
     kAllocateJSDispatchEntry,
+    // A back-reference to the already allocated n-th dispatch entry.
+    kJSDispatchEntry,
     // A prefix indicating that the following object is referenced through a
     // protected pointer, i.e. a pointer from one trusted object to another.
     kProtectedPointerPrefix,

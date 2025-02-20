@@ -64,6 +64,9 @@ const intrinsics = new Set([
   'Atomics',
   'WebAssembly',
   'Iterator',
+  'SuppressedError',
+  'DisposableStack',
+  'AsyncDisposableStack',
 ]);
 
 if (global.gc) {

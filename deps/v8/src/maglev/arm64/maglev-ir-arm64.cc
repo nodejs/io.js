@@ -167,6 +167,22 @@ void RestLength::GenerateCode(MaglevAssembler* masm,
 
 int CheckedObjectToIndex::MaxCallStackArgs() const { return 0; }
 
+void CheckedIntPtrToInt32::SetValueLocationConstraints() {
+  UseRegister(input());
+  DefineSameAsFirst(this);
+}
+
+void CheckedIntPtrToInt32::GenerateCode(MaglevAssembler* masm,
+                                        const ProcessingState& state) {
+  Register input_reg = ToRegister(input());
+  __ CompareAndBranch(input_reg.X(),
+                      Immediate(std::numeric_limits<int32_t>::max()), gt,
+                      __ GetDeoptLabel(this, DeoptimizeReason::kNotInt32));
+  __ CompareAndBranch(input_reg.X(),
+                      Immediate(std::numeric_limits<int32_t>::min()), lt,
+                      __ GetDeoptLabel(this, DeoptimizeReason::kNotInt32));
+}
+
 void Int32AddWithOverflow::SetValueLocationConstraints() {
   UseRegister(left_input());
   UseRegister(right_input());
@@ -638,12 +654,11 @@ void LoadTypedArrayLength::GenerateCode(MaglevAssembler* masm,
   }
   __ LoadBoundedSizeFromObject(result_register, object,
                                JSTypedArray::kRawByteLengthOffset);
-  int element_size = ElementsKindSize(elements_kind_);
-  if (element_size > 1) {
+  int shift_size = ElementsKindToShiftSize(elements_kind_);
+  if (shift_size > 0) {
     // TODO(leszeks): Merge this shift with the one in LoadBoundedSize.
-    DCHECK(element_size == 2 || element_size == 4 || element_size == 8);
-    __ Lsr(result_register, result_register,
-           base::bits::CountTrailingZeros(element_size));
+    DCHECK(shift_size == 1 || shift_size == 2 || shift_size == 3);
+    __ Lsr(result_register, result_register, shift_size);
   }
 }
 
@@ -809,7 +824,7 @@ void Return::GenerateCode(MaglevAssembler* masm, const ProcessingState& state) {
   Register params_size = x10;
 
   // Compute the size of the actual parameters + receiver (in bytes).
-  // TODO(leszeks): Consider making this an input into Return to re-use the
+  // TODO(leszeks): Consider making this an input into Return to reuse the
   // incoming argc's register (if it's still valid).
   __ Ldr(actual_params_size,
          MemOperand(fp, StandardFrameConstants::kArgCOffset));

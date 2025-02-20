@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-string-is-well-formed
 
 (function TestSliced() {
   // toString on the function returns a sliced string on the script source,

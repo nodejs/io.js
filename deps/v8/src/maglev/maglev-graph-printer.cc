@@ -365,8 +365,34 @@ BlockProcessResult MaglevPrintingVisitor::PreProcessBasicBlock(
 
   int block_id = graph_labeller_->BlockId(block);
   os_ << "Block b" << block_id;
+  if (block->has_state() && block->state()->is_resumable_loop()) {
+    os_ << " (resumable)";
+  }
   if (block->is_exception_handler_block()) {
     os_ << " (exception handler)";
+  }
+  if (block->is_loop() && block->has_state()) {
+    if (block->state()->is_loop_with_peeled_iteration()) {
+      os_ << " peeled";
+    }
+    if (const LoopEffects* loop_effects = block->state()->loop_effects()) {
+      os_ << " (effects:";
+      if (loop_effects->unstable_aspects_cleared) {
+        if (loop_effects->unstable_aspects_cleared) {
+          os_ << " ua";
+        }
+        if (loop_effects->context_slot_written.size()) {
+          os_ << " c" << loop_effects->context_slot_written.size();
+        }
+        if (loop_effects->objects_written.size()) {
+          os_ << " o" << loop_effects->objects_written.size();
+        }
+        if (loop_effects->keys_cleared.size()) {
+          os_ << " k" << loop_effects->keys_cleared.size();
+        }
+      }
+      os_ << ")";
+    }
   }
   os_ << "\n";
 

@@ -1024,12 +1024,13 @@ SecureContext* SecureContext::Create(Environment* env) {
 SecureContext::SecureContext(Environment* env, Local<Object> wrap)
     : BaseObject(env, wrap) {
   MakeWeak();
-  env->isolate()->AdjustAmountOfExternalAllocatedMemory(kExternalSize);
+  env->external_memory_accounter()->Increase(env->isolate(), kExternalSize);
 }
 
 inline void SecureContext::Reset() {
   if (ctx_ != nullptr) {
-    env()->isolate()->AdjustAmountOfExternalAllocatedMemory(-kExternalSize);
+    env()->external_memory_accounter()->Decrease(env()->isolate(),
+                                                 kExternalSize);
   }
   ctx_.reset();
   cert_.reset();

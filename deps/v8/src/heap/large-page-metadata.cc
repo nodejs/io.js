@@ -15,13 +15,6 @@ namespace internal {
 
 class Heap;
 
-// This check is here to ensure that the lower 32 bits of any real heap object
-// can't overlap with the lower 32 bits of cleared weak reference value and
-// therefore it's enough to compare only the lower 32 bits of a
-// Tagged<MaybeObject> in order to figure out if it's a cleared weak reference
-// or not.
-static_assert(kClearedWeakHeapObjectLower32 < LargePageMetadata::kHeaderSize);
-
 LargePageMetadata::LargePageMetadata(Heap* heap, BaseSpace* space,
                                      size_t chunk_size, Address area_start,
                                      Address area_end,
@@ -31,6 +24,8 @@ LargePageMetadata::LargePageMetadata(Heap* heap, BaseSpace* space,
                           std::move(reservation), PageSize::kLarge) {
   static_assert(LargePageMetadata::kMaxCodePageSize <=
                 TypedSlotSet::kMaxOffset);
+
+  DCHECK(IsLargePage());
 
   if (executable && chunk_size > LargePageMetadata::kMaxCodePageSize) {
     FATAL("Code page is too large.");
@@ -65,7 +60,7 @@ void LargePageMetadata::ClearOutOfLiveRangeSlots(Address free_start) {
   // Align it to bucket size such that the following RemoveRange invocation just
   // drops the whole bucket and the bucket is reset to nullptr.
   Address aligned_area_end =
-      ChunkAddress() + SlotSet::OffsetForBucket(buckets());
+      ChunkAddress() + SlotSet::OffsetForBucket(BucketsInSlotSet());
   DCHECK_LE(area_end(), aligned_area_end);
   RememberedSet<OLD_TO_SHARED>::RemoveRange(this, free_start, aligned_area_end,
                                             SlotSet::FREE_EMPTY_BUCKETS);

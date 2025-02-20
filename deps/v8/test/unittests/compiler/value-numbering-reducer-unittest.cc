@@ -6,9 +6,9 @@
 
 #include <limits>
 
-#include "src/compiler/graph.h"
 #include "src/compiler/node.h"
 #include "src/compiler/operator.h"
+#include "src/compiler/turbofan-graph.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8 {

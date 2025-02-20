@@ -5,9 +5,9 @@
 #include "src/compiler/node-matchers.h"
 
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/node.h"
+#include "src/compiler/turbofan-graph.h"
 #include "test/unittests/compiler/graph-unittest.h"
 #include "test/unittests/test-utils.h"
 

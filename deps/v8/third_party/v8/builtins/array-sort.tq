@@ -15,32 +15,42 @@
 
 namespace array {
 class SortState extends HeapObject {
-  macro Compare(implicit context: Context)(x: JSAny, y: JSAny): Number {
-    const sortCompare: CompareBuiltinFn = this.sortComparePtr;
-    return sortCompare(context, this.userCmpFn, x, y);
+  transitioning macro Compare(implicit context: Context)(x: JSAny, y: JSAny):
+      Number {
+    if (this.userCmpFn != Undefined) {
+      return SortCompareUserFn(context, this.userCmpFn, x, y);
+    } else {
+      return SortCompareDefault(context, this.userCmpFn, x, y);
+    }
   }
 
   macro CheckAccessor(implicit context: Context)(): void labels Bailout {
     if (!IsFastJSArray(this.receiver, context)) goto Bailout;
 
-    const canUseSameAccessorFn: CanUseSameAccessorFn =
-        this.canUseSameAccessorFn;
-
-    if (!canUseSameAccessorFn(
-            context, this.receiver, this.initialReceiverMap,
-            this.initialReceiverLength)) {
-      goto Bailout;
+    const elementsKind: ElementsKind = this.receiver.map.elements_kind;
+    if (IsDoubleElementsKind(elementsKind)) {
+      if (!CanUseSameAccessor<FastDoubleElements>(
+              context, this.receiver, this.initialReceiverMap,
+              this.initialReceiverLength)) {
+        goto Bailout;
+      }
+    } else if (IsFastSmiElementsKind(elementsKind)) {
+      if (!CanUseSameAccessor<FastSmiElements>(
+              context, this.receiver, this.initialReceiverMap,
+              this.initialReceiverLength)) {
+        goto Bailout;
+      }
+    } else {
+      if (!CanUseSameAccessor<FastObjectElements>(
+              context, this.receiver, this.initialReceiverMap,
+              this.initialReceiverLength)) {
+        goto Bailout;
+      }
     }
   }
 
-  macro ResetToGenericAccessor(isToSorted: constexpr bool): void {
-    if constexpr (isToSorted) {
-      this.loadFn = LoadNoHasPropertyCheck<GenericElementsAccessor>;
-    } else {
-      this.loadFn = Load<GenericElementsAccessor>;
-    }
-    this.storeFn = Store<GenericElementsAccessor>;
-    this.deleteFn = Delete<GenericElementsAccessor>;
+  macro ResetToGenericAccessor(_isToSorted: constexpr bool): void {
+    this.isResetToGeneric = True;
   }
 
   // The receiver of the Array.p.sort call.
@@ -55,18 +65,7 @@ class SortState extends HeapObject {
   // If the user provided a comparison function, it is stored here.
   userCmpFn: Undefined|Callable;
 
-  // Function pointer to the comparison function. This can either be a builtin
-  // that calls the user-provided comparison function or "SortDefault", which
-  // uses ToString and a lexicographical compare.
-  sortComparePtr: CompareBuiltinFn;
-
-  // The following four function pointer represent an Accessor/Path.
-  // These are used to Load/Store/Delete elements and to check whether
-  // to bail to the baseline GenericElementsAccessor.
-  loadFn: LoadFn;
-  storeFn: StoreFn;
-  deleteFn: DeleteFn;
-  canUseSameAccessorFn: CanUseSameAccessorFn;
+  isResetToGeneric: Boolean;
 
   // This controls when we get *into* galloping mode. It's initialized to
   // kMinGallop. mergeLow and mergeHigh tend to nudge it higher for random
@@ -146,16 +145,10 @@ transitioning macro NewSortState(
     implicit context: Context)(receiver: JSReceiver,
     comparefn: Undefined|Callable, initialReceiverLength: Number,
     isToSorted: constexpr bool): SortState {
-  const sortComparePtr =
-      comparefn != Undefined ? SortCompareUserFn : SortCompareDefault;
   const map = receiver.map;
-  let loadFn: LoadFn;
-  let storeFn: StoreFn;
-  let deleteFn: DeleteFn;
-  let canUseSameAccessorFn: CanUseSameAccessorFn;
 
-  try {
-    const a: FastJSArray = Cast<FastJSArray>(receiver) otherwise Slow;
+  if (Is<FastJSArray>(receiver)) {
+    const a = UnsafeCast<FastJSArray>(receiver);
 
     if constexpr (!isToSorted) {
       // Copy copy-on-write (COW) arrays if we're doing Array.prototype.sort,
@@ -163,33 +156,6 @@ transitioning macro NewSortState(
       // by copy.
       array::EnsureWriteableFastElements(a);
     }
-
-    const elementsKind: ElementsKind = map.elements_kind;
-    if (IsDoubleElementsKind(elementsKind)) {
-      loadFn = Load<FastDoubleElements>;
-      storeFn = Store<FastDoubleElements>;
-      deleteFn = Delete<FastDoubleElements>;
-      canUseSameAccessorFn = CanUseSameAccessor<FastDoubleElements>;
-    } else if (IsFastSmiElementsKind(elementsKind)) {
-      loadFn = Load<FastSmiElements>;
-      storeFn = Store<FastSmiElements>;
-      deleteFn = Delete<FastSmiElements>;
-      canUseSameAccessorFn = CanUseSameAccessor<FastSmiElements>;
-    } else {
-      loadFn = Load<FastObjectElements>;
-      storeFn = Store<FastObjectElements>;
-      deleteFn = Delete<FastObjectElements>;
-      canUseSameAccessorFn = CanUseSameAccessor<FastObjectElements>;
-    }
-  } label Slow {
-    if constexpr (isToSorted) {
-      loadFn = LoadNoHasPropertyCheck<GenericElementsAccessor>;
-    } else {
-      loadFn = Load<GenericElementsAccessor>;
-    }
-    storeFn = Store<GenericElementsAccessor>;
-    deleteFn = Delete<GenericElementsAccessor>;
-    canUseSameAccessorFn = CanUseSameAccessor<GenericElementsAccessor>;
   }
 
   const workArrayLength =
@@ -200,11 +166,7 @@ transitioning macro NewSortState(
     initialReceiverMap: map,
     initialReceiverLength,
     userCmpFn: comparefn,
-    sortComparePtr,
-    loadFn,
-    storeFn,
-    deleteFn,
-    canUseSameAccessorFn,
+    isResetToGeneric: False,
     minGallop: kMinGallopWins,
     pendingRunsSize: 0,
     pendingRuns: AllocateZeroedFixedArray(Convert<intptr>(kMaxMergePending)),
@@ -231,13 +193,6 @@ const kMinGallopWins: constexpr int31 = 7;
 // Default size of the temporary array. The temporary array is allocated when
 // it is first requested, but it has always at least this size.
 const kSortStateTempSize: Smi = 32;
-
-type LoadFn = builtin(Context, SortState, Smi) => (JSAny|TheHole);
-type StoreFn = builtin(Context, SortState, Smi, JSAny) => Smi;
-type DeleteFn = builtin(Context, SortState, Smi) => Smi;
-type CanUseSameAccessorFn = builtin(Context, JSReceiver, Map, Number) =>
-    Boolean;
-type CompareBuiltinFn = builtin(Context, JSAny, JSAny, JSAny) => Number;
 
 // The following builtins implement Load/Store for all the Accessors.
 // The most generic baseline version uses Get-/SetProperty. We do not need
@@ -278,8 +233,11 @@ Load<FastDoubleElements>(context: Context, sortState: SortState, index: Smi):
   try {
     const object = UnsafeCast<JSObject>(sortState.receiver);
     const elements = UnsafeCast<FixedDoubleArray>(object.elements);
-    const value = elements.floats[index].Value() otherwise IfHole;
+    const value = elements.values[index].Value() otherwise IfUndefined, IfHole;
     return AllocateHeapNumberWithValue(value);
+  } label IfUndefined {
+    dcheck(kEnableExperimentalUndefinedDouble);
+    return Undefined;
   } label IfHole {
     return TheHole;
   }
@@ -312,9 +270,17 @@ Store<FastDoubleElements>(
     context: Context, sortState: SortState, index: Smi, value: JSAny): Smi {
   const object = UnsafeCast<JSObject>(sortState.receiver);
   const elements = UnsafeCast<FixedDoubleArray>(object.elements);
-  const heapVal = UnsafeCast<HeapNumber>(value);
-  const val = Convert<float64>(heapVal);
-  StoreFixedDoubleArrayElement(elements, index, val);
+  try {
+    const heapVal = Cast<HeapNumber>(value) otherwise IfUndefined;
+    const val = Convert<float64>(heapVal);
+    StoreFixedDoubleArrayElement(elements, index, val);
+  } label IfUndefined {
+    dcheck(kEnableExperimentalUndefinedDouble);
+    @if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE) {
+      dcheck(Is<Undefined>(value));
+      StoreFixedDoubleArrayUndefined(elements, SmiUntag(index));
+    }
+  }
   return kSuccess;
 }
 
@@ -351,7 +317,7 @@ Delete<FastDoubleElements>(context: Context, sortState: SortState, index: Smi):
 
   const object = UnsafeCast<JSObject>(sortState.receiver);
   const elements = UnsafeCast<FixedDoubleArray>(object.elements);
-  elements.floats[index] = kDoubleHole;
+  elements.values[index] = kDoubleHole;
   return kSuccess;
 }
 
@@ -517,7 +483,7 @@ transitioning builtin Copy(
 //
 // On entry, must have low <= start <= high, and that [low, start) is
 // already sorted. Pass start == low if you do not know!.
-macro BinaryInsertionSort(
+transitioning macro BinaryInsertionSort(
     implicit context: Context, sortState: SortState)(low: Smi, startArg: Smi,
     high: Smi): void {
   dcheck(low <= startArg && startArg <= high);
@@ -583,7 +549,7 @@ macro BinaryInsertionSort(
 //
 // In addition, if the run is "descending", it is reversed, so the
 // returned length is always an ascending sequence.
-macro CountAndMakeRun(
+transitioning macro CountAndMakeRun(
     implicit context: Context, sortState: SortState)(lowArg: Smi,
     high: Smi): Smi {
   dcheck(lowArg < high);
@@ -718,7 +684,7 @@ transitioning builtin MergeAt(
 //
 // pretending that array[base - 1] is minus infinity and array[base + len]
 // is plus infinity. In other words, key belongs at index base + k.
-builtin GallopLeft(
+transitioning builtin GallopLeft(
     implicit context: Context, sortState: SortState)(array: FixedArray,
     key: JSAny, base: Smi, length: Smi, hint: Smi): Smi {
   dcheck(length > 0 && base >= 0);
@@ -818,7 +784,7 @@ builtin GallopLeft(
 // array[base + offset - 1] <= key < array[base + offset]
 //
 // or kFailure on error.
-builtin GallopRight(
+transitioning builtin GallopRight(
     implicit context: Context, sortState: SortState)(array: FixedArray,
     key: JSAny, base: Smi, length: Smi, hint: Smi): Smi {
   dcheck(length > 0 && base >= 0);
@@ -1312,7 +1278,26 @@ transitioning macro CompactReceiverElementsIntoWorkArray(
     length: 0
   };
 
-  const loadFn = sortState.loadFn;
+  let loadFn: builtin(Context, SortState, Smi) => (JSAny | TheHole);
+  try {
+    if (sortState.isResetToGeneric == True) goto Slow;
+    Cast<FastJSArray>(sortState.receiver) otherwise Slow;
+
+    const elementsKind: ElementsKind = sortState.receiver.map.elements_kind;
+    if (IsDoubleElementsKind(elementsKind)) {
+      loadFn = Load<FastDoubleElements>;
+    } else if (IsFastSmiElementsKind(elementsKind)) {
+      loadFn = Load<FastSmiElements>;
+    } else {
+      loadFn = Load<FastObjectElements>;
+    }
+  } label Slow {
+    if constexpr (isToSorted) {
+      loadFn = LoadNoHasPropertyCheck<GenericElementsAccessor>;
+    } else {
+      loadFn = Load<GenericElementsAccessor>;
+    }
+  }
 
   // TODO(szuend): Implement full range sorting, not only up to MaxSmi.
   //               https://crbug.com/v8/7970.
@@ -1364,7 +1349,23 @@ transitioning macro CompactReceiverElementsIntoWorkArray(
 transitioning macro CopyWorkArrayToReceiver(
     implicit context: Context, sortState: SortState)(
     numberOfNonUndefined: Smi): void {
-  const storeFn = sortState.storeFn;
+  let storeFn: builtin(Context, SortState, Smi, JSAny) => Smi;
+  try {
+    if (sortState.isResetToGeneric == True) goto Slow;
+    Cast<FastJSArray>(sortState.receiver) otherwise Slow;
+
+    const elementsKind: ElementsKind = sortState.receiver.map.elements_kind;
+    if (IsDoubleElementsKind(elementsKind)) {
+      storeFn = Store<FastDoubleElements>;
+    } else if (IsFastSmiElementsKind(elementsKind)) {
+      storeFn = Store<FastSmiElements>;
+    } else {
+      storeFn = Store<FastObjectElements>;
+    }
+  } label Slow {
+    storeFn = Store<GenericElementsAccessor>;
+  }
+
   const workArray = sortState.workArray;
 
   dcheck(numberOfNonUndefined <= workArray.length);
@@ -1390,7 +1391,23 @@ transitioning macro CopyWorkArrayToReceiver(
   }
 
   const end: Smi = sortState.sortLength;
-  const deleteFn = sortState.deleteFn;
+  let deleteFn: builtin(Context, SortState, Smi) => Smi;
+  try {
+    if (sortState.isResetToGeneric == True) goto Slow;
+    Cast<FastJSArray>(sortState.receiver) otherwise Slow;
+
+    const elementsKind: ElementsKind = sortState.receiver.map.elements_kind;
+    if (IsDoubleElementsKind(elementsKind)) {
+      deleteFn = Delete<FastDoubleElements>;
+    } else if (IsFastSmiElementsKind(elementsKind)) {
+      deleteFn = Delete<FastSmiElements>;
+    } else {
+      deleteFn = Delete<FastObjectElements>;
+    }
+  } label Slow {
+    deleteFn = Delete<GenericElementsAccessor>;
+  }
+
   for (; index < end; ++index) {
     deleteFn(context, sortState, index);
   }

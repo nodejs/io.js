@@ -36,15 +36,16 @@
 #include "absl/base/attributes.h"
 #include "absl/debugging/stacktrace.h"
 
-static const uintptr_t kUnknownFrameSize = 0;
+static constexpr ptrdiff_t kUnknownFrameSize = 0;
 
 // Compute the size of a stack frame in [low..high).  We assume that low < high.
 // Return size of kUnknownFrameSize.
 template <typename T>
-static inline uintptr_t ComputeStackFrameSize(const T *low, const T *high) {
+static inline ptrdiff_t ComputeStackFrameSize(const T *low, const T *high) {
   const char *low_char_ptr = reinterpret_cast<const char *>(low);
   const char *high_char_ptr = reinterpret_cast<const char *>(high);
-  return low < high ? high_char_ptr - low_char_ptr : kUnknownFrameSize;
+  return low < high ? static_cast<ptrdiff_t>(high_char_ptr - low_char_ptr)
+                    : kUnknownFrameSize;
 }
 
 // Given a pointer to a stack frame, locate and return the calling stackframe,
@@ -93,8 +94,8 @@ static void ** NextStackFrame(void **old_frame_pointer, const void *uc,
 
   // Check frame size.  In strict mode, we assume frames to be under 100,000
   // bytes.  In non-strict mode, we relax the limit to 1MB.
-  const uintptr_t max_size = STRICT_UNWINDING ? 100000 : 1000000;
-  const uintptr_t frame_size =
+  const ptrdiff_t max_size = STRICT_UNWINDING ? 100000 : 1000000;
+  const ptrdiff_t frame_size =
       ComputeStackFrameSize(old_frame_pointer, new_frame_pointer);
   if (frame_size == kUnknownFrameSize) {
     if (STRICT_UNWINDING)
@@ -151,7 +152,9 @@ static int UnwindImpl(void **result, int *sizes, int max_depth, int skip_count,
     } else {
       result[n] = return_address;
       if (IS_STACK_FRAMES) {
-        sizes[n] = ComputeStackFrameSize(frame_pointer, next_frame_pointer);
+        // NextStackFrame() has already checked that frame size fits to int
+        sizes[n] = static_cast<int>(ComputeStackFrameSize(frame_pointer,
+                                                          next_frame_pointer));
       }
       n++;
     }

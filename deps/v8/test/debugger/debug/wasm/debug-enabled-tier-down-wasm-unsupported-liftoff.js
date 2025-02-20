@@ -11,7 +11,6 @@ d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
 // Create a simple Wasm module.
 function create_builder(i) {
-  const kExprNopForTestingUnsupportedInLiftoff = 0x16;
   const builder = new WasmModuleBuilder();
   builder.addFunction('main', kSig_i_i)
       .addBody([

@@ -2,13 +2,13 @@ Step into a function that starts with a non-breakable opcode (i.e. block), then 
 
 Running test: test
 Setting up global instance variable.
-Got wasm script: wasm://wasm/4658c40e
+Got wasm script: wasm://wasm/a21a01be
 Setting breakpoint on offset 44
 Running main function.
-Script wasm://wasm/4658c40e byte offset 44: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/a21a01be byte offset 44: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepInto called
-Script wasm://wasm/4658c40e byte offset 40: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/a21a01be byte offset 40: Wasm opcode 0x0b (kExprEnd)
 Debugger.stepInto called
-Script wasm://wasm/4658c40e byte offset 41: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/a21a01be byte offset 41: Wasm opcode 0x0b (kExprEnd)
 Debugger.resume called
 exports.main returned.

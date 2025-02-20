@@ -54,8 +54,13 @@ void FeedbackCell::clear_interrupt_budget() {
   set_interrupt_budget(0);
 }
 
+void FeedbackCell::clear_dispatch_handle() {
+  WriteField<JSDispatchHandle::underlying_type>(kDispatchHandleOffset,
+                                                kNullJSDispatchHandle.value());
+}
+
 #ifdef V8_ENABLE_LEAPTIERING
-void FeedbackCell::allocate_dispatch_handle(IsolateForSandbox isolate,
+void FeedbackCell::allocate_dispatch_handle(Isolate* isolate,
                                             uint16_t parameter_count,
                                             Tagged<Code> code,
                                             WriteBarrierMode mode) {
@@ -64,29 +69,31 @@ void FeedbackCell::allocate_dispatch_handle(IsolateForSandbox isolate,
                                      parameter_count, code, mode);
 }
 
-void FeedbackCell::clear_dispatch_handle() {
-  WriteField<JSDispatchHandle>(kDispatchHandleOffset, kNullJSDispatchHandle);
-}
-
 JSDispatchHandle FeedbackCell::dispatch_handle() const {
-  return ReadField<JSDispatchHandle>(kDispatchHandleOffset);
+  return JSDispatchHandle(
+      ReadField<JSDispatchHandle::underlying_type>(kDispatchHandleOffset));
 }
 
 void FeedbackCell::set_dispatch_handle(JSDispatchHandle new_handle) {
   DCHECK_EQ(dispatch_handle(), kNullJSDispatchHandle);
-  WriteField<JSDispatchHandle>(kDispatchHandleOffset, new_handle);
+  WriteField<JSDispatchHandle::underlying_type>(kDispatchHandleOffset,
+                                                new_handle.value());
   JS_DISPATCH_HANDLE_WRITE_BARRIER(*this, new_handle);
 }
 #endif  // V8_ENABLE_LEAPTIERING
 
-void FeedbackCell::IncrementClosureCount(Isolate* isolate) {
+FeedbackCell::ClosureCountTransition FeedbackCell::IncrementClosureCount(
+    Isolate* isolate) {
   ReadOnlyRoots r(isolate);
   if (map() == r.no_closures_cell_map()) {
-    set_map(r.one_closure_cell_map());
+    set_map(isolate, r.one_closure_cell_map());
+    return kNoneToOne;
   } else if (map() == r.one_closure_cell_map()) {
-    set_map(r.many_closures_cell_map());
+    set_map(isolate, r.many_closures_cell_map());
+    return kOneToMany;
   } else {
     DCHECK(map() == r.many_closures_cell_map());
+    return kMany;
   }
 }
 

@@ -5449,7 +5449,7 @@ void TestPokePair(InstructionSelectorTest::StreamBuilder* m, Zone* zone,
                   int num_nodes, int expected_poke_pair, int expected_poke) {
   auto call_descriptor =
       InstructionSelectorTest::StreamBuilder::MakeSimpleCallDescriptor(
-          zone, builder->Build());
+          zone, builder->Get());
 
   m->CallN(call_descriptor, num_nodes, nodes);
   m->Return(m->UndefinedConstant());

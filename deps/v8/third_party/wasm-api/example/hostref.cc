@@ -8,15 +8,13 @@
 
 
 // A function to be called from Wasm code.
-auto callback(
-  const wasm::Val args[], wasm::Val results[]
-) -> wasm::own<wasm::Trap> {
+auto callback(const wasm::vec<wasm::Val>& args, wasm::vec<wasm::Val>& results)
+    -> wasm::own<wasm::Trap> {
   std::cout << "Calling back..." << std::endl;
   std::cout << "> " << (args[0].ref() ? args[0].ref()->get_host_info() : nullptr) << std::endl;
   results[0] = args[0].copy();
   return nullptr;
 }
-
 
 auto get_export_func(const wasm::ownvec<wasm::Extern>& exports, size_t i) -> const wasm::Func* {
   if (exports.size() <= i || !exports[i]->func()) {
@@ -45,8 +43,10 @@ auto get_export_table(wasm::ownvec<wasm::Extern>& exports, size_t i) -> wasm::Ta
 
 void call_r_v(const wasm::Func* func, const wasm::Ref* ref) {
   std::cout << "call_r_v... " << std::flush;
-  wasm::Val args[1] = {wasm::Val::ref(ref ? ref->copy() : wasm::own<wasm::Ref>())};
-  if (func->call(args, nullptr)) {
+  auto args = wasm::vec<wasm::Val>::make(
+      wasm::Val::ref(ref ? ref->copy() : wasm::own<wasm::Ref>()));
+  auto results = wasm::vec<wasm::Val>::make();
+  if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
   }
@@ -55,8 +55,9 @@ void call_r_v(const wasm::Func* func, const wasm::Ref* ref) {
 
 auto call_v_r(const wasm::Func* func) -> wasm::own<wasm::Ref> {
   std::cout << "call_v_r... " << std::flush;
-  wasm::Val results[1];
-  if (func->call(nullptr, results)) {
+  auto args = wasm::vec<wasm::Val>::make();
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
+  if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
   }
@@ -66,8 +67,9 @@ auto call_v_r(const wasm::Func* func) -> wasm::own<wasm::Ref> {
 
 auto call_r_r(const wasm::Func* func, const wasm::Ref* ref) -> wasm::own<wasm::Ref> {
   std::cout << "call_r_r... " << std::flush;
-  wasm::Val args[1] = {wasm::Val::ref(ref ? ref->copy() : wasm::own<wasm::Ref>())};
-  wasm::Val results[1];
+  auto args = wasm::vec<wasm::Val>::make(
+      wasm::Val::ref(ref ? ref->copy() : wasm::own<wasm::Ref>()));
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
   if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
@@ -78,8 +80,11 @@ auto call_r_r(const wasm::Func* func, const wasm::Ref* ref) -> wasm::own<wasm::R
 
 void call_ir_v(const wasm::Func* func, int32_t i, const wasm::Ref* ref) {
   std::cout << "call_ir_v... " << std::flush;
-  wasm::Val args[2] = {wasm::Val::i32(i), wasm::Val::ref(ref ? ref->copy() : wasm::own<wasm::Ref>())};
-  if (func->call(args, nullptr)) {
+  auto args = wasm::vec<wasm::Val>::make(
+      wasm::Val::i32(i),
+      wasm::Val::ref(ref ? ref->copy() : wasm::own<wasm::Ref>()));
+  auto results = wasm::vec<wasm::Val>::make();
+  if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
   }
@@ -88,8 +93,8 @@ void call_ir_v(const wasm::Func* func, int32_t i, const wasm::Ref* ref) {
 
 auto call_i_r(const wasm::Func* func, int32_t i) -> wasm::own<wasm::Ref> {
   std::cout << "call_i_r... " << std::flush;
-  wasm::Val args[1] = {wasm::Val::i32(i)};
-  wasm::Val results[1];
+  auto args = wasm::vec<wasm::Val>::make(wasm::Val::i32(i));
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
   if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
@@ -139,15 +144,16 @@ void run() {
 
   // Create external callback function.
   std::cout << "Creating callback..." << std::endl;
-  auto callback_type = wasm::FuncType::make(
-    wasm::ownvec<wasm::ValType>::make(wasm::ValType::make(wasm::ANYREF)),
-    wasm::ownvec<wasm::ValType>::make(wasm::ValType::make(wasm::ANYREF))
-  );
+  auto callback_type =
+      wasm::FuncType::make(wasm::ownvec<wasm::ValType>::make(
+                               wasm::ValType::make(wasm::ValKind::EXTERNREF)),
+                           wasm::ownvec<wasm::ValType>::make(
+                               wasm::ValType::make(wasm::ValKind::EXTERNREF)));
   auto callback_func = wasm::Func::make(store, callback_type.get(), callback);
 
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
-  wasm::Extern* imports[] = {callback_func.get()};
+  auto imports = wasm::vec<wasm::Extern*>::make(callback_func.get());
   auto instance = wasm::Instance::make(store, module.get(), imports);
   if (!instance) {
     std::cout << "> Error instantiating module!" << std::endl;

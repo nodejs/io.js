@@ -67,15 +67,7 @@ void FreeSpace::SetNext(const WritableFreeSpace& writable_free_space,
 #endif  // V8_EXTERNAL_CODE_SPACE
 }
 
-bool FreeSpace::IsValid() const {
-  Heap* heap = GetHeapFromWritableObject(*this);
-  Tagged<Object> free_space_map =
-      Isolate::FromHeap(heap)->root(RootIndex::kFreeSpaceMap);
-  CHECK(!heap->deserialization_complete() ||
-        map_slot().contains_map_value(free_space_map.ptr()));
-  CHECK_LE(kNextOffset + kTaggedSize, size(kRelaxedLoad));
-  return true;
-}
+bool FreeSpace::IsValid() const { return Heap::IsFreeSpaceValid(*this); }
 
 }  // namespace internal
 }  // namespace v8

@@ -5,9 +5,7 @@
 // Original: try_catch.js
 function blah() {
   try {
-    try {
-      var a = 10;
-    } catch (e) {}
+    var a = 10;
 
     try {
       console.log(a);
@@ -67,8 +65,18 @@ try {
   }
 } catch (e) {}
 
-let module = function () {
-  try {
-    return new WebAssembly.Module(builder.toBuffer());
-  } catch (e) {}
-}();
+let module = __wrapTC(() => new WebAssembly.Module(builder.toBuffer()));
+
+const complex1 = __wrapTC(() => [1, 2, 3]);
+
+const complex2 = __wrapTC(() => boom());
+
+let complex3 = __wrapTC(() => function () {
+  let complex4 = [1, 2, 3];
+}());
+
+try {
+  if (true) {
+    let complex5 = new Map();
+  }
+} catch (e) {}

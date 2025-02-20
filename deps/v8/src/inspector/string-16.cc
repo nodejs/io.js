@@ -62,6 +62,8 @@ String16::String16(const char* characters, size_t size) {
   m_impl.resize(size);
   for (size_t i = 0; i < size; ++i) m_impl[i] = characters[i];
 }
+String16::String16(std::string_view string)
+    : String16(string.data(), string.length()) {}
 
 String16::String16(const std::basic_string<UChar>& impl) : m_impl(impl) {}
 
@@ -70,8 +72,9 @@ String16::String16(std::basic_string<UChar>&& impl) : m_impl(impl) {}
 // static
 String16 String16::fromInteger(int number) {
   char arr[50];
-  v8::base::Vector<char> buffer(arr, arraysize(arr));
-  return String16(v8::internal::IntToCString(number, buffer));
+  v8::base::Vector<char> buffer = v8::base::ArrayVector(arr);
+  std::string_view str = v8::internal::IntToStringView(number, buffer);
+  return String16(str);
 }
 
 // static
@@ -96,15 +99,18 @@ String16 String16::fromInteger64(int64_t number) {
 // static
 String16 String16::fromDouble(double number) {
   char arr[50];
-  v8::base::Vector<char> buffer(arr, arraysize(arr));
-  return String16(v8::internal::DoubleToCString(number, buffer));
+  v8::base::Vector<char> buffer = v8::base::ArrayVector(arr);
+  std::string_view str = v8::internal::DoubleToStringView(number, buffer);
+  return String16(str);
 }
 
 // static
 String16 String16::fromDouble(double number, int precision) {
-  std::unique_ptr<char[]> str(
-      v8::internal::DoubleToPrecisionCString(number, precision));
-  return String16(str.get());
+  char arr[v8::internal::kDoubleToPrecisionMaxChars];
+  v8::base::Vector<char> buffer = v8::base::ArrayVector(arr);
+  std::string_view str =
+      v8::internal::DoubleToPrecisionStringView(number, precision, buffer);
+  return String16(str);
 }
 
 int64_t String16::toInteger64(bool* ok) const {

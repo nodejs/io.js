@@ -97,7 +97,7 @@ class Worklist final {
   void Push(Segment* segment);
   bool Pop(Segment** segment);
 
-  mutable v8::base::Mutex lock_;
+  mutable v8::base::SpinningMutex lock_;
   Segment* top_ = nullptr;
   std::atomic<size_t> size_{0};
 };
@@ -105,7 +105,7 @@ class Worklist final {
 template <typename EntryType, uint16_t MinSegmentSize>
 void Worklist<EntryType, MinSegmentSize>::Push(Segment* segment) {
   DCHECK(!segment->IsEmpty());
-  v8::base::MutexGuard guard(&lock_);
+  v8::base::SpinningMutexGuard guard(&lock_);
   segment->set_next(top_);
   top_ = segment;
   size_.fetch_add(1, std::memory_order_relaxed);
@@ -113,7 +113,7 @@ void Worklist<EntryType, MinSegmentSize>::Push(Segment* segment) {
 
 template <typename EntryType, uint16_t MinSegmentSize>
 bool Worklist<EntryType, MinSegmentSize>::Pop(Segment** segment) {
-  v8::base::MutexGuard guard(&lock_);
+  v8::base::SpinningMutexGuard guard(&lock_);
   if (top_ == nullptr) return false;
   DCHECK_LT(0U, size_);
   size_.fetch_sub(1, std::memory_order_relaxed);
@@ -137,7 +137,7 @@ size_t Worklist<EntryType, MinSegmentSize>::Size() const {
 
 template <typename EntryType, uint16_t MinSegmentSize>
 void Worklist<EntryType, MinSegmentSize>::Clear() {
-  v8::base::MutexGuard guard(&lock_);
+  v8::base::SpinningMutexGuard guard(&lock_);
   size_.store(0, std::memory_order_relaxed);
   Segment* current = top_;
   while (current != nullptr) {
@@ -151,7 +151,7 @@ void Worklist<EntryType, MinSegmentSize>::Clear() {
 template <typename EntryType, uint16_t MinSegmentSize>
 template <typename Callback>
 void Worklist<EntryType, MinSegmentSize>::Update(Callback callback) {
-  v8::base::MutexGuard guard(&lock_);
+  v8::base::SpinningMutexGuard guard(&lock_);
   Segment* prev = nullptr;
   Segment* current = top_;
   size_t num_deleted = 0;
@@ -179,7 +179,7 @@ void Worklist<EntryType, MinSegmentSize>::Update(Callback callback) {
 template <typename EntryType, uint16_t MinSegmentSize>
 template <typename Callback>
 void Worklist<EntryType, MinSegmentSize>::Iterate(Callback callback) const {
-  v8::base::MutexGuard guard(&lock_);
+  v8::base::SpinningMutexGuard guard(&lock_);
   for (Segment* current = top_; current != nullptr; current = current->next()) {
     current->Iterate(callback);
   }
@@ -191,7 +191,7 @@ void Worklist<EntryType, MinSegmentSize>::Merge(
   Segment* other_top;
   size_t other_size;
   {
-    v8::base::MutexGuard guard(&other.lock_);
+    v8::base::SpinningMutexGuard guard(&other.lock_);
     if (!other.top_) return;
 
     other_top = std::exchange(other.top_, nullptr);
@@ -204,7 +204,7 @@ void Worklist<EntryType, MinSegmentSize>::Merge(
   while (end->next()) end = end->next();
 
   {
-    v8::base::MutexGuard guard(&lock_);
+    v8::base::SpinningMutexGuard guard(&lock_);
     size_.fetch_add(other_size, std::memory_order_relaxed);
     end->set_next(top_);
     top_ = other_top;

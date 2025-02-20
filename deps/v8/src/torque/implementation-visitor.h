@@ -53,10 +53,13 @@ class LocationReference {
   }
   // A heap reference, that is, a tagged value and an offset to encode an inner
   // pointer.
-  static LocationReference HeapReference(VisitResult heap_reference) {
+  static LocationReference HeapReference(
+      VisitResult heap_reference,
+      FieldSynchronization synchronization = FieldSynchronization::kNone) {
     LocationReference result;
     DCHECK(TypeOracle::MatchReferenceGeneric(heap_reference.type()));
     result.heap_reference_ = std::move(heap_reference);
+    result.heap_reference_synchronization_ = synchronization;
     return result;
   }
   // A reference to an array on the heap. That is, a tagged value, an offset to
@@ -119,6 +122,10 @@ class LocationReference {
   const VisitResult& heap_reference() const {
     DCHECK(IsHeapReference());
     return *heap_reference_;
+  }
+  FieldSynchronization heap_reference_synchronization() const {
+    DCHECK(IsHeapReference());
+    return heap_reference_synchronization_;
   }
   bool IsHeapSlice() const { return heap_slice_.has_value(); }
   const VisitResult& heap_slice() const {
@@ -200,6 +207,8 @@ class LocationReference {
   std::optional<VisitResult> temporary_;
   std::optional<std::string> temporary_description_;
   std::optional<VisitResult> heap_reference_;
+  FieldSynchronization heap_reference_synchronization_ =
+      FieldSynchronization::kNone;
   std::optional<VisitResult> heap_slice_;
   std::optional<std::string> eval_function_;
   std::optional<std::string> assign_function_;

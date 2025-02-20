@@ -5,11 +5,14 @@
 #ifndef V8_STRINGS_STRING_CASE_H_
 #define V8_STRINGS_STRING_CASE_H_
 
+#include <cinttypes>
+
 namespace v8 {
 namespace internal {
 
 template <bool is_lower>
-int FastAsciiConvert(char* dst, const char* src, int length, bool* changed_out);
+uint32_t FastAsciiConvert(char* dst, const char* src, uint32_t length,
+                          bool* changed_out);
 
 }  // namespace internal
 }  // namespace v8

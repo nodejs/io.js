@@ -50,6 +50,7 @@ var kPageSize = 65536;
 var kSpecMaxPages = 65536;
 var kMaxVarInt32Size = 5;
 var kMaxVarInt64Size = 10;
+var kSpecMaxFunctionParams = 1_000;
 
 let kDeclNoLocals = 0;
 
@@ -197,6 +198,7 @@ let kSig_f_ff = makeSig([kWasmF32, kWasmF32], [kWasmF32]);
 let kSig_f_ffff = makeSig([kWasmF32, kWasmF32, kWasmF32, kWasmF32], [kWasmF32]);
 let kSig_d_dd = makeSig([kWasmF64, kWasmF64], [kWasmF64]);
 let kSig_l_ll = makeSig([kWasmI64, kWasmI64], [kWasmI64]);
+let kSig_l_llll = makeSig([kWasmI64, kWasmI64, kWasmI64, kWasmI64], [kWasmI64]);
 let kSig_i_dd = makeSig([kWasmF64, kWasmF64], [kWasmI32]);
 let kSig_v_v = makeSig([], []);
 let kSig_i_v = makeSig([], [kWasmI32]);
@@ -1583,7 +1585,8 @@ class WasmModuleBuilder {
   }
 
   addImportedTable(
-      module, name, initial, maximum, type = kWasmFuncRef, is_table64 = false) {
+      module, name, initial, maximum, type = kWasmFuncRef, shared = false,
+      is_table64 = false) {
     if (this.tables.length != 0) {
       throw new Error('Imported tables must be declared before local ones');
     }
@@ -1594,7 +1597,8 @@ class WasmModuleBuilder {
       initial: initial,
       maximum: maximum,
       type: type,
-      is_table64: !!is_table64
+      shared: !!shared,
+      is_table64: !!is_table64,
     };
     this.imports.push(o);
     return this.num_imported_tables++;
@@ -1849,8 +1853,7 @@ class WasmModuleBuilder {
           } else if (imp.kind == kExternalTable) {
             section.emit_type(imp.type);
             const has_max = (typeof imp.maximum) != 'undefined';
-            // TODO(manoskouk): Store sharedness as a property.
-            const is_shared = false
+            const is_shared = !!imp.shared;
             const is_table64 = !!imp.is_table64;
             let limits_byte =
                 (is_table64 ? 4 : 0) | (is_shared ? 2 : 0) | (has_max ? 1 : 0);
