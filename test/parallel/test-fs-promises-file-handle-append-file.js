@@ -1,6 +1,6 @@
 'use strict';
 
-const common = require('../common');
+require('../common');
 
 // The following tests validate base functionality for the fs.promises
 // FileHandle.appendFile method.
@@ -39,6 +39,21 @@ async function validateAppendString() {
   await fileHandle.close();
 }
 
-validateAppendBuffer()
-  .then(validateAppendString)
-  .then(common.mustCall());
+async function doAppendAndCancel() {
+  const filePathForHandle = path.resolve(tmpDir, 'dogs-running.txt');
+  const fileHandle = await open(filePathForHandle, 'w+');
+  const buffer = Buffer.from('dogs running'.repeat(512 * 1024), 'utf8');
+  const controller = new AbortController();
+  const { signal } = controller;
+  process.nextTick(() => controller.abort());
+  await assert.rejects(fileHandle.appendFile(buffer, { signal }), {
+    name: 'AbortError'
+  });
+  await fileHandle.close();
+}
+
+Promise.all([
+  validateAppendBuffer(),
+  validateAppendString(),
+  doAppendAndCancel(),
+]);

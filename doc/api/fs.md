@@ -199,8 +199,7 @@ changes:
 * `data` {string|Buffer|TypedArray|DataView|AsyncIterable|Iterable|Stream}
 * `options` {Object|string}
   * `encoding` {string|null} **Default:** `'utf8'`
-  * `flush` {boolean} If `true`, the underlying file descriptor is flushed
-    prior to closing it. **Default:** `false`.
+  * `signal` {AbortSignal|undefined} allows aborting an in-progress writeFile. **Default:** `undefined`
 * Returns: {Promise} Fulfills with `undefined` upon success.
 
 Alias of [`filehandle.writeFile()`][].
