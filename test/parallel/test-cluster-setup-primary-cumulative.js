@@ -35,6 +35,7 @@ assert.deepStrictEqual(cluster.settings, {
   exec: process.argv[1],
   execArgv: process.execArgv,
   silent: false,
+  schedulingPolicy: 2,
 });
 console.log('ok sets defaults');
 
@@ -58,5 +59,6 @@ assert.deepStrictEqual(cluster.settings, {
   exec: 'overridden',
   execArgv: ['baz', 'bang'],
   silent: false,
+  schedulingPolicy: 2,
 });
 console.log('ok preserves current settings');
