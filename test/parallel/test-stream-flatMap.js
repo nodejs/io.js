@@ -73,9 +73,9 @@ function oneTo5() {
 {
   // Concurrency + AbortSignal
   const ac = new AbortController();
-  const stream = oneTo5().flatMap(common.mustNotCall(async (_, { signal }) => {
+  const stream = oneTo5().flatMap(common.mustCall(async (_, { signal }) => {
     await setTimeout(100, { signal });
-  }), { signal: ac.signal, concurrency: 2 });
+  }, 2), { signal: ac.signal, concurrency: 2 });
   // pump
   assert.rejects(async () => {
     for await (const item of stream) {
