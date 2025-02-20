@@ -13,7 +13,19 @@ env:
   NOTABLE_CHANGE_MESSAGE: |
     The https://github.com/nodejs/node/labels/notable-change label has been added by @${{ github.actor }}.
 
-    Please suggest a text for the release notes if you'd like to include a more detailed summary, then proceed to update the PR description with the text or a link to the notable change suggested text comment. Otherwise, the commit will be placed in the _Other Notable Changes_ section.
+    Please suggest a text for the release notes if you'd like to include a more detailed summary, then proceed to update
+    the PR description using the following pattern:
+
+    ```markdown
+    <details open><summary>Notable changes</summary>
+
+    <!-- Here describe the change using markdown syntax -->
+    This release adds support for...
+
+    </details>
+    ```
+
+    Otherwise, the commit will be placed in the _Other Notable Changes_ section.
 
 permissions:
   contents: read
