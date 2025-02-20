@@ -130,6 +130,29 @@ static void CPUUsage(const FunctionCallbackInfo<Value>& args) {
   fields[1] = MICROS_PER_SEC * rusage.ru_stime.tv_sec + rusage.ru_stime.tv_usec;
 }
 
+// ThreadCPUUsage use libuv's uv_getrusage_thread() this-thread resource usage
+// accessor, to access ru_utime (user CPU time used) and ru_stime
+// (system CPU time used), which are uv_timeval_t structs
+// (long tv_sec, long tv_usec).
+// Returns those values as Float64 microseconds in the elements of the array
+// passed to the function.
+static void ThreadCPUUsage(const FunctionCallbackInfo<Value>& args) {
+  Environment* env = Environment::GetCurrent(args);
+  uv_rusage_t rusage;
+
+  // Call libuv to get the values we'll return.
+  int err = uv_getrusage_thread(&rusage);
+  if (err) return env->ThrowUVException(err, "uv_getrusage_thread");
+
+  // Get the double array pointer from the Float64Array argument.
+  Local<ArrayBuffer> ab = get_fields_array_buffer(args, 0, 2);
+  double* fields = static_cast<double*>(ab->Data());
+
+  // Set the Float64Array elements to be user / system values in microseconds.
+  fields[0] = MICROS_PER_SEC * rusage.ru_utime.tv_sec + rusage.ru_utime.tv_usec;
+  fields[1] = MICROS_PER_SEC * rusage.ru_stime.tv_sec + rusage.ru_stime.tv_usec;
+}
+
 static void Cwd(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   CHECK(env->has_run_bootstrapping_code());
@@ -651,6 +674,7 @@ static void CreatePerIsolateProperties(IsolateData* isolate_data,
   SetMethod(isolate, target, "availableMemory", GetAvailableMemory);
   SetMethod(isolate, target, "rss", Rss);
   SetMethod(isolate, target, "cpuUsage", CPUUsage);
+  SetMethod(isolate, target, "threadCpuUsage", ThreadCPUUsage);
   SetMethod(isolate, target, "resourceUsage", ResourceUsage);
 
   SetMethod(isolate, target, "_debugEnd", DebugEnd);
@@ -695,6 +719,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(GetAvailableMemory);
   registry->Register(Rss);
   registry->Register(CPUUsage);
+  registry->Register(ThreadCPUUsage);
   registry->Register(ResourceUsage);
 
   registry->Register(GetActiveRequests);

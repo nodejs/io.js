@@ -9,6 +9,7 @@ import { FsDirBinding } from './internalBinding/fs_dir';
 import { MessagingBinding } from './internalBinding/messaging';
 import { OptionsBinding } from './internalBinding/options';
 import { OSBinding } from './internalBinding/os';
+import { ProcessBinding } from './internalBinding/process';
 import { SerdesBinding } from './internalBinding/serdes';
 import { SymbolsBinding } from './internalBinding/symbols';
 import { TimersBinding } from './internalBinding/timers';
@@ -34,6 +35,7 @@ interface InternalBindingMap {
   modules: ModulesBinding;
   options: OptionsBinding;
   os: OSBinding;
+  process: ProcessBinding;
   serdes: SerdesBinding;
   symbols: SymbolsBinding;
   timers: TimersBinding;
