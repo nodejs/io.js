@@ -1,0 +1,25 @@
+{
+  "name": "Node.js Core Developer Environment",
+  "runArgs": [
+    "--platform=linux/amd64"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "github.vscode-pull-request-github",
+        "ms-vsliveshare.vsliveshare",
+        "vscode-icons-team.vscode-icons",
+        "visualstudioexptteam.vscodeintellicode"
+      ],
+      "settings": {
+        "terminal.integrated.profiles.linux": {
+          "zsh (login)": {
+            "path": "zsh",
+            "args": ["-l"]
+          }
+        }
+      }
+    }
+  },
+  "image": "nodejs/devcontainer:nightly"
+}
