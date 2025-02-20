@@ -154,6 +154,27 @@ request. Interesting things to notice:
 
 ## General recommendations
 
+### Usage of `node:test`
+
+It is optional to use `node:test` in tests outside of testing the `node:test`
+module, as long as the functionality being tested is not a dependency of the
+`node:test` module. This ensures that a bug in the test runner doesn't impact
+the outcome of the underlying dependencies' test results.
+
+These dependencies are:
+
+- `node:events`
+- `node:async_hooks`
+- `node:child_process`
+- `node:fs`
+- `node:streams` with the exception of WebStreams
+- `node:vm`
+
+#### Caveats
+
+* `node:url` is excluded due to the extensive testing on web-platform tests.
+* `node:path` and `node:os` is excluded due to being used by both test runners.
+
 ### Timers
 
 Avoid timers unless the test is specifically testing timers. There are multiple
