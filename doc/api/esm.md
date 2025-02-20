@@ -876,7 +876,7 @@ The resolver can throw the following errors:
 > 10. If _selfUrl_ is not **undefined**, return _selfUrl_.
 > 11. While _parentURL_ is not the file system root,
 >     1. Let _packageURL_ be the URL resolution of _"node\_modules/"_
->        concatenated with _packageSpecifier_, relative to _parentURL_.
+>        concatenated with _packageName_, relative to _parentURL_.
 >     2. Set _parentURL_ to the parent folder URL of _parentURL_.
 >     3. If the folder at _packageURL_ does not exist, then
 >        1. Continue the next loop iteration.
@@ -947,7 +947,8 @@ The resolver can throw the following errors:
 **PACKAGE\_IMPORTS\_EXPORTS\_RESOLVE**(_matchKey_, _matchObj_, _packageURL_,
 _isImports_, _conditions_)
 
-> 1. If _matchKey_ is a key of _matchObj_ and does not contain _"\*"_, then
+> 1. If _matchKey_ is a key of _matchObj_, does not contain _"\*"_, and does not
+>    end with _"/"_ then
 >    1. Let _target_ be the value of _matchObj_\[_matchKey_].
 >    2. Return the result of **PACKAGE\_TARGET\_RESOLVE**(_packageURL_,
 >       _target_, **null**, _isImports_, _conditions_).
