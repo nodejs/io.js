@@ -28,7 +28,7 @@ suite('DatabaseSync() constructor', () => {
       new DatabaseSync();
     }, {
       code: 'ERR_INVALID_ARG_TYPE',
-      message: /The "path" argument must be a string/,
+      message: /The "path" argument must be a string, Uint8Array, or URL without null bytes/,
     });
   });
 

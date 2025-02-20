@@ -88,7 +88,7 @@ exposed by this class execute synchronously.
 added: v22.5.0
 -->
 
-* `location` {string} The location of the database. A SQLite database can be
+* `location` {string} | {Buffer} | {URL} The location of the database. A SQLite database can be
   stored in a file or completely [in memory][]. To use a file-backed database,
   the location should be a file path. To use an in-memory database, the location
   should be the special name `':memory:'`.
@@ -541,8 +541,8 @@ added: v23.8.0
 -->
 
 * `sourceDb` {DatabaseSync} The database to backup. The source database must be open.
-* `destination` {string} The path where the backup will be created. If the file already exists, the contents will be
-  overwritten.
+* `destination` {string} | {Buffer} | {URL} The path where the backup will be created. If the file already exists,
+  the contents will be overwritten.
 * `options` {Object} Optional configuration for the backup. The
   following properties are supported:
   * `source` {string} Name of the source database. This can be `'main'` (the default primary database) or any other
