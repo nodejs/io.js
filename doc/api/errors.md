@@ -2385,6 +2385,16 @@ added: v15.0.0
 An operation failed. This is typically used to signal the general failure
 of an asynchronous operation.
 
+<a id="ERR_OPTIONS_BEFORE_BOOTSTRAPPING"></a>
+
+### `ERR_OPTIONS_BEFORE_BOOTSTRAPPING`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+An attempt was made to get options before the bootstrapping was completed.
+
 <a id="ERR_OUT_OF_RANGE"></a>
 
 ### `ERR_OUT_OF_RANGE`

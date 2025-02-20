@@ -911,6 +911,69 @@ added: v23.6.0
 
 Enable experimental import support for `.node` addons.
 
+### `--experimental-config-file`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1.0 - Early development
+
+Use this flag to specify a configuration file that will be loaded and parsed
+before the application starts.
+Node.js will read the configuration file and apply the settings.
+The configuration file should be a JSON file
+with the following structure:
+
+```json
+{
+  "$schema": "https://nodejs.org/dist/REPLACEME/docs/node_config_json_schema.json",
+  "experimental-transform-types": true,
+  "import": [
+    "amaro/transform"
+  ],
+  "disable-warning": "ExperimentalWarning",
+  "watch-path": "src",
+  "watch-preserve-output": true
+}
+```
+
+Only flags that are allowed in [`NODE_OPTIONS`][] are supported.
+No-op flags are not supported.
+Not all V8 flags are currently supported.
+
+It is possible to use the [official JSON schema](../node_config_json_schema.json)
+to validate the configuration file, which may vary depending on the Node.js version.
+Each key in the configuration file corresponds to a flag that can be passed
+as a command-line argument. The value of the key is the value that would be
+passed to the flag.
+
+For example, the configuration file above is equivalent to
+the following command-line arguments:
+
+```bash
+node --experimental-transform-types --import amaro/transform --disable-warning=ExperimentalWarning --watch-path=src --watch-preserve-output
+```
+
+The priority in configuration is as follows:
+
+1. NODE\_OPTIONS and command-line options
+2. Configuration file
+3. Dotenv NODE\_OPTIONS
+
+Values in the configuration file will not override the values in the environment
+variables and command-line options, but will override the values in the `NODE_OPTIONS`
+env file parsed by the `--env-file` flag.
+
+If duplicate keys are present in the configuration file, only
+the first key will be used.
+
+The configuration parser will throw an error if the configuration file contains
+unknown keys or keys that cannot used in `NODE_OPTIONS`.
+
+Node.js will not sanitize or perform validation on the user-provided configuration,
+so **NEVER** use untrusted configuration files.
+
 ### `--experimental-eventsource`
 
 <!-- YAML

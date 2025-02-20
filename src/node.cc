@@ -20,6 +20,7 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "node.h"
+#include "node_config_file.h"
 #include "node_dotenv.h"
 #include "node_task_runner.h"
 
@@ -149,6 +150,9 @@ namespace per_process {
 // node_dotenv.h
 // Instance is used to store environment variables including NODE_OPTIONS.
 node::Dotenv dotenv_file = Dotenv();
+
+// node_config_file.h
+node::ConfigReader config_reader = ConfigReader();
 
 // node_revert.h
 // Bit flag used to track security reverts.
@@ -882,6 +886,36 @@ static ExitCode InitializeNodeWithArgsInternal(
     }
 
     per_process::dotenv_file.AssignNodeOptionsIfAvailable(&node_options);
+  }
+
+  std::string node_options_from_config;
+  if (auto path = per_process::config_reader.GetDataFromArgs(*argv)) {
+    switch (per_process::config_reader.ParseConfig(*path)) {
+      case ParseResult::Valid:
+        break;
+      case ParseResult::InvalidContent:
+        errors->push_back(std::string(*path) + ": invalid content");
+        break;
+      case ParseResult::FileError:
+        errors->push_back(std::string(*path) + ": not found");
+        break;
+      default:
+        UNREACHABLE();
+    }
+    node_options_from_config = per_process::config_reader.AssignNodeOptions();
+    // (@marco-ippolito) Avoid reparsing the env options again
+    std::vector<std::string> env_argv_from_config =
+        ParseNodeOptionsEnvVar(node_options_from_config, errors);
+
+    // Check the number of flags in NODE_OPTIONS from the config file
+    // matches the parsed ones. This avoid users from sneaking in
+    // additional flags.
+    if (env_argv_from_config.size() !=
+        per_process::config_reader.GetFlagsSize()) {
+      errors->emplace_back("The number of NODE_OPTIONS doesn't match "
+                           "the number of flags in the config file");
+    }
+    node_options += node_options_from_config;
   }
 
 #if !defined(NODE_WITHOUT_NODE_OPTIONS)
