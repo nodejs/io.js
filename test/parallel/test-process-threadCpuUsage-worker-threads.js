@@ -73,12 +73,11 @@ if (isMainThread) {
 
     for (const worker of workers) {
       const statusPromise = once(worker, 'message');
-      const exitPromise = once(worker, 'exit');
 
       worker.postMessage('done');
       const [status] = await statusPromise;
       results.push(status);
-      await exitPromise;
+      worker.terminate();
     }
 
     validateResults(results);
