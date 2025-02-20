@@ -39,7 +39,7 @@
    dynamic table capacity that QPACK encoder is willing to use. */
 #define NGHTTP3_QPACK_ENCODER_MAX_DTABLE_CAPACITY 4096
 
-nghttp3_objalloc_def(chunk, nghttp3_chunk, oplent);
+nghttp3_objalloc_def(chunk, nghttp3_chunk, oplent)
 
 /*
  * conn_remote_stream_uni returns nonzero if |stream_id| is remote

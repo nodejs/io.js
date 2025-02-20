@@ -104,7 +104,7 @@ struct nghttp3_ksl_blk {
   };
 };
 
-nghttp3_objalloc_decl(ksl_blk, nghttp3_ksl_blk, oplent);
+nghttp3_objalloc_decl(ksl_blk, nghttp3_ksl_blk, oplent)
 
 /*
  * nghttp3_ksl_compar is a function type which returns nonzero if key
@@ -114,6 +114,35 @@ typedef int (*nghttp3_ksl_compar)(const nghttp3_ksl_key *lhs,
                                   const nghttp3_ksl_key *rhs);
 
 typedef struct nghttp3_ksl nghttp3_ksl;
+
+/*
+ * nghttp3_ksl_search is a function to search for the first element in
+ * |blk|->nodes which is not ordered before |key|.  It returns the
+ * index of such element.  It returns |blk|->n if there is no such
+ * element.
+ */
+typedef size_t (*nghttp3_ksl_search)(const nghttp3_ksl *ksl,
+                                     nghttp3_ksl_blk *blk,
+                                     const nghttp3_ksl_key *key);
+
+/*
+ * nghttp3_ksl_search_def is a macro to implement nghttp3_ksl_search
+ * with COMPAR which is supposed to be nghttp3_ksl_compar.
+ */
+#define nghttp3_ksl_search_def(NAME, COMPAR)                                   \
+  static size_t ksl_##NAME##_search(const nghttp3_ksl *ksl,                    \
+                                    nghttp3_ksl_blk *blk,                      \
+                                    const nghttp3_ksl_key *key) {              \
+    size_t i;                                                                  \
+    nghttp3_ksl_node *node;                                                    \
+                                                                               \
+    for (i = 0, node = (nghttp3_ksl_node *)(void *)blk->nodes;                 \
+         i < blk->n && COMPAR((nghttp3_ksl_key *)node->key, key); ++i,         \
+        node = (nghttp3_ksl_node *)(void *)((uint8_t *)node + ksl->nodelen))   \
+      ;                                                                        \
+                                                                               \
+    return i;                                                                  \
+  }
 
 typedef struct nghttp3_ksl_it nghttp3_ksl_it;
 
@@ -138,6 +167,7 @@ struct nghttp3_ksl {
   /* back points to the last leaf block. */
   nghttp3_ksl_blk *back;
   nghttp3_ksl_compar compar;
+  nghttp3_ksl_search search;
   /* n is the number of elements stored. */
   size_t n;
   /* keylen is the size of key */
@@ -149,11 +179,13 @@ struct nghttp3_ksl {
 
 /*
  * nghttp3_ksl_init initializes |ksl|.  |compar| specifies compare
- * function.  |keylen| is the length of key and must be at least
+ * function.  |search| is a search function which must use |compar|.
+ * |keylen| is the length of key and must be at least
  * sizeof(uint64_t).
  */
 void nghttp3_ksl_init(nghttp3_ksl *ksl, nghttp3_ksl_compar compar,
-                      size_t keylen, const nghttp3_mem *mem);
+                      nghttp3_ksl_search search, size_t keylen,
+                      const nghttp3_mem *mem);
 
 /*
  * nghttp3_ksl_free frees resources allocated for |ksl|.  If |ksl| is
@@ -218,12 +250,12 @@ nghttp3_ksl_it nghttp3_ksl_lower_bound(const nghttp3_ksl *ksl,
                                        const nghttp3_ksl_key *key);
 
 /*
- * nghttp3_ksl_lower_bound_compar works like nghttp3_ksl_lower_bound,
- * but it takes custom function |compar| to do lower bound search.
+ * nghttp3_ksl_lower_bound_search works like nghttp3_ksl_lower_bound,
+ * but it takes custom function |search| to do lower bound search.
  */
-nghttp3_ksl_it nghttp3_ksl_lower_bound_compar(const nghttp3_ksl *ksl,
+nghttp3_ksl_it nghttp3_ksl_lower_bound_search(const nghttp3_ksl *ksl,
                                               const nghttp3_ksl_key *key,
-                                              nghttp3_ksl_compar compar);
+                                              nghttp3_ksl_search search);
 
 /*
  * nghttp3_ksl_update_key replaces the key of nodes which has
@@ -330,22 +362,69 @@ int nghttp3_ksl_it_begin(const nghttp3_ksl_it *it);
 
 /*
  * nghttp3_ksl_range_compar is an implementation of
- * nghttp3_ksl_compar.  lhs->ptr and rhs->ptr must point to
- * nghttp3_range object and the function returns nonzero if (const
- * nghttp3_range *)(lhs->ptr)->begin < (const nghttp3_range
- * *)(rhs->ptr)->begin.
+ * nghttp3_ksl_compar.  |lhs| and |rhs| must point to nghttp3_range
+ * object, and the function returns nonzero if ((const nghttp3_range
+ * *)lhs)->begin < ((const nghttp3_range *)rhs)->begin.
  */
 int nghttp3_ksl_range_compar(const nghttp3_ksl_key *lhs,
                              const nghttp3_ksl_key *rhs);
 
 /*
+ * nghttp3_ksl_range_search is an implementation of nghttp3_ksl_search
+ * that uses nghttp3_ksl_range_compar.
+ */
+size_t nghttp3_ksl_range_search(const nghttp3_ksl *ksl, nghttp3_ksl_blk *blk,
+                                const nghttp3_ksl_key *key);
+
+/*
  * nghttp3_ksl_range_exclusive_compar is an implementation of
- * nghttp3_ksl_compar.  lhs->ptr and rhs->ptr must point to
- * nghttp3_range object and the function returns nonzero if (const
- * nghttp3_range *)(lhs->ptr)->begin < (const nghttp3_range
- * *)(rhs->ptr)->begin and the 2 ranges do not intersect.
+ * nghttp3_ksl_compar.  |lhs| and |rhs| must point to nghttp3_range
+ * object, and the function returns nonzero if ((const nghttp3_range
+ * *)lhs)->begin < ((const nghttp3_range *)rhs)->begin, and the 2
+ * ranges do not intersect.
  */
 int nghttp3_ksl_range_exclusive_compar(const nghttp3_ksl_key *lhs,
                                        const nghttp3_ksl_key *rhs);
+
+/*
+ * nghttp3_ksl_range_exclusive_search is an implementation of
+ * nghttp3_ksl_search that uses nghttp3_ksl_range_exclusive_compar.
+ */
+size_t nghttp3_ksl_range_exclusive_search(const nghttp3_ksl *ksl,
+                                          nghttp3_ksl_blk *blk,
+                                          const nghttp3_ksl_key *key);
+
+/*
+ * nghttp3_ksl_uint64_less is an implementation of nghttp3_ksl_compar.
+ * |lhs| and |rhs| must point to uint64_t objects, and the function
+ * returns nonzero if *(uint64_t *)|lhs| < *(uint64_t *)|rhs|.
+ */
+int nghttp3_ksl_uint64_less(const nghttp3_ksl_key *lhs,
+                            const nghttp3_ksl_key *rhs);
+
+/*
+ * nghttp3_ksl_uint64_less_search is an implementation of
+ * nghttp3_ksl_search that uses nghttp3_ksl_uint64_less.
+ */
+size_t nghttp3_ksl_uint64_less_search(const nghttp3_ksl *ksl,
+                                      nghttp3_ksl_blk *blk,
+                                      const nghttp3_ksl_key *key);
+
+/*
+ * nghttp3_ksl_int64_greater is an implementation of
+ * nghttp3_ksl_compar.  |lhs| and |rhs| must point to int64_t objects,
+ * and the function returns nonzero if *(int64_t *)|lhs| > *(int64_t
+ * *)|rhs|.
+ */
+int nghttp3_ksl_int64_greater(const nghttp3_ksl_key *lhs,
+                              const nghttp3_ksl_key *rhs);
+
+/*
+ * nghttp3_ksl_int64_greater_search is an implementation of
+ * nghttp3_ksl_search that uses nghttp3_ksl_int64_greater.
+ */
+size_t nghttp3_ksl_int64_greater_search(const nghttp3_ksl *ksl,
+                                        nghttp3_ksl_blk *blk,
+                                        const nghttp3_ksl_key *key);
 
 #endif /* !defined(NGHTTP3_KSL_H) */

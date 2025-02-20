@@ -898,6 +898,8 @@ static int max_cnt_greater(const nghttp3_ksl_key *lhs,
   return a->max_cnt > b->max_cnt || (a->max_cnt == b->max_cnt && a->id < b->id);
 }
 
+nghttp3_ksl_search_def(max_cnt_greater, max_cnt_greater)
+
 int nghttp3_qpack_encoder_init(nghttp3_qpack_encoder *encoder,
                                size_t hard_max_dtable_capacity,
                                const nghttp3_mem *mem) {
@@ -911,6 +913,7 @@ int nghttp3_qpack_encoder_init(nghttp3_qpack_encoder *encoder,
   nghttp3_map_init(&encoder->streams, mem);
 
   nghttp3_ksl_init(&encoder->blocked_streams, max_cnt_greater,
+                   ksl_max_cnt_greater_search,
                    sizeof(nghttp3_blocked_streams_key), mem);
 
   qpack_map_init(&encoder->dtable_map);
@@ -1834,7 +1837,7 @@ static int qpack_encoder_write_indexed_name(nghttp3_qpack_encoder *encoder,
   int h = 0;
 
   hlen = nghttp3_qpack_huffman_encode_count(nv->value, nv->valuelen);
-  if (hlen * 4 < nv->valuelen * 3) {
+  if (hlen < nv->valuelen) {
     h = 1;
     len += nghttp3_qpack_put_varint_len(hlen, 7) + hlen;
   } else {
@@ -1925,7 +1928,7 @@ static int qpack_encoder_write_literal(nghttp3_qpack_encoder *encoder,
   int nh = 0, vh = 0;
 
   nhlen = nghttp3_qpack_huffman_encode_count(nv->name, nv->namelen);
-  if (nhlen * 4 < nv->namelen * 3) {
+  if (nhlen < nv->namelen) {
     nh = 1;
     len = nghttp3_qpack_put_varint_len(nhlen, prefix) + nhlen;
   } else {
@@ -1933,7 +1936,7 @@ static int qpack_encoder_write_literal(nghttp3_qpack_encoder *encoder,
   }
 
   vhlen = nghttp3_qpack_huffman_encode_count(nv->value, nv->valuelen);
-  if (vhlen * 4 < nv->valuelen * 3) {
+  if (vhlen < nv->valuelen) {
     vh = 1;
     len += nghttp3_qpack_put_varint_len(vhlen, 7) + vhlen;
   } else {
