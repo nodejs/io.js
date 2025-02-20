@@ -8,17 +8,15 @@ const assert = require('assert');
 const http2 = require('http2');
 const util = require('util');
 
-const server = http2.createServer();
+const connect = util.promisify(http2.connect);
 
-server.listen(0, common.mustCall(() => {
-  const port = server.address().port;
-  server.close(() => {
-    const connect = util.promisify(http2.connect);
-    connect(`http://localhost:${port}`)
-      .then(common.mustNotCall('Promise should not be resolved'))
-      .catch(common.mustCall((err) => {
-        assert(err instanceof Error);
-        assert.strictEqual(err.code, 'ECONNREFUSED');
-      }));
-  });
-}));
+const error = new Error('Unable to resolve hostname');
+
+function lookup(hostname, options, callback) {
+  callback(error);
+}
+
+assert.rejects(
+  connect('http://hostname', { lookup }),
+  error,
+).then(common.mustCall());
