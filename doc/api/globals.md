@@ -1075,6 +1075,17 @@ added: v17.0.0
 
 The WHATWG `DOMException` class. See [`DOMException`][] for more details.
 
+## `Temporal`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental.
+
+The `Temporal` global is a new language level API for working with dates and
+times.
+
 ## `TextDecoder`
 
 <!-- YAML

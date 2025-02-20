@@ -758,6 +758,13 @@ static ExitCode ProcessGlobalArgsInternal(std::vector<std::string>* args,
     v8_args.emplace_back("--harmony-import-attributes");
   }
 
+  // TODO(jasnell): remove this when the harmony-temporal flag
+  // is removed in V8.
+  if (std::find(v8_args.begin(), v8_args.end(), "--no-harmony-temporal") ==
+      v8_args.end()) {
+    v8_args.emplace_back("--harmony-temporal");
+  }
+
   auto env_opts = per_process::cli_options->per_isolate->per_env;
   if (std::find(v8_args.begin(), v8_args.end(),
                 "--abort-on-uncaught-exception") != v8_args.end() ||
