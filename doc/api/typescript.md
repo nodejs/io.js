@@ -76,16 +76,16 @@ generation, and by replacing inline types with whitespace, Node.js can run
 TypeScript code without the need for source maps.
 
 Type stripping is compatible with most versions of TypeScript
-but we recommend version 5.7 or newer with the following `tsconfig.json` settings:
+but we recommend version 5.8 or newer with the following `tsconfig.json` settings:
 
 ```json
 {
   "compilerOptions": {
      "target": "esnext",
      "module": "nodenext",
-     "allowImportingTsExtensions": true,
      "rewriteRelativeImportExtensions": true,
-     "verbatimModuleSyntax": true
+     "verbatimModuleSyntax": true,
+     "erasableSyntaxOnly": true
   }
 }
 ```
@@ -125,11 +125,13 @@ The most prominent features that require transformation are:
 
 * `Enum` declarations
 * `namespace` with runtime code
-* legacy `module` with runtime code
+* legacy `module` syntax
 * parameter properties
 * import aliases
 
-`namespaces` and `module` that do not contain runtime code are supported.
+`namespace`s that do not contain runtime code are supported.
+`module` syntax is not supported since it is deprecated in TypeScript,
+and soon to be removed.
 This example will work correctly:
 
 ```ts
