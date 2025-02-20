@@ -11051,6 +11051,11 @@ std::string Isolate::GetDefaultLocale() {
 #endif
 }
 
+uint64_t Isolate::GetHashSeed() {
+  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(this);
+  return HashSeed(i_isolate);
+}
+
 #if defined(V8_ENABLE_ETW_STACK_WALKING)
 void Isolate::SetFilterETWSessionByURLCallback(
     FilterETWSessionByURLCallback callback) {

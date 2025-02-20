@@ -1883,6 +1883,11 @@ class V8_EXPORT Isolate {
    */
   std::string GetDefaultLocale();
 
+  /**
+   * Returns the hash seed for that isolate, for testing purposes.
+   */
+  uint64_t GetHashSeed();
+
   Isolate() = delete;
   ~Isolate() = delete;
   Isolate(const Isolate&) = delete;

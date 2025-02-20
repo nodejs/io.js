@@ -32,6 +32,7 @@
 namespace node {
 namespace v8_utils {
 using v8::Array;
+using v8::BigInt;
 using v8::Context;
 using v8::FunctionCallbackInfo;
 using v8::FunctionTemplate;
@@ -236,6 +237,12 @@ void SetFlagsFromString(const FunctionCallbackInfo<Value>& args) {
   CHECK(args[0]->IsString());
   String::Utf8Value flags(args.GetIsolate(), args[0]);
   V8::SetFlagsFromString(*flags, static_cast<size_t>(flags.length()));
+}
+
+void GetHashSeed(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  uint64_t hash_seed = isolate->GetHashSeed();
+  args.GetReturnValue().Set(BigInt::NewFromUnsigned(isolate, hash_seed));
 }
 
 static const char* GetGCTypeName(v8::GCType gc_type) {
@@ -478,6 +485,8 @@ void Initialize(Local<Object> target,
   // Export symbols used by v8.setFlagsFromString()
   SetMethod(context, target, "setFlagsFromString", SetFlagsFromString);
 
+  SetMethod(context, target, "getHashSeed", GetHashSeed);
+
   // GCProfiler
   Local<FunctionTemplate> t =
       NewFunctionTemplate(env->isolate(), GCProfiler::New);
@@ -493,6 +502,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(UpdateHeapCodeStatisticsBuffer);
   registry->Register(UpdateHeapSpaceStatisticsBuffer);
   registry->Register(SetFlagsFromString);
+  registry->Register(GetHashSeed);
   registry->Register(SetHeapSnapshotNearHeapLimit);
   registry->Register(GCProfiler::New);
   registry->Register(GCProfiler::Start);
