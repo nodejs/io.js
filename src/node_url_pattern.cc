@@ -77,7 +77,7 @@ URLPatternRegexProvider::create_instance(std::string_view pattern,
                                          bool ignore_case) {
   auto isolate = Isolate::GetCurrent();
   auto env = Environment::GetCurrent(isolate);
-  int flags = RegExp::Flags::kUnicodeSets;
+  int flags = RegExp::Flags::kUnicodeSets | RegExp::Flags::kDotAll;
   if (ignore_case) {
     flags |= static_cast<int>(RegExp::Flags::kIgnoreCase);
   }
