@@ -27,7 +27,7 @@ function verifyAsyncHookEnabled(message) {
   assert.strictEqual(async_hook_fields[kTotals], 4,
                      `${async_hook_fields[kTotals]} !== 4: ${message}`);
   const promiseHooks = getPromiseHooks();
-  assert.notDeepStrictEqual(
+  assert.deepStrictEqual(  // Inspector async hooks should not enable promise hooks
     promiseHooks, emptyPromiseHooks,
     `${message}: promise hooks ${inspect(promiseHooks)}`
   );
