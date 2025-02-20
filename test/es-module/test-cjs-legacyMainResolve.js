@@ -129,7 +129,7 @@ describe('legacyMainResolve', () => {
     );
     assert.throws(
       () => legacyMainResolve(packageJsonUrl, { main: null }, packageJsonUrl),
-      { message: /index\.js/, code: 'ERR_MODULE_NOT_FOUND' },
+      { message: /Entry point '[\w\S]+' resolved from '[\w\S]+' incorrectly/, code: 'ERR_MODULE_NOT_FOUND' },
     );
   });
 
@@ -137,7 +137,7 @@ describe('legacyMainResolve', () => {
     const packageJsonUrl = pathToFileURL('/c/file%20with%20percents/package.json');
     assert.throws(
       () => legacyMainResolve(packageJsonUrl, { main: null }, packageJsonUrl),
-      { message: /index\.js/, code: 'ERR_MODULE_NOT_FOUND' },
+      { message: /Entry point '[\w\S]+' resolved from '[\w\S]+' incorrectly/, code: 'ERR_MODULE_NOT_FOUND' },
     );
   });
 
@@ -150,7 +150,7 @@ describe('legacyMainResolve', () => {
     );
     assert.throws(
       () => legacyMainResolve(packageJsonUrl, { main: './index.node' }, packageJsonUrl),
-      { message: /index\.node/, code: 'ERR_MODULE_NOT_FOUND' },
+      { message: /Entry point '[\w\S]+' resolved from '[\w\S]+' incorrectly/, code: 'ERR_MODULE_NOT_FOUND' },
     );
   });
 
