@@ -27,7 +27,18 @@ const fs = require('fs');
 assert.throws(() => { crypto.hash('sha1', 'test', 'not an encoding'); }, { code: 'ERR_INVALID_ARG_VALUE' });
 
 // Test that the output of crypto.hash() is the same as crypto.createHash().
-const methods = crypto.getHashes();
+const methods =
+  crypto.getHashes()
+  // OpenSSL 3.4 has stopped supporting shake128 and shake256 if the output
+  // length is not set explicitly as the a fixed output length doesn't make a
+  // lot of sense for them, and the default one in OpenSSL was too short and
+  // unexpectedly limiting the security strength
+  .filter(
+    common.hasOpenSSL(3, 4) ?
+      (method) => method !== 'shake128' && method !== 'shake256' :
+      () => true,
+  )
+;
 
 const input = fs.readFileSync(fixtures.path('utf8_test_text.txt'));
 
