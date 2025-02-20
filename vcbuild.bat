@@ -72,6 +72,7 @@ set no_shared_roheap=
 set doc=
 set extra_msbuild_args=
 set compile_commands=
+set cfg=
 set exit_code=0
 
 :next-arg
@@ -150,6 +151,7 @@ if /i "%1"=="no-shared-roheap" set no_shared_roheap=1&goto arg-ok
 if /i "%1"=="doc"           set doc=1&goto arg-ok
 if /i "%1"=="binlog"        set extra_msbuild_args=/binaryLogger:out\%config%\node.binlog&goto arg-ok
 if /i "%1"=="compile-commands" set compile_commands=1&goto arg-ok
+if /i "%1"=="cfg"           set cfg=1&goto arg-ok
 
 echo Error: invalid command line option `%1`.
 exit /b 1
@@ -210,6 +212,7 @@ if defined no_shared_roheap set configure_flags=%configure_flags% --disable-shar
 if defined DEBUG_HELPER     set configure_flags=%configure_flags% --verbose
 if defined ccache_path      set configure_flags=%configure_flags% --use-ccache-win
 if defined compile_commands set configure_flags=%configure_flags% -C
+if defined cfg              set configure_flags=%configure_flags% --control-flow-guard
 
 if "%target_arch%"=="x86" (
   echo "32-bit Windows builds are not supported anymore."
