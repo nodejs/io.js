@@ -351,7 +351,7 @@ int StreamBase::WriteString(const FunctionCallbackInfo<Value>& args) {
   // computing their actual size, rather than tripling the storage.
   size_t storage_size;
   if ((enc == UTF8 &&
-         string->Length() > 65535 &&
+         string->Length() > 64 * 1024 &&
          !StringBytes::Size(isolate, string, enc).To(&storage_size)) ||
           !StringBytes::StorageSize(isolate, string, enc).To(&storage_size)) {
     return -1;
@@ -361,7 +361,7 @@ int StreamBase::WriteString(const FunctionCallbackInfo<Value>& args) {
     return UV_ENOBUFS;
 
   // Try writing immediately if write size isn't too big
-  char stack_storage[16384];  // 16kb
+  char stack_storage[64 * 1024];
   size_t data_size;
   size_t synchronously_written = 0;
   uv_buf_t buf;
