@@ -11,34 +11,66 @@ using v8::NewStringType;
 using v8::Object;
 using v8::String;
 
-std::vector<std::string> Dotenv::GetPathFromArgs(
+std::vector<Dotenv::env_file_data> Dotenv::GetDataFromArgs(
     const std::vector<std::string>& args) {
+  const std::string_view optional_env_file_flag = "--env-file-if-exists";
+
   const auto find_match = [](const std::string& arg) {
-    const std::string_view flag = "--env-file";
-    return strncmp(arg.c_str(), flag.data(), flag.size()) == 0;
+    auto arg_chars = arg.c_str();
+    auto arg_len = arg.size();
+    if (arg_chars[0] != '-' || arg_chars[1] != '-') return false;
+    if (arg_len == 2) return true;  // arg == "--"
+    const std::string_view flag = "env-file";
+    auto len = flag.size();
+    if (strncmp(arg_chars + 2, flag.data(), len) != 0) return false;
+    if (arg_len == 2 + len) return true;
+    const std::string_view flag2 = "-if-exists";
+    if (strncmp(arg_chars + 2 + len, flag2.data(), flag2.size()) == 0)
+      len += flag2.size();
+    return arg_len == 2 + len || arg_chars[2 + len] == '=';
   };
-  std::vector<std::string> paths;
-  auto path = std::find_if(args.begin(), args.end(), find_match);
 
-  while (path != args.end()) {
-    auto equal_char = path->find('=');
+  std::vector<Dotenv::env_file_data> env_files;
+  // This will be an iterator, pointing to args.end() if no matches are found
+  auto matched_arg = std::find_if(args.begin(), args.end(), find_match);
 
-    if (equal_char != std::string::npos) {
-      paths.push_back(path->substr(equal_char + 1));
-    } else {
-      auto next_path = std::next(path);
-
-      if (next_path == args.end()) {
-        return paths;
-      }
-
-      paths.push_back(*next_path);
+  while (matched_arg != args.end()) {
+    if (matched_arg->size() == 2 &&
+        strncmp(matched_arg->c_str(), "--", 2) == 0) {
+      return env_files;
     }
 
-    path = std::find_if(++path, args.end(), find_match);
+    auto equal_char_index = matched_arg->find('=');
+
+    if (equal_char_index != std::string::npos) {
+      // `--env-file=path`
+      auto flag = matched_arg->substr(0, equal_char_index);
+      auto file_path = matched_arg->substr(equal_char_index + 1);
+
+      struct env_file_data env_file_data = {
+          file_path, strncmp(matched_arg->c_str(),
+                             optional_env_file_flag.data(),
+                             optional_env_file_flag.size()) == 0};
+      env_files.push_back(env_file_data);
+    } else {
+      // `--env-file path`
+      auto file_path = std::next(matched_arg);
+
+      if (file_path == args.end()) {
+        return env_files;
+      }
+
+      struct env_file_data env_file_data = {
+          *file_path, strncmp(matched_arg->c_str(),
+                              optional_env_file_flag.data(),
+                              optional_env_file_flag.size()) == 0};
+      env_files.push_back(env_file_data);
+    }
+
+    matched_arg = std::find_if(++matched_arg, args.end(), find_match);
   }
 
-  return paths;
+  return env_files;
 }
 
 void Dotenv::SetEnvironment(node::Environment* env) {

@@ -901,20 +901,26 @@ static ExitCode InitializeNodeWithArgsInternal(
   HandleEnvOptions(per_process::cli_options->per_isolate->per_env);
 
   std::string node_options;
-  auto file_paths = node::Dotenv::GetPathFromArgs(*argv);
+  auto env_files = node::Dotenv::GetDataFromArgs(*argv);
 
-  if (!file_paths.empty()) {
+  if (!env_files.empty()) {
     CHECK(!per_process::v8_initialized);
 
-    for (const auto& file_path : file_paths) {
-      switch (per_process::dotenv_file.ParsePath(file_path)) {
+    for (const auto& file_data : env_files) {
+      switch (per_process::dotenv_file.ParsePath(file_data.path)) {
         case Dotenv::ParseResult::Valid:
           break;
         case Dotenv::ParseResult::InvalidContent:
-          errors->push_back(file_path + ": invalid format");
+          errors->push_back(file_data.path + ": invalid format");
           break;
         case Dotenv::ParseResult::FileError:
-          errors->push_back(file_path + ": not found");
+          if (file_data.is_optional) {
+            fprintf(stderr,
+                    "%s not found. Continuing without it.\n",
+                    file_data.path.c_str());
+            continue;
+          }
+          errors->push_back(file_data.path + ": not found");
           break;
         default:
           UNREACHABLE();

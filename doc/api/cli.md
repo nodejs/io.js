@@ -801,6 +801,8 @@ in the file, the value from the environment takes precedence.
 You can pass multiple `--env-file` arguments. Subsequent files override
 pre-existing variables defined in previous files.
 
+An error is thrown if the file does not exist.
+
 ```bash
 node --env-file=.env --env-file=.development.env index.js
 ```
@@ -839,6 +841,9 @@ Export keyword before a key is ignored:
 ```text
 export USERNAME="nodejs" # will result in `nodejs` as the value.
 ```
+
+If you want to load environment variables from a file that may not exist, you
+can use the [`--env-file-if-exists`][] flag instead.
 
 ### `-e`, `--eval "script"`
 
@@ -1677,6 +1682,17 @@ The location of the default OpenSSL configuration file depends on how OpenSSL
 is being linked to Node.js. Sharing the OpenSSL configuration may have unwanted
 implications and it is recommended to use a configuration section specific to
 Node.js which is `nodejs_conf` and is default when this option is not used.
+
+### `--env-file-if-exists=config`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1.1 - Active development
+
+Behavior is the same as [`--env-file`][], but an error is not thrown if the file
+does not exist.
 
 ### `--pending-deprecation`
 
@@ -3354,6 +3370,8 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [`--build-snapshot`]: #--build-snapshot
 [`--cpu-prof-dir`]: #--cpu-prof-dir
 [`--diagnostic-dir`]: #--diagnostic-dirdirectory
+[`--env-file-if-exists`]: #--env-file-if-existsconfig
+[`--env-file`]: #--env-fileconfig
 [`--experimental-default-type=module`]: #--experimental-default-typetype
 [`--experimental-sea-config`]: single-executable-applications.md#generating-single-executable-preparation-blobs
 [`--experimental-wasm-modules`]: #--experimental-wasm-modules

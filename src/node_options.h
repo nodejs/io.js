@@ -177,6 +177,7 @@ class EnvironmentOptions : public Options {
   std::string redirect_warnings;
   std::string diagnostic_dir;
   std::string env_file;
+  std::string optional_env_file;
   bool has_env_file_string = false;
   bool test_runner = false;
   uint64_t test_runner_concurrency = 0;
