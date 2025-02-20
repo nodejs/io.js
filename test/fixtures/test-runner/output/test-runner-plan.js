@@ -1,6 +1,35 @@
 'use strict';
-const { test } = require('node:test');
+const { test, suite } = require('node:test');
 const { Readable } = require('node:stream');
+
+suite('input validation', () => {
+  test('throws if options is not an object', (t) => {
+    t.assert.throws(() => {
+      t.plan(1, null);
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "options" argument must be of type object/,
+    });
+  });
+
+  test('throws if options.wait is not a number or a boolean', (t) => {
+    t.assert.throws(() => {
+      t.plan(1, { wait: 'foo' });
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "options\.wait" property must be one of type boolean or number\. Received type string/,
+    });
+  });
+
+  test('throws if count is not a number', (t) => {
+    t.assert.throws(() => {
+      t.plan('foo');
+    }, {
+      code: 'ERR_INVALID_ARG_TYPE',
+      message: /The "count" argument must be of type number/,
+    });
+  });
+});
 
 test('test planning basic', (t) => {
   t.plan(2);
@@ -76,4 +105,4 @@ test('planning with streams', (t, done) => {
   stream.on('end', () => {
     done();
   });
-})
+});

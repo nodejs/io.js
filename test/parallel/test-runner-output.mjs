@@ -239,6 +239,10 @@ const tests = [
     name: 'test-runner/output/test-runner-watch-spec.mjs',
     transform: specTransform,
   },
+  {
+    name: 'test-runner/output/test-runner-plan-timeout.js',
+    flags: ['--test-reporter=tap', '--test-force-exit'],
+  },
   process.features.inspector ? {
     name: 'test-runner/output/coverage_failure.js',
     flags: ['--test-reporter=tap', '--test-coverage-exclude=!test/**'],

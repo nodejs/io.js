@@ -1,12 +1,37 @@
 TAP version 13
+# Subtest: input validation
+    # Subtest: throws if options is not an object
+    ok 1 - throws if options is not an object
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: throws if options.wait is not a number or a boolean
+    ok 2 - throws if options.wait is not a number or a boolean
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: throws if count is not a number
+    ok 3 - throws if count is not a number
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    1..3
+ok 1 - input validation
+  ---
+  duration_ms: *
+  type: 'suite'
+  ...
 # Subtest: test planning basic
-ok 1 - test planning basic
+ok 2 - test planning basic
   ---
   duration_ms: *
   type: 'test'
   ...
 # Subtest: less assertions than planned
-not ok 2 - less assertions than planned
+not ok 3 - less assertions than planned
   ---
   duration_ms: *
   type: 'test'
@@ -16,7 +41,7 @@ not ok 2 - less assertions than planned
   code: 'ERR_TEST_FAILURE'
   ...
 # Subtest: more assertions than planned
-not ok 3 - more assertions than planned
+not ok 4 - more assertions than planned
   ---
   duration_ms: *
   type: 'test'
@@ -33,7 +58,7 @@ not ok 3 - more assertions than planned
       type: 'test'
       ...
     1..1
-ok 4 - subtesting
+ok 5 - subtesting
   ---
   duration_ms: *
   type: 'test'
@@ -46,7 +71,7 @@ ok 4 - subtesting
       type: 'test'
       ...
     1..1
-ok 5 - subtesting correctly
+ok 6 - subtesting correctly
   ---
   duration_ms: *
   type: 'test'
@@ -59,13 +84,13 @@ ok 5 - subtesting correctly
       type: 'test'
       ...
     1..1
-ok 6 - correctly ignoring subtesting plan
+ok 7 - correctly ignoring subtesting plan
   ---
   duration_ms: *
   type: 'test'
   ...
 # Subtest: failing planning by options
-not ok 7 - failing planning by options
+not ok 8 - failing planning by options
   ---
   duration_ms: *
   type: 'test'
@@ -75,7 +100,7 @@ not ok 7 - failing planning by options
   code: 'ERR_TEST_FAILURE'
   ...
 # Subtest: not failing planning by options
-ok 8 - not failing planning by options
+ok 9 - not failing planning by options
   ---
   duration_ms: *
   type: 'test'
@@ -88,13 +113,13 @@ ok 8 - not failing planning by options
       type: 'test'
       ...
     1..1
-ok 9 - subtest planning by options
+ok 10 - subtest planning by options
   ---
   duration_ms: *
   type: 'test'
   ...
 # Subtest: failing more assertions than planned
-not ok 10 - failing more assertions than planned
+not ok 11 - failing more assertions than planned
   ---
   duration_ms: *
   type: 'test'
@@ -104,15 +129,15 @@ not ok 10 - failing more assertions than planned
   code: 'ERR_TEST_FAILURE'
   ...
 # Subtest: planning with streams
-ok 11 - planning with streams
+ok 12 - planning with streams
   ---
   duration_ms: *
   type: 'test'
   ...
-1..11
-# tests 15
-# suites 0
-# pass 11
+1..12
+# tests 18
+# suites 1
+# pass 14
 # fail 4
 # cancelled 0
 # skipped 0

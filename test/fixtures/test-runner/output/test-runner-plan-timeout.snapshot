@@ -1,0 +1,97 @@
+TAP version 13
+# Subtest: planning with wait
+    # Subtest: planning with wait and passing
+    ok 1 - planning with wait and passing
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: planning with wait and failing
+    not ok 2 - planning with wait and failing
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/test-runner-plan-timeout.js:(LINE):3'
+      failureType: 'uncaughtException'
+      error: |-
+        The expression evaluated to a falsy value:
+        
+          t.assert.ok(false)
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        *
+        *
+        *
+      ...
+    # Subtest: planning wait time expires before plan is met
+    not ok 3 - planning wait time expires before plan is met
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/test-runner-plan-timeout.js:(LINE):3'
+      failureType: 'testTimeoutFailure'
+      error: 'plan timed out after 500ms with 0 assertions when expecting 2'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    # Subtest: planning with wait "options.wait : true" and passing
+    ok 4 - planning with wait "options.wait : true" and passing
+      ---
+      duration_ms: *
+      type: 'test'
+      ...
+    # Subtest: planning with wait "options.wait : true" and failing
+    not ok 5 - planning with wait "options.wait : true" and failing
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/test-runner-plan-timeout.js:(LINE):3'
+      failureType: 'uncaughtException'
+      error: |-
+        The expression evaluated to a falsy value:
+        
+          t.assert.ok(false)
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        *
+        *
+        *
+      ...
+    # Subtest: planning with wait "options.wait : false" should not wait
+    not ok 6 - planning with wait "options.wait : false" should not wait
+      ---
+      duration_ms: *
+      type: 'test'
+      location: '/test/fixtures/test-runner/output/test-runner-plan-timeout.js:(LINE):3'
+      failureType: 'testCodeFailure'
+      error: 'plan expected 1 assertions but received 0'
+      code: 'ERR_TEST_FAILURE'
+      ...
+    1..6
+not ok 1 - planning with wait
+  ---
+  duration_ms: *
+  type: 'suite'
+  location: '/test/fixtures/test-runner/output/test-runner-plan-timeout.js:(LINE):1'
+  failureType: 'subtestsFailed'
+  error: '4 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 6
+# suites 1
+# pass 2
+# fail 3
+# cancelled 1
+# skipped 0
+# todo 0
+# duration_ms *
