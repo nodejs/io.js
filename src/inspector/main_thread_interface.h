@@ -94,7 +94,7 @@ class MainThreadInterface :
   // This queue is to maintain the order of the messages for the cases
   // when we reenter the DispatchMessages function.
   MessageQueue dispatching_message_queue_;
-  bool dispatching_messages_ = false;
+  std::atomic<bool> dispatching_messages_ = false;
   // This flag indicates an internal request to exit the loop in
   // WaitForFrontendEvent(). It's set to true by calling
   // StopWaitingForFrontendEvent().
