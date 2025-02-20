@@ -3318,11 +3318,27 @@ static void CpSyncCheckPaths(const FunctionCallbackInfo<Value>& args) {
       break;
   }
 
-  // Optimization opportunity: Check if this "exists" call is good for
-  // performance.
+  // TODO(anonrig): Optimization opportunity:
+  // Check if this "exists" call is good for performance.
   if (!dest_exists || !std::filesystem::exists(dest_path.parent_path())) {
     std::filesystem::create_directories(dest_path.parent_path(), error_code);
   }
+
+  // TODO(anonrig): Performance optimization
+  // Return a single value that holds multiple fields. Preferably using bitmap.
+  // This would avoid constructing an array.
+  Local<Value> values[4] = {
+      v8::Boolean::New(isolate, dest_exists),
+      v8::Boolean::New(isolate, src_is_dir && recursive),
+      v8::Boolean::New(
+          isolate,
+          src_status.type() == std::filesystem::file_type::regular ||
+              src_status.type() == std::filesystem::file_type::character ||
+              src_status.type() == std::filesystem::file_type::block),
+      v8::Boolean::New(
+          isolate, src_status.type() == std::filesystem::file_type::symlink),
+  };
+  args.GetReturnValue().Set(Array::New(isolate, values, 4));
 }
 
 BindingData::FilePathIsFileReturnType BindingData::FilePathIsFile(
