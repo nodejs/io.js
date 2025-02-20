@@ -3,7 +3,7 @@
 
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
-#include "base_object.h"
+#include "cppgc_helpers.h"
 #include "crypto/crypto_keys.h"
 #include "crypto/crypto_util.h"
 #include "env.h"
@@ -12,14 +12,15 @@
 
 namespace node {
 namespace crypto {
-class Hash final : public BaseObject {
+
+class Hash final : CPPGC_MIXIN(Hash) {
  public:
+  SET_CPPGC_NAME(Hash)
+  void Trace(cppgc::Visitor* visitor) const final;
+  void MemoryInfo(MemoryTracker* tracker) const override;
+
   static void Initialize(Environment* env, v8::Local<v8::Object> target);
   static void RegisterExternalReferences(ExternalReferenceRegistry* registry);
-
-  void MemoryInfo(MemoryTracker* tracker) const override;
-  SET_MEMORY_INFO_NAME(Hash)
-  SET_SELF_SIZE(Hash)
 
   bool HashInit(const EVP_MD* md, v8::Maybe<unsigned int> xof_md_len);
   bool HashUpdate(const char* data, size_t len);
@@ -28,12 +29,12 @@ class Hash final : public BaseObject {
   static void GetCachedAliases(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void OneShotDigest(const v8::FunctionCallbackInfo<v8::Value>& args);
 
+  Hash(Environment* env, v8::Local<v8::Object> wrap);
+
  protected:
   static void New(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void HashUpdate(const v8::FunctionCallbackInfo<v8::Value>& args);
   static void HashDigest(const v8::FunctionCallbackInfo<v8::Value>& args);
-
-  Hash(Environment* env, v8::Local<v8::Object> wrap);
 
  private:
   ncrypto::EVPMDCtxPointer mdctx_{};

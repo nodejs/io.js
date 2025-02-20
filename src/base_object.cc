@@ -181,5 +181,4 @@ void BaseObjectList::MemoryInfo(node::MemoryTracker* tracker) const {
     if (bo->IsDoneInitializing()) tracker->Track(bo);
   }
 }
-
 }  // namespace node
