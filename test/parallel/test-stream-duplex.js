@@ -23,6 +23,7 @@
 const common = require('../common');
 const assert = require('assert');
 const Duplex = require('stream').Duplex;
+const { Readable, Writable } = require('stream');
 const { ReadableStream, WritableStream } = require('stream/web');
 
 const stream = new Duplex({ objectMode: true });
@@ -130,4 +131,48 @@ process.on('exit', () => {
   readable.getReader().read().then(common.mustCall((result) => {
     assert.deepStrictEqual(Buffer.from(result.value), dataToRead);
   }));
+}
+
+const assertMessages = {
+  isDuplex: 'Expected a Duplex stream',
+  duplexUnchanged: 'Expected the Duplex stream to be returned unchanged',
+  notDuplex: 'Expected a non-Duplex stream',
+  isReadable: 'Expected a Readable stream'
+};
+
+// readable.compose - Duplex stream unchanged
+{
+  const readable = new Readable({
+    read() {}
+  });
+
+  const duplex = new Duplex({
+    read() {},
+    write(chunk, encoding, callback) {
+      callback();
+    }
+  });
+
+  const composedStream = readable.compose(duplex);
+
+  assert(composedStream instanceof Duplex, assertMessages.isDuplex);
+  assert.strictEqual(composedStream, duplex, assertMessages.duplexUnchanged);
+}
+
+// readable.compose - wraps non-Duplex streams
+{
+  const readable = new Readable({
+    read() {}
+  });
+
+  const writable = new Writable({
+    write(chunk, encoding, callback) {
+      callback();
+    }
+  });
+
+  const composedStream = readable.compose(writable);
+
+  assert(!(composedStream instanceof Duplex), assertMessages.notDuplex);
+  assert(composedStream instanceof Readable, assertMessages.isReadable);
 }
