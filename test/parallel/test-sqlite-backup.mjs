@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { backup, DatabaseSync } from 'node:sqlite';
 import { describe, test } from 'node:test';
 import { writeFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
 
 let cnt = 0;
 
@@ -13,8 +14,8 @@ function nextDb() {
   return join(tmpdir.path, `database-${cnt++}.db`);
 }
 
-function makeSourceDb() {
-  const database = new DatabaseSync(':memory:');
+function makeSourceDb(dbPath = ':memory:') {
+  const database = new DatabaseSync(dbPath);
 
   database.exec(`
     CREATE TABLE data(
@@ -42,21 +43,21 @@ describe('backup()', () => {
     });
   });
 
-  test('throws if path is not a string', (t) => {
+  test('throws if path is not a string, URL, or Buffer', (t) => {
     const database = makeSourceDb();
 
     t.assert.throws(() => {
       backup(database);
     }, {
       code: 'ERR_INVALID_ARG_TYPE',
-      message: 'The "destination" argument must be a string.'
+      message: 'The "destination" argument must be a string, Uint8Array, or URL without null bytes.'
     });
 
     t.assert.throws(() => {
       backup(database, {});
     }, {
       code: 'ERR_INVALID_ARG_TYPE',
-      message: 'The "destination" argument must be a string.'
+      message: 'The "destination" argument must be a string, Uint8Array, or URL without null bytes.'
     });
   });
 
@@ -116,6 +117,64 @@ test('database backup', async (t) => {
   const progressFn = t.mock.fn();
   const database = makeSourceDb();
   const destDb = nextDb();
+
+  await backup(database, destDb, {
+    rate: 1,
+    progress: progressFn,
+  });
+
+  const backupDb = new DatabaseSync(destDb);
+  const rows = backupDb.prepare('SELECT * FROM data').all();
+
+  // The source database has two pages - using the default page size -,
+  // so the progress function should be called once (the last call is not made since
+  // the promise resolves)
+  t.assert.strictEqual(progressFn.mock.calls.length, 1);
+  t.assert.deepStrictEqual(progressFn.mock.calls[0].arguments, [{ totalPages: 2, remainingPages: 1 }]);
+  t.assert.deepStrictEqual(rows, [
+    { __proto__: null, key: 1, value: 'value-1' },
+    { __proto__: null, key: 2, value: 'value-2' },
+  ]);
+
+  t.after(() => {
+    database.close();
+    backupDb.close();
+  });
+});
+
+test('backup database using location as URL', async (t) => {
+  const progressFn = t.mock.fn();
+  const database = makeSourceDb();
+  const destDb = pathToFileURL(nextDb());
+
+  await backup(database, destDb, {
+    rate: 1,
+    progress: progressFn,
+  });
+
+  const backupDb = new DatabaseSync(destDb);
+  const rows = backupDb.prepare('SELECT * FROM data').all();
+
+  // The source database has two pages - using the default page size -,
+  // so the progress function should be called once (the last call is not made since
+  // the promise resolves)
+  t.assert.strictEqual(progressFn.mock.calls.length, 1);
+  t.assert.deepStrictEqual(progressFn.mock.calls[0].arguments, [{ totalPages: 2, remainingPages: 1 }]);
+  t.assert.deepStrictEqual(rows, [
+    { __proto__: null, key: 1, value: 'value-1' },
+    { __proto__: null, key: 2, value: 'value-2' },
+  ]);
+
+  t.after(() => {
+    database.close();
+    backupDb.close();
+  });
+});
+
+test('backup database using location as Buffer', async (t) => {
+  const progressFn = t.mock.fn();
+  const database = makeSourceDb();
+  const destDb = Buffer.from(nextDb());
 
   await backup(database, destDb, {
     rate: 1,

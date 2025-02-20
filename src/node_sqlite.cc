@@ -181,10 +181,11 @@ class BackupJob : public ThreadPoolWork {
   void ScheduleBackup() {
     Isolate* isolate = env()->isolate();
     HandleScope handle_scope(isolate);
-    backup_status_ = sqlite3_open_v2(destination_name_.c_str(),
-                                     &dest_,
-                                     SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
-                                     nullptr);
+    backup_status_ = sqlite3_open_v2(
+        destination_name_.c_str(),
+        &dest_,
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI,
+        nullptr);
     Local<Promise::Resolver> resolver =
         Local<Promise::Resolver>::New(env()->isolate(), resolver_);
     if (backup_status_ != SQLITE_OK) {
@@ -503,11 +504,14 @@ bool DatabaseSync::Open() {
   }
 
   // TODO(cjihrig): Support additional flags.
+  int default_flags = SQLITE_OPEN_URI;
   int flags = open_config_.get_read_only()
                   ? SQLITE_OPEN_READONLY
                   : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
-  int r = sqlite3_open_v2(
-      open_config_.location().c_str(), &connection_, flags, nullptr);
+  int r = sqlite3_open_v2(open_config_.location().c_str(),
+                          &connection_,
+                          flags | default_flags,
+                          nullptr);
   CHECK_ERROR_OR_THROW(env()->isolate(), this, r, SQLITE_OK, false);
 
   r = sqlite3_db_config(connection_,
@@ -585,6 +589,85 @@ bool DatabaseSync::ShouldIgnoreSQLiteError() {
   return ignore_next_sqlite_error_;
 }
 
+bool IsURL(Environment* env, Local<Value> path) {
+  Local<Object> url;
+  Local<Value> href;
+  Local<Value> protocol;
+  if (!path->ToObject(env->context()).ToLocal(&url) ||
+      !url->Get(env->context(), FIXED_ONE_BYTE_STRING(env->isolate(), "href"))
+           .ToLocal(&href) ||
+      !href->IsString() ||
+      !url->Get(env->context(),
+                FIXED_ONE_BYTE_STRING(env->isolate(), "protocol"))
+           .ToLocal(&protocol) ||
+      !protocol->IsString()) {
+    return false;
+  }
+
+  return true;
+}
+
+Local<String> BufferToString(Environment* env, Local<Uint8Array> buffer) {
+  size_t byteOffset = buffer->ByteOffset();
+  size_t byteLength = buffer->ByteLength();
+  if (byteLength == 0) {
+    THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
+                               "The \"path\" argument must not be empty.");
+    return Local<String>();
+  }
+
+  auto data =
+      static_cast<const uint8_t*>(buffer->Buffer()->Data()) + byteOffset;
+  if (std::find(data, data + byteLength, 0) != data + byteLength) {
+    THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
+                               "The \"path\" argument must not contain null "
+                               "bytes.");
+    return Local<String>();
+  }
+
+  auto path = std::string(reinterpret_cast<const char*>(data), byteLength);
+  return String::NewFromUtf8(
+             env->isolate(), path.c_str(), NewStringType::kNormal)
+      .ToLocalChecked();
+}
+
+Local<String> ToPathIfURL(Environment* env, Local<Value> path) {
+  if (!IsURL(env, path)) {
+    if (path->IsString()) {
+      return path.As<String>();
+    }
+
+    return BufferToString(env, path.As<Uint8Array>());
+  }
+
+  Local<Object> url = path.As<Object>();
+  Local<Value> href;
+  Local<Value> protocol;
+  if (!url->Get(env->context(), FIXED_ONE_BYTE_STRING(env->isolate(), "href"))
+           .ToLocal(&href)) {
+    return Local<String>();
+  }
+
+  if (!url->Get(env->context(),
+                FIXED_ONE_BYTE_STRING(env->isolate(), "protocol"))
+           .ToLocal(&protocol)) {
+    return Local<String>();
+  }
+
+  if (!href->IsString() || !protocol->IsString()) {
+    return Local<String>();
+  }
+
+  std::string protocol_v =
+      Utf8Value(env->isolate(), protocol.As<String>()).ToString();
+  if (protocol_v != "file:") {
+    THROW_ERR_INVALID_URL_SCHEME(env->isolate());
+    return Local<String>();
+  }
+
+  return href.As<String>();
+}
+
 void DatabaseSync::New(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
 
@@ -593,19 +676,23 @@ void DatabaseSync::New(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  if (!args[0]->IsString()) {
+  Local<Value> path = args[0];
+  if (!path->IsString() && !path->IsUint8Array() && !IsURL(env, path)) {
     THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
-                               "The \"path\" argument must be a string.");
+                               "The \"path\" argument must be a string, "
+                               "Uint8Array, or URL without null bytes.");
     return;
   }
 
-  std::string location =
-      Utf8Value(env->isolate(), args[0].As<String>()).ToString();
-  DatabaseOpenConfiguration open_config(std::move(location));
+  Local<String> path_str = ToPathIfURL(env, path);
+  if (path_str.IsEmpty()) {
+    return;
+  }
 
+  std::string location = Utf8Value(env->isolate(), path_str).ToString();
+  DatabaseOpenConfiguration open_config(std::move(location));
   bool open = true;
   bool allow_load_extension = false;
-
   if (args.Length() > 1) {
     if (!args[1]->IsObject()) {
       THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
@@ -984,17 +1071,23 @@ void Backup(const FunctionCallbackInfo<Value>& args) {
   DatabaseSync* db;
   ASSIGN_OR_RETURN_UNWRAP(&db, args[0].As<Object>());
   THROW_AND_RETURN_ON_BAD_STATE(env, !db->IsOpen(), "database is not open");
-  if (!args[1]->IsString()) {
-    THROW_ERR_INVALID_ARG_TYPE(
-        env->isolate(), "The \"destination\" argument must be a string.");
+  Local<Value> path = args[1];
+  if (!path->IsString() && !path->IsUint8Array() && !IsURL(env, path)) {
+    THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
+                               "The \"destination\" argument must be a string, "
+                               "Uint8Array, or URL without null bytes.");
+    return;
+  }
+
+  Local<String> path_str = ToPathIfURL(env, path);
+  if (path_str.IsEmpty()) {
     return;
   }
 
   int rate = 100;
   std::string source_db = "main";
   std::string dest_db = "main";
-
-  Utf8Value dest_path(env->isolate(), args[1].As<String>());
+  Utf8Value dest_path(env->isolate(), path_str);
   Local<Function> progressFunc = Local<Function>();
 
   if (args.Length() > 2) {
