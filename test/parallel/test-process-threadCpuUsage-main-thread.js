@@ -42,7 +42,7 @@ if (!isSunOS) {
     {
       code: 'ERR_OPERATION_FAILED',
       name: 'Error',
-      message: 'ERR_OPERATION_FAILED: threadCpuUsage is not available on SunOS'
+      message: 'Operation failed: threadCpuUsage is not available on SunOS'
     }
   );
 }
