@@ -1752,6 +1752,11 @@ added: v0.1.90
 Copies data from a region of `buf` to a region in `target`, even if the `target`
 memory region overlaps with `buf`.
 
+If `sourceEnd` exceeds `buf.bytesLength`, only the bytes up to
+`buf.bytesLength` will be copied.
+
+The source slice is truncated if it does not fit into the target slice.
+
 [`TypedArray.prototype.set()`][] performs the same operation, and is available
 for all TypedArrays, including Node.js `Buffer`s, although it takes
 different function arguments.

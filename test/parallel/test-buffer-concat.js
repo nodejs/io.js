@@ -22,6 +22,7 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
+const { kMaxLength } = require('buffer');
 
 const zero = [];
 const one = [ Buffer.from('asdf') ];
@@ -98,3 +99,15 @@ assert.deepStrictEqual(
 assert.deepStrictEqual(Buffer.concat([new Uint8Array([0x41, 0x42]),
                                       new Uint8Array([0x43, 0x44])]),
                        Buffer.from('ABCD'));
+
+// Ref: https://github.com/nodejs/node/issues/55422#issue-2594486812
+if (2 ** 32 + 1 <= kMaxLength) {
+  const a = Buffer.alloc(2 ** 31, 0);
+  const b = Buffer.alloc(2 ** 31, 1);
+  const c = Buffer.alloc(1, 2);
+  const destin = Buffer.concat([a, b, c]);
+
+  assert.deepStrictEqual(destin.subarray(0, 2 ** 31), a);
+  assert.deepStrictEqual(destin.subarray(2 ** 31, 2 ** 32), b);
+  assert.deepStrictEqual(destin.subarray(2 ** 32), c);
+}
