@@ -4768,6 +4768,12 @@ unavailable in some situations.
 On Windows, no events will be emitted if the watched directory is moved or
 renamed. An `EPERM` error is reported when the watched directory is deleted.
 
+The `fs.watch` API does not provide any protection with respect
+to malicious actions on the file system. For example, on Windows it is
+implemented by monitoring changes in a directory versus specific files. This
+allows substitution of a file and fs reporting changes on the new file
+with the same filename.
+
 ##### Availability
 
 <!--type=misc-->
