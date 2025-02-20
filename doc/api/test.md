@@ -2955,6 +2955,11 @@ defined. The corresponding declaration ordered event is `'test:start'`.
     `undefined` if the test was run through the REPL.
   * `message` {string} The diagnostic message.
   * `nesting` {number} The nesting level of the test.
+  * `level` {string} The severity level of the diagnostic message.
+    Possible values are:
+    * `'info'`: Informational messages.
+    * `'warn'`: Warnings.
+    * `'error'`: Errors.
 
 Emitted when [`context.diagnostic`][] is called.
 This event is guaranteed to be emitted in the same order as the tests are
