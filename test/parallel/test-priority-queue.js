@@ -102,6 +102,9 @@ const PriorityQueue = require('internal/priority_queue');
   // Check that removing the last item doesn't throw
   queue.removeAt(6);
 
+  // Check that removing an item that doesn't exist doesn't throw
+  queue.removeAt(15);
+
   assert.strictEqual(queue.shift().value, 1);
   assert.strictEqual(queue.shift().value, 2);
   assert.strictEqual(queue.shift().value, 2);
