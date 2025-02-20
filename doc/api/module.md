@@ -923,6 +923,61 @@ hook that returns without calling `next<hookName>()` _and_ without returning
 prevent unintentional breaks in the chain. Return `shortCircuit: true` from a
 hook to signal that the chain is intentionally ending at your hook.
 
+#### `evaluate(context, nextEvaluate)`
+
+<!-- YAML
+added:
+  - REPLACEME
+-->
+
+> Stability: 1.1 - Active Development
+
+* `context` {Object} An object that will be used along the evaluation of a module.
+  It contains the following immutable properties.
+  * `module` {Object} The `Module` instance of the module being evaluated.
+  * `format` {string} The format of the module, which may be one of the list of
+    acceptable values described in the [`load` hook][load hook].
+* `nextEvaluate` {Function} The subsequent `evaluate` hook in the chain, or the
+  Node.js default `evaluate` hook after the last user-supplied `evaluate` hook.
+  This hook does not take any arguments.
+* Returns: {Object}
+  * `returned` {any} When the module is being required and it is a CommonJS module,
+    this contains the value that the CommonJS module returns, if
+    it uses any top-level `return` statement.
+  * `shortCircuit` {undefined|boolean} A signal that this hook intends to
+    terminate the chain of `evaluate` hooks. **Default:** `false`
+
+The `evaluate` hook is run after the `resolve` and `load` hook,
+abstracting the final execution of the code in the module. It is only
+available to `module.registerHooks`. It is currently only run for the
+execution of the following modules:
+
+1. CommonJS modules, either being `require`d or `import`ed. In this
+   case, `context.module` equals to the `module` object in the CommonJS
+   module being evaluated, and `context.module.exports` is mutable.
+2. ECMAScript modules that are `require`d. This hook would only be run
+   for the evaluation of the module being directly `require`d, but
+   could not be run for each of its inner modules being `import`ed. In
+   this case, `context.module` is a `Module` wrapper around the
+   ECMAScript modules. Reassigning `context.module.exports` to
+   something else only affects the result of `require()` call, but
+   would not affect access within the ECMAScript module. Properties of
+   `context.module.exports` (exports of the ECMAScript module) are not
+   mutable.
+
+In future versions it may cover more module types, but the following
+are unlikely to be supported due to restrictions in the ECMAScript
+specifications:
+
+1. The ability to skip evaluation of an inner ECMAScript module being
+   `import`ed by ECMAScript modules.
+2. The ability to mutate the exports of a ECMAScript module.
+
+For the ability to customize execution and exports of all the
+ECMAScript modules in the graph, consider patching the source code of
+the ECMAScript modules using the [`load` hook][load hook] as an imperfect
+workaround.
+
 #### `initialize()`
 
 <!-- YAML
