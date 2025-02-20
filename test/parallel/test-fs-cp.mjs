@@ -1017,6 +1017,38 @@ if (!isWindows && !isInsideDirWithUnusualChars) {
   );
 }
 
+// It can ignore EEXIST error when the destination folder has been created by other file operations in parallel (#53534)
+{
+  const src = './test/fixtures/copy/kitchen-sink';
+  const dest = nextdir();
+
+  await Promise.all([
+    fs.promises.cp(src, dest, {
+      recursive: true,
+      errorOnExist: false
+    }),
+
+    fs.promises.mkdir(dest, { recursive: true }),
+  ]);
+
+  assertDirEquivalent(src, dest);
+
+  const dest2 = nextdir();
+
+  await assert.rejects(
+    async () =>
+      Promise.all([
+        fs.promises.cp(src, dest2, {
+          recursive: true,
+          errorOnExist: true
+        }),
+
+        fs.promises.mkdir(dest2, { recursive: true }),
+      ]),
+    { code: 'EEXIST' }
+  );
+}
+
 // It rejects if options is not object.
 {
   await assert.rejects(
