@@ -911,7 +911,7 @@ added: v23.6.0
 
 Enable experimental import support for `.node` addons.
 
-### `--experimental-config-file`
+### `--experimental-config-file=config`
 
 <!-- YAML
 added: REPLACEME
@@ -919,21 +919,22 @@ added: REPLACEME
 
 > Stability: 1.0 - Early development
 
-Use this flag to specify a configuration file that will be loaded and parsed
-before the application starts.
+If present, Node.js will look for a
+configuration file at the specified path.
 Node.js will read the configuration file and apply the settings.
 The configuration file should be a JSON file
 with the following structure:
 
+> \[!NOTE]
+> Replace `vX.Y.Z` in the `$schema` with the version of Node.js you are using.
+
 ```json
 {
-  "$schema": "https://nodejs.org/dist/REPLACEME/docs/node_config_json_schema.json",
+  "$schema": "https://nodejs.org/dist/vX.Y.Z/docs/node-config-schema.json",
   "nodeOptions": {
-    "experimental-transform-types": true,
     "import": [
-      "amaro/transform"
+      "amaro/strip"
     ],
-    "disable-warning": "ExperimentalWarning",
     "watch-path": "src",
     "watch-preserve-output": true
   }
@@ -944,7 +945,7 @@ In the `nodeOptions` field, only flags that are allowed in [`NODE_OPTIONS`][] ar
 No-op flags are not supported.
 Not all V8 flags are currently supported.
 
-It is possible to use the [official JSON schema](../node_config_json_schema.json)
+It is possible to use the [official JSON schema](../node-config-schema.json)
 to validate the configuration file, which may vary depending on the Node.js version.
 Each key in the configuration file corresponds to a flag that can be passed
 as a command-line argument. The value of the key is the value that would be
@@ -954,7 +955,7 @@ For example, the configuration file above is equivalent to
 the following command-line arguments:
 
 ```bash
-node --experimental-transform-types --import amaro/transform --disable-warning=ExperimentalWarning --watch-path=src --watch-preserve-output
+node --import amaro/strip --watch-path=src --watch-preserve-output
 ```
 
 The priority in configuration is as follows:
@@ -975,6 +976,18 @@ unknown keys or keys that cannot used in `NODE_OPTIONS`.
 
 Node.js will not sanitize or perform validation on the user-provided configuration,
 so **NEVER** use untrusted configuration files.
+
+### `--experimental-default-config-file`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1.0 - Early development
+
+If the `--experimental-default-config-file` flag is present, Node.js will look for a
+`node.config.json` file in the current working directory and load it as a
+as configuration file.
 
 ### `--experimental-eventsource`
 

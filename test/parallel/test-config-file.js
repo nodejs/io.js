@@ -4,6 +4,7 @@ const { spawnPromisified } = require('../common');
 const fixtures = require('../common/fixtures');
 const { match, strictEqual } = require('node:assert');
 const { test } = require('node:test');
+const { chmodSync, constants } = require('node:fs');
 
 test('should handle non existing json', async () => {
   const result = await spawnPromisified(process.execPath, [
@@ -303,4 +304,48 @@ test('broken value in node_options', async () => {
   match(result.stderr, /broken-node-options\.json: invalid content/);
   strictEqual(result.stdout, '');
   strictEqual(result.code, 9);
+});
+
+test('should use node.config.json as default', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-default-config-file',
+    '-p', 'http.maxHeaderSize',
+  ], {
+    cwd: fixtures.path('rc/default'),
+  });
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout, '10\n');
+  strictEqual(result.code, 0);
+});
+
+test('should override node.config.json when specificied', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-default-config-file',
+    '--experimental-config-file',
+    fixtures.path('rc/default/override.json'),
+    '-p', 'http.maxHeaderSize',
+  ], {
+    cwd: fixtures.path('rc/default'),
+  });
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout, '20\n');
+  strictEqual(result.code, 0);
+});
+
+test('should throw an error when the file is non readable', async () => {
+  chmodSync(fixtures.path('rc/non-readable/node.config.json'), constants.O_RDONLY);
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-default-config-file',
+    '-p', 'http.maxHeaderSize',
+  ], {
+    cwd: fixtures.path('rc/non-readable'),
+  });
+  match(result.stderr, /Cannot read configuration from node\.config\.json: permission denied/);
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 9);
+  chmodSync(fixtures.path('rc/non-readable/node.config.json'),
+            constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO);
 });

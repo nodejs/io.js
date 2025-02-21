@@ -685,7 +685,10 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
   Implies("--env-file-if-exists", "[has_env_file_string]");
   AddOption("--experimental-config-file",
             "set config file from supplied file",
-            &EnvironmentOptions::experimental_config_file);
+            &EnvironmentOptions::experimental_config_file_path);
+  AddOption("--experimental-default-config-file",
+            "set config file from default config file",
+            &EnvironmentOptions::experimental_default_config_file);
   AddOption("--test",
             "launch test runner on startup",
             &EnvironmentOptions::test_runner);
