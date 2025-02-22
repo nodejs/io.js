@@ -63,7 +63,7 @@ const testMe = repl.start({
 });
 
 // Some errors are passed to the domain, but do not callback
-testMe._domain.on('error', assert.ifError);
+testMe._onEvalError = assert.ifError;
 
 // Tab Complete will not break in an object literal
 putIn.run([

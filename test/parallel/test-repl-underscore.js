@@ -242,6 +242,10 @@ function initRepl(mode, useGlobal) {
 }
 
 function assertOutput(output, expected) {
-  const lines = output.accum.trim().split('\n');
+  const lines = output.accum
+    .trim()
+    .split('\n')
+    // Remove stack trace
+    .filter((line) => !line.trim().startsWith('at'));
   assert.deepStrictEqual(lines, expected);
 }

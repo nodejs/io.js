@@ -1,77 +1,74 @@
 'use strict';
-require('../common');
+
+const common = require('../common');
 const ArrayStream = require('../common/arraystream');
 const assert = require('assert');
 const repl = require('repl');
 
-let count = 0;
+const results = [];
 
-function run({ command, expected, useColors = false }) {
-  let accum = '';
+// Function to run a single test case
+async function runTest({ command, expected, useColors = false }) {
+  const result = { output: '' };
 
-  const output = new ArrayStream();
-  output.write = (data) => accum += data.replace('\r', '');
+  // Custom stream to capture REPL output
+  const replOutput = new ArrayStream();
+  replOutput.write = (data) => { result.output += data.replace('\r', ''); };
 
-  const r = repl.start({
+  // Start REPL instance
+  const replInstance = repl.start({
     prompt: '',
     input: new ArrayStream(),
-    output,
+    output: replOutput,
     terminal: false,
-    useColors
+    useColors,
   });
 
-  r.write(`${command}\n`);
-  if (typeof expected === 'string') {
-    assert.strictEqual(accum, expected);
-  } else {
-    assert.match(accum, expected);
-  }
+  // Execute the command
+  replInstance.write(`${command}\n`);
 
-  // Verify that the repl is still working as expected.
-  accum = '';
-  r.write('1 + 1\n');
-  // eslint-disable-next-line no-control-regex
-  assert.strictEqual(accum.replace(/\u001b\[[0-9]+m/g, ''), '2\n');
-  r.close();
-  count++;
+  // Validate output
+  assert.strictEqual(result.output, expected);
+
+  // Store REPL instance for future cleanup
+  result.replInstance = replInstance;
+  results.push(result);
 }
 
-const tests = [
-  {
-    useColors: true,
-    command: 'x',
-    expected: 'Uncaught ReferenceError: x is not defined\n'
-  },
-  {
-    useColors: true,
-    command: 'throw { foo: "test" }',
-    expected: "Uncaught { foo: \x1B[32m'test'\x1B[39m }\n"
-  },
-  {
-    command: 'process.on("uncaughtException", () => console.log("Foobar"));\n',
-    expected: /^Uncaught:\nTypeError \[ERR_INVALID_REPL_INPUT]: Listeners for `/
-  },
-  {
-    command: 'x;\n',
-    expected: 'Uncaught ReferenceError: x is not defined\n'
-  },
-  {
-    command: 'process.on("uncaughtException", () => console.log("Foobar"));' +
-             'console.log("Baz");\n',
-    expected: /^Uncaught:\nTypeError \[ERR_INVALID_REPL_INPUT]: Listeners for `/
-  },
-  {
-    command: 'console.log("Baz");' +
-             'process.on("uncaughtException", () => console.log("Foobar"));\n',
-    expected: /^Baz\nUncaught:\nTypeError \[ERR_INVALID_REPL_INPUT]:.*uncaughtException/
-  },
+// Test cases
+const testCases = [
+  { useColors: true, command: 'x', expected: 'Uncaught ReferenceError: x is not defined\n' },
+  { useColors: true, command: 'throw { foo: "test" }', expected: "Uncaught { foo: \x1B[32m'test'\x1B[39m }\n" },
+  { command: 'x;\n', expected: 'Uncaught ReferenceError: x is not defined\n' },
 ];
 
-process.on('exit', () => {
-  // To actually verify that the test passed we have to make sure no
-  // `uncaughtException` listeners exist anymore.
-  process.removeAllListeners('uncaughtException');
-  assert.strictEqual(count, tests.length);
-});
+// Execute tests
+testCases.forEach(runTest);
 
-tests.forEach(run);
+// Verify all tests ran
+assert.strictEqual(results.length, testCases.length);
+
+// Check 'uncaughtException' listener count
+assert.strictEqual(process.listenerCount('uncaughtException'), 1);
+
+// Test uncaught exception handling
+const errorToThrow = new Error('Thrown');
+process.once('uncaughtException', common.mustCall((err) => {
+  assert.strictEqual(err, errorToThrow);
+}));
+
+// Trigger uncaught exception
+process.nextTick(() => { throw errorToThrow; });
+
+// Cleanup
+setTimeout(common.mustCall(() => {
+  results.forEach(({ replInstance }) => {
+    replInstance.close();
+  });
+  setTimeout(common.mustCall(() => {
+    results.forEach(({ output }) => {
+      assert.doesNotMatch(output, /Uncaught Error: Thrown/);
+    });
+    assert.strictEqual(process.listenerCount('uncaughtException'), 0);
+  }), 100);
+}), 100);

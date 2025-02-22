@@ -11,7 +11,7 @@ const testMe = repl.start('', putIn, function(cmd, context, filename,
   callback(null, cmd);
 });
 
-testMe._domain.on('error', common.mustNotCall());
+testMe._onEvalError = common.mustNotCall();
 
 testMe.complete('', function(err, results) {
   assert.strictEqual(err, null);

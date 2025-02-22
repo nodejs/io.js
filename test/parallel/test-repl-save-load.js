@@ -35,11 +35,11 @@ const putIn = new ArrayStream();
 const testMe = repl.start('', putIn);
 
 // Some errors might be passed to the domain.
-testMe._domain.on('error', function(reason) {
+testMe._onEvalError = function(reason) {
   const err = new Error('Test failed');
   err.reason = reason;
   throw err;
-});
+};
 
 const testFile = [
   'let inner = (function() {',

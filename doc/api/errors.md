@@ -2016,13 +2016,6 @@ An invalid `options.protocol` was passed to `http.request()`.
 Both `breakEvalOnSigint` and `eval` options were set in the [`REPL`][] config,
 which is not supported.
 
-<a id="ERR_INVALID_REPL_INPUT"></a>
-
-### `ERR_INVALID_REPL_INPUT`
-
-The input may not be used in the [`REPL`][]. The conditions under which this
-error is used are described in the [`REPL`][] documentation.
-
 <a id="ERR_INVALID_RETURN_PROPERTY"></a>
 
 ### `ERR_INVALID_RETURN_PROPERTY`
@@ -3631,6 +3624,13 @@ removed: v16.7.0
 
 While using the Performance Timing API (`perf_hooks`), a performance mark is
 invalid.
+
+<a id="ERR_INVALID_REPL_INPUT"></a>
+
+### `ERR_INVALID_REPL_INPUT`
+
+The input may not be used in the [`REPL`][]. The conditions under which this
+error is used are described in the [`REPL`][] documentation.
 
 <a id="ERR_INVALID_TRANSFER_OBJECT"></a>
 
