@@ -1,18 +1,18 @@
 'use strict';
 const common = require('../common');
+const assert = require('node:assert');
+const { test } = require('node:test');
 
 common.skipIfInspectorDisabled();
 
 const fixtures = require('../common/fixtures');
 const startCLI = require('../common/debugger');
 
-const assert = require('assert');
-
 // Custom port.
 const script = fixtures.path('debugger', 'three-lines.js');
 
 const cli = startCLI([`--port=${common.PORT}`, script]);
-(async function() {
+test('should start the debugger on a custom port and print expected output', async () => {
   try {
     await cli.waitForInitialBreak();
     await cli.waitForPrompt();
@@ -25,4 +25,4 @@ const cli = startCLI([`--port=${common.PORT}`, script]);
     const code = await cli.quit();
     assert.strictEqual(code, 0);
   }
-})().then(common.mustCall());
+});
