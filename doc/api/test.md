@@ -1369,6 +1369,11 @@ machines or processes, ideal for large-scale executions across varied
 environments. It's incompatible with `watch` mode, tailored for rapid
 code iteration by automatically rerunning tests on file changes.
 
+**Note:** A number of CLI flags will not function properly when used with
+`execArgv`, and users should avoid using it unless they have a deep
+understanding of its implications. In general, bug reports regarding this
+behavior will not be investigated.
+
 ```mjs
 import { tap } from 'node:test/reporters';
 import { run } from 'node:test';
