@@ -49,28 +49,9 @@ node --experimental-transform-types --import="amaro/transform" script.ts
 > Note that the "amaro/transform" loader should be used with `--experimental-transform-types` flag, or
 > at least with `--enable-source-maps` flag, to preserve the original source maps.
 
-### How to update SWC
-
-To update the SWC version, run:
-
-```shell
-./tools/update-swc.sh
-git add deps
-git commit -m "chore: update swc to vX.Y.Z"
-```
-
-Once you have updated the rust source code we must build the wasm.
-To build the wasm it is necessary to have Docker installed.
-
-```shell
-node ./tools/build-wasm.js
-git add lib
-git commit -m "chore: build wasm from swc vX.Y.Z"
-```
-
 ### TypeScript Version
 
-The supported TypeScript version is 5.5.4.
+The supported TypeScript version is 5.5.4, except the stage 3 decorator proposal.
 
 ## License (MIT)
 
