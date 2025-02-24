@@ -25,3 +25,15 @@ const net = require('net');
     });
   });
 }
+
+{
+  assert.throws(() => {
+    net.createConnection({
+      host: ['192.168.0.1'],
+      port: 8080,
+    });
+  }, {
+    code: 'ERR_INVALID_ARG_TYPE',
+    name: 'TypeError',
+  });
+}
