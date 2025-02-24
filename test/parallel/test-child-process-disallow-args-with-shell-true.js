@@ -4,6 +4,7 @@
 // shell option is set to true, as this can lead to bugs and security issues.
 // See https://github.com/nodejs/node/issues/57143
 
+require('../common');
 const assert = require('assert');
 const { execFile, execFileSync, spawn, spawnSync } = require('child_process');
 

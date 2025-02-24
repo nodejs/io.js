@@ -116,9 +116,9 @@ const execOpts = { encoding: 'utf8', shell: true, env: { ...process.env, NODE: p
     ...(common.isWindows ? [] : [{ encoding: 'utf8' }]),
     { shell: true, encoding: 'utf8' },
   ].forEach((options) => {
-    const command = options.shell
-      ? [[file, ...args].join(' ')]
-      : [file, args];
+    const command = options.shell ?
+      [[file, ...args].join(' ')] :
+      [file, args];
 
     const execFileSyncStdout = execFileSync(...command, options);
     assert.strictEqual(execFileSyncStdout, `foo bar${os.EOL}`);
