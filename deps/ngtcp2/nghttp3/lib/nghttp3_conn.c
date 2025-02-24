@@ -39,7 +39,7 @@
    dynamic table capacity that QPACK encoder is willing to use. */
 #define NGHTTP3_QPACK_ENCODER_MAX_DTABLE_CAPACITY 4096
 
-nghttp3_objalloc_def(chunk, nghttp3_chunk, oplent);
+nghttp3_objalloc_def(chunk, nghttp3_chunk, oplent)
 
 /*
  * conn_remote_stream_uni returns nonzero if |stream_id| is remote
@@ -233,11 +233,15 @@ static int conn_new(nghttp3_conn **pconn, int server, int callbacks_version,
                     const nghttp3_callbacks *callbacks, int settings_version,
                     const nghttp3_settings *settings, const nghttp3_mem *mem,
                     void *user_data) {
-  int rv;
   nghttp3_conn *conn;
   size_t i;
   (void)callbacks_version;
   (void)settings_version;
+
+  assert(settings->max_field_section_size <= NGHTTP3_VARINT_MAX);
+  assert(settings->qpack_max_dtable_capacity <= NGHTTP3_VARINT_MAX);
+  assert(settings->qpack_encoder_max_dtable_capacity <= NGHTTP3_VARINT_MAX);
+  assert(settings->qpack_blocked_streams <= NGHTTP3_VARINT_MAX);
 
   if (mem == NULL) {
     mem = nghttp3_mem_default();
@@ -254,18 +258,11 @@ static int conn_new(nghttp3_conn **pconn, int server, int callbacks_version,
 
   nghttp3_map_init(&conn->streams, mem);
 
-  rv =
-    nghttp3_qpack_decoder_init(&conn->qdec, settings->qpack_max_dtable_capacity,
-                               settings->qpack_blocked_streams, mem);
-  if (rv != 0) {
-    goto qdec_init_fail;
-  }
+  nghttp3_qpack_decoder_init(&conn->qdec, settings->qpack_max_dtable_capacity,
+                             settings->qpack_blocked_streams, mem);
 
-  rv = nghttp3_qpack_encoder_init(
-    &conn->qenc, settings->qpack_encoder_max_dtable_capacity, mem);
-  if (rv != 0) {
-    goto qenc_init_fail;
-  }
+  nghttp3_qpack_encoder_init(&conn->qenc,
+                             settings->qpack_encoder_max_dtable_capacity, mem);
 
   nghttp3_pq_init(&conn->qpack_blocked_streams, ricnt_less, mem);
 
@@ -291,16 +288,6 @@ static int conn_new(nghttp3_conn **pconn, int server, int callbacks_version,
   *pconn = conn;
 
   return 0;
-
-qenc_init_fail:
-  nghttp3_qpack_decoder_free(&conn->qdec);
-qdec_init_fail:
-  nghttp3_map_free(&conn->streams);
-  nghttp3_objalloc_free(&conn->stream_objalloc);
-  nghttp3_objalloc_free(&conn->out_chunk_objalloc);
-  nghttp3_mem_free(mem, conn);
-
-  return rv;
 }
 
 int nghttp3_conn_client_new_versioned(nghttp3_conn **pconn,
@@ -399,6 +386,9 @@ nghttp3_ssize nghttp3_conn_read_stream(nghttp3_conn *conn, int64_t stream_id,
   size_t bidi_nproc;
   int rv;
 
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
+
   stream = nghttp3_conn_find_stream(conn, stream_id);
   if (stream == NULL) {
     /* TODO Assert idtr */
@@ -434,6 +424,10 @@ nghttp3_ssize nghttp3_conn_read_stream(nghttp3_conn *conn, int64_t stream_id,
             return rv;
           }
         }
+      } else if (!nghttp3_client_stream_uni(stream_id)) {
+        /* server does not expect to receive new server initiated
+           bidirectional or unidirectional stream from client. */
+        return NGHTTP3_ERR_H3_STREAM_CREATION_ERROR;
       } else {
         /* unidirectional stream */
         if (srclen == 0 && fin) {
@@ -448,7 +442,7 @@ nghttp3_ssize nghttp3_conn_read_stream(nghttp3_conn *conn, int64_t stream_id,
 
       stream->rx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
       stream->tx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
-    } else if (nghttp3_stream_uni(stream_id)) {
+    } else if (nghttp3_server_stream_uni(stream_id)) {
       if (srclen == 0 && fin) {
         return 0;
       }
@@ -461,8 +455,8 @@ nghttp3_ssize nghttp3_conn_read_stream(nghttp3_conn *conn, int64_t stream_id,
       stream->rx.hstate = NGHTTP3_HTTP_STATE_RESP_INITIAL;
       stream->tx.hstate = NGHTTP3_HTTP_STATE_RESP_INITIAL;
     } else {
-      /* client doesn't expect to receive new bidirectional stream
-         from server. */
+      /* client doesn't expect to receive new bidirectional stream or
+         client initiated unidirectional stream from server. */
       return NGHTTP3_ERR_H3_STREAM_CREATION_ERROR;
     }
   } else if (conn->server) {
@@ -471,7 +465,12 @@ nghttp3_ssize nghttp3_conn_read_stream(nghttp3_conn *conn, int64_t stream_id,
         stream->rx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
         stream->tx.hstate = NGHTTP3_HTTP_STATE_REQ_INITIAL;
       }
+    } else {
+      assert(nghttp3_client_stream_uni(stream_id));
     }
+  } else {
+    assert(nghttp3_client_stream_bidi(stream_id) ||
+           nghttp3_server_stream_uni(stream_id));
   }
 
   if (srclen == 0 && !fin) {
@@ -608,6 +607,9 @@ nghttp3_ssize nghttp3_conn_read_uni(nghttp3_conn *conn, nghttp3_stream *stream,
     break;
   case NGHTTP3_STREAM_TYPE_UNKNOWN:
     nconsumed = (nghttp3_ssize)srclen;
+    if (fin) {
+      break;
+    }
 
     rv = conn_call_stop_sending(conn, stream, NGHTTP3_H3_STREAM_CREATION_ERROR);
     if (rv != 0) {
@@ -1836,7 +1838,7 @@ int nghttp3_conn_create_stream(nghttp3_conn *conn, nghttp3_stream **pstream,
   nghttp3_stream *stream;
   int rv;
   nghttp3_stream_callbacks callbacks = {
-    conn_stream_acked_data,
+    .acked_data = conn_stream_acked_data,
   };
 
   rv = nghttp3_stream_new(&stream, stream_id, &callbacks,
@@ -1874,6 +1876,8 @@ int nghttp3_conn_bind_control_stream(nghttp3_conn *conn, int64_t stream_id) {
   nghttp3_frame_entry frent;
   int rv;
 
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
   assert(!conn->server || nghttp3_server_stream_uni(stream_id));
   assert(conn->server || nghttp3_client_stream_uni(stream_id));
 
@@ -1906,6 +1910,10 @@ int nghttp3_conn_bind_qpack_streams(nghttp3_conn *conn, int64_t qenc_stream_id,
   nghttp3_stream *stream;
   int rv;
 
+  assert(qenc_stream_id >= 0);
+  assert(qenc_stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
+  assert(qdec_stream_id >= 0);
+  assert(qdec_stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
   assert(!conn->server || nghttp3_server_stream_uni(qenc_stream_id));
   assert(!conn->server || nghttp3_server_stream_uni(qdec_stream_id));
   assert(conn->server || nghttp3_client_stream_uni(qenc_stream_id));
@@ -2194,13 +2202,11 @@ int nghttp3_conn_submit_request(nghttp3_conn *conn, int64_t stream_id,
   assert(!conn->server);
   assert(conn->tx.qenc);
 
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
   assert(nghttp3_client_stream_bidi(stream_id));
 
-  /* TODO Should we check that stream_id is client stream_id? */
   /* TODO Check GOAWAY last stream ID */
-  if (nghttp3_stream_uni(stream_id)) {
-    return NGHTTP3_ERR_INVALID_ARGUMENT;
-  }
 
   if (conn->flags & NGHTTP3_CONN_FLAG_GOAWAY_RECVED) {
     return NGHTTP3_ERR_CONN_CLOSING;
@@ -2454,6 +2460,9 @@ int nghttp3_conn_close_stream(nghttp3_conn *conn, int64_t stream_id,
 int nghttp3_conn_shutdown_stream_read(nghttp3_conn *conn, int64_t stream_id) {
   nghttp3_stream *stream;
 
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
+
   if (!nghttp3_client_stream_bidi(stream_id)) {
     return 0;
   }
@@ -2515,6 +2524,9 @@ uint64_t nghttp3_conn_get_frame_payload_left(nghttp3_conn *conn,
   nghttp3_stream *stream;
   int uni = 0;
 
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
+
   if (!nghttp3_client_stream_bidi(stream_id)) {
     uni = conn_remote_stream_uni(conn, stream_id);
     if (!uni) {
@@ -2542,6 +2554,8 @@ int nghttp3_conn_get_stream_priority_versioned(nghttp3_conn *conn,
   (void)pri_version;
 
   assert(conn->server);
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
 
   if (!nghttp3_client_stream_bidi(stream_id)) {
     return NGHTTP3_ERR_INVALID_ARGUMENT;
@@ -2566,6 +2580,8 @@ int nghttp3_conn_set_client_stream_priority(nghttp3_conn *conn,
   uint8_t *buf = NULL;
 
   assert(!conn->server);
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
 
   if (!nghttp3_client_stream_bidi(stream_id)) {
     return NGHTTP3_ERR_INVALID_ARGUMENT;
@@ -2603,6 +2619,8 @@ int nghttp3_conn_set_server_stream_priority_versioned(nghttp3_conn *conn,
   assert(conn->server);
   assert(pri->urgency < NGHTTP3_URGENCY_LEVELS);
   assert(pri->inc == 0 || pri->inc == 1);
+  assert(stream_id >= 0);
+  assert(stream_id <= (int64_t)NGHTTP3_MAX_VARINT);
 
   if (!nghttp3_client_stream_bidi(stream_id)) {
     return NGHTTP3_ERR_INVALID_ARGUMENT;

@@ -2106,7 +2106,7 @@ NGHTTP3_EXTERN int nghttp3_conn_bind_qpack_streams(nghttp3_conn *conn,
  * control credit (both stream and connection) of underlying QUIC
  * connection by that amount.  It does not include the amount of data
  * carried by DATA frame which contains application data (excluding
- * any control or QPACK unidirectional streams) .  See
+ * any control or QPACK unidirectional streams).  See
  * :type:`nghttp3_recv_data` to handle those bytes.  If |fin| is
  * nonzero, this is the last data from remote endpoint in this stream.
  *
@@ -2480,8 +2480,6 @@ typedef struct nghttp3_data_reader {
  * This function returns 0 if it succeeds, or one of the following
  * negative error codes:
  *
- * :macro:`NGHTTP3_ERR_INVALID_ARGUMENT`
- *     |stream_id| identifies unidirectional stream.
  * :macro:`NGHTTP3_ERR_CONN_CLOSING`
  *     Connection is shutting down, and no new stream is allowed.
  * :macro:`NGHTTP3_ERR_STREAM_IN_USE`
