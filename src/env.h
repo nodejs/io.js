@@ -739,6 +739,8 @@ class Environment final : public MemoryRetainer {
   bool exiting() const;
   inline ExitCode exit_code(const ExitCode default_code) const;
 
+  inline void set_exit_code(const ExitCode code);
+
   // This stores whether the --abort-on-uncaught-exception flag was passed
   // to Node.
   inline bool abort_on_uncaught_exception() const;
