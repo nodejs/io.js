@@ -4456,25 +4456,59 @@ Stats {
 
 ### `fs.statfs(path[, options], callback)`
 
-<!-- YAML
-added:
-  - v19.6.0
-  - v18.15.0
--->
+`fs.statfs` retrieves information about the file system where the given `path` resides.
 
-* `path` {string|Buffer|URL}
-* `options` {Object}
-  * `bigint` {boolean} Whether the numeric values in the returned
-    {fs.StatFs} object should be `bigint`. **Default:** `false`.
-* `callback` {Function}
-  * `err` {Error}
-  * `stats` {fs.StatFs}
+**Parameters**
+- `path` **{string|Buffer|URL}** - The file or directory path to query.
+- `options` **{Object}** *(Optional)*
+  - `bigint` **{boolean}** - If `true`, numeric values in the returned `fs.StatFs` object will be `BigInt` instead of `number`. Default: `false`.
+- `callback` **{Function}** - Function called with the result:
+  - `err` **{Error}** - If an error occurs, contains error details.
+  - `stats` **{fs.StatFs}** - Contains file system statistics.
 
-Asynchronous statfs(2). Returns information about the mounted file system which
-contains `path`. The callback gets two arguments `(err, stats)` where `stats`
-is an {fs.StatFs} object.
+**Returned `fs.StatFs` Object Properties**
+The returned `fs.StatFs` object contains:
+- `type` **{number}** - The type of filesystem.
+- `bsize` **{number}** - Optimal transfer block size.
+- `blocks` **{number|BigInt}** - Total data blocks in the filesystem.
+- `bfree` **{number|BigInt}** - Free blocks available to unprivileged users.
+- `bavail` **{number|BigInt}** - Free blocks for privileged users.
+- `files` **{number|BigInt}** - Total file nodes in the filesystem.
+- `ffree` **{number|BigInt}** - Free file nodes.
+- `fsid` **{number}** - File system ID.
+- `namemax` **{number}** - Maximum filename length.
+
+---
+
+**🔹 Example Usage**
+
+**Basic Usage**
+```javascript
+const fs = require('fs');
+
+fs.statfs('/path/to/directory', (err, stats) => {
+  if (err) {
+    console.error(err);
+    return;
+  }
+  console.log(stats);
+});
+```
+
+**Using bigint: true**
+
+```javascript
+fs.statfs('/path/to/directory', { bigint: true }, (err, stats) => {
+  if (err) {
+    console.error(err);
+    return;
+  }
+  console.log(stats.blocks); // This will be a BigInt
+});
+```
 
 In case of an error, the `err.code` will be one of [Common System Errors][].
+
 
 ### `fs.symlink(target, path[, type], callback)`
 
