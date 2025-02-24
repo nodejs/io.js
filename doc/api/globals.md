@@ -531,6 +531,26 @@ changes:
 
 A browser-compatible implementation of the [`fetch()`][] function.
 
+### Differences Between Node.js `fetch()` and Standard Fetch API
+
+Node.js's `fetch()` implementation is inspired by the Fetch API standard, but it includes several key differences:
+
+1. **`new Response(asyncIterable)`**:
+   * Node.js extends the standard `Response` constructor to accept an `asyncIterable` as its body. This allows streams and other async sources to be directly used. This feature is not part of the Fetch API in browsers.
+
+2. **Cookies Handling**:
+   * Unlike browsers, Node.js does not automatically manage cookies. In browsers, cookies are managed through the `Cookie` header and automatically sent with requests. In Node.js, you need to manually handle cookies, potentially using additional libraries like `node-fetch-cookie`.
+
+3. **No Forbidden Headers**:
+   * In browsers, there are several headers (e.g., `User-Agent`, `Referer`, `Host`) that are restricted from being modified by the developer for security reasons. In Node.js, these headers can be freely set, giving developers more control.
+
+4. **Environment-Specific Behavior**:
+   * Node.js operates outside of a browser environment and doesn't have access to browser-specific features like Service Workers, Cache API, etc. This can affect how requests and responses are handled in Node.js.
+
+For more details, refer to the [WHATWG Fetch Standard](https://fetch.spec.whatwg.org/) and the Node.js implementation notes.
+
+The `fetch()` function in Node.js is based on the Fetch API standard but has several differences. For a detailed comparison of how Node.js’s `fetch` differs from the standard Fetch API, see the [Undici documentation](https://github.com/nodejs/undici/blob/main/docs/fetch-differences.md).
+
 ## Class: `File`
 
 <!-- YAML
