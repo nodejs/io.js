@@ -22,6 +22,7 @@
 #include "spawn_sync.h"
 #include "debug_utils-inl.h"
 #include "env-inl.h"
+#include "node_errors.h"
 #include "node_external_reference.h"
 #include "node_internals.h"
 #include "string_bytes.h"
@@ -185,14 +186,16 @@ void SyncProcessStdioPipe::Close() {
   lifecycle_ = kClosing;
 }
 
-
-Local<Object> SyncProcessStdioPipe::GetOutputAsBuffer(Environment* env) const {
+MaybeLocal<Object> SyncProcessStdioPipe::GetOutputAsBuffer(
+    Environment* env) const {
   size_t length = OutputLength();
-  Local<Object> js_buffer = Buffer::New(env, length).ToLocalChecked();
+  Local<Object> js_buffer;
+  if (!Buffer::New(env, length).ToLocal(&js_buffer)) {
+    return MaybeLocal<Object>();
+  }
   CopyOutput(Buffer::Data(js_buffer));
   return js_buffer;
 }
-
 
 bool SyncProcessStdioPipe::readable() const {
   return readable_;
@@ -446,7 +449,10 @@ MaybeLocal<Object> SyncProcessRunner::Run(Local<Value> options) {
   CloseHandlesAndDeleteLoop();
   if (r.IsNothing()) return MaybeLocal<Object>();
 
-  Local<Object> result = BuildResultObject();
+  Local<Object> result;
+  if (!BuildResultObject().ToLocal(&result)) {
+    return MaybeLocal<Object>();
+  }
 
   return scope.Escape(result);
 }
@@ -679,58 +685,80 @@ void SyncProcessRunner::SetPipeError(int pipe_error) {
     pipe_error_ = pipe_error;
 }
 
-
-Local<Object> SyncProcessRunner::BuildResultObject() {
+MaybeLocal<Object> SyncProcessRunner::BuildResultObject() {
   EscapableHandleScope scope(env()->isolate());
   Local<Context> context = env()->context();
 
   Local<Object> js_result = Object::New(env()->isolate());
 
-  if (GetError() != 0) {
-    js_result->Set(context, env()->error_string(),
-                   Integer::New(env()->isolate(), GetError())).Check();
+  if (GetError() != 0 && js_result
+                             ->Set(context,
+                                   env()->error_string(),
+                                   Integer::New(env()->isolate(), GetError()))
+                             .IsNothing()) {
+    return MaybeLocal<Object>();
   }
 
   if (exit_status_ >= 0) {
     if (term_signal_ > 0) {
-      js_result->Set(context, env()->status_string(),
-                     Null(env()->isolate())).Check();
-    } else {
-      js_result->Set(context, env()->status_string(),
-                     Number::New(env()->isolate(),
-                                 static_cast<double>(exit_status_))).Check();
+      if (js_result
+              ->Set(context, env()->status_string(), Null(env()->isolate()))
+              .IsNothing()) {
+        return MaybeLocal<Object>();
+      }
+    } else if (js_result
+                   ->Set(context,
+                         env()->status_string(),
+                         Number::New(env()->isolate(),
+                                     static_cast<double>(exit_status_)))
+                   .IsNothing()) {
+      return MaybeLocal<Object>();
     }
-  } else {
     // If exit_status_ < 0 the process was never started because of some error.
-    js_result->Set(context, env()->status_string(),
-                   Null(env()->isolate())).Check();
+  } else if (js_result
+                 ->Set(context, env()->status_string(), Null(env()->isolate()))
+                 .IsNothing()) {
+    return MaybeLocal<Object>();
   }
 
-  if (term_signal_ > 0)
-    js_result
-        ->Set(context,
-              env()->signal_string(),
-              OneByteString(env()->isolate(), signo_string(term_signal_)))
-        .Check();
-  else
-    js_result->Set(context, env()->signal_string(),
-                   Null(env()->isolate())).Check();
+  if (term_signal_ > 0) {
+    if (js_result
+            ->Set(context,
+                  env()->signal_string(),
+                  OneByteString(env()->isolate(), signo_string(term_signal_)))
+            .IsNothing()) {
+      return MaybeLocal<Object>();
+    }
+  } else if (js_result
+                 ->Set(context, env()->signal_string(), Null(env()->isolate()))
+                 .IsNothing()) {
+    return MaybeLocal<Object>();
+  }
 
-  if (exit_status_ >= 0)
-    js_result->Set(context, env()->output_string(),
-                   BuildOutputArray()).Check();
-  else
-    js_result->Set(context, env()->output_string(),
-                   Null(env()->isolate())).Check();
+  if (exit_status_ >= 0) {
+    Local<Array> out;
+    if (!BuildOutputArray().ToLocal(&out) ||
+        js_result->Set(context, env()->output_string(), out).IsNothing()) {
+      return MaybeLocal<Object>();
+    }
+  } else if (js_result
+                 ->Set(context, env()->output_string(), Null(env()->isolate()))
+                 .IsNothing()) {
+    return MaybeLocal<Object>();
+  }
 
-  js_result->Set(context, env()->pid_string(),
-                 Number::New(env()->isolate(), uv_process_.pid)).Check();
+  if (js_result
+          ->Set(context,
+                env()->pid_string(),
+                Number::New(env()->isolate(), uv_process_.pid))
+          .IsNothing()) {
+    return MaybeLocal<Object>();
+  }
 
   return scope.Escape(js_result);
 }
 
-
-Local<Array> SyncProcessRunner::BuildOutputArray() {
+MaybeLocal<Array> SyncProcessRunner::BuildOutputArray() {
   CHECK_GE(lifecycle_, kInitialized);
   CHECK(!stdio_pipes_.empty());
 
@@ -739,10 +767,14 @@ Local<Array> SyncProcessRunner::BuildOutputArray() {
 
   for (uint32_t i = 0; i < stdio_pipes_.size(); i++) {
     SyncProcessStdioPipe* h = stdio_pipes_[i].get();
-    if (h != nullptr && h->writable())
-      js_output[i] = h->GetOutputAsBuffer(env());
-    else
+    if (h == nullptr || !h->writable()) {
       js_output[i] = Null(env()->isolate());
+      continue;
+    }
+
+    if (!h->GetOutputAsBuffer(env()).ToLocal(&js_output[i])) {
+      return MaybeLocal<Array>();
+    }
   }
 
   return scope.Escape(
@@ -759,9 +791,11 @@ Maybe<int> SyncProcessRunner::ParseOptions(Local<Value> js_value) {
   Local<Context> context = env()->context();
   Local<Object> js_options = js_value.As<Object>();
 
-  Local<Value> js_file =
-      js_options->Get(context, env()->file_string()).ToLocalChecked();
-  if (!CopyJsString(js_file, &file_buffer_).To(&r)) return Nothing<int>();
+  Local<Value> js_file;
+  if (!js_options->Get(context, env()->file_string()).ToLocal(&js_file) ||
+      !CopyJsString(js_file, &file_buffer_).To(&r)) {
+    return Nothing<int>();
+  }
   if (r < 0) return Just(r);
   uv_process_options_.file = file_buffer_;
 
@@ -774,104 +808,154 @@ Maybe<int> SyncProcessRunner::ParseOptions(Local<Value> js_value) {
     return Just<int>(UV_EINVAL);
 #endif
 
-  Local<Value> js_args =
-      js_options->Get(context, env()->args_string()).ToLocalChecked();
-  if (!CopyJsStringArray(js_args, &args_buffer_).To(&r)) return Nothing<int>();
+  Local<Value> js_args;
+  if (!js_options->Get(context, env()->args_string()).ToLocal(&js_args) ||
+      !CopyJsStringArray(js_args, &args_buffer_).To(&r)) {
+    return Nothing<int>();
+  }
   if (r < 0) return Just(r);
   uv_process_options_.args = reinterpret_cast<char**>(args_buffer_);
 
-  Local<Value> js_cwd =
-      js_options->Get(context, env()->cwd_string()).ToLocalChecked();
-  if (IsSet(js_cwd)) {
-    if (!CopyJsString(js_cwd, &cwd_buffer_).To(&r)) return Nothing<int>();
+  Local<Value> js_cwd;
+  if (!js_options->Get(context, env()->cwd_string()).ToLocal(&js_cwd)) {
+    return Nothing<int>();
+  }
+  if (!js_cwd->IsNullOrUndefined()) {
+    if (!CopyJsString(js_cwd, &cwd_buffer_).To(&r)) {
+      return Nothing<int>();
+    }
     if (r < 0) return Just(r);
     uv_process_options_.cwd = cwd_buffer_;
   }
 
-  Local<Value> js_env_pairs =
-      js_options->Get(context, env()->env_pairs_string()).ToLocalChecked();
-  if (IsSet(js_env_pairs)) {
-    if (!CopyJsStringArray(js_env_pairs, &env_buffer_).To(&r))
+  Local<Value> js_env_pairs;
+  if (!js_options->Get(context, env()->env_pairs_string())
+           .ToLocal(&js_env_pairs)) {
+    return Nothing<int>();
+  }
+  if (!js_env_pairs->IsNullOrUndefined()) {
+    if (!CopyJsStringArray(js_env_pairs, &env_buffer_).To(&r)) {
       return Nothing<int>();
+    }
     if (r < 0) return Just(r);
 
     uv_process_options_.env = reinterpret_cast<char**>(env_buffer_);
   }
-  Local<Value> js_uid =
-      js_options->Get(context, env()->uid_string()).ToLocalChecked();
-  if (IsSet(js_uid)) {
-    CHECK(js_uid->IsInt32());
+  Local<Value> js_uid;
+  if (!js_options->Get(context, env()->uid_string()).ToLocal(&js_uid)) {
+    return Nothing<int>();
+  }
+  if (!js_uid->IsNullOrUndefined()) {
+    if (!js_uid->IsInt32()) {
+      THROW_ERR_INVALID_ARG_TYPE(env(),
+                                 "options.uid must be a 32-bit signed integer");
+      return Nothing<int>();
+    }
     const int32_t uid = js_uid.As<Int32>()->Value();
     uv_process_options_.uid = static_cast<uv_uid_t>(uid);
     uv_process_options_.flags |= UV_PROCESS_SETUID;
   }
 
-  Local<Value> js_gid =
-      js_options->Get(context, env()->gid_string()).ToLocalChecked();
-  if (IsSet(js_gid)) {
-    CHECK(js_gid->IsInt32());
+  Local<Value> js_gid;
+  if (!js_options->Get(context, env()->gid_string()).ToLocal(&js_gid)) {
+    return Nothing<int>();
+  }
+  if (!js_gid->IsNullOrUndefined()) {
+    if (!js_gid->IsInt32()) {
+      THROW_ERR_INVALID_ARG_TYPE(env(),
+                                 "options.gid must be a 32-bit signed integer");
+      return Nothing<int>();
+    }
     const int32_t gid = js_gid.As<Int32>()->Value();
     uv_process_options_.gid = static_cast<uv_gid_t>(gid);
     uv_process_options_.flags |= UV_PROCESS_SETGID;
   }
 
-  Local<Value> js_detached =
-      js_options->Get(context, env()->detached_string()).ToLocalChecked();
-  if (js_detached->BooleanValue(isolate))
+  Local<Value> js_detached;
+  if (!js_options->Get(context, env()->detached_string())
+           .ToLocal(&js_detached)) {
+    return Nothing<int>();
+  }
+  if (js_detached->BooleanValue(isolate)) {
     uv_process_options_.flags |= UV_PROCESS_DETACHED;
+  }
 
-  Local<Value> js_win_hide =
-      js_options->Get(context, env()->windows_hide_string()).ToLocalChecked();
-  if (js_win_hide->BooleanValue(isolate))
+  Local<Value> js_win_hide;
+  if (!js_options->Get(context, env()->windows_hide_string())
+           .ToLocal(&js_win_hide)) {
+    return Nothing<int>();
+  }
+  if (js_win_hide->BooleanValue(isolate)) {
     uv_process_options_.flags |= UV_PROCESS_WINDOWS_HIDE;
+  }
 
-  if (env()->hide_console_windows())
+  if (env()->hide_console_windows()) {
     uv_process_options_.flags |= UV_PROCESS_WINDOWS_HIDE_CONSOLE;
+  }
 
-  Local<Value> js_wva =
-      js_options->Get(context, env()->windows_verbatim_arguments_string())
-          .ToLocalChecked();
+  Local<Value> js_wva;
+  if (!js_options->Get(context, env()->windows_verbatim_arguments_string())
+           .ToLocal(&js_wva)) {
+    return Nothing<int>();
+  }
 
-  if (js_wva->BooleanValue(isolate))
+  if (js_wva->BooleanValue(isolate)) {
     uv_process_options_.flags |= UV_PROCESS_WINDOWS_VERBATIM_ARGUMENTS;
+  }
 
-  Local<Value> js_timeout =
-      js_options->Get(context, env()->timeout_string()).ToLocalChecked();
-  if (IsSet(js_timeout)) {
-    CHECK(js_timeout->IsNumber());
+  Local<Value> js_timeout;
+  if (!js_options->Get(context, env()->timeout_string()).ToLocal(&js_timeout)) {
+    return Nothing<int>();
+  }
+  if (!js_timeout->IsNullOrUndefined()) {
+    if (!js_timeout->IsNumber()) {
+      THROW_ERR_INVALID_ARG_TYPE(env(), "options.timeout must be a number");
+      return Nothing<int>();
+    }
     int64_t timeout = js_timeout->IntegerValue(context).FromJust();
     timeout_ = static_cast<uint64_t>(timeout);
   }
 
-  Local<Value> js_max_buffer =
-      js_options->Get(context, env()->max_buffer_string()).ToLocalChecked();
-  if (IsSet(js_max_buffer)) {
-    CHECK(js_max_buffer->IsNumber());
+  Local<Value> js_max_buffer;
+  if (!js_options->Get(context, env()->max_buffer_string())
+           .ToLocal(&js_max_buffer)) {
+    return Nothing<int>();
+  }
+  if (!js_max_buffer->IsNullOrUndefined()) {
+    if (!js_max_buffer->IsNumber()) {
+      THROW_ERR_INVALID_ARG_TYPE(env(), "options.maxBuffer must be a number");
+      return Nothing<int>();
+    }
     max_buffer_ = js_max_buffer->NumberValue(context).FromJust();
   }
 
-  Local<Value> js_kill_signal =
-      js_options->Get(context, env()->kill_signal_string()).ToLocalChecked();
-  if (IsSet(js_kill_signal)) {
-    CHECK(js_kill_signal->IsInt32());
+  Local<Value> js_kill_signal;
+  if (!js_options->Get(context, env()->kill_signal_string())
+           .ToLocal(&js_kill_signal)) {
+    return Nothing<int>();
+  }
+  if (!js_kill_signal->IsNullOrUndefined()) {
+    if (!js_kill_signal->IsNumber()) {
+      THROW_ERR_INVALID_ARG_TYPE(env(), "options.killSignal must be a number");
+      return Nothing<int>();
+    }
     kill_signal_ = js_kill_signal.As<Int32>()->Value();
   }
 
-  Local<Value> js_stdio =
-      js_options->Get(context, env()->stdio_string()).ToLocalChecked();
-  r = ParseStdioOptions(js_stdio);
-  if (r < 0) return Just(r);
+  Local<Value> js_stdio;
+  if (!js_options->Get(context, env()->stdio_string()).ToLocal(&js_stdio) ||
+      !ParseStdioOptions(js_stdio).To(&r)) {
+    return Nothing<int>();
+  }
 
-  return Just(0);
+  return Just(r);
 }
 
-
-int SyncProcessRunner::ParseStdioOptions(Local<Value> js_value) {
+Maybe<int> SyncProcessRunner::ParseStdioOptions(Local<Value> js_value) {
   HandleScope scope(env()->isolate());
   Local<Array> js_stdio_options;
 
-  if (!js_value->IsArray())
-    return UV_EINVAL;
+  if (!js_value->IsArray()) return Just<int>(UV_EINVAL);
 
   Local<Context> context = env()->context();
   js_stdio_options = js_value.As<Array>();
@@ -884,49 +968,64 @@ int SyncProcessRunner::ParseStdioOptions(Local<Value> js_value) {
   stdio_pipes_initialized_ = true;
 
   for (uint32_t i = 0; i < stdio_count_; i++) {
-    Local<Value> js_stdio_option =
-        js_stdio_options->Get(context, i).ToLocalChecked();
+    Local<Value> js_stdio_option;
+    if (!js_stdio_options->Get(context, i).ToLocal(&js_stdio_option)) {
+      return Nothing<int>();
+    }
 
-    if (!js_stdio_option->IsObject())
-      return UV_EINVAL;
+    if (!js_stdio_option->IsObject()) {
+      return Just<int>(UV_EINVAL);
+    }
 
-    int r = ParseStdioOption(i, js_stdio_option.As<Object>());
-    if (r < 0)
-      return r;
+    int r;
+    if (!ParseStdioOption(i, js_stdio_option.As<Object>()).To(&r)) {
+      return Nothing<int>();
+    }
+    if (r < 0) {
+      return Just<int>(r);
+    }
   }
 
   uv_process_options_.stdio = uv_stdio_containers_;
   uv_process_options_.stdio_count = stdio_count_;
 
-  return 0;
+  return Just<int>(0);
 }
 
-
-int SyncProcessRunner::ParseStdioOption(int child_fd,
-                                        Local<Object> js_stdio_option) {
+Maybe<int> SyncProcessRunner::ParseStdioOption(int child_fd,
+                                               Local<Object> js_stdio_option) {
   Local<Context> context = env()->context();
-  Local<Value> js_type =
-      js_stdio_option->Get(context, env()->type_string()).ToLocalChecked();
+  Local<Value> js_type;
+  if (!js_stdio_option->Get(context, env()->type_string()).ToLocal(&js_type)) {
+    return Nothing<int>();
+  }
 
   if (js_type->StrictEquals(env()->ignore_string())) {
-    return AddStdioIgnore(child_fd);
-
+    return Just(AddStdioIgnore(child_fd));
   } else if (js_type->StrictEquals(env()->pipe_string())) {
     Isolate* isolate = env()->isolate();
     Local<String> rs = env()->readable_string();
     Local<String> ws = env()->writable_string();
 
-    bool readable = js_stdio_option->Get(context, rs)
-        .ToLocalChecked()->BooleanValue(isolate);
-    bool writable =
-        js_stdio_option->Get(context, ws)
-        .ToLocalChecked()->BooleanValue(isolate);
+    Local<Value> value;
+    if (!js_stdio_option->Get(context, rs).ToLocal(&value)) {
+      return Nothing<int>();
+    }
+    auto readable = value->BooleanValue(isolate);
+
+    if (!js_stdio_option->Get(context, ws).ToLocal(&value)) {
+      return Nothing<int>();
+    }
+    bool writable = value->BooleanValue(isolate);
 
     uv_buf_t buf = uv_buf_init(nullptr, 0);
 
     if (readable) {
-      Local<Value> input =
-          js_stdio_option->Get(context, env()->input_string()).ToLocalChecked();
+      Local<Value> input;
+      if (!js_stdio_option->Get(context, env()->input_string())
+               .ToLocal(&input)) {
+        return Nothing<int>();
+      }
       if (Buffer::HasInstance(input)) {
         buf = uv_buf_init(Buffer::Data(input),
                           static_cast<unsigned int>(Buffer::Length(input)));
@@ -934,23 +1033,25 @@ int SyncProcessRunner::ParseStdioOption(int child_fd,
         // Strings, numbers etc. are currently unsupported. It's not possible
         // to create a buffer for them here because there is no way to free
         // them afterwards.
-        return UV_EINVAL;
+        return Just<int>(UV_EINVAL);
       }
     }
 
-    return AddStdioPipe(child_fd, readable, writable, buf);
+    return Just(AddStdioPipe(child_fd, readable, writable, buf));
 
   } else if (js_type->StrictEquals(env()->inherit_string()) ||
              js_type->StrictEquals(env()->fd_string())) {
-    int inherit_fd = js_stdio_option->Get(context, env()->fd_string())
-        .ToLocalChecked()->Int32Value(context).FromJust();
-    return AddStdioInheritFD(child_fd, inherit_fd);
-
-  } else {
-    UNREACHABLE("invalid child stdio type");
+    Local<Value> val;
+    int inherit_fd;
+    if (!js_stdio_option->Get(context, env()->fd_string()).ToLocal(&val) ||
+        !val->Int32Value(context).To(&inherit_fd)) {
+      return Nothing<int>();
+    }
+    return Just(AddStdioInheritFD(child_fd, inherit_fd));
   }
-}
 
+  UNREACHABLE("invalid child stdio type");
+}
 
 int SyncProcessRunner::AddStdioIgnore(uint32_t child_fd) {
   CHECK_LT(child_fd, stdio_count_);
@@ -995,11 +1096,6 @@ int SyncProcessRunner::AddStdioInheritFD(uint32_t child_fd, int inherit_fd) {
   uv_stdio_containers_[child_fd].data.fd = inherit_fd;
 
   return 0;
-}
-
-
-bool SyncProcessRunner::IsSet(Local<Value> value) {
-  return !value->IsUndefined() && !value->IsNull();
 }
 
 Maybe<int> SyncProcessRunner::CopyJsString(Local<Value> js_value,
@@ -1054,18 +1150,18 @@ Maybe<int> SyncProcessRunner::CopyJsStringArray(Local<Value> js_value,
   // length of all strings, including room for a null terminator after every
   // string. Align strings to cache lines.
   for (uint32_t i = 0; i < length; i++) {
-    auto value = js_array->Get(context, i).ToLocalChecked();
+    Local<Value> value;
+    if (!js_array->Get(context, i).ToLocal(&value)) {
+      return Nothing<int>();
+    }
 
     if (!value->IsString()) {
       Local<String> string;
       if (!value->ToString(env()->isolate()->GetCurrentContext())
-               .ToLocal(&string))
+               .ToLocal(&string) ||
+          js_array->Set(context, i, string).IsNothing()) {
         return Nothing<int>();
-      js_array
-          ->Set(context,
-                i,
-                string)
-          .Check();
+      }
     }
 
     Maybe<size_t> maybe_size = StringBytes::StorageSize(isolate, value, UTF8);
@@ -1081,7 +1177,10 @@ Maybe<int> SyncProcessRunner::CopyJsStringArray(Local<Value> js_value,
 
   for (uint32_t i = 0; i < length; i++) {
     list[i] = buffer + data_offset;
-    auto value = js_array->Get(context, i).ToLocalChecked();
+    Local<Value> value;
+    if (!js_array->Get(context, i).ToLocal(&value)) {
+      return Nothing<int>();
+    }
     data_offset += StringBytes::Write(isolate,
                                       buffer + data_offset,
                                       -1,
