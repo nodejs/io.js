@@ -22,7 +22,6 @@ using v8::HandleScope;
 using v8::Isolate;
 using v8::Local;
 using v8::MaybeLocal;
-using v8::NewStringType;
 using v8::Object;
 using v8::String;
 using v8::Uint32;
@@ -76,9 +75,8 @@ class JSBindingsConnection : public BaseObject {
       HandleScope handle_scope(isolate);
       Context::Scope context_scope(env_->context());
       Local<Value> argument;
-      if (!String::NewFromTwoByte(isolate, message.characters16(),
-                                  NewStringType::kNormal,
-                                  message.length()).ToLocal(&argument)) return;
+      if (!ToV8Value(env_->context(), message, isolate).ToLocal(&argument))
+        return;
       connection_->OnMessage(argument);
     }
 
