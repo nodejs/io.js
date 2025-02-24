@@ -206,11 +206,20 @@ assert.doesNotMatch(
 
 {
   const ab = new ArrayBuffer(42);
+  const dv = new DataView(ab);
+
   assert.strictEqual(ab.byteLength, 42);
   new MessageChannel().port1.postMessage(ab, [ ab ]);
   assert.strictEqual(ab.byteLength, 0);
-  assert.strictEqual(util.inspect(ab),
-                     'ArrayBuffer { (detached), byteLength: 0 }');
+  assert.strictEqual(
+    util.inspect(ab),
+    'ArrayBuffer { (detached), byteLength: 0 }',
+  );
+
+  assert.strictEqual(
+    util.inspect(dv),
+    'DataView { 0, 0, buffer: ArrayBuffer { (detached), byteLength: 0 } }',
+  );
 }
 
 // Truncate output for ArrayBuffers using plural or singular bytes
@@ -294,7 +303,8 @@ assert.doesNotMatch(
 });
 
 // Now check that declaring a TypedArray in a different context works the same.
-[ Float32Array,
+[
+  Float32Array,
   Float64Array,
   Int16Array,
   Int32Array,
@@ -302,7 +312,8 @@ assert.doesNotMatch(
   Uint16Array,
   Uint32Array,
   Uint8Array,
-  Uint8ClampedArray ].forEach((constructor) => {
+  Uint8ClampedArray,
+].forEach((constructor) => {
   const length = 2;
   const byteLength = length * constructor.BYTES_PER_ELEMENT;
   const array = vm.runInNewContext(
