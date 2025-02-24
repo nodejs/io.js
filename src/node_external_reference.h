@@ -224,12 +224,19 @@ class ExternalReferenceRegistry {
 #define EXTERNAL_REFERENCE_BINDING_LIST_QUIC(V)
 #endif
 
+#define EXTERNAL_REFERENCE_BINDING_LIST_OS_SPECIFIC(V)
+
+#ifdef _WIN32
+#define EXTERNAL_REFERENCE_BINDING_LIST_OS_SPECIFIC(V) V(code_integrity)
+#endif
+
 #define EXTERNAL_REFERENCE_BINDING_LIST(V)                                     \
   EXTERNAL_REFERENCE_BINDING_LIST_BASE(V)                                      \
   EXTERNAL_REFERENCE_BINDING_LIST_INSPECTOR(V)                                 \
   EXTERNAL_REFERENCE_BINDING_LIST_I18N(V)                                      \
   EXTERNAL_REFERENCE_BINDING_LIST_CRYPTO(V)                                    \
-  EXTERNAL_REFERENCE_BINDING_LIST_QUIC(V)
+  EXTERNAL_REFERENCE_BINDING_LIST_QUIC(V)                                      \
+  EXTERNAL_REFERENCE_BINDING_LIST_OS_SPECIFIC(V)
 
 }  // namespace node
 
