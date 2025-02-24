@@ -102,8 +102,7 @@ Local<FunctionTemplate> Packet::GetConstructorTemplate(Environment* env) {
   if (tmpl.IsEmpty()) {
     tmpl = NewFunctionTemplate(env->isolate(), IllegalConstructor);
     tmpl->Inherit(ReqWrap<uv_udp_send_t>::GetConstructorTemplate(env));
-    tmpl->InstanceTemplate()->SetInternalFieldCount(
-        Packet::kInternalFieldCount);
+    tmpl->InstanceTemplate()->SetInternalFieldCount(kInternalFieldCount);
     tmpl->SetClassName(state.packetwrap_string());
     state.set_packet_constructor_template(tmpl);
   }
@@ -174,7 +173,7 @@ Packet::Packet(Environment* env,
                Local<Object> object,
                const SocketAddress& destination,
                std::shared_ptr<Data> data)
-    : ReqWrap<uv_udp_send_t>(env, object, AsyncWrap::PROVIDER_QUIC_PACKET),
+    : ReqWrap<uv_udp_send_t>(env, object, PROVIDER_QUIC_PACKET),
       listener_(listener),
       destination_(destination),
       data_(std::move(data)) {
