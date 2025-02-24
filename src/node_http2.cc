@@ -841,7 +841,7 @@ void Http2Session::Close(uint32_t code, bool socket_closed) {
 // but this is faster and does not fail if the stream is not found.
 BaseObjectPtr<Http2Stream> Http2Session::FindStream(int32_t id) {
   auto s = streams_.find(id);
-  return s != streams_.end() ? s->second : BaseObjectPtr<Http2Stream>();
+  return s != streams_.end() ? s->second : nullptr;
 }
 
 bool Http2Session::CanAddStream() {
