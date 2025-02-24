@@ -105,7 +105,11 @@ expected.beforePreExec = new Set([
   'Internal Binding wasm_web_api',
   'NativeModule internal/events/abort_listener',
   'NativeModule internal/modules/typescript',
+  'NativeModule internal/code_integrity',
 ]);
+if (common.isWindows) {
+  expected.beforePreExec.add('Internal Binding code_integrity');
+}
 
 expected.atRunTime = new Set([
   'Internal Binding worker',
