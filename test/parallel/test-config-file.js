@@ -4,10 +4,11 @@ const { spawnPromisified } = require('../common');
 const fixtures = require('../common/fixtures');
 const { match, strictEqual } = require('node:assert');
 const { test } = require('node:test');
+const { chmodSync } = require('node:fs');
 
 test('should handle non existing json', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     'i-do-not-exist.json',
     '-p', '"Hello, World!"',
   ]);
@@ -19,7 +20,7 @@ test('should handle non existing json', async () => {
 
 test('should handle empty json', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/empty.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -32,7 +33,7 @@ test('should handle empty json', async () => {
 test('should handle empty object json', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/empty-object.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -43,7 +44,7 @@ test('should handle empty object json', async () => {
 
 test('should parse boolean flag', async () => {
   const result = await spawnPromisified(process.execPath, [
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/transform-types.json'),
     fixtures.path('typescript/ts/transformation/test-enum.ts'),
   ]);
@@ -55,7 +56,7 @@ test('should parse boolean flag', async () => {
 test('should not override a flag declared twice', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/override-property.json'),
     fixtures.path('typescript/ts/transformation/test-enum.ts'),
   ]);
@@ -67,7 +68,7 @@ test('should not override a flag declared twice', async () => {
 test('should override env-file', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/transform-types.json'),
     '--env-file', fixtures.path('dotenv/node-options-no-tranform.env'),
     fixtures.path('typescript/ts/transformation/test-enum.ts'),
@@ -80,7 +81,7 @@ test('should override env-file', async () => {
 test('should not override NODE_OPTIONS', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/transform-types.json'),
     fixtures.path('typescript/ts/transformation/test-enum.ts'),
   ], {
@@ -98,7 +99,7 @@ test('should not ovverride CLI flags', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
     '--no-experimental-transform-types',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/transform-types.json'),
     fixtures.path('typescript/ts/transformation/test-enum.ts'),
   ]);
@@ -110,7 +111,7 @@ test('should not ovverride CLI flags', async () => {
 test('should parse array flag correctly', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/import.json'),
     '--eval', 'setTimeout(() => console.log("D"),99)',
   ]);
@@ -122,7 +123,7 @@ test('should parse array flag correctly', async () => {
 test('should validate invalid array flag', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/invalid-import.json'),
     '--eval', 'setTimeout(() => console.log("D"),99)',
   ]);
@@ -134,7 +135,7 @@ test('should validate invalid array flag', async () => {
 test('should validate array flag as string', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/import-as-string.json'),
     '--eval', 'setTimeout(() => console.log("B"),99)',
   ]);
@@ -146,7 +147,7 @@ test('should validate array flag as string', async () => {
 test('should throw at unknown flag', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/unknown-flag.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -158,7 +159,7 @@ test('should throw at unknown flag', async () => {
 test('should throw at flag not available in NODE_OPTIONS', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/not-node-options-flag.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -170,7 +171,7 @@ test('should throw at flag not available in NODE_OPTIONS', async () => {
 test('unsigned flag should be parsed correctly', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/numeric.json'),
     '-p', 'http.maxHeaderSize',
   ]);
@@ -182,7 +183,7 @@ test('unsigned flag should be parsed correctly', async () => {
 test('numeric flag should not allow negative values', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/negative-numeric.json'),
     '-p', 'http.maxHeaderSize',
   ]);
@@ -195,7 +196,7 @@ test('numeric flag should not allow negative values', async () => {
 test('v8 flag should not be allowed in config file', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/v8-flag.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -208,7 +209,7 @@ test('string flag should be parsed correctly', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
     '--test',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/string.json'),
     fixtures.path('rc/test.js'),
   ]);
@@ -221,7 +222,7 @@ test('host port flag should be parsed correctly', { skip: !process.features.insp
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
     '--expose-internals',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/host-port.json'),
     '-p', 'require("internal/options").getOptionValue("--inspect-port").port',
   ]);
@@ -233,7 +234,7 @@ test('host port flag should be parsed correctly', { skip: !process.features.insp
 test('no op flag should throw', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/no-op.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -246,7 +247,7 @@ test('no op flag should throw', async () => {
 test('should not allow users to sneak in a flag', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/sneaky-flag.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -258,7 +259,7 @@ test('should not allow users to sneak in a flag', async () => {
 test('non object root', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/non-object-root.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -270,7 +271,7 @@ test('non object root', async () => {
 test('non object node options', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/non-object-node-options.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -282,7 +283,7 @@ test('non object node options', async () => {
 test('should throw correct error when a json is broken', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/broken.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -295,7 +296,7 @@ test('should throw correct error when a json is broken', async () => {
 test('broken value in node_options', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
-    '--experimental-config-file',
+    '--experimental-config-file-path',
     fixtures.path('rc/broken-node-options.json'),
     '-p', '"Hello, World!"',
   ]);
@@ -303,4 +304,47 @@ test('broken value in node_options', async () => {
   match(result.stderr, /broken-node-options\.json: invalid content/);
   strictEqual(result.stdout, '');
   strictEqual(result.code, 9);
+});
+
+test('should use node.config.json as default', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-config-file',
+    '-p', 'http.maxHeaderSize',
+  ], {
+    cwd: fixtures.path('rc/default'),
+  });
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout, '10\n');
+  strictEqual(result.code, 0);
+});
+
+test('should override node.config.json when specificied', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-config-file',
+    '--experimental-config-file-path',
+    fixtures.path('rc/default/override.json'),
+    '-p', 'http.maxHeaderSize',
+  ], {
+    cwd: fixtures.path('rc/default'),
+  });
+  strictEqual(result.stderr, '');
+  strictEqual(result.stdout, '20\n');
+  strictEqual(result.code, 0);
+});
+
+test('should throw an error when the file is non readable', async () => {
+  chmodSync(fixtures.path('rc/non-readable/node.config.json'), '000');
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-config-file',
+    '-p', 'http.maxHeaderSize',
+  ], {
+    cwd: fixtures.path('rc/non-readable'),
+  });
+  match(result.stderr, /Cannot read configuration from node\.config\.json: permission denied/);
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 9);
+  chmodSync(fixtures.path('rc/non-readable/node.config.json'), '777');
 });

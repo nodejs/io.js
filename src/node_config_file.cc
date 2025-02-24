@@ -8,20 +8,29 @@ namespace node {
 
 std::optional<std::string_view> ConfigReader::GetDataFromArgs(
     const std::vector<std::string>& args) {
-  constexpr std::string_view flag = "--experimental-config-file";
+  constexpr std::string_view flag_path = "--experimental-config-file-path";
+  constexpr std::string_view flag_file = "--experimental-config-file";
+
+  bool has_experimental_config_file = false;
 
   for (auto it = args.begin(); it != args.end(); ++it) {
-    if (*it == flag) {
-      // Case: "--experimental-config-file foo"
+    if (*it == flag_path) {
+      // Case: "--experimental-config-file-path foo"
       if (auto next = std::next(it); next != args.end()) {
         return *next;
       }
-    } else if (it->starts_with(flag)) {
-      // Case: "--experimental-config-file=foo"
-      if (it->size() > flag.size() && (*it)[flag.size()] == '=') {
-        return it->substr(flag.size() + 1);
+    } else if (it->starts_with(flag_path)) {
+      // Case: "--experimental-config-file-path=foo"
+      if (it->size() > flag_path.size() && (*it)[flag_path.size()] == '=') {
+        return it->substr(flag_path.size() + 1);
       }
+    } else if (*it == flag_file || it->starts_with(flag_file)) {
+      has_experimental_config_file = true;
     }
+  }
+
+  if (has_experimental_config_file) {
+    return "node.config.json";
   }
 
   return std::nullopt;

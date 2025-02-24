@@ -684,8 +684,12 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             &EnvironmentOptions::optional_env_file);
   Implies("--env-file-if-exists", "[has_env_file_string]");
   AddOption("--experimental-config-file",
-            "set config file from supplied file",
+            "set config file from node.config.json file",
             &EnvironmentOptions::experimental_config_file);
+  AddOption("--experimental-config-file-path",
+            "set config file from supplied file",
+            &EnvironmentOptions::experimental_config_file_path);
+  Implies("--experimental-config-file-path", "--experimental-config-file");
   AddOption("--test",
             "launch test runner on startup",
             &EnvironmentOptions::test_runner);
