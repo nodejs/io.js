@@ -195,7 +195,7 @@ template("node_gn_build") {
     }
     if (node_enable_inspector) {
       deps += [
-        "src/inspector:crdtp",
+        "$node_inspector_protocol_path:crdtp",
         "src/inspector:node_protocol_generated_sources",
         "src/inspector:v8_inspector_compress_protocol_json",
       ]
@@ -384,6 +384,7 @@ template("node_gn_build") {
       include_dirs = [
         "$target_gen_dir/src",
         "$target_gen_dir/src/inspector",
+        "$node_inspector_protocol_path",
       ]
     } else {
       sources -= gypi_values.node_cctest_inspector_sources
