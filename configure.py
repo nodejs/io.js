@@ -819,6 +819,12 @@ parser.add_argument('--without-corepack',
     default=None,
     help='do not install the bundled Corepack')
 
+parser.add_argument('--control-flow-guard',
+    action='store_true',
+    dest='enable_cfg',
+    default=None,
+    help='enable Control Flow Guard (CFG)')
+
 # Dummy option for backwards compatibility
 parser.add_argument('--without-report',
     action='store_true',
@@ -1443,6 +1449,7 @@ def configure_node(o):
   o['variables']['node_prefix'] = options.prefix
   o['variables']['node_install_npm'] = b(not options.without_npm)
   o['variables']['node_install_corepack'] = b(not options.without_corepack)
+  o['variables']['control_flow_guard'] = b(options.enable_cfg)
   o['variables']['node_use_amaro'] = b(not options.without_amaro)
   o['variables']['debug_node'] = b(options.debug_node)
   o['default_configuration'] = 'Debug' if options.debug else 'Release'
