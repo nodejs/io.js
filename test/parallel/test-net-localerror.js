@@ -42,3 +42,9 @@ connect({
   port: 0,
   localPort: 'foobar',
 }, 'ERR_INVALID_ARG_TYPE', TypeError);
+
+// Test invalid connection string
+assert.throws(
+  () => connect('string', () => { }),
+  TypeError
+);
