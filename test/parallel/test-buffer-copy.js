@@ -1,6 +1,7 @@
 'use strict';
 
 require('../common');
+const { kMaxLength } = require('buffer');
 const assert = require('assert');
 
 const b = Buffer.allocUnsafe(1024);
@@ -233,4 +234,12 @@ assert.deepStrictEqual(c, b.slice(0, c.length));
   }, /foo/);
   // No copying took place:
   assert.deepStrictEqual(c.toString(), 'C'.repeat(c.length));
+}
+
+// Ref: https://github.com/nodejs/node/issues/55422#issue-2594486812
+if (2 ** 32 + 1 <= kMaxLength) {
+  const src = Buffer.alloc(2 ** 32 + 1, 1);
+  const dst = Buffer.alloc(2 ** 32 + 1, 2);
+  src.copy(dst);
+  assert.deepStrictEqual(src, dst);
 }
