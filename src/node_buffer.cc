@@ -1227,7 +1227,13 @@ void GetZeroFillToggle(const FunctionCallbackInfo<Value>& args) {
     // Create a dummy Uint32Array - the JS land can only toggle the C++ land
     // setting when the allocator uses our toggle. With this the toggle in JS
     // land results in no-ops.
+
     ab = ArrayBuffer::New(env->isolate(), sizeof(uint32_t));
+  } else if (env->isolate_data()->is_building_snapshot()) {
+    ab = ArrayBuffer::New(env->isolate(), sizeof(uint32_t));
+    // TODO(joyeecheung): save ab->GetBackingStore()->Data() in the Node.js
+    // array buffer allocator and include it into the C++ toggle while the
+    // Environment is still alive.
   } else {
     uint32_t* zero_fill_field = allocator->zero_fill_field();
     std::unique_ptr<BackingStore> backing =
