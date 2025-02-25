@@ -4,6 +4,7 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include "async_wrap.h"
+#include "cppgc_helpers.h"
 #include "env.h"
 #include "node_errors.h"
 #include "node_external_reference.h"
@@ -74,7 +75,12 @@ void Decode(const v8::FunctionCallbackInfo<v8::Value>& args,
             void (*callback)(T*, const v8::FunctionCallbackInfo<v8::Value>&,
                              const char*, size_t)) {
   T* ctx;
-  ASSIGN_OR_RETURN_UNWRAP(&ctx, args.This());
+  if constexpr (std::is_base_of_v<BaseObject, T>) {
+    ASSIGN_OR_RETURN_UNWRAP(&ctx, args.This());
+  } else {
+    ctx = CppgcMixin::Unwrap<T>(args.This());
+    if (ctx == nullptr) return;
+  }
 
   if (args[0]->IsString()) {
     StringBytes::InlineDecoder decoder;

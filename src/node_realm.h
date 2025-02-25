@@ -6,6 +6,7 @@
 #include <v8.h>
 #include <unordered_map>
 #include "cleanup_queue.h"
+#include "cppgc_helpers.h"
 #include "env_properties.h"
 #include "memory_tracker.h"
 #include "node_snapshotable.h"
@@ -24,6 +25,17 @@ struct RealmSerializeInfo {
 using BindingDataStore =
     std::array<BaseObjectWeakPtr<BaseObject>,
                static_cast<size_t>(BindingDataType::kBindingDataTypeCount)>;
+
+class CppgcWrapperList
+    : public ListHead<CppgcMixin, &CppgcMixin::wrapper_list_node_>,
+      public MemoryRetainer {
+ public:
+  void Cleanup();
+
+  SET_MEMORY_INFO_NAME(CppgcWrapperList)
+  SET_SELF_SIZE(CppgcWrapperList)
+  void MemoryInfo(MemoryTracker* tracker) const override;
+};
 
 /**
  * node::Realm is a container for a set of JavaScript objects and functions
@@ -113,6 +125,9 @@ class Realm : public MemoryRetainer {
   // Base object count created after the bootstrap of the realm.
   inline int64_t base_object_created_after_bootstrap() const;
 
+  inline void TrackCppgcWrapper(CppgcMixin* handle);
+  inline CppgcWrapperList* cppgc_wrapper_list() { return &cppgc_wrapper_list_; }
+
 #define V(PropertyName, TypeName)                                              \
   virtual v8::Local<TypeName> PropertyName() const = 0;                        \
   virtual void set_##PropertyName(v8::Local<TypeName> value) = 0;
@@ -154,6 +169,7 @@ class Realm : public MemoryRetainer {
   BindingDataStore binding_data_store_;
 
   BaseObjectList base_object_list_;
+  CppgcWrapperList cppgc_wrapper_list_;
 };
 
 class PrincipalRealm : public Realm {

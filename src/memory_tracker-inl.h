@@ -330,6 +330,7 @@ MemoryRetainerNode* MemoryTracker::AddNode(const MemoryRetainer* retainer,
     return it->second;
   }
 
+  // TODO(joyeeheung): deduplicate when it's cppgc node.
   MemoryRetainerNode* n = new MemoryRetainerNode(this, retainer);
   graph_->AddNode(std::unique_ptr<v8::EmbedderGraph::Node>(n));
   seen_[retainer] = n;

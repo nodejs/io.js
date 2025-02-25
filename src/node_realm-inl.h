@@ -130,6 +130,11 @@ void Realm::TrackBaseObject(BaseObject* bo) {
   ++base_object_count_;
 }
 
+void Realm::TrackCppgcWrapper(CppgcMixin* handle) {
+  DCHECK_EQ(handle->realm(), this);
+  cppgc_wrapper_list_.PushFront(handle);
+}
+
 void Realm::UntrackBaseObject(BaseObject* bo) {
   DCHECK_EQ(bo->realm(), this);
   --base_object_count_;

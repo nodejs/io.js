@@ -4,7 +4,7 @@
 #if defined(NODE_WANT_INTERNALS) && NODE_WANT_INTERNALS
 
 #include "base_object-inl.h"
-#include "cppgc_helpers.h"
+#include "cppgc_helpers-inl.h"
 #include "node_context_data.h"
 #include "node_errors.h"
 
@@ -77,6 +77,7 @@ class ContextifyContext final : CPPGC_MIXIN(ContextifyContext) {
  public:
   SET_CPPGC_NAME(ContextifyContext)
   void Trace(cppgc::Visitor* visitor) const final;
+  SET_NO_MEMORY_INFO()
 
   ContextifyContext(Environment* env,
                     v8::Local<v8::Object> wrapper,
@@ -204,6 +205,7 @@ class ContextifyScript final : CPPGC_MIXIN(ContextifyScript) {
  public:
   SET_CPPGC_NAME(ContextifyScript)
   void Trace(cppgc::Visitor* visitor) const final;
+  SET_NO_MEMORY_INFO()
 
   ContextifyScript(Environment* env, v8::Local<v8::Object> object);
   ~ContextifyScript() override;

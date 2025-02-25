@@ -1112,6 +1112,17 @@ class MyWrap final : CPPGC_MIXIN(MyWrap) {
 }
 ```
 
+If the wrapper needs to perform cleanups when it's destroyed and that
+cleanup relies on a living Node.js `Environment`, it should implement a
+pattern like this:
+
+```cpp
+  ~MyWrap() { this->Clean(); }
+  void CleanEnvResource(Environment* env) override {
+     // Do cleanup that relies on a living Environemnt.
+  }
+```
+
 `cppgc::GarbageCollected` types are expected to implement a
 `void Trace(cppgc::Visitor* visitor) const` method. When they are the
 final class in the hierarchy, this method must be marked `final`. For
@@ -1266,6 +1277,8 @@ referrer->Set(
 ).ToLocalChecked();
 ```
 
+#### Lifetime and cleanups of cppgc-managed objects
+
 Typically, a newly created cppgc-managed wrapper object should be held alive
 by the JavaScript land (for example, by being returned by a method and
 staying alive in a closure). Long-lived cppgc objects can also
@@ -1276,6 +1289,27 @@ Its destructor will be called when no other objects from the V8 heap reference
 it, this can happen at any time after the garbage collector notices that
 it's no longer reachable and before the V8 isolate is torn down.
 See the [Oilpan documentation in Chromium][] for more details.
+
+If the cppgc-managed objects does not need to perform any special cleanup,
+it's fine to use the default destructor. If it needs to perform only trivial
+cleanup that only affects its own members without calling into JS, potentially
+triggering garbage collection or relying on a living `Environment`, then it's
+fine to just implement the trivial cleanup in the destructor directly. If it
+needs to do any substantial cleanup that involves a living `Environment`, because
+the destructor can be called at any time by the garbage collection, even after
+the `Environment` is already gone, it must implement the cleanup with this pattern:
+
+```cpp
+  ~MyWrap() { this->Clean(); }
+  void CleanEnvResource(Environment* env) override {
+     // Do cleanup that relies on a living Environemnt. This would be
+     // called by CppgcMixin::Clean() first during Environment shutdown,
+     // while the Environment is still alive. If the destructor calls
+     // Clean() again later during garbage collection that happens after
+     // Environment shutdown, CleanEnvResource() would be skipped, preventing
+     // invalid access to the Environment.
+  }
+```
 
 ### Callback scopes
 

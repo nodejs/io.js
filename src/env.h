@@ -1191,6 +1191,7 @@ class Environment final : public MemoryRetainer {
   CleanableQueue cleanable_queue_;
   HandleWrapQueue handle_wrap_queue_;
   ReqWrapQueue req_wrap_queue_;
+
   int handle_cleanup_waiting_ = 0;
   int request_waiting_ = 0;
 
