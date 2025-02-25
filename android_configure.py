@@ -1,6 +1,7 @@
 import platform
 import sys
 import os
+import shutil
 
 # TODO: In next version, it will be a JSON file listing all the patches, and then it will iterate through to apply them.
 def patch_android():
@@ -61,6 +62,9 @@ if platform.system() == "Darwin":
 elif platform.system() == "Linux":
     host_os = "linux"
     toolchain_path = android_ndk_path + "/toolchains/llvm/prebuilt/linux-x86_64"
+    if platform.machine() in {"x86_64", "x86"}:
+        os.environ['CC_host'] = shutil.which('gcc').strip()
+        os.environ['CXX_host'] = shutil.which('g++').strip()
 
 os.environ['PATH'] += os.pathsep + toolchain_path + "/bin"
 os.environ['CC'] = toolchain_path + "/bin/" + TOOLCHAIN_PREFIX + android_sdk_version + "-" +  "clang"
