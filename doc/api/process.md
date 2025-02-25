@@ -2738,6 +2738,227 @@ import { loadEnvFile } from 'node:process';
 loadEnvFile();
 ```
 
+### Environment variables file parsing specification
+
+This section describes how environment variables file parser reads a file
+and sets up the environment variables in Node.js.
+While `.env` files descend from shell scripts that export environment
+variables, there are important distinctions in how they handle quoting,
+spacing, and escaping values.
+Additionally, the [Dotenv][] package  has played a significant role in
+popularizing this format.
+
+#### Basic parsing
+
+* The parser processes input until it finds a newline, splitting each part into
+  a key and a value at the first `=` sign.
+* Lines without an `=` are ignored.
+
+```bash
+   BASIC=basic
+   WITHOUT_EQUAL
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.BASIC, 'basic');
+assert.strictEqual(process.env.WITHOUT_EQUAL, undefined);
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.BASIC, 'basic');
+assert.strictEqual(process.env.WITHOUT_EQUAL, undefined);
+```
+
+#### Whitespace handling
+
+* Leading and trailing whitespaces characters around keys and values are
+  ignored unless they are enclosed within quotes.
+
+```bash
+      SPACED_KEY = parsed
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.SPACED_KEY, 'parsed');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.SPACED_KEY, 'parsed');
+```
+
+#### Comments
+
+* Lines starting with `#` are treated as comments and ignored.
+* Inline comments (starting with `#` after a value) are ignored, and do not
+  effect the parsed value.
+
+```bash
+    # COMMENTS=work
+    INLINE_COMMENTS=inline comments # work
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.COMMENTS, undefined);
+assert.strictEqual(process.env.INLINE_COMMENTS, 'inline comments');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.COMMENTS, undefined);
+assert.strictEqual(process.env.INLINE_COMMENTS, 'inline comments');
+```
+
+#### Empty values
+
+* Variables with no value assigned (or example, a key followed by `=`) are set to
+  an empty string.
+
+```bash
+  EMPTY=
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.EMPTY, '');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.EMPTY, '');
+```
+
+#### Quoted values
+
+* Single (`'`), double (`"`), and backtick (`` ` ``) quotes are recognized.
+  The content within the quotes is taken as is, including leading and
+  trailing spaces.
+* Quotes within a different quote type are preserved.
+
+```bash
+  FIRST_NAME=' John '
+  MIXED_QUOTES="Say 'Hello!'"
+  BACKTICK_IN_QUOTES="Using `backticks` in double quotes"
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.FIRST_NAME, ' John ');
+assert.strictEqual(process.env.MIXED_QUOTES, "Say 'Hello!'");
+assert.strictEqual(process.env.BACKTICK_IN_QUOTES,
+                   'Using `backticks` in double quotes');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.FIRST_NAME, ' John ');
+assert.strictEqual(process.env.MIXED_QUOTES, "Say 'Hello!'");
+assert.strictEqual(process.env.BACKTICK_IN_QUOTES,
+                   'Using `backticks` in double quotes');
+```
+
+#### Multiline values
+
+* Values enclosed in quotes described above that span multiple
+  lines are considered valid and includes escaped new line characters.
+
+```bash
+ MULTI_DOUBLE_QUOTED="double
+ quoted"
+
+ MULTI_SINGLE_QUOTED='single
+ quoted'
+
+ MULTI_BACKTICKED=`this
+ "multiline"
+ value`
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.MULTI_DOUBLE_QUOTED, 'double\nquoted');
+assert.strictEqual(process.env.MULTI_SINGLE_QUOTED, 'single\nquoted');
+assert.strictEqual(process.env.MULTI_BACKTICKED,
+                   'this\n"multiline"\nvalue');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.MULTI_DOUBLE_QUOTED, 'double\nquoted');
+assert.strictEqual(process.env.MULTI_SINGLE_QUOTED, 'single\nquoted');
+assert.strictEqual(process.env.MULTI_BACKTICKED,
+                   'this\n"multiline"\nvalue');
+```
+
+#### Escapes
+
+* Newlines in double-quoted values are expanded to newline characters.
+* Other escapes (e.g., `\n`) are treated as literal text in single-quoted
+  or unquoted values.
+
+```bash
+  EXPAND_NEWLINES="expand\nnew\nlines"
+  DONT_EXPAND_UNQUOTED=dontexpand\nnewlines
+  DONT_EXPAND_SQUOTED='dontexpand\nnewlines'
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.EXPAND_NEWLINES, 'expand\nnew\nlines');
+assert.strictEqual(process.env.DONT_EXPAND_UNQUOTED,
+                   'dontexpand\\nnewlines');
+assert.strictEqual(process.env.DONT_EXPAND_SQUOTED,
+                   'dontexpand\\nnewlines');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.EXPAND_NEWLINES, 'expand\nnew\nlines');
+assert.strictEqual(process.env.DONT_EXPAND_UNQUOTED,
+                   'dontexpand\\nnewlines');
+assert.strictEqual(process.env.DONT_EXPAND_SQUOTED,
+                   'dontexpand\\nnewlines');
+```
+
+#### Export statements
+
+* Any `export` keyword before a key is ignored, allowing compatibility with
+  shell scripts. The line is parsed as if `export` weren't there.
+
+```bash
+  export EXPORT_EXAMPLE = ignore export
+```
+
+```cjs
+const assert = require('node:assert');
+const process = require('node:process');
+assert.strictEqual(process.env.EXPORT_EXAMPLE, 'ignore export');
+```
+
+```mjs
+import assert from 'node:assert';
+import process from 'node:process';
+assert.strictEqual(process.env.EXPORT_EXAMPLE, 'ignore export');
+```
+
 ## `process.mainModule`
 
 <!-- YAML
@@ -4514,6 +4735,7 @@ cases:
 [Android building]: https://github.com/nodejs/node/blob/HEAD/BUILDING.md#android
 [Child Process]: child_process.md
 [Cluster]: cluster.md
+[Dotenv]: https://github.com/motdotla/dotenv
 [Duplex]: stream.md#duplex-and-transform-streams
 [Event Loop]: https://nodejs.org/en/learn/asynchronous-work/event-loop-timers-and-nexttick#understanding-processnexttick
 [LTS]: https://github.com/nodejs/Release
