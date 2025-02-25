@@ -3489,7 +3489,7 @@ void BindingData::LegacyMainResolve(const FunctionCallbackInfo<Value>& args) {
   }
 
   THROW_ERR_MODULE_NOT_FOUND(isolate,
-                             "Cannot find package '%s' imported from %s",
+                             "Entry point '%s' resolved from '%s' incorrectly",
                              package_initial_file,
                              *module_base);
 }
