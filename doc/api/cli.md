@@ -48,7 +48,6 @@ entry point, the `node` command will accept as input only files with `.js`,
 `.mjs`, or `.cjs` extensions. With the following flags, additional file
 extensions are enabled:
 
-* [`--experimental-wasm-modules`][] for files with `.wasm` extension.
 * [`--experimental-addon-modules`][] for files with `.node` extension.
 
 ## Options
@@ -1180,14 +1179,6 @@ changes:
 -->
 
 Enable experimental WebAssembly System Interface (WASI) support.
-
-### `--experimental-wasm-modules`
-
-<!-- YAML
-added: v12.3.0
--->
-
-Enable experimental WebAssembly module support.
 
 ### `--experimental-webstorage`
 
@@ -3272,7 +3263,6 @@ one is included in the list below.
 * `--experimental-transform-types`
 * `--experimental-vm-modules`
 * `--experimental-wasi-unstable-preview1`
-* `--experimental-wasm-modules`
 * `--experimental-webstorage`
 * `--force-context-aware`
 * `--force-fips`
@@ -3834,7 +3824,6 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [`--env-file`]: #--env-fileconfig
 [`--experimental-addon-modules`]: #--experimental-addon-modules
 [`--experimental-sea-config`]: single-executable-applications.md#generating-single-executable-preparation-blobs
-[`--experimental-wasm-modules`]: #--experimental-wasm-modules
 [`--heap-prof-dir`]: #--heap-prof-dir
 [`--import`]: #--importmodule
 [`--no-experimental-strip-types`]: #--no-experimental-strip-types
