@@ -10,6 +10,9 @@
 
 namespace node {
 
+using CFunctionCallbackWithOneByteStringVoid =
+    void (*)(v8::Local<v8::Value>, const v8::FastOneByteString&);
+
 using CFunctionCallbackWithOneByteString =
     uint32_t (*)(v8::Local<v8::Value>, const v8::FastOneByteString&);
 
@@ -111,6 +114,7 @@ class ExternalReferenceRegistry {
   V(CFunctionWithBool)                                                         \
   V(CFunctionBufferCopy)                                                       \
   V(CFunctionWriteString)                                                      \
+  V(CFunctionCallbackWithOneByteStringVoid)                                    \
   V(const v8::CFunctionInfo*)                                                  \
   V(v8::FunctionCallback)                                                      \
   V(v8::AccessorNameGetterCallback)                                            \
