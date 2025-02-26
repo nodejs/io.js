@@ -1,0 +1,66 @@
+name: Update WinGet manifest
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish-winget:
+    name: Submit to WinGet repository
+    # wingetcreate is only supported on Windows
+    runs-on: windows-latest
+    # Only submit stable releases
+    if: ${{ !github.event.release.prerelease }}
+    steps:
+      - name: Submit new version PR using wingetcreate
+        run: |
+          $wingetPackageID = "OpenJS.NodeJS"
+
+          # Get installer info from release event
+          $packageVersion = (${{ toJSON(github.event.release.tag_name) }}).Trim('v')
+          $releaseDate = (Get-Date ${{ toJSON(github.event.release.published_at) }}).ToString("yyyy-MM-dd")
+          $x64InstallerUrl = "https://nodejs.org/dist/v$packageVersion/node-v$packageVersion-x64.msi"
+          $arm64InstallerUrl = "https://nodejs.org/dist/v$packageVersion/node-v$packageVersion-arm64.msi"
+          $releaseNotesUrl = "https://github.com/nodejs/node/releases/tag/v$packageVersion"
+
+          # Download wingetcreate portable executable
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe
+
+          # Update manifest with new version & URLs
+          # Not using --submit flag with update as we want to make manual changes to manifests & then submit
+          .\wingetcreate.exe update $wingetPackageID `
+            --version $packageVersion `
+            --urls $x64InstallerUrl $arm64InstallerUrl `
+            --release-date $releaseDate `
+            --release-notes-url $releaseNotesUrl `
+            --token "${{ secrets.WINGET_GITHUB_TOKEN }}"
+
+          # The update command will output the manifests in the following path
+          $outputRelativePath = "manifests/o/OpenJS/NodeJS/$packageVersion/"
+
+          # Pattern to value map for updating version specific URLs in locale manifests
+          $patternValueMap = @{
+            # Targets PublisherSupportUrl
+            'v([\d.]+)\/\.github\/SUPPORT\.md' = "v$packageVersion/.github/SUPPORT.md"
+
+            # Targets LicenseUrl
+            'v([\d.]+)\/LICENSE' = "v$packageVersion/LICENSE"
+
+            # Targets DocumentUrl
+            'docs\/v([\d.]+)\/api\/' = "docs/v$packageVersion/api/"
+          }
+
+          # Update patterns if they exist in the locale manifests
+          $localeManifests = Get-ChildItem -Path $outputRelativePath -Recurse -Filter "*locale.*.yaml"
+          $localeManifests | ForEach-Object {
+              $localeManifestContent = Get-Content $_.FullName
+              $patternValueMap.Keys | ForEach-Object {
+                  $localeManifestContent = $localeManifestContent -replace $_, $patternValueMap[$_]
+              }
+              Set-Content -Path $_.FullName -Value $localeManifestContent
+          }
+
+          # Submit the updated manifests to winget-pkgs repository
+          .\wingetcreate.exe submit $outputRelativePath `
+            --token "${{ secrets.WINGET_GITHUB_TOKEN }}" `
+            --prtitle "New version: $wingetPackageID version $packageVersion"
