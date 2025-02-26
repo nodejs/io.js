@@ -73,20 +73,7 @@ Maybe<ExitCode> SpinEventLoopInternal(Environment* env) {
 
   env->PrintInfoForSnapshotIfDebug();
   env->ForEachRealm([](Realm* realm) { realm->VerifyNoStrongBaseObjects(); });
-  Maybe<ExitCode> exit_code = EmitProcessExitInternal(env);
-  if (exit_code.FromMaybe(ExitCode::kGenericUserError) !=
-      ExitCode::kNoFailure) {
-    return exit_code;
-  }
-
-  auto unsettled_tla = env->CheckUnsettledTopLevelAwait();
-  if (unsettled_tla.IsNothing()) {
-    return Nothing<ExitCode>();
-  }
-  if (!unsettled_tla.FromJust()) {
-    return Just(ExitCode::kUnsettledTopLevelAwait);
-  }
-  return Just(ExitCode::kNoFailure);
+  return EmitProcessExitInternal(env);
 }
 
 struct CommonEnvironmentSetup::Impl {
