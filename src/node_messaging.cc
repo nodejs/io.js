@@ -1627,10 +1627,15 @@ static void MessageChannel(const FunctionCallbackInfo<Value>& args) {
 
   MessagePort::Entangle(port1, port2);
 
-  args.This()->Set(context, env->port1_string(), port1->object())
-      .Check();
-  args.This()->Set(context, env->port2_string(), port2->object())
-      .Check();
+  if (args.This()
+          ->Set(context, env->port1_string(), port1->object())
+          .IsNothing() ||
+      args.This()
+          ->Set(context, env->port2_string(), port2->object())
+          .IsNothing()) {
+    port1->Close();
+    port2->Close();
+  }
 }
 
 static void BroadcastChannel(const FunctionCallbackInfo<Value>& args) {
