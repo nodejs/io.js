@@ -249,3 +249,28 @@ experimental domain NodeRuntime
   # This event is fired when the runtime is waiting for the debugger. For
   # example, when inspector.waitingForDebugger is called
   event waitingForDebugger
+
+# https://chromedevtools.github.io/devtools-protocol/1-3/Target/
+experimental domain Target
+  type SessionID extends string
+  type TargetID extends string
+  type TargetInfo extends object
+    properties
+      TargetID targetId
+      string type
+      string title
+      string url
+      boolean attached
+      boolean canAccessOpener
+  event targetCreated
+    parameters
+      TargetInfo targetInfo
+  event attachedToTarget
+    parameters
+      SessionID sessionId
+      TargetInfo targetInfo
+      boolean waitingForDebugger
+  command setAutoAttach
+    parameters
+      boolean autoAttach
+      boolean waitForDebuggerOnStart
