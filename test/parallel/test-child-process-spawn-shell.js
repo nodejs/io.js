@@ -18,7 +18,8 @@ doesNotExist.on('exit', common.mustCall((code, signal) => {
 }));
 
 // Verify that passing arguments works
-common.expectWarning('Warning',
+common.expectWarning(
+  'Warning',
   'Passing args to a child process with shell option true can lead to security ' +
   'vulnerabilities, as the arguments are not escaped, only concatenated.');
 
