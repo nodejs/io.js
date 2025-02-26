@@ -18,6 +18,21 @@ if (common.isWindows)
 else
   assert.strictEqual(doesNotExist.status, 127);  // Exit code of /bin/sh
 
+// Verify that passing arguments works
+common.expectWarning('Warning',
+  'Passing args to a child process with shell option true can lead to security ' +
+  'vulnerabilities, as the arguments are not escaped, only concatenated.');
+
+internalCp.spawnSync = common.mustCall(function(opts) {
+  assert.strictEqual(opts.args[opts.args.length - 1].replace(/"/g, ''),
+                     'echo foo');
+  return oldSpawnSync(opts);
+});
+const echo = cp.spawnSync('echo', ['foo'], { shell: true });
+internalCp.spawnSync = oldSpawnSync;
+
+assert.strictEqual(echo.stdout.toString().trim(), 'foo');
+
 // Verify that shell features can be used
 const cmd = 'echo bar | cat';
 const command = cp.spawnSync(cmd, { shell: true });

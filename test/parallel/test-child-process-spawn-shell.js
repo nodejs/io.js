@@ -17,6 +17,26 @@ doesNotExist.on('exit', common.mustCall((code, signal) => {
     assert.strictEqual(code, 127);  // Exit code of /bin/sh
 }));
 
+// Verify that passing arguments works
+common.expectWarning('Warning',
+  'Passing args to a child process with shell option true can lead to security ' +
+  'vulnerabilities, as the arguments are not escaped, only concatenated.');
+
+const echo = cp.spawn('echo', ['foo'], {
+  encoding: 'utf8',
+  shell: true
+});
+let echoOutput = '';
+
+assert.strictEqual(echo.spawnargs[echo.spawnargs.length - 1].replace(/"/g, ''),
+                   'echo foo');
+echo.stdout.on('data', (data) => {
+  echoOutput += data;
+});
+echo.on('close', common.mustCall((code, signal) => {
+  assert.strictEqual(echoOutput.trim(), 'foo');
+}));
+
 // Verify that shell features can be used
 const cmd = 'echo bar | cat';
 const command = cp.spawn(cmd, {
