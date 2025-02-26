@@ -2256,6 +2256,12 @@ The V8 platform used by this instance of Node.js does not support creating
 Workers. This is caused by lack of embedder support for Workers. In particular,
 this error will not occur with standard builds of Node.js.
 
+<a id="ERR_MODULE_ALREADY_EVALUATED"></a>
+
+### `ERR_MODULE_ALREADY_EVALUATED`
+
+A module cannot be evaluated twice using the `evalaute` customization hook.
+
 <a id="ERR_MODULE_NOT_FOUND"></a>
 
 ### `ERR_MODULE_NOT_FOUND`
