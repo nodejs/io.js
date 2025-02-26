@@ -1,37 +1,39 @@
 'use strict';
+
 const common = require('../common');
-const assert = require('assert');
-const fs = require('fs').promises;
-const { MessageChannel } = require('worker_threads');
-const { once } = require('events');
+const assert = require('node:assert');
+const fs = require('node:fs').promises;
 
-// Test that overriding the internal kTransfer method of a JSTransferable does
-// not enable loading arbitrary code from the disk.
+const { test } = require('node:test');
+const { MessageChannel } = require('node:worker_threads');
+const { once } = require('node:events');
 
-module.exports = {
-  NotARealClass: common.mustNotCall()
-};
+// Test: Overriding the internal kTransfer method should not enable arbitrary code loading.
+test('Overriding kTransfer method security test', async (t) => {
+  await t.test('should throw an error for invalid deserializeInfo', async () => {
+    const fh = await fs.open(__filename);
+    assert.strictEqual(fh.constructor.name, 'FileHandle');
 
-(async function() {
-  const fh = await fs.open(__filename);
-  assert.strictEqual(fh.constructor.name, 'FileHandle');
+    const kTransfer = Object.getOwnPropertySymbols(Object.getPrototypeOf(fh))
+      .find((symbol) => symbol.description === 'messaging_transfer_symbol');
+    assert.strictEqual(typeof kTransfer, 'symbol');
 
-  const kTransfer = Object.getOwnPropertySymbols(Object.getPrototypeOf(fh))
-    .filter((symbol) => symbol.description === 'messaging_transfer_symbol')[0];
-  assert.strictEqual(typeof kTransfer, 'symbol');
-  fh[kTransfer] = () => {
-    return {
+    // Override the kTransfer method
+    fh[kTransfer] = () => ({
       data: '✨',
-      deserializeInfo: `${__filename}:NotARealClass`
-    };
-  };
+      deserializeInfo: `${__filename}:NotARealClass`,
+    });
 
-  const { port1, port2 } = new MessageChannel();
-  port1.postMessage(fh, [ fh ]);
-  port2.on('message', common.mustNotCall());
+    const { port1, port2 } = new MessageChannel();
+    port1.postMessage(fh, [fh]);
 
-  const [ exception ] = await once(port2, 'messageerror');
+    // Verify that no valid message is processed
+    port2.on('message', common.mustNotCall());
 
-  assert.match(exception.message, /Missing internal module/);
-  port2.close();
-})().then(common.mustCall());
+    // Capture the 'messageerror' event and validate the error
+    const [exception] = await once(port2, 'messageerror');
+    assert.match(exception.message, /Missing internal module/, 'Unexpected error message');
+
+    port2.close();
+  });
+});
