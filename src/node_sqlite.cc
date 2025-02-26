@@ -7,6 +7,7 @@
 #include "node.h"
 #include "node_errors.h"
 #include "node_mem-inl.h"
+#include "node_url.h"
 #include "sqlite3.h"
 #include "threadpoolwork-inl.h"
 #include "util-inl.h"
@@ -181,10 +182,11 @@ class BackupJob : public ThreadPoolWork {
   void ScheduleBackup() {
     Isolate* isolate = env()->isolate();
     HandleScope handle_scope(isolate);
-    backup_status_ = sqlite3_open_v2(destination_name_.c_str(),
-                                     &dest_,
-                                     SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
-                                     nullptr);
+    backup_status_ = sqlite3_open_v2(
+        destination_name_.c_str(),
+        &dest_,
+        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_URI,
+        nullptr);
     Local<Promise::Resolver> resolver =
         Local<Promise::Resolver>::New(env()->isolate(), resolver_);
     if (backup_status_ != SQLITE_OK) {
@@ -503,11 +505,14 @@ bool DatabaseSync::Open() {
   }
 
   // TODO(cjihrig): Support additional flags.
+  int default_flags = SQLITE_OPEN_URI;
   int flags = open_config_.get_read_only()
                   ? SQLITE_OPEN_READONLY
                   : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
-  int r = sqlite3_open_v2(
-      open_config_.location().c_str(), &connection_, flags, nullptr);
+  int r = sqlite3_open_v2(open_config_.location().c_str(),
+                          &connection_,
+                          flags | default_flags,
+                          nullptr);
   CHECK_ERROR_OR_THROW(env()->isolate(), this, r, SQLITE_OK, false);
 
   r = sqlite3_db_config(connection_,
@@ -585,27 +590,85 @@ bool DatabaseSync::ShouldIgnoreSQLiteError() {
   return ignore_next_sqlite_error_;
 }
 
+std::optional<std::string> ValidateDatabasePath(Environment* env,
+                                                Local<Value> path,
+                                                const std::string& field_name) {
+  auto has_null_bytes = [](const std::string& str) {
+    return str.find('\0') != std::string::npos;
+  };
+  std::string location;
+  if (path->IsString()) {
+    location = Utf8Value(env->isolate(), path.As<String>()).ToString();
+    if (!has_null_bytes(location)) {
+      return location;
+    }
+  }
+
+  if (path->IsUint8Array()) {
+    Local<Uint8Array> buffer = path.As<Uint8Array>();
+    size_t byteOffset = buffer->ByteOffset();
+    size_t byteLength = buffer->ByteLength();
+    auto data =
+        static_cast<const uint8_t*>(buffer->Buffer()->Data()) + byteOffset;
+    if (!(std::find(data, data + byteLength, 0) != data + byteLength)) {
+      Local<Value> out;
+      if (String::NewFromUtf8(env->isolate(),
+                              reinterpret_cast<const char*>(data),
+                              NewStringType::kNormal,
+                              static_cast<int>(byteLength))
+              .ToLocal(&out)) {
+        return Utf8Value(env->isolate(), out.As<String>()).ToString();
+      }
+    }
+  }
+
+  // When is URL
+  if (path->IsObject()) {
+    Local<Object> url = path.As<Object>();
+    Local<Value> href;
+    Local<Value> protocol;
+    if (url->Get(env->context(), env->href_string()).ToLocal(&href) &&
+        href->IsString() &&
+        url->Get(env->context(), env->protocol_string()).ToLocal(&protocol) &&
+        protocol->IsString()) {
+      location = Utf8Value(env->isolate(), href.As<String>()).ToString();
+      if (!has_null_bytes(location)) {
+        auto file_url = ada::parse(location);
+        CHECK(file_url);
+        if (file_url->type != ada::scheme::FILE) {
+          THROW_ERR_INVALID_URL_SCHEME(env->isolate());
+          return std::nullopt;
+        }
+
+        return location;
+      }
+    }
+  }
+
+  THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
+                             "The \"%s\" argument must be a string, "
+                             "Uint8Array, or URL without null bytes.",
+                             field_name.c_str());
+
+  return std::nullopt;
+}
+
 void DatabaseSync::New(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
-
   if (!args.IsConstructCall()) {
     THROW_ERR_CONSTRUCT_CALL_REQUIRED(env);
     return;
   }
 
-  if (!args[0]->IsString()) {
-    THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
-                               "The \"path\" argument must be a string.");
+  std::optional<std::string> location =
+      ValidateDatabasePath(env, args[0], "path");
+  if (!location.has_value()) {
     return;
   }
 
-  std::string location =
-      Utf8Value(env->isolate(), args[0].As<String>()).ToString();
-  DatabaseOpenConfiguration open_config(std::move(location));
-
+  DatabaseOpenConfiguration open_config(std::move(location.value()));
   bool open = true;
   bool allow_load_extension = false;
-
   if (args.Length() > 1) {
     if (!args[1]->IsObject()) {
       THROW_ERR_INVALID_ARG_TYPE(env->isolate(),
@@ -984,17 +1047,15 @@ void Backup(const FunctionCallbackInfo<Value>& args) {
   DatabaseSync* db;
   ASSIGN_OR_RETURN_UNWRAP(&db, args[0].As<Object>());
   THROW_AND_RETURN_ON_BAD_STATE(env, !db->IsOpen(), "database is not open");
-  if (!args[1]->IsString()) {
-    THROW_ERR_INVALID_ARG_TYPE(
-        env->isolate(), "The \"destination\" argument must be a string.");
+  std::optional<std::string> dest_path =
+      ValidateDatabasePath(env, args[1], "path");
+  if (!dest_path.has_value()) {
     return;
   }
 
   int rate = 100;
   std::string source_db = "main";
   std::string dest_db = "main";
-
-  Utf8Value dest_path(env->isolate(), args[1].As<String>());
   Local<Function> progressFunc = Local<Function>();
 
   if (args.Length() > 2) {
@@ -1077,12 +1138,11 @@ void Backup(const FunctionCallbackInfo<Value>& args) {
   }
 
   args.GetReturnValue().Set(resolver->GetPromise());
-
   BackupJob* job = new BackupJob(env,
                                  db,
                                  resolver,
                                  std::move(source_db),
-                                 *dest_path,
+                                 dest_path.value(),
                                  std::move(dest_db),
                                  rate,
                                  progressFunc);

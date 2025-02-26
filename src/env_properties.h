@@ -194,6 +194,7 @@
   V(host_string, "host")                                                       \
   V(hostmaster_string, "hostmaster")                                           \
   V(hostname_string, "hostname")                                               \
+  V(href_string, "href")                                                       \
   V(http_1_1_string, "http/1.1")                                               \
   V(id_string, "id")                                                           \
   V(identity_string, "identity")                                               \
