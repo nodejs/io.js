@@ -7510,6 +7510,23 @@ added:
 
 Free blocks available to unprivileged users.
 
+```cjs
+const { statfs } = require('node:fs');
+// Calculate available space in bytes
+statfs('.', (err, stats) => {
+  const availableSpace = stats.bavail * stats.bsize;
+  console.log(`Available space for unprivileged users: ${availableSpace} bytes`);
+});
+```
+```mjs
+import { statfs } from 'node:fs';
+// Calculate available space in bytes
+statfs('.', (err, stats) => {
+  const availableSpace = stats.bavail * stats.bsize;
+  console.log(`Available space for unprivileged users: ${availableSpace} bytes`);
+});
+```
+
 #### `statfs.bfree`
 
 <!-- YAML
@@ -7521,6 +7538,23 @@ added:
 * {number|bigint}
 
 Free blocks in file system.
+
+```cjs
+const { statfs } = require('node:fs');
+// Calculate total free space in bytes using bfree and bsize
+statfs('.', (err, stats) => {
+  const totalFreeSpace = stats.bfree * stats.bsize;
+  console.log(`Total free space (including reserved blocks): ${totalFreeSpace} bytes`);
+});
+```
+```mjs
+import { statfs } from 'node:fs';
+// Calculate total free space in bytes using bfree and bsize
+statfs('.', (err, stats) => {
+  const totalFreeSpace = stats.bfree * stats.bsize;
+  console.log(`Total free space (including reserved blocks): ${totalFreeSpace} bytes`);
+});
+```
 
 #### `statfs.blocks`
 
@@ -7534,6 +7568,23 @@ added:
 
 Total data blocks in file system.
 
+```cjs
+const { statfs } = require('node:fs');
+// Get the total number of blocks
+statfs('.', (err, stats) => {
+  const totalBlocks = stats.blocks;
+  console.log(`Total number of blocks on the filesystem: ${totalBlocks}`);
+});
+```
+```mjs
+import { statfs } from 'node:fs';
+// Get the total number of blocks
+statfs('.', (err, stats) => {
+  const totalBlocks = stats.blocks;
+  console.log(`Total number of blocks on the filesystem: ${totalBlocks}`);
+});
+```
+
 #### `statfs.bsize`
 
 <!-- YAML
@@ -7544,7 +7595,7 @@ added:
 
 * {number|bigint}
 
-Optimal transfer block size.
+Optimal transfer block size (measured in bytes).
 
 #### `statfs.ffree`
 
@@ -7570,6 +7621,23 @@ added:
 
 Total file nodes in file system.
 
+```cjs
+const { statfs } = require('node:fs');
+// Calculate total file nodes in file system
+statfs('.', (err, stats) => {
+  const totalInodes = stats.files;
+  console.log(`Total number of inodes (files) on filesystem: ${totalInodes}`);
+});
+```
+```mjs
+import { statfs } from 'node:fs';
+// Calculate total file nodes in file system
+statfs('.', (err, stats) => {
+  const totalInodes = stats.files;
+  console.log(`Total number of inodes (files) on filesystem: ${totalInodes}`);
+});
+```
+
 #### `statfs.type`
 
 <!-- YAML
@@ -7580,7 +7648,96 @@ added:
 
 * {number|bigint}
 
-Type of file system.
+Type of file system, represented by the decimal form of the file's magic number.
+
+Here are some common filesystems and their magic numbers:
+<table>
+  <tr>
+    <th>Filesystem</th>
+    <th>Magic Number (Hexadecimal)</th>
+    <th>Description</th>
+  </tr>
+  <tr>
+    <td>ext2</td>
+    <td>0xEF53</td>
+    <td>Second Extended File System (Linux)</td>
+  </tr>
+  <tr>
+    <td>ext3</td>
+    <td>0xEF53</td>
+    <td>Third Extended File System (Linux)</td>
+  </tr>
+  <tr>
+    <td>ext4</td>
+    <td>0xEF53</td>
+    <td>Fourth Extended File System (Linux)</td>
+  </tr>
+  <tr>
+    <td>Btrfs</td>
+    <td>0x9123683E</td>
+    <td>B-tree File System (Linux)</td>
+  </tr>
+  <tr>
+    <td>XFS</td>
+    <td>0x58465342</td>
+    <td>X File System (Linux)</td>
+  </tr>
+  <tr>
+    <td>FAT</td>
+    <td>0xadf5</td>
+    <td>File Allocation Table (legacy FAT)</td>
+  </tr>
+  <tr>
+    <td>NFS</td>
+    <td>0x6969</td>
+    <td>Network File System</td>
+  </tr>
+  <tr>
+    <td>ISO 9660</td>
+    <td>0x9660</td>
+    <td>CD-ROM File System</td>
+  </tr>
+  <tr>
+    <td>SMB/CIFS</td>
+    <td>0xFF534D42</td>
+    <td>Server Message Block / Common Internet File System</td>
+  </tr>
+  <tr>
+    <td>JFFS2</td>
+    <td>0x72B6</td>
+    <td>Journaling Flash File System</td>
+  </tr>
+  <tr>
+    <td>UDF</td>
+    <td>0x15013346</td>
+    <td>Universal Disk Format</td>
+  </tr>
+  <tr>
+    <td>procfs</td>
+    <td>0x9fa0</td>
+    <td>Process File System</td>
+  </tr>
+  <tr>
+    <td>sysfs</td>
+    <td>0x62656572</td>
+    <td>System File System</td>
+  </tr>
+  <tr>
+    <td>tmpfs</td>
+    <td>0x01021994</td>
+    <td>Temporary File System</td>
+  </tr>
+  <tr>
+    <td>cgroupfs</td>
+    <td>0x27e0eb</td>
+    <td>Control Group File System</td>
+  </tr>
+  <tr>
+    <td>ramfs</td>
+    <td>0x858458f6</td>
+    <td>RAM File System</td>
+  </tr>
+</table>
 
 ### Class: `fs.WriteStream`
 
