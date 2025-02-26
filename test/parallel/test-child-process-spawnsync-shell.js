@@ -20,9 +20,10 @@ else
 
 // Verify that passing arguments works
 common.expectWarning(
-  'Warning',
+  'DeprecationWarning',
   'Passing args to a child process with shell option true can lead to security ' +
-  'vulnerabilities, as the arguments are not escaped, only concatenated.');
+  'vulnerabilities, as the arguments are not escaped, only concatenated.',
+  'DEP0190');
 
 internalCp.spawnSync = common.mustCall(function(opts) {
   assert.strictEqual(opts.args[opts.args.length - 1].replace(/"/g, ''),

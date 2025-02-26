@@ -3840,6 +3840,21 @@ Type: Documentation-only
 `process.features.tls_alpn`, `process.features.tls_ocsp`, and `process.features.tls_sni` are
 deprecated, as their values are guaranteed to be identical to that of `process.features.tls`.
 
+### DEP0190: Passing args to child\_process `execFile`/`spawn` with shell option true
+
+<!-- YAML
+changes:
+  - version:
+    - v24.0.0
+    pr-url: https://github.com/nodejs/node/pull/57199
+    description: Runtime deprecation.
+-->
+
+Type: Runtime
+
+When args are passed to `child_process.execFile` or `child_process.spawn` with the option
+`{ shell: true }`, the args are not escaped, only concatenated, which can lead to security issues.
+
 [NIST SP 800-38D]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 [RFC 6066]: https://tools.ietf.org/html/rfc6066#section-3
 [RFC 8247 Section 2.4]: https://www.rfc-editor.org/rfc/rfc8247#section-2.4
