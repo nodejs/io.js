@@ -198,6 +198,13 @@ MaybeLocal<Value> ExternTwoByteString::NewSimpleFromCopy(Isolate* isolate,
 
 }  // anonymous namespace
 
+static size_t keep_buflen_in_range(size_t len) {
+  if (len > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return static_cast<size_t>(std::numeric_limits<int>::max());
+  }
+  return len;
+}
+
 size_t StringBytes::WriteUCS2(
     Isolate* isolate, char* buf, size_t buflen, Local<String> str, int flags) {
   uint16_t* const dst = reinterpret_cast<uint16_t*>(buf);
@@ -243,7 +250,7 @@ size_t StringBytes::Write(Isolate* isolate,
                           enum encoding encoding) {
   HandleScope scope(isolate);
   size_t nbytes;
-
+  buflen = keep_buflen_in_range(buflen);
   CHECK(val->IsString() == true);
   Local<String> str = val.As<String>();
   String::ValueView input_view(isolate, str);
@@ -516,6 +523,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
       }
 
     case ASCII:
+      buflen = keep_buflen_in_range(buflen);
       if (simdutf::validate_ascii_with_errors(buf, buflen).error) {
         // The input contains non-ASCII bytes.
         char* out = node::UncheckedMalloc(buflen);
@@ -529,23 +537,23 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
         return ExternOneByteString::NewFromCopy(isolate, buf, buflen, error);
       }
 
-    case UTF8:
-      {
-        val = String::NewFromUtf8(isolate,
-                                  buf,
-                                  v8::NewStringType::kNormal,
-                                  buflen);
-        Local<String> str;
-        if (!val.ToLocal(&str)) {
-          *error = node::ERR_STRING_TOO_LONG(isolate);
-        }
-        return str;
+    case UTF8: {
+      buflen = keep_buflen_in_range(buflen);
+      val =
+          String::NewFromUtf8(isolate, buf, v8::NewStringType::kNormal, buflen);
+      Local<String> str;
+      if (!val.ToLocal(&str)) {
+        *error = node::ERR_STRING_TOO_LONG(isolate);
       }
+      return str;
+    }
 
     case LATIN1:
+      buflen = keep_buflen_in_range(buflen);
       return ExternOneByteString::NewFromCopy(isolate, buf, buflen, error);
 
     case BASE64: {
+      buflen = keep_buflen_in_range(buflen);
       size_t dlen = simdutf::base64_length_from_binary(buflen);
       char* dst = node::UncheckedMalloc(dlen);
       if (dst == nullptr) {
@@ -560,6 +568,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
     }
 
     case BASE64URL: {
+      buflen = keep_buflen_in_range(buflen);
       size_t dlen =
           simdutf::base64_length_from_binary(buflen, simdutf::base64_url);
       char* dst = node::UncheckedMalloc(dlen);
@@ -576,6 +585,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
     }
 
     case HEX: {
+      buflen = keep_buflen_in_range(buflen);
       size_t dlen = buflen * 2;
       char* dst = node::UncheckedMalloc(dlen);
       if (dst == nullptr) {
@@ -589,6 +599,7 @@ MaybeLocal<Value> StringBytes::Encode(Isolate* isolate,
     }
 
     case UCS2: {
+      buflen = keep_buflen_in_range(buflen);
       size_t str_len = buflen / 2;
       if constexpr (IsBigEndian()) {
         uint16_t* dst = node::UncheckedMalloc<uint16_t>(str_len);
