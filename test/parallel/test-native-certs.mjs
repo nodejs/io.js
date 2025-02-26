@@ -18,26 +18,39 @@ if (!common.hasCrypto) {
 //    $ security add-trusted-cert \
 //       -k /Users/$USER/Library/Keychains/login.keychain-db \
 //       test/fixtures/keys/fake-startcom-root-cert.pem
+//    $ security add-certificates \
+//        -k /Users/$USER/Library/Keychains/login.keychain-db \
+//        test/fixtures/keys/intermediate-ca.pem
 //   2. To remove the certificate:
 //     $ security delete-certificate -c 'StartCom Certification Authority' \
+//         -t /Users/$USER/Library/Keychains/login.keychain-db
+//     $ security delete-certificate -c 'NodeJS-Test-Intermediate-CA' \
 //         -t /Users/$USER/Library/Keychains/login.keychain-db
 //
 // On Windows:
 //   1. To add the certificate in PowerShell (remember the thumbprint printed):
 //    $ Import-Certificate -FilePath .\test\fixtures\keys\fake-startcom-root-cert.cer \
 //       -CertStoreLocation Cert:\CurrentUser\Root
+//    $ Import-Certificate -FilePath .\test\fixtures\keys\intermediate-ca.pem \
+//       -CertStoreLocation Cert:\CurrentUser\CA
 //   2. To remove the certificate by the thumbprint:
 //    $  $thumbprint = (Get-ChildItem -Path Cert:\CurrentUser\Root | \
 //          Where-Object { $_.Subject -match "StartCom Certification Authority" }).Thumbprint
 //    $  Remove-Item -Path "Cert:\CurrentUser\Root\$thumbprint"
+//    $  $thumbprint = (Get-ChildItem -Path Cert:\CurrentUser\CA | \
+//          Where-Object { $_.Subject -match "NodeJS-Test-Intermediate-CA" }).Thumbprint
+//    $  Remove-Item -Path "Cert:\CurrentUser\CA\$thumbprint"
 //
 // On Debian/Ubuntu:
 //   1. To add the certificate:
 //     $ sudo cp test/fixtures/keys/fake-startcom-root-cert.pem \
 //       /usr/local/share/ca-certificates/fake-startcom-root-cert.crt
+//     $ sudo cp test/fixtures/keys/intermediate-ca.pem \
+//       /usr/local/share/ca-certificates/intermediate-ca.crt
 //     $ sudo update-ca-certificates
 //   2. To remove the certificate
-//     $ sudo rm /usr/local/share/ca-certificates/fake-startcom-root-cert.crt
+//     $ sudo rm /usr/local/share/ca-certificates/fake-startcom-root-cert.crt \
+//       /usr/local/share/ca-certificates/intermediate-ca.crt
 //     $ sudo update-ca-certificates --fresh
 //
 // For other Unix-like systems, consult their manuals, there are usually
@@ -56,22 +69,48 @@ const handleRequest = (req, res) => {
 };
 
 describe('use-system-ca', function() {
-  let server;
 
-  beforeEach(async function() {
-    server = https.createServer({
-      key: fixtures.readKey('agent8-key.pem'),
-      cert: fixtures.readKey('agent8-cert.pem'),
+  async function setupServer(key, cert) {
+    const theServer = https.createServer({
+      key: fixtures.readKey(key),
+      cert: fixtures.readKey(cert),
     }, handleRequest);
-    server.listen(0);
-    await once(server, 'listening');
+    theServer.listen(0);
+    await once(theServer, 'listening');
+
+    return theServer;
+  }
+
+  describe('signed with a root certificate', () => {
+    let server;
+
+    beforeEach(async function() {
+      server = await setupServer('agent8-key.pem', 'agent8-cert.pem');
+    });
+
+    it('can connect successfully', async function() {
+      await fetch(`https://localhost:${server.address().port}/hello-world`);
+    });
+
+    afterEach(async function() {
+      server?.close();
+    });
   });
 
-  it('can connect successfully with a trusted certificate', async function() {
-    await fetch(`https://localhost:${server.address().port}/hello-world`);
+  describe('signed with an intermediate CA certificate', () => {
+    let server;
+
+    beforeEach(async function() {
+      server = await setupServer('leaf-from-intermediate-key.pem', 'leaf-from-intermediate-cert.pem');
+    });
+
+    it('can connect successfully', async function() {
+      await fetch(`https://localhost:${server.address().port}/hello-world`);
+    });
+
+    afterEach(async function() {
+      server?.close();
+    });
   });
 
-  afterEach(async function() {
-    server?.close();
-  });
 });
