@@ -3561,3 +3561,10 @@ napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env,
 
   return napi_clear_last_error(env);
 }
+
+napi_status NAPI_CDECL napi_can_call_into_js(napi_env env, bool* result) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, result);
+  *result = (env)->can_call_into_js();
+  return napi_clear_last_error(env);
+}
