@@ -19,6 +19,11 @@ else
   assert.strictEqual(doesNotExist.status, 127);  // Exit code of /bin/sh
 
 // Verify that passing arguments works
+common.expectWarning(
+  'Warning',
+  'Passing args to a child process with shell option true can lead to security ' +
+  'vulnerabilities, as the arguments are not escaped, only concatenated.');
+
 internalCp.spawnSync = common.mustCall(function(opts) {
   assert.strictEqual(opts.args[opts.args.length - 1].replace(/"/g, ''),
                      'echo foo');
