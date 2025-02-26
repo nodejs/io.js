@@ -5,7 +5,6 @@ const { join } = require('node:path');
 const { DatabaseSync, constants } = require('node:sqlite');
 const { suite, test } = require('node:test');
 const { pathToFileURL } = require('node:url');
-
 let cnt = 0;
 
 tmpdir.refresh();
@@ -153,6 +152,54 @@ test('URL query params are supported', (t) => {
   `);
 
   const readOnlyDB = new DatabaseSync(`${url}?mode=ro`);
+  t.after(() => { readOnlyDB.close(); });
+
+  t.assert.deepStrictEqual(
+    readOnlyDB.prepare('SELECT * FROM data').all(),
+    [{ __proto__: null, key: 1 }]
+  );
+  t.assert.throws(() => {
+    readOnlyDB.exec('INSERT INTO data (key) VALUES (1);');
+  }, {
+    code: 'ERR_SQLITE_ERROR',
+    message: 'attempt to write a readonly database',
+  });
+});
+
+test('URI as a string is accepted', (t) => {
+  const url = `file:${nextDb()}`;
+  const db = new DatabaseSync(url);
+  db.exec(`
+    CREATE TABLE data(key INTEGER PRIMARY KEY);
+    INSERT INTO data (key) VALUES (1);
+  `);
+  db.close();
+
+  const readOnlyDB = new DatabaseSync(`${url}?mode=ro`);
+  t.after(() => { readOnlyDB.close(); });
+
+  t.assert.deepStrictEqual(
+    readOnlyDB.prepare('SELECT * FROM data').all(),
+    [{ __proto__: null, key: 1 }]
+  );
+  t.assert.throws(() => {
+    readOnlyDB.exec('INSERT INTO data (key) VALUES (1);');
+  }, {
+    code: 'ERR_SQLITE_ERROR',
+    message: 'attempt to write a readonly database',
+  });
+});
+
+test('URI as a Buffer is accepted', (t) => {
+  const dbPath = nextDb();
+  const db = new DatabaseSync(Buffer.from(`file:${dbPath}`));
+  db.exec(`
+    CREATE TABLE data(key INTEGER PRIMARY KEY);
+    INSERT INTO data (key) VALUES (1);
+  `);
+  db.close();
+
+  const readOnlyDB = new DatabaseSync(Buffer.from(`file:${dbPath}?mode=ro`));
   t.after(() => { readOnlyDB.close(); });
 
   t.assert.deepStrictEqual(
