@@ -21,12 +21,18 @@
 
 'use strict';
 const common = require('../common');
-const fixtures = require('../common/fixtures');
 const assert = require('assert');
+const fixtures = require('../common/fixtures');
 const fs = require('fs');
+const { describe, it } = require('node:test');
 
-const filename = fixtures.path('does_not_exist.txt');
-fs.readFile(filename, 'latin1', common.mustCall(function(err, content) {
-  assert.ok(err);
-  assert.strictEqual(err.code, 'ENOENT');
-}));
+describe('fs.readfile', () => {
+  it('should return ENOENT error code for non existing file', (_, done) => {
+    const filename = fixtures.path('does_not_exist.txt');
+    fs.readFile(filename, 'latin1', common.mustCall(function (err, _) {
+      assert.ok(err);
+      assert.strictEqual(err.code, 'ENOENT');
+      done();
+    }));
+  });
+});
