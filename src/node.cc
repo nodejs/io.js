@@ -839,6 +839,8 @@ static ExitCode InitializeNodeWithArgsInternal(
   // is security relevant, for Node it's less important.
   V8::SetFlagsFromString("--no-freeze-flags-after-init");
 
+  V8::SetFlagsFromString("--max_semi_space_size=64");
+
 #if defined(NODE_V8_OPTIONS)
   // Should come before the call to V8::SetFlagsFromCommandLine()
   // so the user can disable a flag --foo at run-time by passing
