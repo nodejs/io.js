@@ -1558,7 +1558,7 @@ unsigned int TLSWrap::PskClientCallback(
 
   Utf8Value identity_buf(env->isolate(), identity_val);
 
-  if (identity_buf.length() > max_identity_len)
+  if (*identity_buf == nullptr || identity_buf.length() > max_identity_len)
     return 0;
 
   memcpy(identity, *identity_buf, identity_buf.length());
