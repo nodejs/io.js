@@ -255,7 +255,7 @@ struct nghttp3_stream {
   };
 };
 
-nghttp3_objalloc_decl(stream, nghttp3_stream, oplent);
+nghttp3_objalloc_decl(stream, nghttp3_stream, oplent)
 
 typedef struct nghttp3_frame_entry {
   nghttp3_frame fr;
