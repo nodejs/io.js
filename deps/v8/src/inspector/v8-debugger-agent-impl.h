@@ -26,7 +26,6 @@ class V8InspectorImpl;
 class V8InspectorSessionImpl;
 class V8Regex;
 
-using protocol::Maybe;
 using protocol::Response;
 
 class V8DebuggerAgentImpl : public protocol::Debugger::Backend {
@@ -46,62 +45,70 @@ class V8DebuggerAgentImpl : public protocol::Debugger::Backend {
   void stop();
 
   // Part of the protocol.
-  Response enable(Maybe<double> maxScriptsCacheSize,
+  Response enable(std::optional<double> maxScriptsCacheSize,
                   String16* outDebuggerId) override;
   Response disable() override;
   Response setBreakpointsActive(bool active) override;
   Response setSkipAllPauses(bool skip) override;
   Response setBreakpointByUrl(
-      int lineNumber, Maybe<String16> optionalURL,
-      Maybe<String16> optionalURLRegex, Maybe<String16> optionalScriptHash,
-      Maybe<int> optionalColumnNumber, Maybe<String16> optionalCondition,
-      String16*,
+      int lineNumber, std::optional<String16> optionalURL,
+      std::optional<String16> optionalURLRegex,
+      std::optional<String16> optionalScriptHash,
+      std::optional<int> optionalColumnNumber,
+      std::optional<String16> optionalCondition, String16*,
       std::unique_ptr<protocol::Array<protocol::Debugger::Location>>* locations)
       override;
   Response setBreakpoint(
       std::unique_ptr<protocol::Debugger::Location>,
-      Maybe<String16> optionalCondition, String16*,
+      std::optional<String16> optionalCondition, String16*,
       std::unique_ptr<protocol::Debugger::Location>* actualLocation) override;
-  Response setBreakpointOnFunctionCall(const String16& functionObjectId,
-                                       Maybe<String16> optionalCondition,
-                                       String16* outBreakpointId) override;
+  Response setBreakpointOnFunctionCall(
+      const String16& functionObjectId,
+      std::optional<String16> optionalCondition,
+      String16* outBreakpointId) override;
   Response setInstrumentationBreakpoint(const String16& instrumentation,
                                         String16* outBreakpointId) override;
   Response removeBreakpoint(const String16& breakpointId) override;
-  Response continueToLocation(std::unique_ptr<protocol::Debugger::Location>,
-                              Maybe<String16> targetCallFrames) override;
+  Response continueToLocation(
+      std::unique_ptr<protocol::Debugger::Location>,
+      std::optional<String16> targetCallFrames) override;
   Response getStackTrace(
       std::unique_ptr<protocol::Runtime::StackTraceId> inStackTraceId,
       std::unique_ptr<protocol::Runtime::StackTrace>* outStackTrace) override;
   Response searchInContent(
       const String16& scriptId, const String16& query,
-      Maybe<bool> optionalCaseSensitive, Maybe<bool> optionalIsRegex,
+      std::optional<bool> optionalCaseSensitive,
+      std::optional<bool> optionalIsRegex,
       std::unique_ptr<protocol::Array<protocol::Debugger::SearchMatch>>*)
       override;
   Response getPossibleBreakpoints(
       std::unique_ptr<protocol::Debugger::Location> start,
-      Maybe<protocol::Debugger::Location> end, Maybe<bool> restrictToFunction,
+      std::unique_ptr<protocol::Debugger::Location> end,
+      std::optional<bool> restrictToFunction,
       std::unique_ptr<protocol::Array<protocol::Debugger::BreakLocation>>*
           locations) override;
   Response setScriptSource(
       const String16& inScriptId, const String16& inScriptSource,
-      Maybe<bool> dryRun, Maybe<bool> allowTopFrameEditing,
-      Maybe<protocol::Array<protocol::Debugger::CallFrame>>* optOutCallFrames,
-      Maybe<bool>* optOutStackChanged,
-      Maybe<protocol::Runtime::StackTrace>* optOutAsyncStackTrace,
-      Maybe<protocol::Runtime::StackTraceId>* optOutAsyncStackTraceId,
+      std::optional<bool> dryRun, std::optional<bool> allowTopFrameEditing,
+      std::unique_ptr<protocol::Array<protocol::Debugger::CallFrame>>*
+          optOutCallFrames,
+      std::optional<bool>* optOutStackChanged,
+      std::unique_ptr<protocol::Runtime::StackTrace>* optOutAsyncStackTrace,
+      std::unique_ptr<protocol::Runtime::StackTraceId>* optOutAsyncStackTraceId,
       String16* outStatus,
-      Maybe<protocol::Runtime::ExceptionDetails>* optOutCompileError) override;
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>* optOutCompileError)
+      override;
   Response restartFrame(
-      const String16& callFrameId, Maybe<String16> mode,
+      const String16& callFrameId, std::optional<String16> mode,
       std::unique_ptr<protocol::Array<protocol::Debugger::CallFrame>>*
           newCallFrames,
-      Maybe<protocol::Runtime::StackTrace>* asyncStackTrace,
-      Maybe<protocol::Runtime::StackTraceId>* asyncStackTraceId) override;
+      std::unique_ptr<protocol::Runtime::StackTrace>* asyncStackTrace,
+      std::unique_ptr<protocol::Runtime::StackTraceId>* asyncStackTraceId)
+      override;
   Response getScriptSource(const String16& scriptId, String16* scriptSource,
-                           Maybe<protocol::Binary>* bytecode) override;
+                           std::optional<protocol::Binary>* bytecode) override;
   Response disassembleWasmModule(
-      const String16& in_scriptId, Maybe<String16>* out_streamId,
+      const String16& in_scriptId, std::optional<String16>* out_streamId,
       int* out_totalNumberOfLines,
       std::unique_ptr<protocol::Array<int>>* out_functionBodyOffsets,
       std::unique_ptr<protocol::Debugger::WasmDisassemblyChunk>* out_chunk)
@@ -113,24 +120,26 @@ class V8DebuggerAgentImpl : public protocol::Debugger::Backend {
   Response getWasmBytecode(const String16& scriptId,
                            protocol::Binary* bytecode) override;
   Response pause() override;
-  Response resume(Maybe<bool> terminateOnResume) override;
-  Response stepOver(Maybe<protocol::Array<protocol::Debugger::LocationRange>>
-                        inSkipList) override;
-  Response stepInto(Maybe<bool> inBreakOnAsyncCall,
-                    Maybe<protocol::Array<protocol::Debugger::LocationRange>>
-                        inSkipList) override;
+  Response resume(std::optional<bool> terminateOnResume) override;
+  Response stepOver(
+      std::unique_ptr<protocol::Array<protocol::Debugger::LocationRange>>
+          inSkipList) override;
+  Response stepInto(
+      std::optional<bool> inBreakOnAsyncCall,
+      std::unique_ptr<protocol::Array<protocol::Debugger::LocationRange>>
+          inSkipList) override;
   Response stepOut() override;
   Response pauseOnAsyncCall(std::unique_ptr<protocol::Runtime::StackTraceId>
                                 inParentStackTraceId) override;
   Response setPauseOnExceptions(const String16& pauseState) override;
   Response evaluateOnCallFrame(
       const String16& callFrameId, const String16& expression,
-      Maybe<String16> objectGroup, Maybe<bool> includeCommandLineAPI,
-      Maybe<bool> silent, Maybe<bool> returnByValue,
-      Maybe<bool> generatePreview, Maybe<bool> throwOnSideEffect,
-      Maybe<double> timeout,
+      std::optional<String16> objectGroup,
+      std::optional<bool> includeCommandLineAPI, std::optional<bool> silent,
+      std::optional<bool> returnByValue, std::optional<bool> generatePreview,
+      std::optional<bool> throwOnSideEffect, std::optional<double> timeout,
       std::unique_ptr<protocol::Runtime::RemoteObject>* result,
-      Maybe<protocol::Runtime::ExceptionDetails>*) override;
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>*) override;
   Response setVariableValue(
       int scopeNumber, const String16& variableName,
       std::unique_ptr<protocol::Runtime::CallArgument> newValue,
@@ -139,7 +148,10 @@ class V8DebuggerAgentImpl : public protocol::Debugger::Backend {
       std::unique_ptr<protocol::Runtime::CallArgument> newValue) override;
   Response setAsyncCallStackDepth(int depth) override;
   Response setBlackboxPatterns(
-      std::unique_ptr<protocol::Array<String16>> patterns) override;
+      std::unique_ptr<protocol::Array<String16>> patterns,
+      std::optional<bool> skipAnonymous) override;
+  Response setBlackboxExecutionContexts(
+      std::unique_ptr<protocol::Array<String16>> uniqueIds) override;
   Response setBlackboxedRanges(
       const String16& scriptId,
       std::unique_ptr<protocol::Array<protocol::Debugger::ScriptPosition>>
@@ -270,11 +282,13 @@ class V8DebuggerAgentImpl : public protocol::Debugger::Backend {
   bool m_skipAllPauses = false;
   bool m_breakpointsActive = false;
   bool m_instrumentationFinished = true;
+  bool m_skipAnonymousScripts = false;
 
   std::unique_ptr<V8Regex> m_blackboxPattern;
   std::unordered_map<String16, std::vector<std::pair<int, int>>>
       m_blackboxedPositions;
   std::unordered_map<String16, std::vector<std::pair<int, int>>> m_skipList;
+  std::unordered_set<String16> m_blackboxedExecutionContexts;
 };
 
 }  // namespace v8_inspector

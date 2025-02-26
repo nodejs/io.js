@@ -142,8 +142,8 @@ V8_INLINE Address PointerAuthentication::SignAndCheckPC(Isolate* isolate,
                                                         Address pc,
                                                         Address sp) {
   pc = impl::SignPC(pc, sp);
-  CHECK(Deoptimizer::IsValidReturnAddress(PointerAuthentication::StripPAC(pc),
-                                          isolate));
+  Deoptimizer::EnsureValidReturnAddress(isolate,
+                                        PointerAuthentication::StripPAC(pc));
   return pc;
 }
 

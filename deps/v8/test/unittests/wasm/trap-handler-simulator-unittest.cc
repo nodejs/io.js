@@ -114,11 +114,11 @@ TEST_F(SimulatorTrapHandlerTest, ProbeMemoryWithLandingPad) {
   // Test that the trap handler can recover a memory access violation in
   // wasm code (we fake the wasm code and the access violation).
   std::unique_ptr<TestingAssemblerBuffer> buffer = AllocateAssemblerBuffer();
+  MacroAssembler masm(isolate(), AssemblerOptions{}, CodeObjectRequired::kNo,
+                      buffer->CreateView());
 
 #ifdef V8_TARGET_ARCH_ARM64
   constexpr Register scratch = x0;
-  MacroAssembler masm(nullptr, AssemblerOptions{}, CodeObjectRequired::kNo,
-                      buffer->CreateView());
   // Generate an illegal memory access.
   masm.Mov(scratch, InaccessibleMemoryPtr());
   uint32_t crash_offset = masm.pc_offset();
@@ -128,8 +128,6 @@ TEST_F(SimulatorTrapHandlerTest, ProbeMemoryWithLandingPad) {
   masm.Ret();
 #elif V8_TARGET_ARCH_LOONG64
   constexpr Register scratch = a0;
-  MacroAssembler masm(nullptr, AssemblerOptions{}, CodeObjectRequired::kNo,
-                      buffer->CreateView());
   // Generate an illegal memory access.
   masm.li(scratch, static_cast<int64_t>(InaccessibleMemoryPtr()));
   uint32_t crash_offset = masm.pc_offset();
@@ -139,8 +137,6 @@ TEST_F(SimulatorTrapHandlerTest, ProbeMemoryWithLandingPad) {
   masm.Ret();
 #elif V8_TARGET_ARCH_RISCV64
   constexpr Register scratch = a0;
-  MacroAssembler masm(nullptr, AssemblerOptions{}, CodeObjectRequired::kNo,
-                      buffer->CreateView());
   // Generate an illegal memory access.
   masm.li(scratch, static_cast<int64_t>(InaccessibleMemoryPtr()));
   uint32_t crash_offset = masm.pc_offset();

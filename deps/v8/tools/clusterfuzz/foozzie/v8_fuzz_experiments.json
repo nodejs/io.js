@@ -7,7 +7,7 @@
   [15, "ignition", "ignition_turbo_opt", "d8"],
   [5, "ignition_no_ic", "ignition_turbo_opt", "d8"],
   [15, "ignition", "ignition_maglev", "d8"],
-  [5, "ignition_turbo", "ignition_turbo_opt", "clang_x64_pointer_compression/d8"],
+  [5, "ignition_turbo", "ignition_turbo_opt", "clang_x64_fuzzer_experiments/d8"],
   [5, "ignition", "ignition", "clang_x86/d8"],
   [5, "ignition", "ignition_turbo_opt", "clang_x86/d8"],
   [5, "ignition", "slow_path", "clang_x86/d8"],

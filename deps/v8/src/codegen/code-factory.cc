@@ -15,8 +15,8 @@ namespace v8 {
 namespace internal {
 
 // static
-Handle<Code> CodeFactory::RuntimeCEntry(Isolate* isolate, int result_size,
-                                        bool switch_to_central_stack) {
+DirectHandle<Code> CodeFactory::RuntimeCEntry(Isolate* isolate, int result_size,
+                                              bool switch_to_central_stack) {
   return CodeFactory::CEntry(isolate, result_size, ArgvMode::kStack, false,
                              switch_to_central_stack);
 }

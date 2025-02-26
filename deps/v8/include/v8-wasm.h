@@ -199,6 +199,30 @@ class V8_EXPORT WasmStreaming final {
   std::unique_ptr<WasmStreamingImpl> impl_;
 };
 
+/**
+ * The V8 interface for a WebAssembly memory map descriptor. This is an
+ * experimental feature that may change and be removed without further
+ * communication.
+ */
+class V8_EXPORT WasmMemoryMapDescriptor : public Object {
+ public:
+  WasmMemoryMapDescriptor() = delete;
+
+  V8_INLINE static WasmMemoryMapDescriptor* Cast(Value* value) {
+#ifdef V8_ENABLE_CHECKS
+    CheckCast(value);
+#endif
+    return static_cast<WasmMemoryMapDescriptor*>(value);
+  }
+
+  using WasmFileDescriptor = int32_t;
+
+  static Local<WasmMemoryMapDescriptor> New(Isolate* isolate,
+                                            WasmFileDescriptor fd);
+
+ private:
+  static void CheckCast(Value* object);
+};
 }  // namespace v8
 
 #endif  // INCLUDE_V8_WASM_H_

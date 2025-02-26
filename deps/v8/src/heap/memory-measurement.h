@@ -33,8 +33,8 @@ class MemoryMeasurement {
   void FinishProcessing(const NativeContextStats& stats);
 
   static std::unique_ptr<v8::MeasureMemoryDelegate> DefaultDelegate(
-      Isolate* isolate, Handle<NativeContext> context,
-      Handle<JSPromise> promise, v8::MeasureMemoryMode mode);
+      v8::Isolate* isolate, v8::Local<v8::Context> context,
+      v8::Local<v8::Promise::Resolver> promise, v8::MeasureMemoryMode mode);
 
  private:
   static const int kGCTaskDelayInSeconds = 10;

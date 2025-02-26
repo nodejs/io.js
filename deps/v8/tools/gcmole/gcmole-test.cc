@@ -353,5 +353,13 @@ void TestGuardedDeadVarAnalysisMultipleSafepoints(Isolate* isolate) {
   Print(raw_obj);
 }
 
+void TestVariableScopeInsideIf(Isolate* isolate) {
+  Safepoint();
+  Tagged<SomeObject> raw_obj;
+  if (Tagged<Map> raw_map = raw_obj->map(); !raw_map.is_null()) {
+    Print(raw_map);
+  }
+}
+
 }  // namespace internal
 }  // namespace v8

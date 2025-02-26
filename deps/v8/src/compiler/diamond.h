@@ -6,8 +6,8 @@
 #define V8_COMPILER_DIAMOND_H_
 
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/node.h"
+#include "src/compiler/turbofan-graph.h"
 
 namespace v8 {
 namespace internal {

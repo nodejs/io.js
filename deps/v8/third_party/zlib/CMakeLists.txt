@@ -386,6 +386,7 @@ if (BUILD_MINIZIP_BIN)
   add_executable(minizip_bin contrib/minizip/minizip.c contrib/minizip/ioapi.c
     contrib/minizip/ioapi.h contrib/minizip/unzip.c
     contrib/minizip/unzip.h contrib/minizip/zip.c contrib/minizip/zip.h
+    contrib/minizip/ints.h contrib/minizip/skipset.h
     )
   target_link_libraries(minizip_bin zlib)
 endif()

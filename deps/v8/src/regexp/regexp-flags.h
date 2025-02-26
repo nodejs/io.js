@@ -6,6 +6,7 @@
 #define V8_REGEXP_REGEXP_FLAGS_H_
 
 #include <optional>
+#include <ostream>
 
 #include "src/base/flags.h"
 

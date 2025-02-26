@@ -111,7 +111,7 @@ RUNTIME_FUNCTION(Runtime_WeakCollectionDelete) {
   HandleScope scope(isolate);
   DCHECK_EQ(3, args.length());
   DirectHandle<JSWeakCollection> weak_collection = args.at<JSWeakCollection>(0);
-  Handle<Object> key = args.at(1);
+  DirectHandle<Object> key = args.at(1);
   int hash = args.smi_value_at(2);
 
 #ifdef DEBUG
@@ -133,7 +133,7 @@ RUNTIME_FUNCTION(Runtime_WeakCollectionSet) {
   HandleScope scope(isolate);
   DCHECK_EQ(4, args.length());
   DirectHandle<JSWeakCollection> weak_collection = args.at<JSWeakCollection>(0);
-  Handle<Object> key = args.at(1);
+  DirectHandle<Object> key = args.at(1);
   DirectHandle<Object> value = args.at(2);
   int hash = args.smi_value_at(3);
 

@@ -96,7 +96,7 @@ inline void WasmInterpreter::BeginExecution(WasmInterpreterThread* thread,
                                             uint8_t* interpreter_fp) {
   codemap_.GetCode(function_index);
   wasm_runtime_->BeginExecution(thread, function_index, frame_pointer,
-                                interpreter_fp, 0);
+                                interpreter_fp, thread->NextRefStackOffset());
 }
 
 inline WasmValue WasmInterpreter::GetReturnValue(int index) const {
@@ -115,104 +115,6 @@ inline int WasmInterpreter::GetFunctionIndex(Address frame_pointer,
 
 inline void WasmInterpreter::SetTrapFunctionIndex(int32_t func_index) {
   wasm_runtime_->SetTrapFunctionIndex(func_index);
-}
-
-template <typename T>
-inline T Read(const uint8_t*& code) {
-  T res = base::ReadUnalignedValue<T>(reinterpret_cast<Address>(code));
-  code += sizeof(T);
-  return res;
-}
-
-// Returns the maximum of the two parameters according to JavaScript semantics.
-template <typename T>
-inline T JSMax(T x, T y) {
-  if (std::isnan(x) || std::isnan(y)) {
-    return std::numeric_limits<T>::quiet_NaN();
-  }
-  if (std::signbit(x) < std::signbit(y)) return x;
-  return x > y ? x : y;
-}
-
-// Returns the minimum of the two parameters according to JavaScript semantics.
-template <typename T>
-inline T JSMin(T x, T y) {
-  if (std::isnan(x) || std::isnan(y)) {
-    return std::numeric_limits<T>::quiet_NaN();
-  }
-  if (std::signbit(x) < std::signbit(y)) return y;
-  return x > y ? y : x;
-}
-
-inline uint8_t* ReadMemoryAddress(uint8_t*& code) {
-  Address res =
-      base::ReadUnalignedValue<Address>(reinterpret_cast<Address>(code));
-  code += sizeof(Address);
-  return reinterpret_cast<uint8_t*>(res);
-}
-
-inline uint32_t ReadGlobalIndex(const uint8_t*& code) {
-  uint32_t res =
-      base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(code));
-  code += sizeof(uint32_t);
-  return res;
-}
-
-template <typename T>
-inline void push(uint32_t*& sp, const uint8_t*& code,
-                 WasmInterpreterRuntime* wasm_runtime, T val) {
-  uint32_t offset = Read<int32_t>(code);
-  base::WriteUnalignedValue<T>(reinterpret_cast<Address>(sp + offset), val);
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution)
-    wasm_runtime->TracePush<T>(offset * kSlotSize);
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-}
-
-template <>
-inline void push(uint32_t*& sp, const uint8_t*& code,
-                 WasmInterpreterRuntime* wasm_runtime, WasmRef ref) {
-  uint32_t offset = Read<int32_t>(code);
-  uint32_t ref_stack_index = Read<int32_t>(code);
-  base::WriteUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + offset),
-                                      kSlotsZapValue);
-  //*reinterpret_cast<uint64_t*>(sp + offset) = kSlotsZapValue;
-  wasm_runtime->StoreWasmRef(ref_stack_index, ref);
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution)
-    wasm_runtime->TracePush<WasmRef>(offset * kSlotSize);
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-}
-
-template <typename T>
-inline T pop(uint32_t*& sp, const uint8_t*& code,
-             WasmInterpreterRuntime* wasm_runtime) {
-  uint32_t offset = Read<int32_t>(code);
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) wasm_runtime->TracePop();
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-  return base::ReadUnalignedValue<T>(reinterpret_cast<Address>(sp + offset));
-}
-
-template <>
-inline WasmRef pop(uint32_t*& sp, const uint8_t*& code,
-                   WasmInterpreterRuntime* wasm_runtime) {
-  uint32_t ref_stack_index = Read<int32_t>(code);
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) wasm_runtime->TracePop();
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-  return wasm_runtime->ExtractWasmRef(ref_stack_index);
-}
-
-template <typename T>
-inline T ExecuteRemS(T lval, T rval) {
-  if (rval == -1) return 0;
-  return lval % rval;
-}
-
-template <typename T>
-inline T ExecuteRemU(T lval, T rval) {
-  return lval % rval;
 }
 
 inline ValueType WasmBytecode::return_type(size_t index) const {
@@ -459,39 +361,39 @@ inline bool WasmBytecodeGenerator::ToRegisterIsAllowed(
 inline void WasmBytecodeGenerator::I32Push(bool emit) {
   uint32_t slot_index = _PushSlot(kWasmI32);
   uint32_t slot_offset = slots_[slot_index].slot_offset;
-  if (emit) Emit(&slot_offset, sizeof(uint32_t));
+  if (emit) EmitSlotOffset(slot_offset);
 }
 
 inline void WasmBytecodeGenerator::I64Push(bool emit) {
   uint32_t slot_index = _PushSlot(kWasmI64);
   uint32_t slot_offset = slots_[slot_index].slot_offset;
-  if (emit) Emit(&slot_offset, sizeof(uint32_t));
+  if (emit) EmitSlotOffset(slot_offset);
 }
 
 inline void WasmBytecodeGenerator::F32Push(bool emit) {
   uint32_t slot_index = _PushSlot(kWasmF32);
   uint32_t slot_offset = slots_[slot_index].slot_offset;
-  if (emit) Emit(&slot_offset, sizeof(uint32_t));
+  if (emit) EmitSlotOffset(slot_offset);
 }
 
 inline void WasmBytecodeGenerator::F64Push(bool emit) {
   uint32_t slot_index = _PushSlot(kWasmF64);
   uint32_t slot_offset = slots_[slot_index].slot_offset;
-  if (emit) Emit(&slot_offset, sizeof(uint32_t));
+  if (emit) EmitSlotOffset(slot_offset);
 }
 
 inline void WasmBytecodeGenerator::S128Push(bool emit) {
   uint32_t slot_index = _PushSlot(kWasmS128);
   uint32_t slot_offset = slots_[slot_index].slot_offset;
-  if (emit) Emit(&slot_offset, sizeof(uint32_t));
+  if (emit) EmitSlotOffset(slot_offset);
 }
 
 inline void WasmBytecodeGenerator::RefPush(ValueType type, bool emit) {
   uint32_t slot_index = _PushSlot(type);
   uint32_t slot_offset = slots_[slot_index].slot_offset;
   if (emit) {
-    Emit(&slot_offset, sizeof(uint32_t));
-    Emit(&slots_[slot_index].ref_stack_index, sizeof(uint32_t));
+    EmitSlotOffset(slot_offset);
+    EmitRefStackIndex(slots_[slot_index].ref_stack_index);
   }
 }
 
@@ -521,12 +423,12 @@ inline void WasmBytecodeGenerator::Push(ValueType type) {
   }
 }
 
-inline void WasmBytecodeGenerator::PushCopySlot(uint32_t from) {
-  DCHECK_LT(from, stack_.size());
-  PushSlot(stack_[from]);
+inline void WasmBytecodeGenerator::PushCopySlot(uint32_t from_stack_index) {
+  DCHECK_LT(from_stack_index, stack_.size());
+  PushSlot(stack_[from_stack_index]);
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  TracePushCopySlot(from);
+  TracePushCopySlot(from_stack_index);
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 }
 
@@ -596,7 +498,7 @@ inline ValueKind WasmBytecodeGenerator::GetGlobalType(uint32_t index) const {
 }
 
 inline bool WasmBytecodeGenerator::IsMemory64() const {
-  return !module_->memories.empty() && module_->memories[0].is_memory64;
+  return !module_->memories.empty() && module_->memories[0].is_memory64();
 }
 
 inline bool WasmBytecodeGenerator::IsMultiMemory() const {

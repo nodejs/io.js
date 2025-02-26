@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-memory64
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -200,7 +199,7 @@ function checkExternRefTable(getter, size, start, count, value) {
   let table32_elements = (offset, size) =>
       new Array(size).fill(0).map((e, i) => table32.get(i));
   let table64_elements = (offset, size) =>
-      new Array(size).fill(0).map((e, i) => table64.get(i));
+      new Array(size).fill(0).map((e, i) => table64.get(BigInt(i)));
 
   // Init table32[2] to object.
   table32.set(2, object);

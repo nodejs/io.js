@@ -7,8 +7,8 @@
 
 #include "src/base/compiler-specific.h"
 #include "src/common/globals.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/node.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {

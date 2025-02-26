@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Test the basic d8 value serializer interface
-// Flags: --js-float16array
+// Flags: --js-staging
 
 var largeArray = [];
 largeArray[0xFFFF00] = 123;

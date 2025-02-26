@@ -207,7 +207,14 @@ int PrependVModuleLocked(absl::string_view module_pattern, int log_level)
   get_vmodule_info().erase(
       std::remove_if(++iter, get_vmodule_info().end(),
                      [module_pattern](const VModuleInfo& info) {
-                       return FNMatch(info.module_pattern, module_pattern);
+                       // Remove the previous pattern if it is less generic than
+                       // the new one. For example, if the new pattern
+                       // `module_pattern` is "foo*" and the previous pattern
+                       // `info.module_pattern` is "foo", we should remove the
+                       // previous pattern. Because the new pattern "foo*" will
+                       // match all the files that the previous pattern "foo"
+                       // matches.
+                       return FNMatch(module_pattern, info.module_pattern);
                      }),
       get_vmodule_info().cend());
   return old_log_level.value_or(global_v);

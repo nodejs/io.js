@@ -36,17 +36,16 @@
 
 #ifdef V8_HOST_ARCH_ARM64
 #define VECTORCALL
-#else
-#if defined(__clang__)
-#define VECTORCALL __vectorcall
-#else  // GCC or MSVC
+#elif !defined(__clang__)  // GCC or MSVC
 #define VECTORCALL
-#endif  // __clang__
+#elif defined(V8_DRUMBRAKE_BOUNDS_CHECKS)
+#define VECTORCALL
+#else
+#define VECTORCALL __vectorcall
 #endif  // V8_HOST_ARCH_ARM64
 
-typedef void InstrHandlerRetType;
 #define INSTRUCTION_HANDLER_FUNC \
-  static DISABLE_CFI_ICALL InstrHandlerRetType VECTORCALL
+  __attribute__((noinline)) static DISABLE_CFI_ICALL void VECTORCALL
 
 namespace v8 {
 
@@ -101,7 +100,6 @@ struct FrameState {
         current_sp_(nullptr),
         thread_(nullptr),
         ref_array_current_sp_(0),
-        ref_array_length_(0),
         handle_scope_(nullptr)
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
         ,
@@ -119,7 +117,6 @@ struct FrameState {
   uint8_t* current_sp_;
   WasmInterpreterThread* thread_;
   uint32_t ref_array_current_sp_;
-  uint32_t ref_array_length_;
   HandleScope* handle_scope_;
 
   // Maintains a reference to the exceptions caught by each catch handler.
@@ -196,7 +193,7 @@ class V8_EXPORT_PRIVATE WasmInterpreterThreadMap {
   typedef std::unordered_map<int, std::unique_ptr<WasmInterpreterThread>>
       ThreadInterpreterMap;
   ThreadInterpreterMap map_;
-  base::Mutex mutex_;
+  base::SpinningMutex mutex_;
 };
 
 // Representation of a thread in the interpreter.
@@ -295,7 +292,8 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
           wasm_runtime_(wasm_runtime),
           frame_pointer_(frame_pointer),
           current_frame_size_(0),
-          ref_stack_size_(0),
+          current_ref_stack_fp_(0),
+          current_ref_stack_frame_size_(0),
           current_fp_(start_fp),
           current_frame_state_(callee_frame_state)
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
@@ -321,10 +319,12 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
     void SetCurrentActivationFrame(uint8_t* current_fp,
                                    uint32_t current_frame_size,
                                    uint32_t current_stack_size,
-                                   uint32_t ref_stack_size) {
+                                   uint32_t current_ref_stack_fp,
+                                   uint32_t current_ref_stack_frame_size) {
       current_fp_ = current_fp;
       current_frame_size_ = current_frame_size;
-      ref_stack_size_ = ref_stack_size;
+      current_ref_stack_fp_ = current_ref_stack_fp;
+      current_ref_stack_frame_size_ = current_ref_stack_frame_size;
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
       current_stack_size_ = current_stack_size;
@@ -335,7 +335,9 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
       return current_fp_ + current_frame_size_;
     }
 
-    uint32_t NextRefStackOffset() const { return ref_stack_size_; }
+    uint32_t NextRefStackOffset() const {
+      return current_ref_stack_fp_ + current_ref_stack_frame_size_;
+    }
 
     void SetTrapped(int trap_function_index, int trap_pc) {
       // Capture the call stack at the moment of the trap and store it to be
@@ -377,7 +379,8 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
     WasmInterpreterRuntime* wasm_runtime_;
     Address frame_pointer_;
     uint32_t current_frame_size_;
-    uint32_t ref_stack_size_;
+    uint32_t current_ref_stack_fp_;
+    uint32_t current_ref_stack_frame_size_;
     uint8_t* current_fp_;
     FrameState current_frame_state_;
     std::unique_ptr<std::vector<WasmInterpreterStackEntry>> trap_stack_trace_;
@@ -387,30 +390,10 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
   };
 
-  explicit WasmInterpreterThread(Isolate* isolate)
-      : isolate_(isolate),
-        state_(State::STOPPED),
-        trap_reason_(TrapReason::kTrapUnreachable),
-        current_stack_size_(kInitialStackSize),
-        stack_mem_(nullptr),
-        execution_timer_(isolate, true) {
-    PageAllocator* page_allocator = GetPlatformPageAllocator();
-    stack_mem_ = AllocatePages(page_allocator, nullptr, kMaxStackSize,
-                               page_allocator->AllocatePageSize(),
-                               PageAllocator::kNoAccess);
-    if (!stack_mem_ ||
-        !SetPermissions(page_allocator, stack_mem_, current_stack_size_,
-                        PageAllocator::Permission::kReadWrite)) {
-      V8::FatalProcessOutOfMemory(
-          nullptr, "WasmInterpreterThread::WasmInterpreterThread",
-          "Cannot allocate Wasm interpreter stack");
-      UNREACHABLE();
-    }
-  }
+  explicit WasmInterpreterThread(Isolate* isolate);
+  ~WasmInterpreterThread();
 
-  ~WasmInterpreterThread() {
-    FreePages(GetPlatformPageAllocator(), stack_mem_, kMaxStackSize);
-  }
+  Handle<FixedArray> reference_stack() const { return reference_stack_; }
 
   bool ExpandStack(size_t additional_required_size) {
     if (current_stack_size_ + additional_required_size > kMaxStackSize) {
@@ -454,7 +437,12 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
 
   State state() const { return state_; }
 
-  void Run() { state_ = State::RUNNING; }
+  void Run() {
+    if (!trap_handler::IsThreadInWasm()) {
+      trap_handler::SetThreadInWasm();
+    }
+    state_ = State::RUNNING;
+  }
   void Stop() { state_ = State::STOPPED; }
 
   void Trap(TrapReason trap_reason, int trap_function_index, int trap_pc,
@@ -485,11 +473,12 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
   inline void SetCurrentActivationFrame(uint32_t* fp,
                                         uint32_t current_frame_size,
                                         uint32_t current_stack_size,
-                                        uint32_t ref_stack_size) {
+                                        uint32_t current_ref_stack_fp,
+                                        uint32_t current_ref_stack_frame_size) {
     DCHECK(!activations_.empty());
     activations_.back()->SetCurrentActivationFrame(
         reinterpret_cast<uint8_t*>(fp), current_frame_size, current_stack_size,
-        ref_stack_size);
+        current_ref_stack_fp, current_ref_stack_frame_size);
   }
 
   WasmInterpreterThread::Activation* GetActivation(
@@ -520,6 +509,9 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
   const uint8_t* StackLimitAddress() const {
     return stack_mem() + current_stack_size_;
   }
+
+  void EnsureRefStackSpace(size_t new_size);
+  void ClearRefStackValues(size_t index, size_t count);
 
   void StartExecutionTimer();
   void StopExecutionTimer();
@@ -570,6 +562,21 @@ class V8_EXPORT_PRIVATE WasmInterpreterThread {
 
   std::vector<std::unique_ptr<Activation>> activations_;
 
+  // References are kept on an on-heap stack. It would not be any good to store
+  // reference object pointers into stack slots because the pointers obviously
+  // could be invalidated if the object moves in a GC. Furthermore we need to
+  // make sure that the reference objects in the Wasm stack are marked as alive
+  // for GC. This is why in each Wasm thread we instantiate a FixedArray that
+  // contains all the reference objects present in the execution stack.
+  // Only while calling JS functions or Wasm functions in a separate instance we
+  // need to store temporarily the reference objects pointers into stack slots,
+  // and in this case we need to make sure to temporarily disallow GC and avoid
+  // object allocation while the reference arguments are being passed to the
+  // callee and while the reference return values are being passed back to the
+  // caller.
+  Handle<FixedArray> reference_stack_;
+  size_t current_ref_stack_size_;
+
   WasmExecutionTimer execution_timer_;
 };
 
@@ -591,9 +598,6 @@ class V8_EXPORT_PRIVATE WasmInterpreter {
 
     inline void AddFunction(const WasmFunction* function,
                             const uint8_t* code_start, const uint8_t* code_end);
-
-    void SetFunctionCode(const WasmFunction* function, const uint8_t* start,
-                         const uint8_t* end);
 
     size_t TotalBytecodeSize() {
       return generated_code_size_.load(std::memory_order_relaxed);
@@ -665,9 +669,9 @@ class V8_EXPORT_PRIVATE WasmInterpreter {
   WasmInterpreter& operator=(const WasmInterpreter&) = delete;
 };
 
-typedef InstrHandlerRetType(VECTORCALL PWasmOp)(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0);
+typedef void(VECTORCALL PWasmOp)(const uint8_t* code, uint32_t* sp,
+                                 WasmInterpreterRuntime* wasm_runtime,
+                                 int64_t r0, double fp0);
 #ifdef __clang__
 #define MUSTTAIL [[clang::musttail]]
 #else
@@ -675,6 +679,30 @@ typedef InstrHandlerRetType(VECTORCALL PWasmOp)(
 #endif  // __clang__
 
 extern PWasmOp* kInstructionTable[];
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+extern char const* kInstructionHandlerNames[];
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+// struct handler_traits defines types for small/large instruction handlers.
+template <bool compact_handler>
+struct handler_traits {};
+
+template <>
+struct handler_traits<true> {
+  typedef uint16_t handler_id_t;
+  typedef uint16_t slot_offset_t;
+  typedef uint32_t memory_offset32_t;
+  typedef uint32_t memory_offset64_t;
+};
+
+template <>
+struct handler_traits<false> {
+  typedef uint16_t handler_id_t;
+  typedef uint32_t slot_offset_t;
+  typedef uint64_t memory_offset32_t;
+  typedef uint64_t memory_offset64_t;
+};
 
 // {OperatorMode}s are used for the
 // v8_flags.drumbrake_register_optimization. The prototype of instruction
@@ -1055,7 +1083,7 @@ struct WasmInstruction {
       uint32_t labels_index;
     } br_table;
     struct Block {
-      uint32_t sig_index;
+      ModuleTypeIndex sig_index;
       uint32_t value_type_bitfield;  // return type or kVoid if no return type
                                      // or kBottom if sig_index is valid.
       constexpr ValueType value_type() const {
@@ -1179,7 +1207,7 @@ inline ValueType value_type<WasmRef>() {
   return kWasmAnyRef;  // TODO(paolosev@microsoft.com)
 }
 
-static constexpr uint32_t kInstructionTableSize = 2048;
+static constexpr uint32_t kInstructionTableSize = 4096;
 static constexpr uint32_t kInstructionTableMask = kInstructionTableSize - 1;
 
 #define DEFINE_INSTR_HANDLER(name) k_##name,
@@ -1195,11 +1223,17 @@ enum InstructionHandler : uint16_t {
 inline InstructionHandler ReadFnId(const uint8_t*& code) {
   InstructionHandler result = base::ReadUnalignedValue<InstructionHandler>(
       reinterpret_cast<Address>(code));
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+  if (v8_flags.trace_drumbrake_compact_bytecode) {
+    printf("* ReadFnId %04x %s%s\n", result,
+           kInstructionHandlerNames[result % kInstructionCount],
+           result >= kInstructionCount ? " (large)" : "");
+  }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
   code += sizeof(InstructionHandler);
   return result;
 }
 
-extern PWasmOp* s_unwind_func_addr;
 extern InstructionHandler s_unwind_code;
 
 class WasmEHData {
@@ -1226,8 +1260,8 @@ class WasmEHData {
           delegate_try_index(-1),
           end_instruction_code_offset(0) {}
 
-    void SetDelegated(BlockIndex delegate_try_index) {
-      this->delegate_try_index = delegate_try_index;
+    void SetDelegated(BlockIndex delegate_try_idx) {
+      this->delegate_try_index = delegate_try_idx;
     }
     bool IsTryDelegate() const { return delegate_try_index >= 0; }
 
@@ -1401,12 +1435,22 @@ class WasmBytecode {
   std::map<CodeOffset, pc_t> code_pc_map_;
 };
 
+enum InstrHandlerSize {
+  Large = 0,  // false
+  Small = 1   // true
+};
+
 class WasmBytecodeGenerator {
  public:
+  typedef void (WasmBytecodeGenerator::*MemIndexPushFunc)(bool emit);
+  typedef void (WasmBytecodeGenerator::*MemIndexPopFunc)(bool emit);
+
   WasmBytecodeGenerator(uint32_t function_index, InterpreterCode* wasm_code,
                         const WasmModule* module);
 
   std::unique_ptr<WasmBytecode> GenerateBytecode();
+
+  static void PrintBytecodeCompressionStats();
 
  private:
   struct BlockData {
@@ -1494,10 +1538,15 @@ class WasmBytecodeGenerator {
   inline bool ToRegisterIsAllowed(const WasmInstruction& instr);
   RegMode EncodeInstruction(const WasmInstruction& instr, RegMode curr_reg_mode,
                             RegMode next_reg_mode);
+  RegMode DoEncodeInstruction(const WasmInstruction& instr,
+                              RegMode curr_reg_mode, RegMode next_reg_mode);
 
   bool EncodeSuperInstruction(RegMode& reg_mode,
                               const WasmInstruction& curr_instr,
                               const WasmInstruction& next_instr);
+  bool DoEncodeSuperInstruction(RegMode& reg_mode,
+                                const WasmInstruction& curr_instr,
+                                const WasmInstruction& next_instr);
 
   uint32_t ScanConstInstructions() const;
 
@@ -1508,6 +1557,8 @@ class WasmBytecodeGenerator {
 
   inline void I32Push(bool emit = true);
   inline void I64Push(bool emit = true);
+  inline void MemIndexPush(bool emit = true) { (this->*int_mem_push_)(emit); }
+  inline void ITableIndexPush(bool is_table64, bool emit = true);
   inline void F32Push(bool emit = true);
   inline void F64Push(bool emit = true);
   inline void S128Push(bool emit = true);
@@ -1516,6 +1567,7 @@ class WasmBytecodeGenerator {
 
   inline void I32Pop(bool emit = true) { Pop(kI32, emit); }
   inline void I64Pop(bool emit = true) { Pop(kI64, emit); }
+  inline void MemIndexPop(bool emit = true) { (this->*int_mem_pop_)(emit); }
   inline void F32Pop(bool emit = true) { Pop(kF32, emit); }
   inline void F64Pop(bool emit = true) { Pop(kF64, emit); }
   inline void S128Pop(bool emit = true) { Pop(kS128, emit); }
@@ -1526,7 +1578,7 @@ class WasmBytecodeGenerator {
     ValueType value_type = slots_[stack_.back()].value_type;
     DCHECK(value_type.is_object_reference());
     PopSlot();
-    if (emit) Emit(&ref_index, sizeof(uint32_t));
+    if (emit) EmitRefStackIndex(ref_index);
     return value_type;
   }
 
@@ -1549,19 +1601,66 @@ class WasmBytecodeGenerator {
     }
     DCHECK(CheckEqualKind(kind, slots_[stack_.back()].kind()));
     uint32_t slot_offset = PopSlot();
-    if (emit) Emit(&slot_offset, sizeof(uint32_t));
+    if (emit) EmitSlotOffset(slot_offset);
   }
 
-  void EmitI16Const(int16_t value) { Emit(&value, sizeof(value)); }
-  void EmitI32Const(int32_t value) { Emit(&value, sizeof(value)); }
-  void EmitI64Const(int64_t value) { Emit(&value, sizeof(value)); }
-  void EmitF32Const(float value) { Emit(&value, sizeof(value)); }
-  void EmitF64Const(double value) { Emit(&value, sizeof(value)); }
+  inline void EmitI16Const(int16_t value) { Emit(&value, sizeof(value)); }
+  inline void EmitI32Const(int32_t value) { Emit(&value, sizeof(value)); }
+  inline void EmitF32Const(float value) { Emit(&value, sizeof(value)); }
+  inline void EmitF64Const(double value) { Emit(&value, sizeof(value)); }
 
-  inline void EmitFnId(InstructionHandler func, uint32_t pc = UINT_MAX) {
+  inline void EmitSlotOffset(uint32_t value) {
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_compact_bytecode) {
+      printf("EmitSlotOffset %d\n", value);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    if (handler_size_ == InstrHandlerSize::Small) {
+      if (V8_UNLIKELY(value > 0xffff)) {
+        current_instr_encoding_failed_ = true;
+      } else {
+        uint16_t u16 = static_cast<uint16_t>(value);
+        Emit(&u16, sizeof(u16));
+        emitted_short_slot_offset_count_++;
+      }
+    } else {
+      DCHECK_EQ(handler_size_, InstrHandlerSize::Large);
+      Emit(&value, sizeof(value));
+    }
+  }
+  inline void EmitMemoryOffset(uint64_t value) {
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_compact_bytecode) {
+      printf("EmitMemoryOffset %llu\n", value);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    if (handler_size_ == InstrHandlerSize::Small) {
+      if (V8_UNLIKELY(value > 0xffffffff)) {
+        current_instr_encoding_failed_ = true;
+      } else {
+        uint32_t u32 = static_cast<uint32_t>(value);
+        Emit(&u32, sizeof(u32));
+        emitted_short_memory_offset_count_++;
+      }
+    } else {
+      DCHECK_EQ(handler_size_, InstrHandlerSize::Large);
+      Emit(&value, sizeof(value));
+    }
+  }
+
+  inline void EmitStackIndex(int32_t value) { Emit(&value, sizeof(value)); }
+  inline void EmitRefStackIndex(int32_t value) { Emit(&value, sizeof(value)); }
+  inline void EmitRefValueType(int32_t value) { Emit(&value, sizeof(value)); }
+  inline void EmitStructFieldOffset(int32_t value) {
+    Emit(&value, sizeof(value));
+  }
+
+  inline void EmitFnId(InstructionHandler func_id, uint32_t pc = UINT_MAX) {
     // If possible, compacts two consecutive CopySlot32 or CopySlot64
     // instructions into a single instruction, to save one dispatch.
-    if (TryCompactInstructionHandler(func)) return;
+    if (TryCompactInstructionHandler(func_id)) return;
 
     if (pc != UINT_MAX) {
       code_pc_map_[code_.size()] = pc;
@@ -1569,7 +1668,20 @@ class WasmBytecodeGenerator {
 
     last_instr_offset_ = CurrentCodePos();
 
-    Emit(&func, sizeof(func));
+    int16_t id = func_id;
+    if (V8_UNLIKELY(handler_size_ == InstrHandlerSize::Large)) {
+      id += kInstructionCount;
+    } else {
+      DCHECK_EQ(handler_size_, InstrHandlerSize::Small);
+    }
+    Emit(&id, sizeof(id));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_compact_bytecode) {
+      printf("* EmitFnId %04x %s%s\n", id, kInstructionHandlerNames[func_id],
+             id >= kInstructionCount ? " (large)" : "");
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
   }
 
   void EmitCopySlot(ValueType value_type, uint32_t from_slot_index,
@@ -1617,7 +1729,7 @@ class WasmBytecodeGenerator {
   inline int32_t GetTargetBranch(uint32_t delta) const;
   int GetCurrentTryBlockIndex(bool return_matching_try_for_catch_blocks) const;
   void PatchBranchOffsets();
-  void PatchLoopJumpInstructions();
+  void PatchLoopBeginInstructions();
   void RestoreIfElseParams(uint32_t if_block_index);
 
   bool HasSharedSlot(uint32_t stack_index) const;
@@ -1775,9 +1887,9 @@ class WasmBytecodeGenerator {
     return CreateSlot(value_type);
   }
 
-  inline void PushCopySlot(uint32_t from);
+  inline void PushCopySlot(uint32_t from_stack_index);
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  void TracePushCopySlot(uint32_t from);
+  void TracePushCopySlot(uint32_t from_stack_index);
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
   inline uint32_t PopSlot() {
@@ -1855,6 +1967,14 @@ class WasmBytecodeGenerator {
   bool TypeCheckAlwaysFails(ValueType obj_type, HeapType expected_type,
                             bool null_succeeds) const;
 
+#ifdef DEBUG
+  static bool HasSideEffects(WasmOpcode opcode);
+#endif  // DEBUG
+
+  MemIndexPushFunc int_mem_push_;
+  MemIndexPopFunc int_mem_pop_;
+  bool is_memory64_;
+
   std::vector<uint8_t> const_slots_values_;
   uint32_t const_slot_offset_;
   std::unordered_map<int32_t, uint32_t> i32_const_cache_;
@@ -1869,7 +1989,54 @@ class WasmBytecodeGenerator {
 
   std::vector<Simd128> simd_immediates_;
   uint32_t slot_offset_;  // TODO(paolosev@microsoft.com): manage holes
-  std::vector<uint32_t> stack_;
+
+  class RollbackStack {
+   public:
+    typedef std::vector<uint32_t> Stack;
+    void push_back(const uint32_t& value) {
+      stack_.push_back(value);
+      history_.push_back({Push, value});
+    }
+    void pop_back() {
+      history_.push_back({Pop, back()});
+      stack_.pop_back();
+    }
+    Stack::reference back() { return stack_.back(); }
+    Stack::const_reference back() const { return stack_.back(); }
+    Stack::reference operator[](Stack::size_type pos) { return stack_[pos]; }
+    Stack::const_reference operator[](Stack::size_type pos) const {
+      return stack_[pos];
+    }
+    size_t size() const { return stack_.size(); }
+    bool empty() const { return stack_.empty(); }
+    void reserve(Stack::size_type new_cap) { stack_.reserve(new_cap); }
+    void resize(Stack::size_type count) { stack_.resize(count); }
+
+    void clear_history() { history_.resize(0); }
+    void rollback() {
+      while (!history_.empty()) {
+        Entry entry = history_.back();
+        history_.pop_back();
+        if (entry.kind == EntryKind::Push) {
+          stack_.pop_back();
+        } else {
+          DCHECK_EQ(entry.kind, EntryKind::Pop);
+          stack_.push_back(entry.value);
+        }
+      }
+    }
+
+   private:
+    enum EntryKind { Push, Pop };
+    struct Entry {
+      EntryKind kind;
+      uint32_t value;
+    };
+    Stack stack_;
+    std::vector<Entry> history_;
+  };
+  RollbackStack stack_;
+
   uint32_t ref_slots_count_;
 
   uint32_t function_index_;
@@ -1892,7 +2059,7 @@ class WasmBytecodeGenerator {
 #endif  // DEBUG
 
   base::SmallVector<uint32_t, 8> br_table_labels_;
-  base::SmallVector<uint32_t, 16> loop_end_code_offsets_;
+  base::SmallVector<uint32_t, 16> loop_begin_code_offsets_;
 
   const WasmModule* module_;
 
@@ -1910,6 +2077,14 @@ class WasmBytecodeGenerator {
   CodeOffset last_instr_offset_;
 
   WasmEHDataGenerator eh_data_;
+
+  // Manages bytecode compaction.
+  InstrHandlerSize handler_size_;
+  bool current_instr_encoding_failed_;
+  bool no_nested_emit_instr_handler_guard_;
+  static size_t total_bytecode_size_;
+  static size_t emitted_short_slot_offset_count_;
+  static size_t emitted_short_memory_offset_count_;
 
   WasmBytecodeGenerator(const WasmBytecodeGenerator&) = delete;
   WasmBytecodeGenerator& operator=(const WasmBytecodeGenerator&) = delete;

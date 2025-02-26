@@ -39,8 +39,8 @@ namespace internal {
 TEST_F(TestWithNativeContext, ConvertRegExpFlagsToString) {
   RunJS("let regexp = new RegExp(/ab+c/ig);");
   DirectHandle<JSRegExp> regexp = RunJS<JSRegExp>("regexp");
-  Handle<String> flags = RunJS<String>("regexp.flags");
-  Handle<String> converted_flags =
+  DirectHandle<String> flags = RunJS<String>("regexp.flags");
+  DirectHandle<String> converted_flags =
       JSRegExp::StringFromFlags(isolate(), regexp->flags());
   EXPECT_TRUE(String::Equals(isolate(), flags, converted_flags));
 }
@@ -48,8 +48,8 @@ TEST_F(TestWithNativeContext, ConvertRegExpFlagsToString) {
 TEST_F(TestWithNativeContext, ConvertRegExpFlagsToStringNoFlags) {
   RunJS("let regexp = new RegExp(/ab+c/);");
   DirectHandle<JSRegExp> regexp = RunJS<JSRegExp>("regexp");
-  Handle<String> flags = RunJS<String>("regexp.flags");
-  Handle<String> converted_flags =
+  DirectHandle<String> flags = RunJS<String>("regexp.flags");
+  DirectHandle<String> converted_flags =
       JSRegExp::StringFromFlags(isolate(), regexp->flags());
   EXPECT_TRUE(String::Equals(isolate(), flags, converted_flags));
 }
@@ -57,8 +57,8 @@ TEST_F(TestWithNativeContext, ConvertRegExpFlagsToStringNoFlags) {
 TEST_F(TestWithNativeContext, ConvertRegExpFlagsToStringAllFlags) {
   RunJS("let regexp = new RegExp(/ab+c/dgimsuy);");
   DirectHandle<JSRegExp> regexp = RunJS<JSRegExp>("regexp");
-  Handle<String> flags = RunJS<String>("regexp.flags");
-  Handle<String> converted_flags =
+  DirectHandle<String> flags = RunJS<String>("regexp.flags");
+  DirectHandle<String> converted_flags =
       JSRegExp::StringFromFlags(isolate(), regexp->flags());
   EXPECT_TRUE(String::Equals(isolate(), flags, converted_flags));
 }
@@ -617,7 +617,7 @@ using ArchRegExpMacroAssembler = RegExpMacroAssemblerX64;
 using ArchRegExpMacroAssembler = RegExpMacroAssemblerARM;
 #elif V8_TARGET_ARCH_ARM64
 using ArchRegExpMacroAssembler = RegExpMacroAssemblerARM64;
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 using ArchRegExpMacroAssembler = RegExpMacroAssemblerS390;
 #elif V8_TARGET_ARCH_PPC64
 using ArchRegExpMacroAssembler = RegExpMacroAssemblerPPC;
@@ -647,13 +647,14 @@ class ContextInitializer {
 
 // Create new JSRegExp object with only necessary fields (for this tests)
 // initialized.
-static Handle<JSRegExp> CreateJSRegExp(DirectHandle<String> source,
-                                       DirectHandle<Code> code,
-                                       bool is_unicode = false) {
+static DirectHandle<JSRegExp> CreateJSRegExp(DirectHandle<String> source,
+                                             DirectHandle<Code> code,
+                                             bool is_unicode = false) {
   Isolate* isolate = reinterpret_cast<i::Isolate*>(v8::Isolate::GetCurrent());
   Factory* factory = isolate->factory();
-  Handle<JSFunction> constructor = isolate->regexp_function();
-  Handle<JSRegExp> regexp = Cast<JSRegExp>(factory->NewJSObject(constructor));
+  DirectHandle<JSFunction> constructor = isolate->regexp_function();
+  DirectHandle<JSRegExp> regexp =
+      Cast<JSRegExp>(factory->NewJSObject(constructor));
   regexp->set_source(*source);
   regexp->set_flags(Smi::FromInt(0));
 
@@ -669,10 +670,14 @@ static Handle<JSRegExp> CreateJSRegExp(DirectHandle<String> source,
 static ArchRegExpMacroAssembler::Result Execute(
     Tagged<JSRegExp> regexp, Tagged<String> input, int start_offset,
     Address input_start, Address input_end, int* captures) {
+  // For testing, we don't bother to pass in the `captures` size. This is okay
+  // as long as the caller knows what they're doing, and avoids having the
+  // engine write OOB or exiting a global execution loop early.
+  static constexpr int kCapturesSize = 0;
   return static_cast<NativeRegExpMacroAssembler::Result>(
       NativeRegExpMacroAssembler::ExecuteForTesting(
           input, start_offset, reinterpret_cast<uint8_t*>(input_start),
-          reinterpret_cast<uint8_t*>(input_end), captures, 0,
+          reinterpret_cast<uint8_t*>(input_end), captures, kCapturesSize,
           reinterpret_cast<i::Isolate*>(v8::Isolate::GetCurrent()), regexp));
 }
 
@@ -687,7 +692,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeSuccess) {
   m.Succeed();
 
   Handle<String> source = factory->NewStringFromStaticChars("");
-  Handle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -734,12 +739,12 @@ TEST_F(RegExpTest, MacroAssemblerNativeSimple) {
   m.Fail();
 
   Handle<String> source = factory->NewStringFromStaticChars("^foo");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
   int captures[4] = {42, 37, 87, 117};
-  Handle<String> input = factory->NewStringFromStaticChars("foofoo");
+  DirectHandle<String> input = factory->NewStringFromStaticChars("foofoo");
   DirectHandle<SeqOneByteString> seq_input = Cast<SeqOneByteString>(input);
   Address start_adr = seq_input->GetCharsAddress();
 
@@ -790,14 +795,14 @@ TEST_F(RegExpTest, MacroAssemblerNativeSimpleUC16) {
   m.Fail();
 
   Handle<String> source = factory->NewStringFromStaticChars("^foo");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code, true);
 
   int captures[4] = {42, 37, 87, 117};
   const base::uc16 input_data[6] = {'f', 'o', 'o',
                                     'f', 'o', static_cast<base::uc16>(0x2603)};
-  Handle<String> input =
+  DirectHandle<String> input =
       factory
           ->NewStringFromTwoByte(base::Vector<const base::uc16>(input_data, 6))
           .ToHandleChecked();
@@ -848,7 +853,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeBacktrack) {
   m.Fail();
 
   Handle<String> source = factory->NewStringFromStaticChars("..........");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -886,7 +891,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeBackReferenceLATIN1) {
   m.Fail();
 
   Handle<String> source = factory->NewStringFromStaticChars("^(..)..\1");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -929,7 +934,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeBackReferenceUC16) {
   m.Fail();
 
   Handle<String> source = factory->NewStringFromStaticChars("^(..)..\1");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code, true);
 
@@ -982,7 +987,7 @@ TEST_F(RegExpTest, MacroAssemblernativeAtStart) {
   m.Succeed();
 
   Handle<String> source = factory->NewStringFromStaticChars("(^f|ob)");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -1033,7 +1038,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeBackRefNoCase) {
 
   Handle<String> source =
       factory->NewStringFromStaticChars("^(abc)\1\1(?!\1)...(?!\1)");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -1126,7 +1131,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeRegisters) {
   m.Fail();
 
   Handle<String> source = factory->NewStringFromStaticChars("<loop test>");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -1164,7 +1169,7 @@ TEST_F(RegExpTest, MacroAssemblerStackOverflow) {
 
   Handle<String> source =
       factory->NewStringFromStaticChars("<stack overflow test>");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -1204,7 +1209,7 @@ TEST_F(RegExpTest, MacroAssemblerNativeLotsOfRegisters) {
 
   Handle<String> source =
       factory->NewStringFromStaticChars("<huge register space test>");
-  DirectHandle<Object> code_object = m.GetCode(source);
+  DirectHandle<Object> code_object = m.GetCode(source, {});
   DirectHandle<Code> code = Cast<Code>(code_object);
   DirectHandle<JSRegExp> regexp = CreateJSRegExp(source, code);
 
@@ -1263,7 +1268,7 @@ TEST_F(RegExpTest, MacroAssembler) {
 
   Handle<String> source = factory->NewStringFromStaticChars("^f(o)o");
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(m.GetCode(source));
+      Cast<TrustedByteArray>(m.GetCode(source, {}));
   int captures[5];
   std::memset(captures, 0, sizeof(captures));
 
@@ -1272,32 +1277,42 @@ TEST_F(RegExpTest, MacroAssembler) {
       factory->NewStringFromTwoByte(base::Vector<const base::uc16>(str1, 6))
           .ToHandleChecked();
 
-  CHECK_EQ(IrregexpInterpreter::SUCCESS,
-           IrregexpInterpreter::MatchInternal(
-               isolate(), *array, *f1_16, captures, 5, 5, 0,
-               RegExp::CallOrigin::kFromRuntime, JSRegExp::kNoBacktrackLimit));
-  CHECK_EQ(0, captures[0]);
-  CHECK_EQ(3, captures[1]);
-  CHECK_EQ(1, captures[2]);
-  CHECK_EQ(2, captures[3]);
-  CHECK_EQ(84, captures[4]);
+  {
+    Tagged<TrustedByteArray> array_unhandlified = *array;
+    Tagged<String> subject_unhandlified = *f1_16;
+    CHECK_EQ(IrregexpInterpreter::SUCCESS,
+             IrregexpInterpreter::MatchInternal(
+                 isolate(), &array_unhandlified, &subject_unhandlified,
+                 captures, 5, 5, 0, RegExp::CallOrigin::kFromRuntime,
+                 JSRegExp::kNoBacktrackLimit));
+    CHECK_EQ(0, captures[0]);
+    CHECK_EQ(3, captures[1]);
+    CHECK_EQ(1, captures[2]);
+    CHECK_EQ(2, captures[3]);
+    CHECK_EQ(84, captures[4]);
+  }
 
   const base::uc16 str2[] = {'b', 'a', 'r', 'f', 'o', 'o'};
   DirectHandle<String> f2_16 =
       factory->NewStringFromTwoByte(base::Vector<const base::uc16>(str2, 6))
           .ToHandleChecked();
 
-  std::memset(captures, 0, sizeof(captures));
-  CHECK_EQ(IrregexpInterpreter::FAILURE,
-           IrregexpInterpreter::MatchInternal(
-               isolate(), *array, *f2_16, captures, 5, 5, 0,
-               RegExp::CallOrigin::kFromRuntime, JSRegExp::kNoBacktrackLimit));
-  // Failed matches don't alter output registers.
-  CHECK_EQ(0, captures[0]);
-  CHECK_EQ(0, captures[1]);
-  CHECK_EQ(0, captures[2]);
-  CHECK_EQ(0, captures[3]);
-  CHECK_EQ(0, captures[4]);
+  {
+    Tagged<TrustedByteArray> array_unhandlified = *array;
+    Tagged<String> subject_unhandlified = *f2_16;
+    std::memset(captures, 0, sizeof(captures));
+    CHECK_EQ(IrregexpInterpreter::FAILURE,
+             IrregexpInterpreter::MatchInternal(
+                 isolate(), &array_unhandlified, &subject_unhandlified,
+                 captures, 5, 5, 0, RegExp::CallOrigin::kFromRuntime,
+                 JSRegExp::kNoBacktrackLimit));
+    // Failed matches don't alter output registers.
+    CHECK_EQ(0, captures[0]);
+    CHECK_EQ(0, captures[1]);
+    CHECK_EQ(0, captures[2]);
+    CHECK_EQ(0, captures[3]);
+    CHECK_EQ(0, captures[4]);
+  }
 }
 
 #ifndef V8_INTL_SUPPORT
@@ -1681,7 +1696,7 @@ TEST_F(RegExpTestWithContext, UseCountRegExp) {
   CHECK_EQ(0, use_counts[v8::Isolate::kRegExpPrototypeToString]);
   CHECK(resultSticky->IsUndefined());
 
-  // re.sticky has approriate value and doesn't touch UseCounter
+  // re.sticky has appropriate value and doesn't touch UseCounter
   v8::Local<v8::Value> resultReSticky = RunJS("/a/.sticky");
   CHECK_EQ(1, use_counts[v8::Isolate::kRegExpPrototypeStickyGetter]);
   CHECK_EQ(0, use_counts[v8::Isolate::kRegExpPrototypeToString]);
@@ -1797,13 +1812,13 @@ TEST_F(RegExpTest, PeepholeNoChange) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
   uint8_t* byte_array = array->begin();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   uint8_t* byte_array_optimized = array_optimized->begin();
 
   CHECK_EQ(0, memcmp(byte_array, byte_array_optimized, length));
@@ -1833,12 +1848,12 @@ TEST_F(RegExpTest, PeepholeSkipUntilChar) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   int length_optimized = array_optimized->length();
 
   int length_expected = RegExpBytecodeLength(BC_LOAD_CURRENT_CHAR) +
@@ -1887,12 +1902,12 @@ TEST_F(RegExpTest, PeepholeSkipUntilBitInTable) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   int length_optimized = array_optimized->length();
 
   int length_expected = RegExpBytecodeLength(BC_LOAD_CURRENT_CHAR) +
@@ -1935,12 +1950,12 @@ TEST_F(RegExpTest, PeepholeSkipUntilCharPosChecked) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   int length_optimized = array_optimized->length();
 
   int length_expected = RegExpBytecodeLength(BC_CHECK_CURRENT_POSITION) +
@@ -1984,12 +1999,12 @@ TEST_F(RegExpTest, PeepholeSkipUntilCharAnd) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   int length_optimized = array_optimized->length();
 
   int length_expected = RegExpBytecodeLength(BC_CHECK_CURRENT_POSITION) +
@@ -2033,12 +2048,12 @@ TEST_F(RegExpTest, PeepholeSkipUntilCharOrChar) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   int length_optimized = array_optimized->length();
 
   int length_expected = RegExpBytecodeLength(BC_LOAD_CURRENT_CHAR) +
@@ -2093,12 +2108,12 @@ TEST_F(RegExpTest, PeepholeSkipUntilGtOrNotBitInTable) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
   int length = array->length();
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
   int length_optimized = array_optimized->length();
 
   int length_expected = RegExpBytecodeLength(BC_LOAD_CURRENT_CHAR) +
@@ -2173,7 +2188,7 @@ TEST_F(RegExpTest, PeepholeLabelFixupsInside) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
 
   for (int label_idx = 0; label_idx < 3; label_idx++) {
     for (int pos_idx = 0; pos_idx < 2; pos_idx++) {
@@ -2184,7 +2199,7 @@ TEST_F(RegExpTest, PeepholeLabelFixupsInside) {
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
 
   const int pos_fixups[] = {
       0,  // Position before optimization should be unchanged.
@@ -2280,7 +2295,7 @@ TEST_F(RegExpTest, PeepholeLabelFixupsComplex) {
 
   v8_flags.regexp_peephole_optimization = false;
   DirectHandle<TrustedByteArray> array =
-      Cast<TrustedByteArray>(orig.GetCode(source));
+      Cast<TrustedByteArray>(orig.GetCode(source, {}));
 
   for (int label_idx = 0; label_idx < 4; label_idx++) {
     for (int pos_idx = 0; pos_idx < 3; pos_idx++) {
@@ -2291,7 +2306,7 @@ TEST_F(RegExpTest, PeepholeLabelFixupsComplex) {
 
   v8_flags.regexp_peephole_optimization = true;
   DirectHandle<TrustedByteArray> array_optimized =
-      Cast<TrustedByteArray>(opt.GetCode(source));
+      Cast<TrustedByteArray>(opt.GetCode(source, {}));
 
   const int pos_fixups[] = {
       0,    // Position before optimization should be unchanged.
@@ -2356,9 +2371,9 @@ struct RegExpExecData {
   i::Handle<i::String> subject;
 };
 
-i::Handle<i::Object> RegExpExec(const RegExpExecData* d) {
-  return i::RegExp::Exec(d->isolate, d->regexp, d->subject, 0,
-                         d->isolate->regexp_last_match_info())
+i::DirectHandle<i::Object> RegExpExec(const RegExpExecData* d) {
+  return i::RegExp::Exec_Single(d->isolate, d->regexp, d->subject, 0,
+                                d->isolate->regexp_last_match_info())
       .ToHandleChecked();
 }
 

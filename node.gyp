@@ -1330,7 +1330,7 @@
       ],
       'conditions': [
         [ 'node_shared_simdutf=="false"', {
-          'dependencies': [ 'deps/simdutf/simdutf.gyp:simdutf#host' ],
+          'dependencies': [ 'tools/v8_gypfiles/v8.gyp:simdutf#host' ],
         }],
         [ 'node_shared_libuv=="false"', {
           'dependencies': [ 'deps/uv/uv.gyp:libuv#host' ],

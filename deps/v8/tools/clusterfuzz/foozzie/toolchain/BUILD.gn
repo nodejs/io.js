@@ -4,10 +4,10 @@
 
 import("//build/toolchain/gcc_toolchain.gni")
 
-# Fake toolchain to enable build output for a pointer-compression-comparison
-# build in a nested build sub-directory. We toggle pointer compression when
-# this toolchain is used in v8/BUILD.gn.
-clang_toolchain("clang_x64_pointer_compression") {
+# Fake toolchain to enable build output for an experimental build in a
+# nested build sub-directory. We toggle certain build flags when this
+# toolchain is used in v8/BUILD.gn.
+clang_toolchain("clang_x64_fuzzer_experiments") {
   toolchain_args = {
     current_cpu = "x64"
     current_os = "linux"

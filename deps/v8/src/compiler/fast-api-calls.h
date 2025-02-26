@@ -40,25 +40,24 @@ struct OverloadsResolutionResult {
 
 ElementsKind GetTypedArrayElementsKind(CTypeInfo::Type type);
 
-OverloadsResolutionResult ResolveOverloads(
-    const FastApiCallFunctionVector& candidates, unsigned int arg_count);
-
 bool CanOptimizeFastSignature(const CFunctionInfo* c_signature);
 
-using GetParameter = std::function<Node*(int, OverloadsResolutionResult&,
-                                         GraphAssemblerLabel<0>*)>;
+using GetParameter = std::function<Node*(int, GraphAssemblerLabel<0>*)>;
 using ConvertReturnValue = std::function<Node*(const CFunctionInfo*, Node*)>;
 using InitializeOptions = std::function<void(Node*)>;
 using GenerateSlowApiCall = std::function<Node*()>;
 
 Node* BuildFastApiCall(Isolate* isolate, Graph* graph,
                        GraphAssembler* graph_assembler,
-                       const FastApiCallFunctionVector& c_functions,
-                       const CFunctionInfo* c_signature, Node* data_argument,
+                       FastApiCallFunction c_function, Node* data_argument,
                        const GetParameter& get_parameter,
                        const ConvertReturnValue& convert_return_value,
                        const InitializeOptions& initialize_options,
                        const GenerateSlowApiCall& generate_slow_api_call);
+
+FastApiCallFunction GetFastApiCallTarget(
+    JSHeapBroker* broker, FunctionTemplateInfoRef function_template_info,
+    size_t arg_count);
 
 }  // namespace fast_api_call
 }  // namespace compiler

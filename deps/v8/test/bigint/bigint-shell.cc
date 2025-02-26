@@ -395,9 +395,9 @@ class Runner {
       ScratchDigits X(size);
       GenerateRandom(X);
       for (int radix = 2; radix <= 36; radix++) {
-        int chars_required = ToStringResultLength(X, radix, false);
-        int result_len = chars_required;
-        int reference_len = chars_required;
+        uint32_t chars_required = ToStringResultLength(X, radix, false);
+        uint32_t result_len = chars_required;
+        uint32_t reference_len = chars_required;
         std::unique_ptr<char[]> result(new char[result_len]);
         std::unique_ptr<char[]> reference(new char[reference_len]);
         processor()->ToStringImpl(result.get(), &result_len, X, radix, false,
@@ -457,15 +457,15 @@ class Runner {
       ScratchDigits X(size);
       GenerateRandom(X);
       for (int bits = 1; bits <= 5; bits++) {
-        int radix = 1 << bits;
-        int chars_required = ToStringResultLength(X, radix, false);
-        int string_len = chars_required;
+        uint32_t radix = 1 << bits;
+        uint32_t chars_required = ToStringResultLength(X, radix, false);
+        uint32_t string_len = chars_required;
         std::unique_ptr<char[]> chars(new char[string_len]);
         processor()->ToStringImpl(chars.get(), &string_len, X, radix, false,
                                   true);
         // Fill any remaining allocated characters with garbage to test that
         // too.
-        for (int i = string_len; i < chars_required; i++) {
+        for (uint32_t i = string_len; i < chars_required; i++) {
           chars[i] = '?';
         }
         const char* start = chars.get();

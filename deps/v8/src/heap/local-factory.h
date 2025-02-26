@@ -28,7 +28,7 @@ class V8_EXPORT_PRIVATE LocalFactory : public FactoryBase<LocalFactory> {
 
   ReadOnlyRoots read_only_roots() const { return roots_; }
 
-#define ROOT_ACCESSOR(Type, name, CamelName) inline Handle<Type> name();
+#define ROOT_ACCESSOR(Type, name, CamelName) inline DirectHandle<Type> name();
   // AccessorInfos appear mutable, but they're actually not mutated once they
   // finish initializing. In particular, the root accessors are not mutated and
   // are safe to access (as long as the off-thread job doesn't try to mutate
@@ -38,8 +38,8 @@ class V8_EXPORT_PRIVATE LocalFactory : public FactoryBase<LocalFactory> {
 
   // The parser shouldn't allow the LocalFactory to get into a state where
   // it generates errors.
-  Handle<Object> NewInvalidStringLengthError() { UNREACHABLE(); }
-  Handle<Object> NewRangeError(MessageTemplate template_index) {
+  DirectHandle<Object> NewInvalidStringLengthError() { UNREACHABLE(); }
+  DirectHandle<Object> NewRangeError(MessageTemplate template_index) {
     UNREACHABLE();
   }
 

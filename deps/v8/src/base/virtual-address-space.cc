@@ -224,12 +224,12 @@ VirtualAddressSubspace::~VirtualAddressSubspace() {
 }
 
 void VirtualAddressSubspace::SetRandomSeed(int64_t seed) {
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
   rng_.SetSeed(seed);
 }
 
 Address VirtualAddressSubspace::RandomPageAddress() {
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
   // Note: the random numbers generated here aren't uniformly distributed if the
   // size isn't a power of two.
   Address addr = base() + (static_cast<uint64_t>(rng_.NextInt64()) % size());
@@ -244,7 +244,7 @@ Address VirtualAddressSubspace::AllocatePages(Address hint, size_t size,
   DCHECK(IsAligned(size, allocation_granularity()));
   DCHECK(IsSubset(permissions, max_page_permissions()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
 
   Address address = region_allocator_.AllocateRegion(hint, size, alignment);
   if (address == RegionAllocator::kAllocationFailure) return kNullAddress;
@@ -263,7 +263,7 @@ void VirtualAddressSubspace::FreePages(Address address, size_t size) {
   DCHECK(IsAligned(address, allocation_granularity()));
   DCHECK(IsAligned(size, allocation_granularity()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
   // The order here is important: on Windows, the allocation first has to be
   // freed to a placeholder before the placeholder can be merged (during the
   // merge_callback) with any surrounding placeholder mappings.
@@ -290,7 +290,7 @@ bool VirtualAddressSubspace::AllocateGuardRegion(Address address, size_t size) {
   DCHECK(IsAligned(address, allocation_granularity()));
   DCHECK(IsAligned(size, allocation_granularity()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
 
   // It is guaranteed that reserved address space is inaccessible, so we just
   // need to mark the region as in-use in the region allocator.
@@ -301,7 +301,7 @@ void VirtualAddressSubspace::FreeGuardRegion(Address address, size_t size) {
   DCHECK(IsAligned(address, allocation_granularity()));
   DCHECK(IsAligned(size, allocation_granularity()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
   CHECK_EQ(size, region_allocator_.FreeRegion(address));
 }
 
@@ -312,7 +312,7 @@ Address VirtualAddressSubspace::AllocateSharedPages(
   DCHECK(IsAligned(size, allocation_granularity()));
   DCHECK(IsAligned(offset, allocation_granularity()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
 
   Address address =
       region_allocator_.AllocateRegion(hint, size, allocation_granularity());
@@ -332,7 +332,7 @@ void VirtualAddressSubspace::FreeSharedPages(Address address, size_t size) {
   DCHECK(IsAligned(address, allocation_granularity()));
   DCHECK(IsAligned(size, allocation_granularity()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
   // The order here is important: on Windows, the allocation first has to be
   // freed to a placeholder before the placeholder can be merged (during the
   // merge_callback) with any surrounding placeholder mappings.
@@ -349,7 +349,7 @@ VirtualAddressSubspace::AllocateSubspace(Address hint, size_t size,
   DCHECK(IsAligned(size, allocation_granularity()));
   DCHECK(IsSubset(max_page_permissions, this->max_page_permissions()));
 
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
 
   Address address = region_allocator_.AllocateRegion(hint, size, alignment);
   if (address == RegionAllocator::kAllocationFailure) {
@@ -395,7 +395,7 @@ bool VirtualAddressSubspace::DecommitPages(Address address, size_t size) {
 }
 
 void VirtualAddressSubspace::FreeSubspace(VirtualAddressSubspace* subspace) {
-  MutexGuard guard(&mutex_);
+  SpinningMutexGuard guard(&mutex_);
 
   AddressSpaceReservation reservation = subspace->reservation_;
   Address base = reinterpret_cast<Address>(reservation.base());

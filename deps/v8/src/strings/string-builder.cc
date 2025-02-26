@@ -61,7 +61,7 @@ int StringBuilderConcatLength(int special_length,
   DisallowGarbageCollection no_gc;
   int position = 0;
   for (int i = 0; i < array_length; i++) {
-    int increment = 0;
+    uint32_t increment = 0;
     Tagged<Object> elt = fixed_array->get(i);
     if (IsSmi(elt)) {
       // Smi encoding of position and length.
@@ -192,8 +192,7 @@ void ReplacementStringBuilder::EnsureCapacity(int elements) {
 }
 
 void ReplacementStringBuilder::AddString(DirectHandle<String> string) {
-  int length = string->length();
-  DCHECK_GT(length, 0);
+  uint32_t length = string->length();
   AddElement(string);
   if (!string->IsOneByteRepresentation()) {
     is_one_byte_ = false;
@@ -316,7 +315,7 @@ MaybeDirectHandle<String> IncrementalStringBuilder::Finish() {
 bool IncrementalStringBuilder::CanAppendByCopy(DirectHandle<String> string) {
   const bool representation_ok =
       encoding_ == String::TWO_BYTE_ENCODING ||
-      (string->IsFlat() && String::IsOneByteRepresentationUnderneath(*string));
+      (string->IsFlat() && string->IsOneByteRepresentation());
 
   return representation_ok && CurrentPartCanFit(string->length());
 }

@@ -82,8 +82,9 @@ ABSL_NAMESPACE_END
 // ABSL_ASSERT()
 //
 // In C++11, `assert` can't be used portably within constexpr functions.
+// `assert` also generates spurious unused-symbol warnings.
 // ABSL_ASSERT functions as a runtime assert but works in C++11 constexpr
-// functions.  Example:
+// functions, and maintains references to symbols.  Example:
 //
 // constexpr double Divide(double a, double b) {
 //   return ABSL_ASSERT(b != 0), a / b;
@@ -92,8 +93,18 @@ ABSL_NAMESPACE_END
 // This macro is inspired by
 // https://akrzemi1.wordpress.com/2017/05/18/asserts-in-constexpr-functions/
 #if defined(NDEBUG)
-#define ABSL_ASSERT(expr) \
-  (false ? static_cast<void>(expr) : static_cast<void>(0))
+#if ABSL_INTERNAL_CPLUSPLUS_LANG >= 202002L
+// We use `decltype` here to avoid generating unnecessary code that the
+// optimizer then has to optimize away.
+// This not only improves compilation performance by reducing codegen bloat
+// and optimization work, but also guarantees fast run-time performance without
+// having to rely on the optimizer.
+#define ABSL_ASSERT(expr) (decltype((expr) ? void() : void())())
+#else
+// Pre-C++20, lambdas can't be inside unevaluated operands, so we're forced to
+// rely on the optimizer.
+#define ABSL_ASSERT(expr) (false ? ((expr) ? void() : void()) : void())
+#endif
 #else
 #define ABSL_ASSERT(expr)                           \
   (ABSL_PREDICT_TRUE((expr)) ? static_cast<void>(0) \

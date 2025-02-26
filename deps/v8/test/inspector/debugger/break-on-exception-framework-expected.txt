@@ -61,10 +61,7 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
--- setTimeout --
-(anonymous) (framework.js:36:32)
-delay (framework.js:36:9)
-uncaughtAsync (framework.js:31:8)
+-- await --
 frameworkFinallyMethod (framework.js:26:9)
 runWithResolution (framework.js:53:12)
 -- setTimeout --
@@ -76,6 +73,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
+-- await --
+frameworkFinallyMethod (framework.js:26:9)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -88,10 +88,7 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
--- setTimeout --
-(anonymous) (framework.js:36:32)
-delay (framework.js:36:9)
-uncaughtAsync (framework.js:31:8)
+-- await --
 frameworkFinallyMethod (framework.js:26:9)
 runWithResolution (framework.js:53:12)
 -- setTimeout --
@@ -103,6 +100,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
+-- await --
+frameworkFinallyMethod (framework.js:26:9)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -192,6 +192,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
+-- await --
+uncaughtWithAsyncUserCode (user.js:85:8)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -214,6 +217,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
+-- await --
+uncaughtWithAsyncUserCode (user.js:85:8)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -225,6 +231,8 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- await --
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -246,6 +254,8 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- await --
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -268,6 +278,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- await --
+uncaughtWithAsyncUserCodeMissingAwait (user.js:94:9)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -279,6 +292,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtWithAsyncUserCodeAndDelay (user.js:90:2)
+-- await --
+uncaughtWithAsyncUserCodeMissingAwait (user.js:94:9)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -406,10 +422,7 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
--- setTimeout --
-(anonymous) (framework.js:36:32)
-delay (framework.js:36:9)
-uncaughtAsync (framework.js:31:8)
+-- await --
 userFinallyMethod (user.js:114:9)
 runWithResolution (framework.js:53:12)
 -- setTimeout --
@@ -421,6 +434,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
+-- await --
+userFinallyMethod (user.js:114:9)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)
@@ -444,10 +460,7 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
--- setTimeout --
-(anonymous) (framework.js:36:32)
-delay (framework.js:36:9)
-uncaughtAsync (framework.js:31:8)
+-- await --
 userFinallyMethod (user.js:114:9)
 runWithResolution (framework.js:53:12)
 -- setTimeout --
@@ -459,6 +472,9 @@ Uncaught exception: Uncaught Error
 -- <empty> --
 throwUncaughtError (framework.js:10:8)
 uncaughtAsync (framework.js:32:2)
+-- await --
+userFinallyMethod (user.js:114:9)
+runWithResolution (framework.js:53:12)
 -- setTimeout --
 (anonymous) (framework.js:62:31)
 testWrapper (framework.js:62:8)

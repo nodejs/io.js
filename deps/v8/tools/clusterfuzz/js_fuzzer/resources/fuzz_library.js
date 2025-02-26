@@ -104,13 +104,21 @@ let __callGC;
 (function() {
   let countGC = 0;
   __callGC = function() {
-    if (countGC++ < 50) {
+    if (countGC++ < 20) {
       gc();
     }
   };
 })();
 
+
+function __wrapTC(f) {
+  try {
+    return f();
+  } catch (e) {}
+}
+
 // Neuter common test functions.
+try { this.fail = nop; } catch(e) { }
 try { this.failWithMessage = nop; } catch(e) { }
 try { this.triggerAssertFalse = nop; } catch(e) { }
 try { this.quit = nop; } catch(e) { }

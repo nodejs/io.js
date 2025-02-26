@@ -1,4 +1,4 @@
 wasm-function[0]:0x22: RuntimeError: unreachable
 RuntimeError: unreachable
-    at main (wasm://wasm/d578b3d2:wasm-function[0]:0x22)
+    at main (wasm://wasm/c6021c96:wasm-function[0]:0x22)
     at *%(basename)s:{NUMBER}:31

@@ -13,6 +13,7 @@
 #include "src/compiler/turboshaft/sidetable.h"
 #include "src/compiler/turboshaft/snapshot-table.h"
 #include "src/compiler/turboshaft/uniform-reducer-adapter.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/objects/heap-object-inl.h"
 
 namespace v8::internal::compiler::turboshaft {
@@ -387,8 +388,8 @@ class RedundantStoreAnalysis {
                 if (c0 && c1 && c0->kind == ConstantOp::Kind::kHeapObject &&
                     c1->kind == ConstantOp::Kind::kHeapObject &&
                     store1.offset - store0.offset == 4 &&
-                    InReadOnlySpace(*c0->handle()) &&
-                    InReadOnlySpace(*c1->handle())) {
+                    HeapLayout::InReadOnlySpace(*c0->handle()) &&
+                    HeapLayout::InReadOnlySpace(*c1->handle())) {
                   uint32_t high = static_cast<uint32_t>(c1->handle()->ptr());
                   uint32_t low = static_cast<uint32_t>(c0->handle()->ptr());
 #if V8_TARGET_BIG_ENDIAN

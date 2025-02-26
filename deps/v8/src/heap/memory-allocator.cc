@@ -28,14 +28,13 @@ namespace internal {
 
 namespace {
 
-void DeleteMemoryChunk(MemoryChunkMetadata* metadata) {
-  MemoryChunk* chunk = metadata->Chunk();
+void DeleteMemoryChunk(MutablePageMetadata* metadata) {
   DCHECK(metadata->reserved_memory()->IsReserved());
-  DCHECK(!chunk->InReadOnlySpace());
+  DCHECK(!metadata->Chunk()->InReadOnlySpace());
   // The Metadata contains a VirtualMemory reservation and the destructor will
   // release the MemoryChunk.
   DiscardSealedMemoryScope discard_scope("Deleting a memory chunk");
-  if (chunk->IsLargePage()) {
+  if (metadata->IsLargePage()) {
     delete reinterpret_cast<LargePageMetadata*>(metadata);
   } else {
     delete reinterpret_cast<PageMetadata*>(metadata);
@@ -87,7 +86,7 @@ void MemoryAllocator::TearDown() {
 void MemoryAllocator::Pool::ReleasePooledChunks() {
   std::vector<MutablePageMetadata*> copied_pooled;
   {
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
     std::swap(copied_pooled, pooled_chunks_);
   }
   for (auto* chunk_metadata : copied_pooled) {
@@ -97,7 +96,7 @@ void MemoryAllocator::Pool::ReleasePooledChunks() {
 }
 
 size_t MemoryAllocator::Pool::NumberOfCommittedChunks() const {
-  base::MutexGuard guard(&mutex_);
+  base::SpinningMutexGuard guard(&mutex_);
   return pooled_chunks_.size();
 }
 
@@ -344,7 +343,7 @@ void MemoryAllocator::FreeReadOnlyPage(ReadOnlyPageMetadata* chunk) {
   v8::PageAllocator* allocator = page_allocator(RO_SPACE);
   VirtualMemory* reservation = chunk->reserved_memory();
   if (reservation->IsReserved()) {
-    reservation->FreeReadOnly();
+    reservation->Free();
   } else {
     // Only read-only pages can have a non-initialized reservation object. This
     // happens when the pages are remapped to multiple locations and where the
@@ -352,6 +351,8 @@ void MemoryAllocator::FreeReadOnlyPage(ReadOnlyPageMetadata* chunk) {
     FreeMemoryRegion(allocator, chunk->ChunkAddress(),
                      RoundUp(chunk->size(), allocator->AllocatePageSize()));
   }
+
+  delete chunk;
 }
 
 void MemoryAllocator::PreFreeMemory(MutablePageMetadata* chunk_metadata) {
@@ -431,6 +432,20 @@ PageMetadata* MemoryAllocator::AllocatePage(
   }
   MemoryChunk* chunk;
   MemoryChunk::MainThreadFlags flags = metadata->InitialFlags(executable);
+  if (v8_flags.black_allocated_pages && space->identity() != NEW_SPACE &&
+      space->identity() != NEW_LO_SPACE &&
+      isolate_->heap()->incremental_marking()->black_allocation()) {
+    // Disable the write barrier for objects pointing to this page. We don't
+    // need to trigger the barrier for pointers to old black-allocated pages,
+    // since those are never considered for evacuation. However, we have to
+    // keep the old->shared remembered set across multiple GCs, so those
+    // pointers still need to be recorded.
+    if (!IsAnySharedSpace(space->identity())) {
+      flags &= ~MemoryChunk::POINTERS_TO_HERE_ARE_INTERESTING;
+    }
+    // And mark the page as black allocated.
+    flags |= MemoryChunk::BLACK_ALLOCATED;
+  }
   if (executable) {
     RwxMemoryWriteScope scope("Initialize a new MemoryChunk.");
     chunk = new (chunk_info->chunk) MemoryChunk(flags, metadata);
@@ -454,14 +469,13 @@ ReadOnlyPageMetadata* MemoryAllocator::AllocateReadOnlyPage(
   std::optional<MemoryChunkAllocationResult> chunk_info =
       AllocateUninitializedChunkAt(space, size, NOT_EXECUTABLE, hint,
                                    PageSize::kRegular);
-  if (!chunk_info) return nullptr;
-  Address metadata_address =
-      reinterpret_cast<Address>(chunk_info->chunk) + sizeof(MemoryChunk);
-  ReadOnlyPageMetadata* metadata =
-      new (reinterpret_cast<ReadOnlyPageMetadata*>(metadata_address))
-          ReadOnlyPageMetadata(isolate_->heap(), space, chunk_info->size,
-                               chunk_info->area_start, chunk_info->area_end,
-                               std::move(chunk_info->reservation));
+  if (!chunk_info) {
+    return nullptr;
+  }
+  CHECK_NULL(chunk_info->optional_metadata);
+  ReadOnlyPageMetadata* metadata = new ReadOnlyPageMetadata(
+      isolate_->heap(), space, chunk_info->size, chunk_info->area_start,
+      chunk_info->area_end, std::move(chunk_info->reservation));
 
   new (chunk_info->chunk) MemoryChunk(metadata->InitialFlags(), metadata);
 
@@ -546,19 +560,6 @@ void MemoryAllocator::InitializeOncePerProcess() {
   commit_page_size_bits_ = base::bits::WhichPowerOfTwo(commit_page_size_);
 }
 
-base::AddressRegion MemoryAllocator::ComputeDiscardMemoryArea(Address addr,
-                                                              size_t size) {
-  size_t page_size = GetCommitPageSize();
-  if (size < page_size + FreeSpace::kSize) {
-    return base::AddressRegion(0, 0);
-  }
-  Address discardable_start = RoundUp(addr + FreeSpace::kSize, page_size);
-  Address discardable_end = RoundDown(addr + size, page_size);
-  if (discardable_start >= discardable_end) return base::AddressRegion(0, 0);
-  return base::AddressRegion(discardable_start,
-                             discardable_end - discardable_start);
-}
-
 bool MemoryAllocator::SetPermissionsOnExecutableMemoryChunk(VirtualMemory* vm,
                                                             Address start,
                                                             size_t chunk_size) {
@@ -578,8 +579,6 @@ bool MemoryAllocator::SetPermissionsOnExecutableMemoryChunk(VirtualMemory* vm,
   }
 }
 
-#if defined(V8_ENABLE_CONSERVATIVE_STACK_SCANNING) || defined(DEBUG)
-
 const MemoryChunk* MemoryAllocator::LookupChunkContainingAddress(
     Address addr) const {
   // All threads should be either parked or in a safepoint whenever this method
@@ -589,16 +588,18 @@ const MemoryChunk* MemoryAllocator::LookupChunkContainingAddress(
   // obtain below is not necessarily a valid chunk.
   MemoryChunk* chunk = MemoryChunk::FromAddress(addr);
   // Check if it corresponds to a known normal or large page.
-  if (auto it = normal_pages_.find(chunk); it != normal_pages_.end()) {
+  if (auto normal_page_it = normal_pages_.find(chunk);
+      normal_page_it != normal_pages_.end()) {
     // The chunk is a normal page.
     // auto* normal_page = PageMetadata::cast(chunk);
-    DCHECK_LE((*it)->address(), addr);
+    DCHECK_LE((*normal_page_it)->address(), addr);
     if (chunk->Metadata()->Contains(addr)) return chunk;
-  } else if (auto it = large_pages_.upper_bound(chunk);
-             it != large_pages_.begin()) {
+  } else if (auto large_page_it = large_pages_.upper_bound(chunk);
+             large_page_it != large_pages_.begin()) {
     // The chunk could be inside a large page.
-    DCHECK_IMPLIES(it != large_pages_.end(), addr < (*it)->address());
-    auto* large_page_chunk = *std::next(it, -1);
+    DCHECK_IMPLIES(large_page_it != large_pages_.end(),
+                   addr < (*large_page_it)->address());
+    auto* large_page_chunk = *std::next(large_page_it, -1);
     DCHECK_NOT_NULL(large_page_chunk);
     DCHECK_LE(large_page_chunk->address(), addr);
     if (large_page_chunk->Metadata()->Contains(addr)) return large_page_chunk;
@@ -607,11 +608,8 @@ const MemoryChunk* MemoryAllocator::LookupChunkContainingAddress(
   return nullptr;
 }
 
-#endif  // V8_ENABLE_CONSERVATIVE_STACK_SCANNING || DEBUG
-
 void MemoryAllocator::RecordMemoryChunkCreated(const MemoryChunk* chunk) {
-#ifdef V8_ENABLE_CONSERVATIVE_STACK_SCANNING
-  base::MutexGuard guard(&chunks_mutex_);
+  base::SpinningMutexGuard guard(&chunks_mutex_);
   if (chunk->IsLargePage()) {
     auto result = large_pages_.insert(chunk);
     USE(result);
@@ -621,13 +619,10 @@ void MemoryAllocator::RecordMemoryChunkCreated(const MemoryChunk* chunk) {
     USE(result);
     DCHECK(result.second);
   }
-
-#endif  // V8_ENABLE_CONSERVATIVE_STACK_SCANNING
 }
 
 void MemoryAllocator::RecordMemoryChunkDestroyed(const MemoryChunk* chunk) {
-#ifdef V8_ENABLE_CONSERVATIVE_STACK_SCANNING
-  base::MutexGuard guard(&chunks_mutex_);
+  base::SpinningMutexGuard guard(&chunks_mutex_);
   if (chunk->IsLargePage()) {
     auto size = large_pages_.erase(chunk);
     USE(size);
@@ -637,7 +632,6 @@ void MemoryAllocator::RecordMemoryChunkDestroyed(const MemoryChunk* chunk) {
     USE(size);
     DCHECK_EQ(1u, size);
   }
-#endif  // V8_ENABLE_CONSERVATIVE_STACK_SCANNING
 }
 
 void MemoryAllocator::ReleaseQueuedPages() {

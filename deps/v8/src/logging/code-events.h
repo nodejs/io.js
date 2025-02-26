@@ -88,7 +88,8 @@ class LogEventListener {
   virtual void GetterCallbackEvent(Handle<Name> name, Address entry_point) = 0;
   virtual void SetterCallbackEvent(Handle<Name> name, Address entry_point) = 0;
   virtual void RegExpCodeCreateEvent(Handle<AbstractCode> code,
-                                     Handle<String> source) = 0;
+                                     Handle<String> source,
+                                     RegExpFlags flags) = 0;
   // Not handlified as this happens during GC. No allocation allowed.
   virtual void CodeMoveEvent(Tagged<InstructionStream> from,
                              Tagged<InstructionStream> to) = 0;
@@ -223,10 +224,11 @@ class Logger {
     }
   }
 
-  void RegExpCodeCreateEvent(Handle<AbstractCode> code, Handle<String> source) {
+  void RegExpCodeCreateEvent(Handle<AbstractCode> code, Handle<String> source,
+                             RegExpFlags flags) {
     base::RecursiveMutexGuard guard(&mutex_);
     for (auto listener : listeners_) {
-      listener->RegExpCodeCreateEvent(code, source);
+      listener->RegExpCodeCreateEvent(code, source, flags);
     }
   }
 

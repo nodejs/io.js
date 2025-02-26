@@ -56,8 +56,8 @@ Tagged<JSReceiver> GetCompatibleReceiver(Isolate* isolate,
 // - argv is the array arguments. The receiver is stored at argv[-1].
 template <bool is_construct>
 V8_WARN_UNUSED_RESULT MaybeHandle<Object> HandleApiCallHelper(
-    Isolate* isolate, Handle<HeapObject> new_target,
-    DirectHandle<FunctionTemplateInfo> fun_data, Handle<Object> receiver,
+    Isolate* isolate, DirectHandle<HeapObject> new_target,
+    DirectHandle<FunctionTemplateInfo> fun_data, DirectHandle<Object> receiver,
     Address* argv, int argc) {
   Handle<JSReceiver> js_receiver;
   Tagged<JSReceiver> raw_holder;
@@ -67,25 +67,25 @@ V8_WARN_UNUSED_RESULT MaybeHandle<Object> HandleApiCallHelper(
       v8::Local<ObjectTemplate> templ =
           ObjectTemplate::New(reinterpret_cast<v8::Isolate*>(isolate),
                               ToApiHandle<v8::FunctionTemplate>(fun_data));
-      FunctionTemplateInfo::SetInstanceTemplate(isolate, fun_data,
-                                                Utils::OpenHandle(*templ));
+      FunctionTemplateInfo::SetInstanceTemplate(
+          isolate, fun_data, Utils::OpenDirectHandle(*templ));
     }
-    Handle<ObjectTemplateInfo> instance_template(
+    DirectHandle<ObjectTemplateInfo> instance_template(
         Cast<ObjectTemplateInfo>(fun_data->GetInstanceTemplate()), isolate);
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, js_receiver,
         ApiNatives::InstantiateObject(isolate, instance_template,
                                       Cast<JSReceiver>(new_target)));
-    argv[BuiltinArguments::kReceiverArgsOffset] = js_receiver->ptr();
+    argv[BuiltinArguments::kReceiverArgsIndex] = js_receiver->ptr();
     raw_holder = *js_receiver;
   } else {
     DCHECK(IsJSReceiver(*receiver));
-    js_receiver = Cast<JSReceiver>(receiver);
+    js_receiver = indirect_handle(Cast<JSReceiver>(receiver), isolate);
 
     if (!fun_data->accept_any_receiver() && IsAccessCheckNeeded(*js_receiver)) {
       // Proxies never need access checks.
       DCHECK(IsJSObject(*js_receiver));
-      Handle<JSObject> js_object = Cast<JSObject>(js_receiver);
+      DirectHandle<JSObject> js_object = Cast<JSObject>(js_receiver);
       if (!isolate->MayAccess(isolate->native_context(), js_object)) {
         RETURN_ON_EXCEPTION(isolate,
                             isolate->ReportFailedAccessCheck(js_object));
@@ -105,7 +105,8 @@ V8_WARN_UNUSED_RESULT MaybeHandle<Object> HandleApiCallHelper(
   if (fun_data->has_callback(isolate)) {
     FunctionCallbackArguments custom(isolate, *fun_data, raw_holder,
                                      *new_target, argv, argc);
-    Handle<Object> result = custom.CallOrConstruct(*fun_data, is_construct);
+    DirectHandle<Object> result =
+        custom.CallOrConstruct(*fun_data, is_construct);
 
     RETURN_EXCEPTION_IF_EXCEPTION(isolate);
     if (result.is_null()) {
@@ -129,8 +130,8 @@ V8_WARN_UNUSED_RESULT MaybeHandle<Object> HandleApiCallHelper(
 
 BUILTIN(HandleApiConstruct) {
   HandleScope scope(isolate);
-  Handle<Object> receiver = args.receiver();
-  Handle<HeapObject> new_target = args.new_target();
+  DirectHandle<Object> receiver = args.receiver();
+  DirectHandle<HeapObject> new_target = args.new_target();
   DCHECK(!IsUndefined(*new_target, isolate));
   DirectHandle<FunctionTemplateInfo> fun_data(
       args.target()->shared()->api_func_data(), isolate);
@@ -167,9 +168,10 @@ class RelocatableArguments : public Relocatable {
 }  // namespace
 
 MaybeHandle<Object> Builtins::InvokeApiFunction(
-    Isolate* isolate, bool is_construct, Handle<FunctionTemplateInfo> function,
-    Handle<Object> receiver, int argc, Handle<Object> args[],
-    Handle<HeapObject> new_target) {
+    Isolate* isolate, bool is_construct,
+    DirectHandle<FunctionTemplateInfo> function, DirectHandle<Object> receiver,
+    base::Vector<const DirectHandle<Object>> args,
+    DirectHandle<HeapObject> new_target) {
   RCS_SCOPE(isolate, RuntimeCallCounterId::kInvokeApiFunction);
 
   // Do proper receiver conversion for non-strict mode api functions.
@@ -182,6 +184,7 @@ MaybeHandle<Object> Builtins::InvokeApiFunction(
   // a break point on any API function.
   DCHECK(!Cast<FunctionTemplateInfo>(function)->BreakAtEntry(isolate));
 
+  int argc = static_cast<int>(args.size());
   base::SmallVector<Address, 32> argv(argc + 1);
   argv[0] = (*receiver).ptr();
   for (int i = 0; i < argc; ++i) {
@@ -241,7 +244,7 @@ HandleApiCallAsFunctionOrConstructorDelegate(Isolate* isolate,
     FunctionCallbackArguments custom(isolate, templ, obj, new_target,
                                      args.address_of_first_argument(),
                                      args.length() - 1);
-    Handle<Object> result_handle =
+    DirectHandle<Object> result_handle =
         custom.CallOrConstruct(templ, is_construct_call);
     if (result_handle.is_null()) {
       result = ReadOnlyRoots(isolate).undefined_value();

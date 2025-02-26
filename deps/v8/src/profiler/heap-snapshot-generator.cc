@@ -15,8 +15,10 @@
 #include "src/debug/debug.h"
 #include "src/handles/global-handles.h"
 #include "src/heap/combined-heap.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/heap.h"
 #include "src/heap/safepoint.h"
+#include "src/heap/visit-object.h"
 #include "src/numbers/conversions.h"
 #include "src/objects/allocation-site-inl.h"
 #include "src/objects/api-callbacks.h"
@@ -44,8 +46,10 @@
 #include "src/profiler/output-stream-writer.h"
 
 #if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/canonical-types.h"
 #include "src/wasm/names-provider.h"
 #include "src/wasm/string-builder.h"
+#include "src/wasm/wasm-engine.h"
 #include "src/wasm/wasm-objects.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
@@ -532,6 +536,42 @@ const SnapshotObjectId HeapObjectsMap::kFirstAvailableObjectId =
     static_cast<int>(Root::kNumberOfRoots) * HeapObjectsMap::kObjectIdStep;
 const SnapshotObjectId HeapObjectsMap::kFirstAvailableNativeId = 2;
 
+namespace {
+
+int ExternalStringSizeForSnapshot(Tagged<ExternalString> object,
+                                  PtrComprCageBase cage_base) {
+  int external_size = 0;
+  if (IsExternalOneByteString(object, cage_base)) {
+    const ExternalOneByteString::Resource* resource =
+        Cast<ExternalOneByteString>(object)->resource();
+    if (resource) {
+      external_size = resource->EstimateMemoryUsage();
+    }
+  } else {
+    const ExternalTwoByteString::Resource* resource =
+        Cast<ExternalTwoByteString>(object)->resource();
+    if (resource) {
+      external_size = resource->EstimateMemoryUsage();
+    }
+  }
+  return external_size == -1 ? object->ExternalPayloadSize() : external_size;
+}
+
+int SizeForSnapshot(Tagged<HeapObject> object, PtrComprCageBase cage_base) {
+  // Since read-only space can be shared among Isolates, and JS developers have
+  // no control over the size of read-only space, we represent read-only objects
+  // as having zero size.
+  if (HeapLayout::InReadOnlySpace(object)) return 0;
+  int size = object->Size(cage_base);
+  if (IsExternalString(object, cage_base)) {
+    size +=
+        ExternalStringSizeForSnapshot(Cast<ExternalString>(object), cage_base);
+  }
+  return size;
+}
+
+}  // namespace
+
 HeapObjectsMap::HeapObjectsMap(Heap* heap)
     : next_id_(kFirstAvailableObjectId),
       next_native_id_(kFirstAvailableNativeId),
@@ -665,9 +705,9 @@ void HeapObjectsMap::UpdateHeapObjectsMap() {
   CombinedHeapObjectIterator iterator(heap_);
   for (Tagged<HeapObject> obj = iterator.Next(); !obj.is_null();
        obj = iterator.Next()) {
-    int object_size = obj->Size(cage_base);
-    FindOrAddEntry(obj.address(), object_size);
+    FindOrAddEntry(obj.address(), SizeForSnapshot(obj, cage_base));
     if (v8_flags.heap_profiler_trace_objects) {
+      int object_size = obj->Size(cage_base);
       PrintF("Update object      : %p %6d. Next address is %p\n",
              reinterpret_cast<void*>(obj.address()), object_size,
              reinterpret_cast<void*>(obj.address() + object_size));
@@ -849,41 +889,6 @@ void V8HeapExplorer::ExtractLocationForJSFunction(HeapEntry* entry,
   snapshot_->AddLocation(entry, scriptId, info.line, info.column);
 }
 
-namespace {
-// Templatized struct to statically generate the string "system / Managed<Foo>"
-// from "kFooTag".
-template <const char kTagNameCStr[]>
-struct ManagedName {
-  static constexpr std::string_view kTagName = kTagNameCStr;
-  static_assert(kTagName.starts_with("k"));
-  static_assert(kTagName.ends_with("Tag"));
-
-  static constexpr std::string_view prefix = "system / Managed<";
-  static constexpr std::string_view suffix = ">";
-
-  // We strip four characters, but add prefix and suffix and null termination.
-  static constexpr size_t kManagedNameLength =
-      kTagName.size() - 4 + prefix.size() + suffix.size() + 1;
-
-  static constexpr auto str_arr =
-      base::make_array<kManagedNameLength>([](std::size_t i) {
-        if (i < prefix.size()) return prefix[i];
-        if (i == kManagedNameLength - 2) return suffix[0];
-        if (i == kManagedNameLength - 1) return '\0';
-        return kTagName[i - prefix.size() + 1];
-      });
-
-  // Ignore "kFirstManagedResourceTag".
-  static constexpr bool ignore_me = kTagName == "kFirstManagedResourceTag";
-};
-
-// A little inline test:
-constexpr const char kTagNameForTesting[] = "kFooTag";
-static_assert(std::string_view{
-                  ManagedName<kTagNameForTesting>::str_arr.data()} ==
-              std::string_view{"system / Managed<Foo>"});
-}  // namespace
-
 HeapEntry* V8HeapExplorer::AddEntry(Tagged<HeapObject> object) {
   PtrComprCageBase cage_base(isolate());
   InstanceType instance_type = object->map(cage_base)->instance_type();
@@ -954,56 +959,89 @@ HeapEntry* V8HeapExplorer::AddEntry(Tagged<HeapObject> object) {
 
   } else if (InstanceTypeChecker::IsHeapNumber(instance_type)) {
     return AddEntry(object, HeapEntry::kHeapNumber, "heap number");
+  } else if (InstanceTypeChecker::IsOddball(instance_type)) {
+    Tagged<String> name = Cast<Oddball>(object)->to_string();
+    return AddEntry(object, HeapEntry::kHidden, names_->GetName(name));
   }
 #if V8_ENABLE_WEBASSEMBLY
   if (InstanceTypeChecker::IsWasmObject(instance_type)) {
     Tagged<WasmTypeInfo> info = object->map()->wasm_type_info();
-    // Getting the trusted data is safe; structs and arrays always have their
-    // trusted data defined.
-    wasm::NamesProvider* names =
-        info->trusted_data(isolate())->native_module()->GetNamesProvider();
     wasm::StringBuilder sb;
-    names->PrintTypeName(sb, info->type_index());
+    wasm::GetCanonicalTypeNamesProvider()->PrintTypeName(sb,
+                                                         info->type_index());
     sb << " (wasm)" << '\0';
     const char* name = names_->GetCopy(sb.start());
     return AddEntry(object, HeapEntry::kObject, name);
-  }
-  if (InstanceTypeChecker::IsWasmNull(instance_type)) {
-    // Inlined copies of {GetSystemEntryType}, {GetSystemEntryName}, and
-    // {AddEntry}, allowing us to override the size.
-    // The actual object's size is fairly large (at the time of this writing,
-    // just over 64 KB) and mostly includes a guard region. We report it as
-    // much smaller to avoid confusion.
-    static constexpr size_t kSize = WasmNull::kHeaderSize;
-    return AddEntry(object.address(), HeapEntry::kHidden, "system / WasmNull",
-                    kSize);
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   if (InstanceTypeChecker::IsForeign(instance_type)) {
     Tagged<Foreign> foreign = Cast<Foreign>(object);
     ExternalPointerTag tag = foreign->GetTag();
-    if (tag >= kFirstManagedResourceTag && tag < kLastManagedResourceTag) {
-      // First handle special cases with more information.
+
+    size_t size = SizeForSnapshot(object, cage_base);
+    const char* name = nullptr;
+    // TODO(saelo): consider creating a global mapping of ExternalPointerTags
+    // for Managed objects to their name if we need this anywhere else.
+    switch (tag) {
+      case kGenericManagedTag:
+        name = "system / Managed<Unknown>";
+        break;
 #if V8_ENABLE_WEBASSEMBLY
-      if (tag == kWasmNativeModuleTag) {
-        wasm::NativeModule* native_module =
-            Cast<Managed<wasm::NativeModule>>(foreign)->raw();
-        size_t size = native_module->EstimateCurrentMemoryConsumption();
-        return AddEntry(object.address(), HeapEntry::kHidden,
-                        "system / Managed<wasm::NativeModule>", size);
-      }
+      case kWasmWasmStreamingTag:
+        name = "system / Managed<WasmStreaming>";
+        break;
+      case kWasmFuncDataTag:
+        name = "system / Managed<wasm::FuncData>";
+        break;
+      case kWasmManagedDataTag:
+        name = "system / Managed<wasm::ManagedData>";
+        break;
+      case kWasmNativeModuleTag:
+        size = Cast<Managed<wasm::NativeModule>>(foreign)
+                   ->raw()
+                   ->EstimateCurrentMemoryConsumption();
+        name = "system / Managed<wasm::NativeModule>";
+        break;
 #endif  // V8_ENABLE_WEBASSEMBLY
-#define MANAGED_TAG(name, ...)                                \
-  if (tag == name) {                                          \
-    static constexpr const char kTagName[] = #name;           \
-    if constexpr (!ManagedName<kTagName>::ignore_me) {        \
-      return AddEntry(object, HeapEntry::kHidden,             \
-                      ManagedName<kTagName>::str_arr.data()); \
-    }                                                         \
-  }
-      PER_ISOLATE_EXTERNAL_POINTER_TAGS(MANAGED_TAG)
-#undef MANAGED_TAG
+      case kIcuBreakIteratorTag:
+        name = "system / Managed<icu::BreakIterator>";
+        break;
+      case kIcuUnicodeStringTag:
+        name = "system / Managed<icu::UnicodeString>";
+        break;
+      case kIcuListFormatterTag:
+        name = "system / Managed<icu::ListFormatter>";
+        break;
+      case kIcuLocaleTag:
+        name = "system / Managed<icu::Locale>";
+        break;
+      case kIcuSimpleDateFormatTag:
+        name = "system / Managed<icu::SimpleDateFormat>";
+        break;
+      case kIcuDateIntervalFormatTag:
+        name = "system / Managed<icu::DateIntervalFormat>";
+        break;
+      case kIcuRelativeDateTimeFormatterTag:
+        name = "system / Managed<icu::RelativeDateTimeFormatter>";
+        break;
+      case kIcuLocalizedNumberFormatterTag:
+        name = "system / Managed<icu::LocalizedNumberFormatter>";
+        break;
+      case kIcuPluralRulesTag:
+        name = "system / Managed<icu::PluralRules>";
+        break;
+      case kIcuCollatorTag:
+        name = "system / Managed<icu::Collator>";
+        break;
+      case kDisplayNamesInternalTag:
+        name = "system / Managed<DisplayNamesInternal>";
+        break;
+      default:
+        DCHECK(!kAnyManagedExternalPointerTagRange.Contains(tag));
+    }
+    if (name != nullptr) {
+      return AddEntry(object.address(), HeapEntry::kHidden, name, size);
     }
   }
 
@@ -1014,7 +1052,8 @@ HeapEntry* V8HeapExplorer::AddEntry(Tagged<HeapObject> object) {
 HeapEntry* V8HeapExplorer::AddEntry(Tagged<HeapObject> object,
                                     HeapEntry::Type type, const char* name) {
   PtrComprCageBase cage_base(isolate());
-  return AddEntry(object.address(), type, name, object->Size(cage_base));
+  return AddEntry(object.address(), type, name,
+                  SizeForSnapshot(object, cage_base));
 }
 
 HeapEntry* V8HeapExplorer::AddEntry(Address address, HeapEntry::Type type,
@@ -1244,6 +1283,15 @@ class IndexedReferencesExtractor : public ObjectVisitorWithCageBases {
     VisitSlotImpl(unused_cage_base, slot);
   }
 
+  void VisitProtectedPointer(Tagged<TrustedObject> host,
+                             ProtectedMaybeObjectSlot slot) override {
+    // TODO(saelo): the cage base doesn't currently matter as it isn't used,
+    // but technically we should either use the trusted cage base here or
+    // remove the cage_base parameter.
+    const PtrComprCageBase unused_cage_base(kNullAddress);
+    VisitSlotImpl(unused_cage_base, slot);
+  }
+
   void VisitJSDispatchTableEntry(Tagged<HeapObject> host,
                                  JSDispatchHandle handle) override {
 #ifdef V8_ENABLE_LEAPTIERING
@@ -1254,7 +1302,7 @@ class IndexedReferencesExtractor : public ObjectVisitorWithCageBases {
       int field_index = JSFunction::kDispatchHandleOffset / kTaggedSize;
       CHECK(generator_->visited_fields_[field_index]);
       generator_->visited_fields_[field_index] = false;
-    } else if (IsFeedbackCell(host)) {
+    } else if (IsCode(host) || IsFeedbackCell(host)) {
       // Nothing to do: the Code object is tracked as part of the JSFunction.
     } else {
       UNREACHABLE();
@@ -1376,7 +1424,7 @@ void V8HeapExplorer::ExtractReferences(HeapEntry* entry,
   } else if (IsTransitionArray(obj)) {
     ExtractTransitionArrayReferences(entry, Cast<TransitionArray>(obj));
   } else if (IsWeakFixedArray(obj)) {
-    ExtractWeakArrayReferences(WeakFixedArray::kHeaderSize, entry,
+    ExtractWeakArrayReferences(OFFSET_OF_DATA_START(WeakFixedArray), entry,
                                Cast<WeakFixedArray>(obj));
   } else if (IsWeakArrayList(obj)) {
     ExtractWeakArrayReferences(WeakArrayList::kHeaderSize, entry,
@@ -1965,18 +2013,20 @@ void V8HeapExplorer::ExtractNumberReference(HeapEntry* entry,
 
   // Must be large enough to fit any double, int, or size_t.
   char arr[32];
-  base::Vector<char> buffer(arr, arraysize(arr));
+  base::Vector<char> buffer = base::ArrayVector(arr);
 
-  const char* string;
+  std::string_view string;
   if (IsSmi(number)) {
     int int_value = Smi::ToInt(number);
-    string = IntToCString(int_value, buffer);
+    string = IntToStringView(int_value, buffer);
   } else {
     double double_value = Cast<HeapNumber>(number)->value();
-    string = DoubleToCString(double_value, buffer);
+    string = DoubleToStringView(double_value, buffer);
   }
 
-  const char* name = names_->GetCopy(string);
+  // GetCopy() requires a null-terminated C-String, as the underlying hash map
+  // uses strcmp.
+  const char* name = names_->GetCopy(std::string(string).c_str());
 
   SnapshotObjectId id = heap_object_map_->get_next_id();
   HeapEntry* child_entry =
@@ -2004,19 +2054,21 @@ void V8HeapExplorer::ExtractScopeInfoReferences(HeapEntry* entry,
 
 void V8HeapExplorer::ExtractFeedbackVectorReferences(
     HeapEntry* entry, Tagged<FeedbackVector> feedback_vector) {
+#ifndef V8_ENABLE_LEAPTIERING
   Tagged<MaybeObject> code = feedback_vector->maybe_optimized_code();
   Tagged<HeapObject> code_heap_object;
   if (code.GetHeapObjectIfWeak(&code_heap_object)) {
     SetWeakReference(entry, "optimized code", code_heap_object,
                      FeedbackVector::kMaybeOptimizedCodeOffset);
   }
+#endif  // !V8_ENABLE_LEAPTIERING
   for (int i = 0; i < feedback_vector->length(); ++i) {
     Tagged<MaybeObject> maybe_entry = *(feedback_vector->slots_start() + i);
-    Tagged<HeapObject> entry;
-    if (maybe_entry.GetHeapObjectIfStrong(&entry) &&
-        (entry->map(isolate())->instance_type() == WEAK_FIXED_ARRAY_TYPE ||
-         IsFixedArrayExact(entry))) {
-      TagObject(entry, "(feedback)", HeapEntry::kCode);
+    Tagged<HeapObject> entry_obj;
+    if (maybe_entry.GetHeapObjectIfStrong(&entry_obj) &&
+        (entry_obj->map(isolate())->instance_type() == WEAK_FIXED_ARRAY_TYPE ||
+         IsFixedArrayExact(entry_obj))) {
+      TagObject(entry_obj, "(feedback)", HeapEntry::kCode);
     }
   }
 }
@@ -2166,7 +2218,7 @@ void V8HeapExplorer::ExtractAccessorPairProperty(HeapEntry* entry,
 
 void V8HeapExplorer::ExtractElementReferences(Tagged<JSObject> js_obj,
                                               HeapEntry* entry) {
-  ReadOnlyRoots roots = js_obj->GetReadOnlyRoots();
+  ReadOnlyRoots roots = GetReadOnlyRoots();
   if (js_obj->HasObjectElements()) {
     Tagged<FixedArray> elements = Cast<FixedArray>(js_obj->elements());
     int length = IsJSArray(js_obj) ? Smi::ToInt(Cast<JSArray>(js_obj)->length())
@@ -2201,12 +2253,11 @@ void V8HeapExplorer::ExtractInternalReferences(Tagged<JSObject> js_obj,
 
 void V8HeapExplorer::ExtractWasmStructReferences(Tagged<WasmStruct> obj,
                                                  HeapEntry* entry) {
-  wasm::StructType* type = obj->type();
   Tagged<WasmTypeInfo> info = obj->map()->wasm_type_info();
-  // Getting the trusted data is safe; structs always have their trusted data
-  // defined.
-  wasm::NamesProvider* names =
-      info->trusted_data(isolate())->native_module()->GetNamesProvider();
+  const wasm::CanonicalStructType* type =
+      wasm::GetTypeCanonicalizer()->LookupStruct(info->type_index());
+  wasm::CanonicalTypeNamesProvider* names =
+      wasm::GetCanonicalTypeNamesProvider();
   Isolate* isolate = heap_->isolate();
   for (uint32_t i = 0; i < type->field_count(); i++) {
     wasm::StringBuilder sb;
@@ -2248,6 +2299,7 @@ void V8HeapExplorer::ExtractWasmStructReferences(Tagged<WasmStruct> obj,
       }
       case wasm::kRtt:
       case wasm::kVoid:
+      case wasm::kTop:
       case wasm::kBottom:
         UNREACHABLE();
     }
@@ -2256,7 +2308,9 @@ void V8HeapExplorer::ExtractWasmStructReferences(Tagged<WasmStruct> obj,
 
 void V8HeapExplorer::ExtractWasmArrayReferences(Tagged<WasmArray> obj,
                                                 HeapEntry* entry) {
-  if (!obj->type()->element_type().is_reference()) return;
+  const wasm::CanonicalValueType element_type =
+      obj->map()->wasm_type_info()->element_type();
+  if (!element_type.is_reference()) return;
   Isolate* isolate = heap_->isolate();
   ReadOnlyRoots roots(isolate);
   for (uint32_t i = 0; i < obj->length(); i++) {
@@ -2340,8 +2394,8 @@ Tagged<JSFunction> V8HeapExplorer::GetConstructor(Isolate* isolate,
                                                   Tagged<JSReceiver> receiver) {
   DisallowGarbageCollection no_gc;
   HandleScope scope(isolate);
-  MaybeHandle<JSFunction> maybe_constructor =
-      JSReceiver::GetConstructor(isolate, handle(receiver, isolate));
+  MaybeDirectHandle<JSFunction> maybe_constructor =
+      JSReceiver::GetConstructor(isolate, direct_handle(receiver, isolate));
 
   if (maybe_constructor.is_null()) return JSFunction();
 
@@ -2352,7 +2406,8 @@ Tagged<String> V8HeapExplorer::GetConstructorName(Isolate* isolate,
                                                   Tagged<JSObject> object) {
   DisallowGarbageCollection no_gc;
   HandleScope scope(isolate);
-  return *JSReceiver::GetConstructorName(isolate, handle(object, isolate));
+  return *JSReceiver::GetConstructorName(isolate,
+                                         direct_handle(object, isolate));
 }
 
 HeapEntry* V8HeapExplorer::GetEntry(Tagged<Object> obj) {
@@ -2484,7 +2539,7 @@ bool V8HeapExplorer::IterateAndExtractReferences(
     // Extract unvisited fields as hidden references and restore tags
     // of visited fields.
     IndexedReferencesExtractor refs_extractor(this, obj, entry);
-    obj->Iterate(cage_base, &refs_extractor);
+    VisitObject(heap_->isolate(), obj, &refs_extractor);
 
 #if DEBUG
     // Ensure visited_fields_ doesn't leak to the next object.
@@ -2507,8 +2562,8 @@ bool V8HeapExplorer::IsEssentialObject(Tagged<Object> object) {
   if (!IsHeapObject(object)) return false;
   // Avoid comparing objects in other pointer compression cages to objects
   // inside the main cage as the comparison may only look at the lower 32 bits.
-  if (IsCodeSpaceObject(Cast<HeapObject>(object)) ||
-      IsTrustedSpaceObject(Cast<HeapObject>(object))) {
+  if (HeapLayout::InCodeSpace(Cast<HeapObject>(object)) ||
+      HeapLayout::InTrustedSpace(Cast<HeapObject>(object))) {
     return true;
   }
   Isolate* isolate = heap_->isolate();
@@ -2676,14 +2731,11 @@ void V8HeapExplorer::SetPropertyReference(HeapEntry* parent_entry,
       IsSymbol(reference_name) || Cast<String>(reference_name)->length() > 0
           ? HeapGraphEdge::kProperty
           : HeapGraphEdge::kInternal;
-  const char* name =
-      name_format_string != nullptr && IsString(reference_name)
-          ? names_->GetFormatted(
-                name_format_string,
-                Cast<String>(reference_name)
-                    ->ToCString(DISALLOW_NULLS, ROBUST_STRING_TRAVERSAL)
-                    .get())
-          : names_->GetName(reference_name);
+  const char* name = name_format_string != nullptr && IsString(reference_name)
+                         ? names_->GetFormatted(
+                               name_format_string,
+                               Cast<String>(reference_name)->ToCString().get())
+                         : names_->GetName(reference_name);
 
   parent_entry->SetNamedReference(type, name, child_entry, generator_);
   MarkVisitedField(field_offset);
@@ -2848,8 +2900,8 @@ V8HeapExplorer::CollectTemporaryGlobalObjectsTags() {
   TemporaryGlobalObjectTags global_object_tags;
   HandleScope scope(isolate);
   GlobalObjectsEnumerator enumerator(
-      isolate, [this, isolate,
-                &global_object_tags](Handle<JSGlobalObject> global_object) {
+      isolate, [this, isolate, &global_object_tags](
+                   DirectHandle<JSGlobalObject> global_object) {
         if (const char* tag = global_object_name_resolver_->GetName(
                 Utils::ToLocal(Cast<JSObject>(global_object)))) {
           global_object_tags.emplace_back(
@@ -2910,7 +2962,7 @@ class EmbedderGraphImpl : public EmbedderGraph {
   }
 
   Node* V8Node(const v8::Local<v8::Data>& data) final {
-    Handle<Object> object = v8::Utils::OpenHandle(*data);
+    DirectHandle<Object> object = v8::Utils::OpenDirectHandle(*data);
     DCHECK(!object.is_null());
     return AddNode(std::unique_ptr<Node>(new V8NodeImpl(*object)));
   }
@@ -2925,12 +2977,16 @@ class EmbedderGraphImpl : public EmbedderGraph {
     edges_.push_back({from, to, name});
   }
 
+  void AddNativeSize(size_t size) final { native_size_ += size; }
+  size_t native_size() const { return native_size_; }
+
   const std::vector<std::unique_ptr<Node>>& nodes() { return nodes_; }
   const std::vector<Edge>& edges() { return edges_; }
 
  private:
   std::vector<std::unique_ptr<Node>> nodes_;
   std::vector<Edge> edges_;
+  size_t native_size_ = 0;
 };
 
 class EmbedderGraphEntriesAllocator : public HeapEntriesAllocator {
@@ -3115,6 +3171,7 @@ bool NativeObjectsExplorer::IterateAndExtractReferences(
                                 HeapEntry::kOffHeapPointer);
       }
     }
+    snapshot_->set_extra_native_bytes(graph.native_size());
   }
   generator_ = nullptr;
   return true;
@@ -3201,6 +3258,7 @@ bool HeapSnapshotGenerator::GenerateSnapshotAfterGC() {
   v8_heap_explorer_.MakeGlobalObjectTagMap(
       std::move(temporary_global_object_tags));
   snapshot_->AddSyntheticRootEntries();
+  v8_heap_explorer_.PopulateLineEnds();
   if (!FillReferences()) return false;
   snapshot_->FillChildren();
   snapshot_->RememberLastJSObjectId();
@@ -3243,13 +3301,20 @@ bool HeapSnapshotGenerator::FillReferences() {
 }
 
 // type, name, id, self_size, edge_count, trace_node_id, detachedness.
-const int HeapSnapshotJSONSerializer::kNodeFieldsCount = 7;
+const int HeapSnapshotJSONSerializer::kNodeFieldsCountWithTraceNodeId = 7;
+const int HeapSnapshotJSONSerializer::kNodeFieldsCountWithoutTraceNodeId = 6;
 
 void HeapSnapshotJSONSerializer::Serialize(v8::OutputStream* stream) {
   v8::base::ElapsedTimer timer;
   timer.Start();
   DCHECK_NULL(writer_);
   writer_ = new OutputStreamWriter(stream);
+  trace_function_count_ = 0;
+  if (AllocationTracker* tracker =
+          snapshot_->profiler()->allocation_tracker()) {
+    trace_function_count_ =
+        static_cast<uint32_t>(tracker->function_info_list().size());
+  }
   SerializeImpl();
   delete writer_;
   writer_ = nullptr;
@@ -3417,8 +3482,12 @@ void HeapSnapshotJSONSerializer::SerializeNode(const HeapEntry* entry) {
   buffer[buffer_pos++] = ',';
   buffer_pos = utoa(entry->children_count(), buffer, buffer_pos);
   buffer[buffer_pos++] = ',';
-  buffer_pos = utoa(entry->trace_node_id(), buffer, buffer_pos);
-  buffer[buffer_pos++] = ',';
+  if (trace_function_count_) {
+    buffer_pos = utoa(entry->trace_node_id(), buffer, buffer_pos);
+    buffer[buffer_pos++] = ',';
+  } else {
+    CHECK_EQ(0, entry->trace_node_id());
+  }
   buffer_pos = utoa(entry->detachedness(), buffer, buffer_pos);
   buffer[buffer_pos++] = '\n';
   buffer[buffer_pos++] = '\0';
@@ -3440,17 +3509,18 @@ void HeapSnapshotJSONSerializer::SerializeSnapshot() {
 
   // clang-format off
 #define JSON_A(s) "[" s "]"
-#define JSON_O(s) "{" s "}"
 #define JSON_S(s) "\"" s "\""
-  writer_->AddString(JSON_O(
-    JSON_S("node_fields") ":" JSON_A(
+  writer_->AddString("{"
+    JSON_S("node_fields") ":["
         JSON_S("type") ","
         JSON_S("name") ","
         JSON_S("id") ","
         JSON_S("self_size") ","
-        JSON_S("edge_count") ","
-        JSON_S("trace_node_id") ","
-        JSON_S("detachedness")) ","
+        JSON_S("edge_count") ",");
+  if (trace_function_count_) writer_->AddString(JSON_S("trace_node_id") ",");
+  writer_->AddString(
+        JSON_S("detachedness")
+    "],"
     JSON_S("node_types") ":" JSON_A(
         JSON_A(
             JSON_S("hidden") ","
@@ -3509,22 +3579,19 @@ void HeapSnapshotJSONSerializer::SerializeSnapshot() {
         JSON_S("object_index") ","
         JSON_S("script_id") ","
         JSON_S("line") ","
-        JSON_S("column"))));
+        JSON_S("column"))
+  "}");
 // clang-format on
 #undef JSON_S
-#undef JSON_O
 #undef JSON_A
   writer_->AddString(",\"node_count\":");
-  writer_->AddNumber(static_cast<unsigned>(snapshot_->entries().size()));
+  writer_->AddSize(snapshot_->entries().size());
   writer_->AddString(",\"edge_count\":");
-  writer_->AddNumber(static_cast<double>(snapshot_->edges().size()));
+  writer_->AddSize(snapshot_->edges().size());
   writer_->AddString(",\"trace_function_count\":");
-  uint32_t count = 0;
-  AllocationTracker* tracker = snapshot_->profiler()->allocation_tracker();
-  if (tracker) {
-    count = static_cast<uint32_t>(tracker->function_info_list().size());
-  }
-  writer_->AddNumber(count);
+  writer_->AddNumber(trace_function_count_);
+  writer_->AddString(",\"extra_native_bytes\":");
+  writer_->AddSize(snapshot_->extra_native_bytes());
 }
 
 static void WriteUChar(OutputStreamWriter* w, unibrow::uchar u) {

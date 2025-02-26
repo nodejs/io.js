@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --harmony-array-find-last
-// Flags: --js-float16array
+// Flags: --allow-natives-syntax
+// Flags: --js-staging
 
 var typedArrayConstructors = [
   Uint8Array,

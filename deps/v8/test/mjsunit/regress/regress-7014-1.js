@@ -19,6 +19,9 @@ assertOptimized(foo);
 // Now mess with the String.prototype.
 String.prototype[5] = "5";
 
+assertUnoptimized(foo);
+%DeoptimizeFunction(foo);
+
 assertEquals("f", foo("abcdef"));
 %PrepareFunctionForOptimization(foo);
 assertEquals("5", foo("a"));

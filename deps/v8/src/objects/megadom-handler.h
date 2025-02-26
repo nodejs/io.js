@@ -21,7 +21,7 @@ class MegaDomHandler
   void BriefPrintDetails(std::ostream& os);
   class BodyDescriptor;
 
-  DECL_RELEASE_ACQUIRE_WEAK_ACCESSORS(accessor)
+  DECL_RELEASE_ACQUIRE_ACCESSORS(accessor, Tagged<MaybeObject>)
 
   TQ_OBJECT_CONSTRUCTORS(MegaDomHandler)
 };

@@ -15,7 +15,7 @@ namespace internal {
 // non-one-byte character, rather than directly to the non-one-byte character.
 // If the return value is >= the passed length, the entire string was
 // one-byte.
-inline int NonAsciiStart(const uint8_t* chars, int length) {
+inline uint32_t NonAsciiStart(const uint8_t* chars, uint32_t length) {
   const uint8_t* start = chars;
   const uint8_t* limit = chars + length;
 
@@ -23,7 +23,7 @@ inline int NonAsciiStart(const uint8_t* chars, int length) {
     // Check unaligned bytes.
     while (!IsAligned(reinterpret_cast<intptr_t>(chars), kIntptrSize)) {
       if (*chars > unibrow::Utf8::kMaxOneByteChar) {
-        return static_cast<int>(chars - start);
+        return static_cast<uint32_t>(chars - start);
       }
       ++chars;
     }
@@ -32,7 +32,7 @@ inline int NonAsciiStart(const uint8_t* chars, int length) {
     const uintptr_t non_one_byte_mask = kUintptrAllBitsSet / 0xFF * 0x80;
     while (chars + sizeof(uintptr_t) <= limit) {
       if (*reinterpret_cast<const uintptr_t*>(chars) & non_one_byte_mask) {
-        return static_cast<int>(chars - start);
+        return static_cast<uint32_t>(chars - start);
       }
       chars += sizeof(uintptr_t);
     }
@@ -40,12 +40,12 @@ inline int NonAsciiStart(const uint8_t* chars, int length) {
   // Check remaining unaligned bytes.
   while (chars < limit) {
     if (*chars > unibrow::Utf8::kMaxOneByteChar) {
-      return static_cast<int>(chars - start);
+      return static_cast<uint32_t>(chars - start);
     }
     ++chars;
   }
 
-  return static_cast<int>(chars - start);
+  return static_cast<uint32_t>(chars - start);
 }
 
 template <class Decoder>

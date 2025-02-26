@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 // An unconditional deopt will be inserted after {o} has been created, but
 // before it is initialized with "arg + 1.5" and "arg + 41.5". These 2 fields

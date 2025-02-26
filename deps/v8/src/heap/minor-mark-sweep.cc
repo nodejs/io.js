@@ -22,8 +22,10 @@
 #include "src/heap/ephemeron-remembered-set.h"
 #include "src/heap/gc-tracer-inl.h"
 #include "src/heap/gc-tracer.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/heap.h"
 #include "src/heap/large-spaces.h"
+#include "src/heap/live-object-range-inl.h"
 #include "src/heap/mark-sweep-utilities.h"
 #include "src/heap/marking-barrier.h"
 #include "src/heap/marking-visitor-inl.h"
@@ -123,7 +125,8 @@ class YoungGenerationMarkingVerifier : public MarkingVerifierBase {
 
  private:
   V8_INLINE void VerifyHeapObjectImpl(Tagged<HeapObject> heap_object) {
-    CHECK_IMPLIES(Heap::InYoungGeneration(heap_object), IsMarked(heap_object));
+    CHECK_IMPLIES(HeapLayout::InYoungGeneration(heap_object),
+                  IsMarked(heap_object));
   }
 
   template <typename TSlot>
@@ -215,9 +218,8 @@ void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
     DeleteRememberedSets() {
   DCHECK(IsAcquired());
   if (slots_type_ == SlotsType::kRegularSlots) {
-    if (slot_set_) SlotSet::Delete(slot_set_, chunk_->buckets());
-    if (background_slot_set_)
-      SlotSet::Delete(background_slot_set_, chunk_->buckets());
+    if (slot_set_) SlotSet::Delete(slot_set_);
+    if (background_slot_set_) SlotSet::Delete(background_slot_set_);
   } else {
     DCHECK_EQ(slots_type_, SlotsType::kTypedSlots);
     DCHECK_NULL(background_slot_set_);
@@ -229,9 +231,8 @@ void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
 void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
     DeleteSetsOnTearDown() {
   if (slots_type_ == SlotsType::kRegularSlots) {
-    if (slot_set_) SlotSet::Delete(slot_set_, chunk_->buckets());
-    if (background_slot_set_)
-      SlotSet::Delete(background_slot_set_, chunk_->buckets());
+    if (slot_set_) SlotSet::Delete(slot_set_);
+    if (background_slot_set_) SlotSet::Delete(background_slot_set_);
 
   } else {
     DCHECK_EQ(slots_type_, SlotsType::kTypedSlots);
@@ -490,7 +491,7 @@ class YoungStringForwardingTableCleaner final
       return;
     }
     Tagged<String> original_string = Cast<String>(original);
-    if (!Heap::InYoungGeneration(original_string)) return;
+    if (!HeapLayout::InYoungGeneration(original_string)) return;
     if (!marking_state_->IsMarked(original_string)) {
       DisposeExternalResource(record);
       record->set_original_string(StringForwardingTable::deleted_element());
@@ -500,10 +501,10 @@ class YoungStringForwardingTableCleaner final
 
 bool IsUnmarkedObjectInYoungGeneration(Heap* heap, FullObjectSlot p) {
   if (v8_flags.sticky_mark_bits) {
-    return Heap::InYoungGeneration(*p);
+    return HeapLayout::InYoungGeneration(*p);
   }
-  DCHECK_IMPLIES(Heap::InYoungGeneration(*p), Heap::InToPage(*p));
-  return Heap::InYoungGeneration(*p) &&
+  DCHECK_IMPLIES(HeapLayout::InYoungGeneration(*p), Heap::InToPage(*p));
+  return HeapLayout::InYoungGeneration(*p) &&
          !heap->non_atomic_marking_state()->IsMarked(Cast<HeapObject>(*p));
 }
 
@@ -565,7 +566,7 @@ void MinorMarkSweepCollector::ClearNonLiveReferences() {
         HeapObjectSlot key_slot(
             table->RawFieldOfElementAt(EphemeronHashTable::EntryToIndex(i)));
         Tagged<HeapObject> key = key_slot.ToHeapObject();
-        if (Heap::InYoungGeneration(key) &&
+        if (HeapLayout::InYoungGeneration(key) &&
             non_atomic_marking_state_->IsUnmarked(key)) {
           table->RemoveEntry(i);
         }
@@ -591,7 +592,7 @@ void MinorMarkSweepCollector::ClearNonLiveReferences() {
       Tagged<HeapObject> key = key_slot.ToHeapObject();
       // There may be old generation entries left in the remembered set as
       // MinorMS only promotes pages after clearing non-live references.
-      if (!Heap::InYoungGeneration(key)) {
+      if (!HeapLayout::InYoungGeneration(key)) {
         iti = indices.erase(iti);
       } else if (non_atomic_marking_state_->IsUnmarked(key)) {
         table->RemoveEntry(InternalIndex(*iti));
@@ -613,7 +614,7 @@ namespace {
 void VisitObjectWithEmbedderFields(Isolate* isolate, Tagged<JSObject> js_object,
                                    MarkingWorklists::Local& worklist) {
   DCHECK(js_object->MayHaveEmbedderFields());
-  DCHECK(!Heap::InYoungGeneration(js_object));
+  DCHECK(!HeapLayout::InYoungGeneration(js_object));
   // Not every object that can have embedder fields is actually a JSApiWrapper.
   if (!IsJSApiWrapperObject(js_object)) {
     return;
@@ -897,7 +898,7 @@ void MinorMarkSweepCollector::EvacuateExternalPointerReferences(
     return KEEP_SLOT;
   };
   auto slot_count = slots->Iterate<BasicSlotSet::AccessMode::NON_ATOMIC>(
-      p->ChunkAddress(), 0, p->buckets(), callback,
+      p->ChunkAddress(), 0, p->BucketsInSlotSet(), callback,
       BasicSlotSet::EmptyBucketMode::FREE_EMPTY_BUCKETS);
   DCHECK(slot_count);
   USE(slot_count);
@@ -1030,7 +1031,7 @@ bool MinorMarkSweepCollector::SweepNewLargeSpace() {
     }
     chunk->ClearFlagNonExecutable(MemoryChunk::TO_PAGE);
     chunk->SetFlagNonExecutable(MemoryChunk::FROM_PAGE);
-    current->ProgressBar().ResetIfEnabled();
+    current->marking_progress_tracker().ResetIfEnabled();
     EvacuateExternalPointerReferences(current);
     old_lo_space->PromoteNewLargeObject(current);
     has_promoted_pages = true;

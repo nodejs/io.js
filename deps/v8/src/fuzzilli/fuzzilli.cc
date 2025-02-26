@@ -62,14 +62,6 @@ void FuzzilliExtension::Fuzzilli(const FunctionCallbackInfo<Value>& info) {
         // mapped, simply increment the pointer until it crashes.
         // The cast ensures that this works correctly on both 32-bit and 64-bit.
         Address addr = static_cast<Address>(0x414141414141ull);
-        // If we're in sandbox testing mode, use the target page as address.
-        // This is the page that must be written to to demonstrate a sandbox
-        // bypass, in which case there should be a detectable crash.
-#ifdef V8_ENABLE_SANDBOX
-        if (SandboxTesting::mode() == SandboxTesting::Mode::kForTesting) {
-          addr = SandboxTesting::target_page_base();
-        }
-#endif  // V8_ENABLE_SANDBOX
         char* ptr = reinterpret_cast<char*>(addr);
         for (int i = 0; i < 1024; i++) {
           *ptr = 'A';

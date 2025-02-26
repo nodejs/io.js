@@ -3,9 +3,9 @@
 // found in the LICENSE file.
 
 #include "src/strings/unicode.h"
-#include "src/third_party/utf8-decoder/generalized-utf8-decoder.h"
-#include "src/third_party/utf8-decoder/utf8-decoder.h"
 #include "test/cctest/cctest.h"
+#include "third_party/utf8-decoder/generalized-utf8-decoder.h"
+#include "third_party/utf8-decoder/utf8-decoder.h"
 
 namespace v8 {
 namespace internal {

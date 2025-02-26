@@ -11,6 +11,7 @@
 
 namespace v8::internal {
 class ProfileDataFromFile;
+class SparseBitVector;
 }
 
 namespace v8::internal::compiler::turboshaft {
@@ -50,7 +51,7 @@ class V8_EXPORT_PRIVATE TurboshaftSpecialRPONumberer {
   struct LoopInfo {
     const Block* header;
     base::SmallVector<Block const*, 4> outgoing;
-    BitVector* members;
+    SparseBitVector* members;
     LoopInfo* prev;
     const Block* end;
     const Block* start;

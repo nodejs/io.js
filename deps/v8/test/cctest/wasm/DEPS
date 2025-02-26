@@ -1,0 +1,5 @@
+specific_include_rules = {
+  "test-wasm-strings.cc": [
+    "+third_party/utf8-decoder",
+  ],
+}

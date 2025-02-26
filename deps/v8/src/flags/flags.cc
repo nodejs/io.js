@@ -16,7 +16,7 @@
 #include <set>
 #include <sstream>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/lazy-instance.h"
 #include "src/base/platform/platform.h"
 #include "src/codegen/cpu-features.h"
@@ -601,6 +601,15 @@ bool TryParseUnsigned(Flag* flag, const char* arg, const char* value,
 int FlagList::SetFlagsFromCommandLine(int* argc, char** argv, bool remove_flags,
                                       HelpOptions help_options) {
   int return_code = 0;
+
+  // TODO(jgruber): Since ShouldCheckFlagContradictions looks at v8_flags
+  // values to determine whether to check for contradictions, these flag values
+  // must be available before the check returns a consistent value. That means
+  // we'd really have to add a preprocessing pass that only considers these
+  // flags (e.g. --fuzzing). Otherwise, they are position-sensitive and only
+  // disable contradiction checks for flags that come after. This is pretty
+  // surprising since no other v8 flags have such positional behavior.
+
   // Parse arguments.
   for (int i = 1; i < *argc;) {
     int j = i;  // j > 0
@@ -734,6 +743,13 @@ int FlagList::SetFlagsFromCommandLine(int* argc, char** argv, bool remove_flags,
     }
   }
 
+  if (v8_flags.print_feature_flags_json) {
+    PrintFeatureFlagsJSON();
+    if (help_options.ShouldExit()) {
+      exit(0);
+    }
+  }
+
   if (remove_flags) {
     // Shrink the argument list.
     int j = 1;
@@ -855,6 +871,121 @@ void FlagList::PrintValues() {
 
 namespace {
 
+void PrintFlagsJSONArray(std::ostream& os,
+                         const std::vector<const char*>& flags) {
+  if (flags.empty()) {
+    os << "[]";
+  } else {
+    os << "[\n";
+    bool first = true;
+    for (const auto& flag : flags) {
+      if (!first) os << ",\n";
+      os << "      \"" << flag << "\"";
+      first = false;
+    }
+    os << "\n" << "    ]";
+  }
+}
+
+void PrintFeatureFlagsJSONObject(
+    std::ostream& os, const std::vector<const char*>& inprogress_flags,
+    const std::vector<const char*>& staged_flags,
+    const std::vector<const char*>& shipping_flags) {
+  os << "{\n";
+
+  os << "    \"in-progress\": ";
+  PrintFlagsJSONArray(os, inprogress_flags);
+  os << ",\n";
+
+  os << "    \"staged\": ";
+  PrintFlagsJSONArray(os, staged_flags);
+  os << ",\n";
+
+  os << "    \"shipping\": ";
+  PrintFlagsJSONArray(os, shipping_flags);
+  os << "\n";
+
+  os << "  }";
+}
+
+}  // namespace
+
+// static
+void FlagList::PrintFeatureFlagsJSON() {
+  StdoutStream os;
+
+  os << "{\n";
+
+  {
+    std::vector<const char*> inprogress_flags;
+    std::vector<const char*> staged_flags;
+    std::vector<const char*> shipping_flags;
+
+#define ADD_JS_INPROGRESS_FLAG(name, desc) inprogress_flags.push_back(#name);
+#define ADD_JS_STAGED_FLAG(name, desc) staged_flags.push_back(#name);
+#define ADD_JS_SHIPPING_FLAG(name, desc) shipping_flags.push_back(#name);
+
+    JAVASCRIPT_INPROGRESS_FEATURES(ADD_JS_INPROGRESS_FLAG)
+    JAVASCRIPT_STAGED_FEATURES(ADD_JS_STAGED_FLAG)
+    JAVASCRIPT_SHIPPING_FEATURES(ADD_JS_SHIPPING_FLAG)
+
+    os << "  \"js\": ";
+    PrintFeatureFlagsJSONObject(os, inprogress_flags, staged_flags,
+                                shipping_flags);
+    os << ",\n";
+  }
+
+  {
+    std::vector<const char*> inprogress_flags;
+    std::vector<const char*> staged_flags;
+    std::vector<const char*> shipping_flags;
+
+    HARMONY_INPROGRESS(ADD_JS_INPROGRESS_FLAG)
+    HARMONY_STAGED(ADD_JS_STAGED_FLAG)
+    HARMONY_SHIPPING(ADD_JS_SHIPPING_FLAG)
+
+    os << "  \"harmony\": ";
+    PrintFeatureFlagsJSONObject(os, inprogress_flags, staged_flags,
+                                shipping_flags);
+    os << ",\n";
+  }
+
+#if V8_ENABLE_WEBASSEMBLY
+  {
+    std::vector<const char*> inprogress_flags;
+    std::vector<const char*> staged_flags;
+    std::vector<const char*> shipping_flags;
+
+#define ADD_WASM_INPROGRESS_FLAG(name, desc, val) \
+  inprogress_flags.push_back("experimental_wasm_" #name);
+#define ADD_WASM_STAGED_FLAG(name, desc, val) \
+  staged_flags.push_back("experimental_wasm_" #name);
+#define ADD_WASM_SHIPPED_FLAG(name, desc, val) \
+  shipping_flags.push_back("experimental_wasm_" #name);
+
+    FOREACH_WASM_EXPERIMENTAL_FEATURE_FLAG(ADD_WASM_INPROGRESS_FLAG)
+    FOREACH_WASM_STAGING_FEATURE_FLAG(ADD_WASM_STAGED_FLAG)
+    FOREACH_WASM_SHIPPED_FEATURE_FLAG(ADD_WASM_SHIPPED_FLAG)
+
+    os << "  \"wasm\": ";
+    PrintFeatureFlagsJSONObject(os, inprogress_flags, staged_flags,
+                                shipping_flags);
+    os << "\n";
+  }
+#endif  // V8_ENABLE_WEBASSEMBLY
+
+  os << "}\n";
+
+#undef ADD_JS_INPROGRESS_FLAG
+#undef ADD_JS_STAGED_FLAG
+#undef ADD_JS_SHIPPING_FLAG
+#undef ADD_WASM_INPROGRESS_FLAG
+#undef ADD_WASM_STAGED_FLAG
+#undef ADD_WASM_SHIPPED_FLAG
+}
+
+namespace {
+
 class ImplicationProcessor {
  public:
   // Returns {true} if any flag value was changed.
@@ -952,45 +1083,102 @@ class ImplicationProcessor {
 
 }  // namespace
 
+// Defines a contradicion if at least one of the two flags is set. We currently
+// don't handle contradictions when two default-on flags are turned off, because
+// there are none.
 #define CONTRADICTION(flag1, flag2)                         \
-  (v8_flags.flag1 && v8_flags.flag2)                        \
+  (v8_flags.flag1 || v8_flags.flag2)                        \
       ? std::make_tuple(FindFlagByPointer(&v8_flags.flag1), \
                         FindFlagByPointer(&v8_flags.flag2)) \
       : std::make_tuple(nullptr, nullptr)
+
+#define RESET_WHEN_FUZZING(flag) CONTRADICTION(flag, fuzzing)
+#define RESET_WHEN_CORRECTNESS_FUZZING(flag) \
+  CONTRADICTION(flag, correctness_fuzzer_suppressions)
 
 // static
 void FlagList::ResolveContradictionsWhenFuzzing() {
   if (!i::v8_flags.fuzzing) return;
 
-  // List flags that lead to known contradictory cycles when both are passed
-  // on the command line. One of them will be reset with precedence left to
-  // right.
   std::tuple<Flag*, Flag*> contradictions[] = {
+      // List of flags that lead to known contradictory cycles when both
+      // deviate from their defaults. One of them will be reset with precedence
+      // left to right.
+      CONTRADICTION(always_osr_from_maglev, disable_optimizing_compilers),
+      CONTRADICTION(always_osr_from_maglev, jitless),
+      CONTRADICTION(always_osr_from_maglev, lite_mode),
+      CONTRADICTION(always_osr_from_maglev, turbofan),
+      CONTRADICTION(always_osr_from_maglev, turboshaft),
+      CONTRADICTION(always_turbofan, disable_optimizing_compilers),
+      CONTRADICTION(always_turbofan, jitless),
+      CONTRADICTION(always_turbofan, lite_mode),
+      CONTRADICTION(always_turbofan, turboshaft),
+      CONTRADICTION(assert_types, stress_concurrent_inlining),
+      CONTRADICTION(assert_types, stress_concurrent_inlining_attach_code),
+      CONTRADICTION(disable_optimizing_compilers, maglev_future),
+      CONTRADICTION(disable_optimizing_compilers, stress_concurrent_inlining),
+      CONTRADICTION(disable_optimizing_compilers,
+                    stress_concurrent_inlining_attach_code),
+      CONTRADICTION(disable_optimizing_compilers, stress_maglev),
+      CONTRADICTION(disable_optimizing_compilers,
+                    turboshaft_wasm_in_js_inlining),
       CONTRADICTION(jitless, maglev_future),
-      CONTRADICTION(jitless, stress_maglev),
       CONTRADICTION(jitless, stress_concurrent_inlining),
       CONTRADICTION(jitless, stress_concurrent_inlining_attach_code),
+      CONTRADICTION(jitless, stress_maglev),
+      CONTRADICTION(lite_mode, maglev_future),
+      CONTRADICTION(lite_mode, predictable_gc_schedule),
+      CONTRADICTION(lite_mode, stress_concurrent_inlining),
+      CONTRADICTION(lite_mode, stress_concurrent_inlining_attach_code),
+      CONTRADICTION(lite_mode, stress_maglev),
+      CONTRADICTION(optimize_for_size, predictable_gc_schedule),
       CONTRADICTION(predictable, stress_concurrent_inlining_attach_code),
-      CONTRADICTION(stress_concurrent_inlining, assert_types),
-      CONTRADICTION(stress_concurrent_inlining_attach_code, assert_types),
+      CONTRADICTION(predictable_gc_schedule, stress_compaction),
+      CONTRADICTION(single_threaded, stress_concurrent_inlining_attach_code),
+      CONTRADICTION(stress_concurrent_inlining, turboshaft_assert_types),
+      CONTRADICTION(stress_concurrent_inlining_attach_code,
+                    turboshaft_assert_types),
+      CONTRADICTION(turboshaft, stress_concurrent_inlining),
+      CONTRADICTION(turboshaft, stress_concurrent_inlining_attach_code),
+
+      // List of flags that shouldn't be used when --fuzzing or
+      // --correctness-fuzzer-suppressions is passed. These flags will be reset
+      // to their defaults.
+
+      // https://crbug.com/369652671
+      RESET_WHEN_CORRECTNESS_FUZZING(stress_lazy_compilation),
+
+      // https://crbug.com/380327159
+      RESET_WHEN_CORRECTNESS_FUZZING(turbo_stats),
+      RESET_WHEN_CORRECTNESS_FUZZING(turbo_stats_nvp),
+      RESET_WHEN_CORRECTNESS_FUZZING(turbo_stats_wasm),
+
+      // https://crbug.com/369974230
+      RESET_WHEN_FUZZING(expose_async_hooks),
+
+      // https://crbug.com/371061101
+      RESET_WHEN_FUZZING(parallel_compile_tasks_for_lazy),
+
+      // https://crbug.com/366671002
+      RESET_WHEN_FUZZING(stress_snapshot),
   };
   for (auto [flag1, flag2] : contradictions) {
     if (!flag1 || !flag2) continue;
-    // Check values again, since a flag might have already been reset by
-    // another contradiction.
-    if (!flag1->bool_variable() || !flag2->bool_variable()) continue;
+    if (flag1->IsDefault() || flag2->IsDefault()) continue;
 
-    Flag* flag = flag1;
-    if (flag->IsDefault()) {
-      flag = flag2;
-    }
-    if (flag->IsDefault()) {
-      FATAL("Multiple flags with contradictory default values");
-    }
+    // Ensure we never reset the fuzzing flags.
+    CHECK(!flag1->PointsTo(&v8_flags.fuzzing));
+    CHECK(!flag1->PointsTo(&v8_flags.correctness_fuzzer_suppressions));
 
-    std::cerr << "Warning: resetting flag --" << flag->name()
+    std::cerr << "Warning: resetting flag --" << flag1->name()
               << " due to conflicting flags" << std::endl;
-    flag->Reset();
+    flag1->Reset();
+  }
+  if ((v8_flags.trace_turbo || v8_flags.trace_turbo_graph) &&
+      v8_flags.fuzzing_and_concurrent_recompilation) {
+    std::cerr
+        << "Use --nofuzzing-and-concurrent-recompilation to force "
+           "enable --trace-turbo, and friends. This is not thread-safe.\n";
   }
 }
 

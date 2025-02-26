@@ -44,7 +44,23 @@ absl::optional<int> MinLogLevel() {
 #endif
 }
 
-TEST(VLogIsOn, GlobalWorksWithoutMaxVerbosityAndMinLogLevel) {
+// This fixture is used to reset the VLOG levels to their default values before
+// each test.
+class VLogIsOnTest : public ::testing::Test {
+ protected:
+  void SetUp() override { ResetVLogLevels(); }
+
+ private:
+  // Resets the VLOG levels to their default values.
+  // It is supposed to be called in the SetUp() method of the test fixture to
+  // eliminate any side effects from other tests.
+  static void ResetVLogLevels() {
+    absl::log_internal::UpdateVModule("");
+    absl::SetGlobalVLogLevel(0);
+  }
+};
+
+TEST_F(VLogIsOnTest, GlobalWorksWithoutMaxVerbosityAndMinLogLevel) {
   if (MaxLogVerbosity().has_value() || MinLogLevel().has_value()) {
     GTEST_SKIP();
   }
@@ -59,7 +75,7 @@ TEST(VLogIsOn, GlobalWorksWithoutMaxVerbosityAndMinLogLevel) {
   VLOG(4) << "spam";
 }
 
-TEST(VLogIsOn, FileWorksWithoutMaxVerbosityAndMinLogLevel) {
+TEST_F(VLogIsOnTest, FileWorksWithoutMaxVerbosityAndMinLogLevel) {
   if (MaxLogVerbosity().has_value() || MinLogLevel().has_value()) {
     GTEST_SKIP();
   }
@@ -74,7 +90,7 @@ TEST(VLogIsOn, FileWorksWithoutMaxVerbosityAndMinLogLevel) {
   VLOG(4) << "spam";
 }
 
-TEST(VLogIsOn, PatternWorksWithoutMaxVerbosityAndMinLogLevel) {
+TEST_F(VLogIsOnTest, PatternWorksWithoutMaxVerbosityAndMinLogLevel) {
   if (MaxLogVerbosity().has_value() || MinLogLevel().has_value()) {
     GTEST_SKIP();
   }
@@ -89,7 +105,48 @@ TEST(VLogIsOn, PatternWorksWithoutMaxVerbosityAndMinLogLevel) {
   VLOG(4) << "spam";
 }
 
-TEST(VLogIsOn, GlobalDoesNotFilterBelowMaxVerbosity) {
+TEST_F(VLogIsOnTest,
+       PatternOverridesLessGenericOneWithoutMaxVerbosityAndMinLogLevel) {
+  if (MaxLogVerbosity().has_value() || MinLogLevel().has_value()) {
+    GTEST_SKIP();
+  }
+
+  // This should disable logging in this file
+  absl::SetVLogLevel("vlog_is_on*", -1);
+  // This overrides the previous setting, because "vlog*" is more generic than
+  // "vlog_is_on*". This should enable VLOG level 3 in this file.
+  absl::SetVLogLevel("vlog*", 3);
+  absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
+
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+
+  log.StartCapturingLogs();
+  VLOG(3) << "important";
+  VLOG(4) << "spam";
+}
+
+TEST_F(VLogIsOnTest,
+       PatternDoesNotOverridesMoreGenericOneWithoutMaxVerbosityAndMinLogLevel) {
+  if (MaxLogVerbosity().has_value() || MinLogLevel().has_value()) {
+    GTEST_SKIP();
+  }
+
+  // This should enable VLOG level 3 in this file.
+  absl::SetVLogLevel("vlog*", 3);
+  // This should not change the VLOG level in this file. The pattern does not
+  // match this file and it is less generic than the previous patter "vlog*".
+  // Therefore, it does not disable VLOG level 3 in this file.
+  absl::SetVLogLevel("vlog_is_on_some_other_test*", -1);
+  absl::ScopedMockLog log(absl::MockLogDefault::kDisallowUnexpected);
+
+  EXPECT_CALL(log, Log(absl::LogSeverity::kInfo, _, "important"));
+
+  log.StartCapturingLogs();
+  VLOG(3) << "important";
+  VLOG(5) << "spam";
+}
+
+TEST_F(VLogIsOnTest, GlobalDoesNotFilterBelowMaxVerbosity) {
   if (!MaxLogVerbosity().has_value() || *MaxLogVerbosity() < 2) {
     GTEST_SKIP();
   }
@@ -104,7 +161,7 @@ TEST(VLogIsOn, GlobalDoesNotFilterBelowMaxVerbosity) {
   VLOG(2) << "asdf";
 }
 
-TEST(VLogIsOn, FileDoesNotFilterBelowMaxVerbosity) {
+TEST_F(VLogIsOnTest, FileDoesNotFilterBelowMaxVerbosity) {
   if (!MaxLogVerbosity().has_value() || *MaxLogVerbosity() < 2) {
     GTEST_SKIP();
   }
@@ -119,7 +176,7 @@ TEST(VLogIsOn, FileDoesNotFilterBelowMaxVerbosity) {
   VLOG(2) << "asdf";
 }
 
-TEST(VLogIsOn, PatternDoesNotFilterBelowMaxVerbosity) {
+TEST_F(VLogIsOnTest, PatternDoesNotFilterBelowMaxVerbosity) {
   if (!MaxLogVerbosity().has_value() || *MaxLogVerbosity() < 2) {
     GTEST_SKIP();
   }
@@ -134,7 +191,7 @@ TEST(VLogIsOn, PatternDoesNotFilterBelowMaxVerbosity) {
   VLOG(2) << "asdf";
 }
 
-TEST(VLogIsOn, GlobalFiltersAboveMaxVerbosity) {
+TEST_F(VLogIsOnTest, GlobalFiltersAboveMaxVerbosity) {
   if (!MaxLogVerbosity().has_value() || *MaxLogVerbosity() >= 4) {
     GTEST_SKIP();
   }
@@ -147,7 +204,7 @@ TEST(VLogIsOn, GlobalFiltersAboveMaxVerbosity) {
   VLOG(4) << "dfgh";
 }
 
-TEST(VLogIsOn, FileFiltersAboveMaxVerbosity) {
+TEST_F(VLogIsOnTest, FileFiltersAboveMaxVerbosity) {
   if (!MaxLogVerbosity().has_value() || *MaxLogVerbosity() >= 4) {
     GTEST_SKIP();
   }
@@ -160,7 +217,7 @@ TEST(VLogIsOn, FileFiltersAboveMaxVerbosity) {
   VLOG(4) << "dfgh";
 }
 
-TEST(VLogIsOn, PatternFiltersAboveMaxVerbosity) {
+TEST_F(VLogIsOnTest, PatternFiltersAboveMaxVerbosity) {
   if (!MaxLogVerbosity().has_value() || *MaxLogVerbosity() >= 4) {
     GTEST_SKIP();
   }

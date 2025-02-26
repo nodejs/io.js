@@ -21,6 +21,8 @@
 // reported with `#error`. This enforcement is best effort, so successfully
 // compiling this header does not guarantee a supported configuration.
 
+// SKIP_ABSL_INLINE_NAMESPACE_CHECK
+
 #ifndef ABSL_BASE_POLICY_CHECKS_H_
 #define ABSL_BASE_POLICY_CHECKS_H_
 

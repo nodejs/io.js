@@ -2001,6 +2001,121 @@ TEST_F(TurboshaftInstructionSelectorTest, OvfValMulImmediateOnRight) {
 }
 
 // -----------------------------------------------------------------------------
+// Branch-if-overflow fusion
+struct OverflowBinopOp {
+  TSBinop op;
+  const char* constructor_name;
+  ArchOpcode arch_opcode;
+  bool is_64_bits;
+};
+
+std::ostream& operator<<(std::ostream& os, const OverflowBinopOp& bop) {
+  return os << bop.constructor_name;
+}
+
+// Note that multiplication isn't tested because multiplication doesn't set
+// flags on Arm64, and thus BranchIfOverflow fusion cannot happen.
+const OverflowBinopOp kOverflowBinaryOperationsForBranchFusion[] = {
+    {TSBinop::kInt32AddCheckOverflow, "Int32AddCheckOverflow", kArm64Add32,
+     false},
+    {TSBinop::kInt64AddCheckOverflow, "Int64AddCheckOverflow", kArm64Add, true},
+    {TSBinop::kInt32SubCheckOverflow, "kInt32SubCheckOverflow", kArm64Sub32,
+     false},
+    {TSBinop::kInt64SubCheckOverflow, "kInt64SubCheckOverflow", kArm64Sub,
+     true}};
+
+using TurboshaftInstructionSelectorBranchIfOverflowTest =
+    TurboshaftInstructionSelectorTestWithParam<OverflowBinopOp>;
+
+TEST_P(TurboshaftInstructionSelectorBranchIfOverflowTest,
+       BranchIfZeroWithParameters) {
+  const OverflowBinopOp ovf_binop = GetParam();
+  MachineType in_out_type =
+      ovf_binop.is_64_bits ? MachineType::Int64() : MachineType::Int32();
+  StreamBuilder m(this, in_out_type, in_out_type, in_out_type);
+  Block *a = m.NewBlock(), *b = m.NewBlock();
+  OpIndex n = m.Emit(ovf_binop.op, m.Parameter(0), m.Parameter(1));
+  m.Branch(m.Word32Equal(m.Projection(n, 1), m.Int32Constant(0)), a, b);
+  m.Bind(a);
+  m.Return(m.Projection(n, 0));
+  m.Bind(b);
+  m.Return(m.Int32Constant(0));
+  Stream s = m.Build();
+  ASSERT_EQ(1U, s.size());
+  EXPECT_EQ(ovf_binop.arch_opcode, s[0]->arch_opcode());
+  EXPECT_EQ(4U, s[0]->InputCount());
+  EXPECT_EQ(1U, s[0]->OutputCount());
+  EXPECT_EQ(kFlags_branch, s[0]->flags_mode());
+  EXPECT_EQ(kNotOverflow, s[0]->flags_condition());
+}
+
+TEST_P(TurboshaftInstructionSelectorBranchIfOverflowTest,
+       BranchIfNotZeroWithParameters) {
+  const OverflowBinopOp ovf_binop = GetParam();
+  MachineType in_out_type =
+      ovf_binop.is_64_bits ? MachineType::Int64() : MachineType::Int32();
+  StreamBuilder m(this, in_out_type, in_out_type, in_out_type);
+  Block *a = m.NewBlock(), *b = m.NewBlock();
+  OpIndex n = m.Emit(ovf_binop.op, m.Parameter(0), m.Parameter(1));
+  m.Branch(m.Word32NotEqual(m.Projection(n, 1), m.Int32Constant(0)), a, b);
+  m.Bind(a);
+  m.Return(m.Projection(n, 0));
+  m.Bind(b);
+  m.Return(m.Int32Constant(0));
+  Stream s = m.Build();
+  ASSERT_EQ(1U, s.size());
+  EXPECT_EQ(ovf_binop.arch_opcode, s[0]->arch_opcode());
+  EXPECT_EQ(4U, s[0]->InputCount());
+  EXPECT_EQ(1U, s[0]->OutputCount());
+  EXPECT_EQ(kFlags_branch, s[0]->flags_mode());
+  EXPECT_EQ(kOverflow, s[0]->flags_condition());
+}
+
+TEST_P(TurboshaftInstructionSelectorBranchIfOverflowTest,
+       BranchIfOverflowWithLoop) {
+  const OverflowBinopOp ovf_binop = GetParam();
+  MachineType in_out_type =
+      ovf_binop.is_64_bits ? MachineType::Int64() : MachineType::Int32();
+  StreamBuilder m(this, in_out_type, in_out_type, in_out_type);
+
+  WordRepresentation phi_repr = ovf_binop.is_64_bits
+                                    ? WordRepresentation::Word64()
+                                    : WordRepresentation::Word32();
+
+  Block* loop_header = m.NewLoopHeader();
+  Block *b1 = m.NewBlock(), *b2 = m.NewBlock();
+
+  OpIndex v1 = m.Parameter(0);
+  OpIndex v2 = m.Parameter(0);
+
+  m.Goto(loop_header);
+  m.Bind(loop_header);
+  OpIndex phi = m.PendingLoopPhi(v1, phi_repr);
+  OpIndex binop = m.Emit(ovf_binop.op, v1, v2);
+  m.Branch(m.Word32Equal(m.Projection(binop, 1), m.Word32Constant(0)), b1, b2);
+  m.Bind(b2);
+  m.Goto(loop_header);
+  m.Bind(b1);
+  m.Return(v1);
+
+  m.output_graph().Replace<PhiOp>(
+      phi, base::VectorOf<OpIndex>({v1, m.Projection(binop, 0)}), phi_repr);
+
+  Stream s = m.Build();
+  ASSERT_EQ(1U, s.size());
+  EXPECT_EQ(ovf_binop.arch_opcode, s[0]->arch_opcode());
+  EXPECT_EQ(4U, s[0]->InputCount());
+  EXPECT_EQ(1U, s[0]->OutputCount());
+  EXPECT_EQ(kFlags_branch, s[0]->flags_mode());
+  EXPECT_EQ(kNotOverflow, s[0]->flags_condition());
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TurboshaftInstructionSelectorTest,
+    TurboshaftInstructionSelectorBranchIfOverflowTest,
+    ::testing::ValuesIn(kOverflowBinaryOperationsForBranchFusion));
+
+// -----------------------------------------------------------------------------
 // Shift instructions.
 
 using TurboshaftInstructionSelectorShiftTest =
@@ -2696,6 +2811,86 @@ TEST_P(TurboshaftInstructionSelectorSimdF64x2MulWithDupTest, MulWithDup) {
   }
 }
 
+TEST_F(TurboshaftInstructionSelectorTest, CanonicalShuffleTest) {
+  using ShuffleMap =
+      std::unordered_map<ArchOpcode, const std::array<uint8_t, kSimd128Size>>;
+
+  ShuffleMap test_shuffles = {
+      {kArm64S8x8Reverse,
+       {{7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8}}},
+      {kArm64S64x2UnzipLeft,
+       {{0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23}}},
+      {kArm64S64x2UnzipRight,
+       {{8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31}}},
+      {kArm64S32x4Shuffle,
+       {{0, 1, 2, 3, 16, 17, 18, 19, 16, 17, 18, 19, 20, 21, 22, 23}}},
+      {kArm64S8x4Reverse,
+       {{3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12}}},
+      {kArm64S32x4Reverse,
+       {{12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3}}},
+      {kArm64S32x4ZipLeft,
+       {{0, 1, 2, 3, 16, 17, 18, 19, 4, 5, 6, 7, 20, 21, 22, 23}}},
+      {kArm64S32x4ZipRight,
+       {{8, 9, 10, 11, 24, 25, 26, 27, 12, 13, 14, 15, 28, 29, 30, 31}}},
+      {kArm64S32x4UnzipLeft,
+       {{0, 1, 2, 3, 8, 9, 10, 11, 16, 17, 18, 19, 24, 25, 26, 27}}},
+      {kArm64S32x4UnzipLeft,
+       {{4, 5, 6, 7, 12, 13, 14, 15, 20, 21, 22, 23, 28, 29, 30, 31}}},
+      {kArm64S32x4TransposeLeft,
+       {{0, 1, 2, 3, 16, 17, 18, 19, 8, 9, 10, 11, 24, 25, 26, 27}}},
+      {kArm64S32x4TransposeRight,
+       {{4, 5, 6, 7, 20, 21, 22, 23, 12, 13, 14, 15, 28, 29, 30, 31}}},
+      {kArm64I8x16Shuffle,
+       {{0, 1, 16, 17, 16, 17, 0, 1, 4, 5, 20, 21, 6, 7, 22, 23}}},
+      {kArm64S8x2Reverse,
+       {{1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14}}},
+      {kArm64S16x8ZipLeft,
+       {{0, 1, 16, 17, 2, 3, 18, 19, 4, 5, 20, 21, 6, 7, 22, 23}}},
+      {kArm64S16x8ZipRight,
+       {{8, 9, 24, 25, 10, 11, 26, 27, 12, 13, 28, 29, 14, 15, 30, 31}}},
+      {kArm64S16x8UnzipLeft,
+       {{0, 1, 4, 5, 8, 9, 12, 13, 16, 17, 20, 21, 24, 25, 28, 29}}},
+      {kArm64S16x8UnzipRight,
+       {{2, 3, 6, 7, 10, 11, 14, 15, 18, 19, 22, 23, 26, 27, 30, 31}}},
+      {kArm64S16x8TransposeLeft,
+       {{0, 1, 16, 17, 4, 5, 20, 21, 8, 9, 24, 25, 12, 13, 28, 29}}},
+      {kArm64S16x8TransposeRight,
+       {{2, 3, 18, 19, 6, 7, 22, 23, 10, 11, 26, 27, 14, 15, 30, 31}}},
+      {kArm64I8x16Shuffle,
+       {{0, 16, 0, 16, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23}}},
+      {kArm64S8x16ZipLeft,
+       {{0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23}}},
+      {kArm64S8x16ZipRight,
+       {{8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31}}},
+      {kArm64S8x16UnzipLeft,
+       {{0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30}}},
+      {kArm64S8x16UnzipRight,
+       {{1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31}}},
+      {kArm64S8x16TransposeLeft,
+       {{0, 16, 2, 18, 4, 20, 6, 22, 8, 24, 10, 26, 12, 28, 14, 30}}},
+      {kArm64S8x16TransposeRight,
+       {{1, 17, 3, 19, 5, 21, 7, 23, 9, 25, 11, 27, 13, 29, 15, 31}}},
+      {kArm64S32x2Reverse,
+       {{4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11}}},
+      {kArm64S16x4Reverse,
+       {{6, 7, 4, 5, 2, 3, 0, 1, 14, 15, 12, 13, 10, 11, 8, 9}}},
+      {kArm64S16x2Reverse,
+       {{2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13}}},
+  };
+
+  const MachineType type = MachineType::Simd128();
+  for (auto& pair : test_shuffles) {
+    ArchOpcode opcode = pair.first;
+    const std::array<uint8_t, kSimd128Size>& shuffle = pair.second;
+    StreamBuilder m(this, type, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle.data()));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(opcode, s[0]->arch_opcode());
+    EXPECT_EQ(1U, s[0]->OutputCount());
+  }
+}
+
 TEST_F(TurboshaftInstructionSelectorTest, ReverseShuffle32x4Test) {
   const MachineType type = MachineType::Simd128();
   {
@@ -2725,6 +2920,91 @@ TEST_F(TurboshaftInstructionSelectorTest, ReverseShuffle32x4Test) {
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(kArm64S32x4Reverse, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(0)));
+    EXPECT_EQ(1U, s[0]->OutputCount());
+  }
+}
+
+TEST_F(TurboshaftInstructionSelectorTest, Shuffle64x2Test) {
+  const MachineType type = MachineType::Simd128();
+  {
+    const uint8_t shuffle[] = {
+        16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
+    };
+    StreamBuilder m(this, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(kArm64S64x2Shuffle, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(0)));
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(1)));
+    EXPECT_TRUE(s[0]->InputAt(2)->IsImmediate());
+    EXPECT_EQ(0x0100, s.ToInt32(s[0]->InputAt(2)));
+    EXPECT_EQ(1U, s[0]->OutputCount());
+  }
+  {
+    const uint8_t shuffle[] = {
+        16, 17, 18, 19, 20, 21, 22, 23, 8, 9, 10, 11, 12, 13, 14, 15,
+    };
+    StreamBuilder m(this, type, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(kArm64S64x2Shuffle, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(0)));
+    EXPECT_EQ(s.ToVreg(m.Parameter(0)), s.ToVreg(s[0]->InputAt(1)));
+    EXPECT_TRUE(s[0]->InputAt(2)->IsImmediate());
+    EXPECT_EQ(0x0300, s.ToInt32(s[0]->InputAt(2)));
+  }
+}
+
+TEST_F(TurboshaftInstructionSelectorTest, UnzipShuffle64x2Test) {
+  const MachineType type = MachineType::Simd128();
+  {
+    const uint8_t shuffle[] = {0,  1,  2,  3,  4,  5,  6,  7,
+                               16, 17, 18, 19, 20, 21, 22, 23};
+    StreamBuilder m(this, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(kArm64S64x2UnzipLeft, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(0)), s.ToVreg(s[0]->InputAt(0)));
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(1)));
+    EXPECT_EQ(1U, s[0]->OutputCount());
+  }
+  {
+    const uint8_t shuffle[] = {16, 17, 18, 19, 20, 21, 22, 23,
+                               0,  1,  2,  3,  4,  5,  6,  7};
+    StreamBuilder m(this, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(kArm64S64x2UnzipLeft, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(0)), s.ToVreg(s[0]->InputAt(1)));
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(0)));
+    EXPECT_EQ(1U, s[0]->OutputCount());
+  }
+  {
+    const uint8_t shuffle[] = {8,  9,  10, 11, 12, 13, 14, 15,
+                               24, 25, 26, 27, 28, 29, 30, 31};
+    StreamBuilder m(this, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(kArm64S64x2UnzipRight, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(0)), s.ToVreg(s[0]->InputAt(0)));
+    EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(1)));
+    EXPECT_EQ(1U, s[0]->OutputCount());
+  }
+  {
+    const uint8_t shuffle[] = {24, 25, 26, 27, 28, 29, 30, 31,
+                               8,  9,  10, 11, 12, 13, 14, 15};
+    StreamBuilder m(this, type, type, type);
+    m.Return(m.Simd128Shuffle(m.Parameter(0), m.Parameter(1), shuffle));
+    Stream s = m.Build();
+    ASSERT_EQ(1U, s.size());
+    EXPECT_EQ(kArm64S64x2UnzipRight, s[0]->arch_opcode());
+    EXPECT_EQ(s.ToVreg(m.Parameter(0)), s.ToVreg(s[0]->InputAt(1)));
     EXPECT_EQ(s.ToVreg(m.Parameter(1)), s.ToVreg(s[0]->InputAt(0)));
     EXPECT_EQ(1U, s[0]->OutputCount());
   }
@@ -3555,7 +3835,15 @@ static const MemoryAccess kMemoryAccesses[] = {
      kArm64LdrD,
      kArm64StrD,
      {-256, -255, -3,   -2,   -1,   0,    1,     2,     3,     255,
-      256,  264,  4096, 4104, 8192, 8200, 16384, 16392, 32752, 32760}}};
+      256,  264,  4096, 4104, 8192, 8200, 16384, 16392, 32752, 32760}},
+#if V8_ENABLE_WEBASSEMBLY
+    {MachineType::Simd128(),
+     kArm64LdrQ,
+     kArm64StrQ,
+     {-256, -255, -3,   -2,   -1,   0,     1,     2,     3,     255,
+      256,  264,  4096, 8192, 8200, 16384, 16392, 32752, 65520, 65536}}
+#endif  // V8_ENABLE_WEBASSEMBLY
+};
 
 using TurboshaftInstructionSelectorMemoryAccessTest =
     TurboshaftInstructionSelectorTestWithParam<MemoryAccess>;
@@ -3581,11 +3869,17 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, LoadWithImmediateIndex) {
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(memacc.ldr_opcode, s[0]->arch_opcode());
-    EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
     EXPECT_EQ(2U, s[0]->InputCount());
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
-    EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
-    ASSERT_EQ(1U, s[0]->OutputCount());
+    if (memacc.type == MachineType::Simd128()) {
+      // We currently don't support immediate addressing.
+      EXPECT_EQ(kMode_MRR, s[0]->addressing_mode());
+      ASSERT_NE(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
+    } else {
+      EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(1)->kind());
+      EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(1)));
+      ASSERT_EQ(1U, s[0]->OutputCount());
+    }
   }
 }
 
@@ -3615,11 +3909,17 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, StoreWithImmediateIndex) {
     Stream s = m.Build();
     ASSERT_EQ(1U, s.size());
     EXPECT_EQ(memacc.str_opcode, s[0]->arch_opcode());
-    EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
     ASSERT_EQ(3U, s[0]->InputCount());
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(2)->kind());
-    EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(2)));
-    EXPECT_EQ(0U, s[0]->OutputCount());
+    if (memacc.type == MachineType::Simd128()) {
+      // We don't yet support immediate offsets.
+      EXPECT_EQ(kMode_MRR, s[0]->addressing_mode());
+      ASSERT_NE(InstructionOperand::IMMEDIATE, s[0]->InputAt(2)->kind());
+    } else {
+      EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(2)->kind());
+      EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(2)));
+      EXPECT_EQ(0U, s[0]->OutputCount());
+    }
   }
 }
 
@@ -3644,36 +3944,50 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, StoreZero) {
       case MachineRepresentation::kFloat64:
         zero = m.Float64Constant(0);
         break;
+#if V8_ENABLE_WEBASSEMBLY
+      case MachineRepresentation::kSimd128: {
+        uint8_t data[kSimd128Size] = {0};
+        zero = m.Simd128Constant(data);
+        break;
+      }
+#endif  // V8_ENABLE_WEBASSEMBLY
       default:
         UNREACHABLE();
     }
     m.Store(rep, m.Parameter(0), m.Int64Constant(index), zero, kNoWriteBarrier);
     m.Return(m.Int32Constant(0));
     Stream s = m.Build();
-    ASSERT_EQ(1U, s.size());
-    EXPECT_EQ(memacc.str_opcode, s[0]->arch_opcode());
-    EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
-    ASSERT_EQ(3U, s[0]->InputCount());
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(2)->kind());
-    EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(2)));
-    ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(0)->kind());
-    switch (rep) {
-      case MachineRepresentation::kWord8:
-      case MachineRepresentation::kWord16:
-      case MachineRepresentation::kWord32:
-      case MachineRepresentation::kWord64:
-        EXPECT_EQ(0, s.ToInt64(s[0]->InputAt(0)));
-        break;
-      case MachineRepresentation::kFloat32:
-        EXPECT_EQ(0, s.ToFloat32(s[0]->InputAt(0)));
-        break;
-      case MachineRepresentation::kFloat64:
-        EXPECT_EQ(0, s.ToFloat64(s[0]->InputAt(0)));
-        break;
-      default:
-        UNREACHABLE();
+    if (memacc.type == MachineType::Simd128()) {
+      ASSERT_EQ(2U, s.size());
+      EXPECT_EQ(memacc.str_opcode, s[1]->arch_opcode());
+      // We don't yet support immediate offsets.
+      EXPECT_EQ(kMode_MRR, s[1]->addressing_mode());
+    } else {
+      ASSERT_EQ(1U, s.size());
+      EXPECT_EQ(memacc.str_opcode, s[0]->arch_opcode());
+      EXPECT_EQ(kMode_MRI, s[0]->addressing_mode());
+      ASSERT_EQ(3U, s[0]->InputCount());
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(2)->kind());
+      EXPECT_EQ(index, s.ToInt32(s[0]->InputAt(2)));
+      ASSERT_EQ(InstructionOperand::IMMEDIATE, s[0]->InputAt(0)->kind());
+      switch (rep) {
+        case MachineRepresentation::kWord8:
+        case MachineRepresentation::kWord16:
+        case MachineRepresentation::kWord32:
+        case MachineRepresentation::kWord64:
+          EXPECT_EQ(0, s.ToInt64(s[0]->InputAt(0)));
+          break;
+        case MachineRepresentation::kFloat32:
+          EXPECT_EQ(0, s.ToFloat32(s[0]->InputAt(0)));
+          break;
+        case MachineRepresentation::kFloat64:
+          EXPECT_EQ(0, s.ToFloat64(s[0]->InputAt(0)));
+          break;
+        default:
+          UNREACHABLE();
+      }
+      EXPECT_EQ(0U, s[0]->OutputCount());
     }
-    EXPECT_EQ(0U, s[0]->OutputCount());
   }
 }
 
@@ -3695,6 +4009,10 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, LoadWithShiftedIndex) {
         EXPECT_EQ(kMode_Operand2_R_LSL_I, s[0]->addressing_mode());
         EXPECT_EQ(3U, s[0]->InputCount());
         EXPECT_EQ(1U, s[0]->OutputCount());
+      } else if (memacc.type == MachineType::Simd128()) {
+        ASSERT_EQ(2U, s.size());
+        EXPECT_EQ(memacc.ldr_opcode, s[1]->arch_opcode());
+        EXPECT_EQ(kMode_MRR, s[1]->addressing_mode());
       } else {
         // Make sure we haven't merged the shift into the load instruction.
         ASSERT_NE(1U, s.size());
@@ -3716,6 +4034,11 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, LoadWithShiftedIndex) {
         EXPECT_EQ(kMode_Operand2_R_LSL_I, s[0]->addressing_mode());
         EXPECT_EQ(3U, s[0]->InputCount());
         EXPECT_EQ(1U, s[0]->OutputCount());
+      } else if (memacc.type == MachineType::Simd128()) {
+        // Make sure we haven't merged the shift into the load instruction.
+        ASSERT_EQ(2U, s.size());
+        EXPECT_EQ(memacc.ldr_opcode, s[1]->arch_opcode());
+        EXPECT_EQ(kMode_MRR, s[1]->addressing_mode());
       } else {
         // Make sure we haven't merged the shift into the load instruction.
         ASSERT_NE(1U, s.size());
@@ -3745,6 +4068,10 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, StoreWithShiftedIndex) {
         EXPECT_EQ(kMode_Operand2_R_LSL_I, s[0]->addressing_mode());
         EXPECT_EQ(4U, s[0]->InputCount());
         EXPECT_EQ(0U, s[0]->OutputCount());
+      } else if (memacc.type == MachineType::Simd128()) {
+        ASSERT_EQ(2U, s.size());
+        EXPECT_EQ(memacc.str_opcode, s[1]->arch_opcode());
+        EXPECT_EQ(kMode_MRR, s[1]->addressing_mode());
       } else {
         // Make sure we haven't merged the shift into the store instruction.
         ASSERT_NE(1U, s.size());
@@ -3768,6 +4095,10 @@ TEST_P(TurboshaftInstructionSelectorMemoryAccessTest, StoreWithShiftedIndex) {
         EXPECT_EQ(kMode_Operand2_R_LSL_I, s[0]->addressing_mode());
         EXPECT_EQ(4U, s[0]->InputCount());
         EXPECT_EQ(0U, s[0]->OutputCount());
+      } else if (memacc.type == MachineType::Simd128()) {
+        ASSERT_EQ(2U, s.size());
+        EXPECT_EQ(memacc.str_opcode, s[1]->arch_opcode());
+        EXPECT_EQ(kMode_MRR, s[1]->addressing_mode());
       } else {
         // Make sure we haven't merged the shift into the store instruction.
         ASSERT_NE(1U, s.size());
@@ -5631,7 +5962,7 @@ void TestPokePair(TurboshaftInstructionSelectorTest::StreamBuilder* m,
                   base::Vector<const OpIndex> args, int expected_poke_pair,
                   int expected_poke) {
   auto call_descriptor = TurboshaftInstructionSelectorTest::StreamBuilder::
-      MakeSimpleTSCallDescriptor(zone, builder->Build());
+      MakeSimpleTSCallDescriptor(zone, builder->Get());
 
   OpIndex callee = m->Int64Constant(0);
   m->Call(callee, OpIndex::Invalid(), args, call_descriptor);

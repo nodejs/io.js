@@ -62,7 +62,7 @@ class CodeAddressMap : public CodeEventLogger {
       }
     }
 
-    void Insert(Address code_address, const char* name, int name_size) {
+    void Insert(Address code_address, const char* name, size_t name_size) {
       base::HashMap::Entry* entry = FindOrCreateEntry(code_address);
       if (entry->value == nullptr) {
         entry->value = CopyName(name, name_size);
@@ -95,9 +95,9 @@ class CodeAddressMap : public CodeEventLogger {
     }
 
    private:
-    static char* CopyName(const char* name, int name_size) {
+    static char* CopyName(const char* name, size_t name_size) {
       char* result = NewArray<char>(name_size + 1);
-      for (int i = 0; i < name_size; ++i) {
+      for (size_t i = 0; i < name_size; ++i) {
         char c = name[i];
         if (c == '\0') c = ' ';
         result[i] = c;
@@ -125,14 +125,14 @@ class CodeAddressMap : public CodeEventLogger {
 
   void LogRecordedBuffer(Tagged<AbstractCode> code,
                          MaybeHandle<SharedFunctionInfo>, const char* name,
-                         int length) override {
+                         size_t length) override {
     DisallowGarbageCollection no_gc;
     address_to_name_map_.Insert(code.address(), name, length);
   }
 
 #if V8_ENABLE_WEBASSEMBLY
   void LogRecordedBuffer(const wasm::WasmCode* code, const char* name,
-                         int length) override {
+                         size_t length) override {
     UNREACHABLE();
   }
 #endif  // V8_ENABLE_WEBASSEMBLY
@@ -170,7 +170,7 @@ class ObjectCacheIndexMap {
     return true;
   }
 
-  Handle<FixedArray> Values(Isolate* isolate);
+  DirectHandle<FixedArray> Values(Isolate* isolate);
 
   int size() const { return next_index_; }
 
@@ -405,6 +405,9 @@ class Serializer : public SerializerDeserializer {
       deferred_objects_;  // To handle stack overflow.
   int num_back_refs_ = 0;
 
+  // Used to provide deterministic IDs to the serialized dispatch handles.
+  std::unordered_map<JSDispatchHandle, uint32_t> dispatch_handle_map_;
+
   // Objects which have started being serialized, but haven't yet been allocated
   // with the allocator, are considered "pending". References to them don't have
   // an allocation to backref to, so instead they are registered as pending
@@ -495,6 +498,8 @@ class Serializer::ObjectSerializer : public ObjectVisitor {
                                      IndirectPointerSlot slot) override;
   void VisitProtectedPointer(Tagged<TrustedObject> host,
                              ProtectedPointerSlot slot) override;
+  void VisitProtectedPointer(Tagged<TrustedObject> host,
+                             ProtectedMaybeObjectSlot slot) override;
   void VisitCppHeapPointer(Tagged<HeapObject> host,
                            CppHeapPointerSlot slot) override;
   void VisitJSDispatchTableEntry(Tagged<HeapObject> host,

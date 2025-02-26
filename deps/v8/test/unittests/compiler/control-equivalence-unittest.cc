@@ -5,8 +5,8 @@
 #include "src/compiler/control-equivalence.h"
 
 #include "src/compiler/compiler-source-position-table.h"
-#include "src/compiler/graph-visualizer.h"
 #include "src/compiler/node-origin-table.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 #include "src/utils/bit-vector.h"
 #include "src/zone/zone-containers.h"
 #include "test/unittests/compiler/graph-unittest.h"

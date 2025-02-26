@@ -3,8 +3,9 @@
 // found in the LICENSE file.
 
 #include "src/compiler/compiler-source-position-table.h"
-#include "src/compiler/graph.h"
+
 #include "src/compiler/node-aux-data.h"
+#include "src/compiler/turbofan-graph.h"
 
 namespace v8 {
 namespace internal {

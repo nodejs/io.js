@@ -9,3 +9,6 @@
 monorail {
   component: "Blink>JavaScript>Compiler>Maglev"
 }
+buganizer_public: {
+  component_id: 1456177
+}

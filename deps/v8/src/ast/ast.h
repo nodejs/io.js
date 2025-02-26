@@ -239,6 +239,9 @@ class Expression : public AstNode {
   // True iff the expression is a string literal.
   bool IsStringLiteral() const;
 
+  // True iff the expression is a cons string literal.
+  bool IsConsStringLiteral() const;
+
   // True iff the expression is the null literal.
   bool IsNullLiteral() const;
 
@@ -303,7 +306,7 @@ class FailureExpression : public Expression {
 // statement.
 //
 // Since we don't want to track a list of labels for all kinds of statements, we
-// only declare switchs, loops, and blocks as BreakableStatements.  This means
+// only declare switches, loops, and blocks as BreakableStatements.  This means
 // that we implement breaks targeting other statement forms as breaks targeting
 // a substatement thereof. For instance, in "foo: if (b) { f(); break foo; }" we
 // pretend that foo is the label of the inner block. That's okay because one
@@ -322,6 +325,9 @@ class Block final : public BreakableStatement {
     return IgnoreCompletionField::decode(bit_field_);
   }
   bool is_breakable() const { return IsBreakableField::decode(bit_field_); }
+  bool is_initialization_block_for_parameters() const {
+    return IsInitializationBlockForParametersField::decode(bit_field_);
+  }
 
   Scope* scope() const { return scope_; }
   void set_scope(Scope* scope) { scope_ = scope; }
@@ -341,19 +347,25 @@ class Block final : public BreakableStatement {
 
   using IgnoreCompletionField = BreakableStatement::NextBitField<bool, 1>;
   using IsBreakableField = IgnoreCompletionField::Next<bool, 1>;
+  using IsInitializationBlockForParametersField =
+      IsBreakableField::Next<bool, 1>;
 
  protected:
   Block(Zone* zone, int capacity, bool ignore_completion_value,
-        bool is_breakable)
+        bool is_breakable, bool is_initialization_block_for_parameters)
       : BreakableStatement(kNoSourcePosition, kBlock),
         statements_(capacity, zone),
         scope_(nullptr) {
     bit_field_ |= IgnoreCompletionField::encode(ignore_completion_value) |
-                  IsBreakableField::encode(is_breakable);
+                  IsBreakableField::encode(is_breakable) |
+                  IsInitializationBlockForParametersField::encode(
+                      is_initialization_block_for_parameters);
   }
 
-  Block(bool ignore_completion_value, bool is_breakable)
-      : Block(nullptr, 0, ignore_completion_value, is_breakable) {}
+  Block(bool ignore_completion_value, bool is_breakable,
+        bool is_initialization_block_for_parameters)
+      : Block(nullptr, 0, ignore_completion_value, is_breakable,
+              is_initialization_block_for_parameters) {}
 };
 
 class Declaration : public AstNode {
@@ -825,7 +837,7 @@ class TryCatchStatement final : public TryStatement {
   //
   // For scripts in repl mode there is exactly one catch block with
   // UNCAUGHT_ASYNC_AWAIT prediction. This catch block needs to preserve
-  // the exception so it can be re-used later by the inspector.
+  // the exception so it can be reused later by the inspector.
   inline bool ShouldClearException(
       HandlerTable::CatchPrediction outer_catch_prediction) const {
     if (catch_prediction_ == HandlerTable::UNCAUGHT_ASYNC_AWAIT) {
@@ -934,6 +946,7 @@ class Literal final : public Expression {
     kHeapNumber,
     kBigInt,
     kString,
+    kConsString,
     kBoolean,
     kUndefined,
     kNull,
@@ -987,10 +1000,16 @@ class Literal final : public Expression {
     return bigint_;
   }
 
-  bool IsString() const { return type() == kString; }
+  bool IsRawString() const { return type() == kString; }
   const AstRawString* AsRawString() {
     DCHECK_EQ(type(), kString);
     return string_;
+  }
+
+  bool IsConsString() const { return type() == kConsString; }
+  AstConsString* AsConsString() {
+    DCHECK_EQ(type(), kConsString);
+    return cons_string_;
   }
 
   V8_EXPORT_PRIVATE bool ToBooleanIsTrue() const;
@@ -1001,7 +1020,7 @@ class Literal final : public Expression {
   // Returns an appropriate Object representing this Literal, allocating
   // a heap object if needed.
   template <typename IsolateT>
-  Handle<Object> BuildValue(IsolateT* isolate) const;
+  DirectHandle<Object> BuildValue(IsolateT* isolate) const;
 
   // Support for using Literal as a HashMap key. NOTE: Currently, this works
   // only for string and number literals!
@@ -1012,7 +1031,7 @@ class Literal final : public Expression {
   friend class AstNodeFactory;
   friend Zone;
 
-  using TypeField = Expression::NextBitField<Type, 3>;
+  using TypeField = Expression::NextBitField<Type, 4>;
 
   Literal(int smi, int position) : Expression(position, kLiteral), smi_(smi) {
     bit_field_ = TypeField::update(bit_field_, kSmi);
@@ -1033,6 +1052,11 @@ class Literal final : public Expression {
     bit_field_ = TypeField::update(bit_field_, kString);
   }
 
+  Literal(AstConsString* string, int position)
+      : Expression(position, kLiteral), cons_string_(string) {
+    bit_field_ = TypeField::update(bit_field_, kConsString);
+  }
+
   Literal(bool boolean, int position)
       : Expression(position, kLiteral), boolean_(boolean) {
     bit_field_ = TypeField::update(bit_field_, kBoolean);
@@ -1045,6 +1069,7 @@ class Literal final : public Expression {
 
   union {
     const AstRawString* string_;
+    AstConsString* cons_string_;
     int smi_;
     double number_;
     AstBigInt bigint_;
@@ -1074,7 +1099,7 @@ class MaterializedLiteral : public Expression {
 // Node for capturing a regexp literal.
 class RegExpLiteral final : public MaterializedLiteral {
  public:
-  Handle<String> pattern() const { return pattern_->string(); }
+  DirectHandle<String> pattern() const { return pattern_->string(); }
   const AstRawString* raw_pattern() const { return pattern_; }
   int flags() const { return flags_; }
 
@@ -1129,8 +1154,8 @@ class LiteralBoilerplateBuilder {
   // Otherwise, return undefined literal as the placeholder
   // in the object literal boilerplate.
   template <typename IsolateT>
-  static Handle<Object> GetBoilerplateValue(Expression* expression,
-                                            IsolateT* isolate);
+  static DirectHandle<Object> GetBoilerplateValue(Expression* expression,
+                                                  IsolateT* isolate);
 
   bool is_shallow() const { return depth() == kShallow; }
   bool needs_initial_allocation_site() const {
@@ -1279,7 +1304,7 @@ class ObjectLiteralBoilerplateBuilder final : public LiteralBoilerplateBuilder {
                   FastElementsField::encode(false) |
                   HasNullPrototypeField::encode(false);
   }
-  Handle<ObjectBoilerplateDescription> boilerplate_description() const {
+  DirectHandle<ObjectBoilerplateDescription> boilerplate_description() const {
     DCHECK(!boilerplate_description_.is_null());
     return boilerplate_description_;
   }
@@ -1342,7 +1367,7 @@ class ObjectLiteralBoilerplateBuilder final : public LiteralBoilerplateBuilder {
   }
   ZoneList<Property*>* properties_;
   uint32_t boilerplate_properties_;
-  Handle<ObjectBoilerplateDescription> boilerplate_description_;
+  IndirectHandle<ObjectBoilerplateDescription> boilerplate_description_;
 
   using HasElementsField = LiteralBoilerplateBuilder::NextBitField<bool, 1>;
   using HasRestPropertyField = HasElementsField::Next<bool, 1>;
@@ -1401,7 +1426,7 @@ class ArrayLiteralBoilerplateBuilder final : public LiteralBoilerplateBuilder {
   ArrayLiteralBoilerplateBuilder(const ZonePtrList<Expression>* values,
                                  int first_spread_index)
       : values_(values), first_spread_index_(first_spread_index) {}
-  Handle<ArrayBoilerplateDescription> boilerplate_description() const {
+  DirectHandle<ArrayBoilerplateDescription> boilerplate_description() const {
     return boilerplate_description_;
   }
 
@@ -1434,7 +1459,7 @@ class ArrayLiteralBoilerplateBuilder final : public LiteralBoilerplateBuilder {
 
   const ZonePtrList<Expression>* values_;
   int first_spread_index_;
-  Handle<ArrayBoilerplateDescription> boilerplate_description_;
+  IndirectHandle<ArrayBoilerplateDescription> boilerplate_description_;
 };
 
 // An array literal has a literals object that is used
@@ -1473,7 +1498,7 @@ class VariableProxy final : public Expression {
  public:
   bool IsValidReferenceExpression() const { return !is_new_target(); }
 
-  Handle<String> name() const { return raw_name()->string(); }
+  DirectHandle<String> name() const { return raw_name()->string(); }
   const AstRawString* raw_name() const {
     return is_resolved() ? var_->raw_name() : raw_name_;
   }
@@ -1628,7 +1653,7 @@ enum AssignType {
   PRIVATE_GETTER_ONLY,   // obj.#key: #key only has a getter defined
   PRIVATE_SETTER_ONLY,   // obj.#key: #key only has a setter defined
   PRIVATE_GETTER_AND_SETTER,  // obj.#key: #key has both accessors defined
-  PRIVATE_DEBUG_DYNAMIC,      // obj.#key: #key is private that requries dynamic
+  PRIVATE_DEBUG_DYNAMIC,      // obj.#key: #key is private that requires dynamic
                               // lookup in debug-evaluate.
 };
 
@@ -2457,7 +2482,7 @@ class FunctionLiteral final : public Expression {
   DeclarationScope* scope_;
   ZonePtrList<Statement> body_;
   AstConsString* raw_inferred_name_;
-  Handle<SharedFunctionInfo> shared_function_info_;
+  IndirectHandle<SharedFunctionInfo> shared_function_info_;
   ProducedPreparseData* produced_preparse_data_;
 };
 
@@ -2740,7 +2765,7 @@ class ClassLiteral final : public Expression {
 
 class NativeFunctionLiteral final : public Expression {
  public:
-  Handle<String> name() const { return name_->string(); }
+  DirectHandle<String> name() const { return name_->string(); }
   const AstRawString* raw_name() const { return name_; }
   v8::Extension* extension() const { return extension_; }
 
@@ -3015,16 +3040,26 @@ class AstNodeFactory final {
   }
 
   Block* NewBlock(int capacity, bool ignore_completion_value) {
-    return zone_->New<Block>(zone_, capacity, ignore_completion_value, false);
+    return zone_->New<Block>(zone_, capacity, ignore_completion_value, false,
+                             false);
   }
 
   Block* NewBlock(bool ignore_completion_value, bool is_breakable) {
-    return zone_->New<Block>(ignore_completion_value, is_breakable);
+    return zone_->New<Block>(ignore_completion_value, is_breakable, false);
   }
 
   Block* NewBlock(bool ignore_completion_value,
                   const ScopedPtrList<Statement>& statements) {
     Block* result = NewBlock(ignore_completion_value, false);
+    result->InitializeStatements(statements, zone_);
+    return result;
+  }
+
+  Block* NewParameterInitializationBlock(
+      const ScopedPtrList<Statement>& statements) {
+    Block* result = zone_->New<Block>(
+        /* ignore_completion_value */ true, /* is_breakable */ false,
+        /* is_initialization_block_for_parameters */ true);
     result->InitializeStatements(statements, zone_);
     return result;
   }
@@ -3178,6 +3213,11 @@ class AstNodeFactory final {
   }
 
   Literal* NewStringLiteral(const AstRawString* string, int pos) {
+    DCHECK_NOT_NULL(string);
+    return zone_->New<Literal>(string, pos);
+  }
+
+  Literal* NewConsStringLiteral(AstConsString* string, int pos) {
     DCHECK_NOT_NULL(string);
     return zone_->New<Literal>(string, pos);
   }

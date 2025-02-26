@@ -12,15 +12,15 @@ SUB_TESTS = [
     'regexp',
     'regexp_builtins',
     'multi_return',
-    'wasm',
-    'wasm_async',
-    'wasm_code',
-    'wasm_compile',
-    'wasm_compile_all',
-    'wasm_compile_simd',
-    'wasm_compile_wasmgc',
-    'wasm_init_expr',
-    'wasm_streaming',
+    'wasm/module',
+    'wasm/async',
+    'wasm/code',
+    'wasm/compile',
+    'wasm/compile_all',
+    'wasm/compile_simd',
+    'wasm/compile_wasmgc',
+    'wasm/init_expr',
+    'wasm/streaming',
 ]
 
 class VariantsGenerator(testsuite.VariantsGenerator):
@@ -64,4 +64,5 @@ class TestCase(testcase.TestCase):
     return []
 
   def get_shell(self):
-    return f'v8_simple_{self.path.parts[0]}_fuzzer'
+    fuzzer_name = '_'.join(self.path.parts[:-1])
+    return f'v8_simple_{fuzzer_name}_fuzzer'

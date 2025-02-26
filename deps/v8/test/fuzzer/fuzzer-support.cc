@@ -8,6 +8,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
+
 #include "include/libplatform/libplatform.h"
 #include "include/v8-context.h"
 #include "include/v8-initialization.h"
@@ -72,15 +74,17 @@ FuzzerSupport::FuzzerSupport(int* argc, char*** argv) {
 FuzzerSupport::~FuzzerSupport() {
   {
     v8::Isolate::Scope isolate_scope(isolate_);
-    while (PumpMessageLoop()) {
-      // empty
+    {
+      while (PumpMessageLoop()) {
+        // empty
+      }
+
+      v8::HandleScope handle_scope(isolate_);
+      context_.Reset();
     }
 
-    v8::HandleScope handle_scope(isolate_);
-    context_.Reset();
+    isolate_->LowMemoryNotification();
   }
-
-  isolate_->LowMemoryNotification();
   isolate_->Dispose();
   isolate_ = nullptr;
 

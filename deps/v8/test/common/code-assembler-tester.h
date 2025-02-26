@@ -7,6 +7,7 @@
 
 #include "src/codegen/assembler.h"
 #include "src/codegen/interface-descriptors.h"
+#include "src/compiler/code-assembler-compilation-job.h"
 #include "src/compiler/code-assembler.h"
 #include "src/compiler/raw-machine-assembler.h"
 #include "src/execution/isolate.h"
@@ -21,10 +22,17 @@ class CodeAssemblerTester {
   CodeAssemblerTester(Isolate* isolate,
                       const CallInterfaceDescriptor& descriptor,
                       const char* name = "test")
-      : zone_(isolate->allocator(), ZONE_NAME, kCompressGraphZone),
-        scope_(isolate),
-        state_(isolate, &zone_, descriptor, CodeKind::FOR_TESTING, name,
-               Builtin::kNoBuiltinId) {}
+      : isolate_(isolate),
+        job_(CodeAssemblerCompilationJob::NewJobForTesting(
+            isolate, Builtin::kNoBuiltinId, [](CodeAssemblerState*) {},
+            [this](Builtin, Handle<Code> code) { this->code_ = code; },
+            [&descriptor](Zone* zone) {
+              return Linkage::GetStubCallDescriptor(
+                  zone, descriptor, descriptor.GetStackParameterCount(),
+                  CallDescriptor::kNoFlags, Operator::kNoProperties);
+            },
+            CodeKind::FOR_TESTING, name)),
+        scope_(isolate) {}
 
   // Test generating code for a stub. Assumes VoidDescriptor call interface.
   explicit CodeAssemblerTester(Isolate* isolate, const char* name = "test")
@@ -34,9 +42,16 @@ class CodeAssemblerTester {
   CodeAssemblerTester(Isolate* isolate, int parameter_count,
                       CodeKind kind = CodeKind::BUILTIN,
                       const char* name = "test")
-      : zone_(isolate->allocator(), ZONE_NAME, kCompressGraphZone),
-        scope_(isolate),
-        state_(isolate, &zone_, parameter_count, kind, name) {
+      : isolate_(isolate),
+        job_(CodeAssemblerCompilationJob::NewJobForTesting(
+            isolate, Builtin::kNoBuiltinId, [](CodeAssemblerState*) {},
+            [this](Builtin, Handle<Code> code) { this->code_ = code; },
+            [parameter_count](Zone* zone) {
+              return Linkage::GetJSCallDescriptor(zone, false, parameter_count,
+                                                  CallDescriptor::kCanUseRoots);
+            },
+            kind, name)),
+        scope_(isolate) {
     // Parameter count must include at least the receiver.
     DCHECK_LE(1, parameter_count);
   }
@@ -47,16 +62,19 @@ class CodeAssemblerTester {
 
   CodeAssemblerTester(Isolate* isolate, CallDescriptor* call_descriptor,
                       const char* name = "test")
-      : zone_(isolate->allocator(), ZONE_NAME, kCompressGraphZone),
-        scope_(isolate),
-        state_(isolate, &zone_, call_descriptor, CodeKind::FOR_TESTING, name,
-               Builtin::kNoBuiltinId) {}
+      : isolate_(isolate),
+        job_(CodeAssemblerCompilationJob::NewJobForTesting(
+            isolate, Builtin::kNoBuiltinId, [](CodeAssemblerState*) {},
+            [this](Builtin, Handle<Code> code) { this->code_ = code; },
+            [call_descriptor](Zone*) { return call_descriptor; },
+            CodeKind::FOR_TESTING, name)),
+        scope_(isolate) {}
 
-  CodeAssemblerState* state() { return &state_; }
+  CodeAssemblerState* state() { return &job_->code_assembler_state_; }
 
   // Direct low-level access to the machine assembler, for testing only.
   RawMachineAssembler* raw_assembler_for_testing() {
-    return state_.raw_assembler_.get();
+    return job_->raw_assembler();
   }
 
   Handle<Code> GenerateCode() {
@@ -64,10 +82,19 @@ class CodeAssemblerTester {
   }
 
   Handle<Code> GenerateCode(const AssemblerOptions& options) {
-    if (state_.InsideBlock()) {
-      CodeAssembler(&state_).Unreachable();
+    // The use of a CompilationJob is awkward, but is done to avoid duplicating
+    // pipeline code.
+    job_->assembler_options_ = options;
+    if (state()->InsideBlock()) {
+      CodeAssembler(state()).Unreachable();
     }
-    return CodeAssembler::GenerateCode(&state_, options, nullptr);
+    CHECK_EQ(CompilationJob::SUCCEEDED, job_->PrepareJob(isolate_));
+    CHECK_EQ(CompilationJob::SUCCEEDED,
+             job_->ExecuteJob(isolate_->counters()->runtime_call_stats(),
+                              isolate_->main_thread_local_isolate()));
+    CHECK_EQ(CompilationJob::SUCCEEDED, job_->FinalizeJob(isolate_));
+    CHECK(!code_.is_null());
+    return code_;
   }
 
   Handle<Code> GenerateCodeCloseAndEscape() {
@@ -75,9 +102,10 @@ class CodeAssemblerTester {
   }
 
  private:
-  Zone zone_;
+  Isolate* isolate_;
+  std::unique_ptr<CodeAssemblerCompilationJob> job_;
   HandleScope scope_;
-  CodeAssemblerState state_;
+  Handle<Code> code_;
 };
 
 }  // namespace compiler

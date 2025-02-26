@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 // Flags: --no-always-turbofan
 
 function check_undetectable(x) {
@@ -16,9 +16,10 @@ assertEquals(false, check_undetectable(42));
 %OptimizeFunctionOnNextCall(check_undetectable);
 assertEquals(false, check_undetectable(42));
 assertOptimized(check_undetectable);
-assertEquals(17, check_undetectable(%GetUndetectable()));
+var undetectable = %GetUndetectable();
 // Should deoptimize because of invalidated NoUndetectableObjects protector.
 assertUnoptimized(check_undetectable);
+assertEquals(17, check_undetectable(undetectable));
 %OptimizeFunctionOnNextCall(check_undetectable);
 assertEquals(17, check_undetectable(%GetUndetectable()));
 assertOptimized(check_undetectable);

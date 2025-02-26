@@ -59,13 +59,13 @@ String Binary::toBase64() const {
 Binary Binary::fromBase64(const String& base64, bool* success) {
   if (base64.isEmpty()) {
     *success = true;
-    return Binary::fromSpan(nullptr, 0);
+    return {};
   }
 
   *success = false;
   // Fail if the length is invalid or decoding would overflow.
   if (base64.length() % 4 != 0 || base64.length() + 4 < base64.length()) {
-    return Binary::fromSpan(nullptr, 0);
+    return {};
   }
 
   std::vector<uint8_t> result;
@@ -74,19 +74,19 @@ Binary Binary::fromBase64(const String& base64, bool* success) {
   // Iterate groups of four
   for (size_t i = 0; i < base64.length(); i += 4) {
     uint8_t a = 0, b = 0, c = 0, d = 0;
-    if (!DecodeByte(base64[i + 0]).To(&a)) return Binary::fromSpan(nullptr, 0);
-    if (!DecodeByte(base64[i + 1]).To(&b)) return Binary::fromSpan(nullptr, 0);
+    if (!DecodeByte(base64[i + 0]).To(&a)) return {};
+    if (!DecodeByte(base64[i + 1]).To(&b)) return {};
     if (!DecodeByte(base64[i + 2]).To(&c)) {
       // Padding is allowed only in the group on the last two positions
       if (i + 4 < base64.length() || base64[i + 2] != pad ||
           base64[i + 3] != pad) {
-        return Binary::fromSpan(nullptr, 0);
+        return {};
       }
     }
     if (!DecodeByte(base64[i + 3]).To(&d)) {
       // Padding is allowed only in the group on the last two positions
       if (i + 4 < base64.length() || base64[i + 3] != pad) {
-        return Binary::fromSpan(nullptr, 0);
+        return {};
       }
     }
 
@@ -142,10 +142,10 @@ v8::Local<v8::String> toV8String(v8::Isolate* isolate,
 
 String16 toProtocolString(v8::Isolate* isolate, v8::Local<v8::String> value) {
   if (value.IsEmpty() || value->IsNullOrUndefined()) return String16();
-  std::unique_ptr<UChar[]> buffer(new UChar[value->Length()]);
-  value->Write(isolate, reinterpret_cast<uint16_t*>(buffer.get()), 0,
-               value->Length());
-  return String16(buffer.get(), value->Length());
+  uint32_t length = value->Length();
+  std::unique_ptr<UChar[]> buffer(new UChar[length]);
+  value->WriteV2(isolate, 0, length, reinterpret_cast<uint16_t*>(buffer.get()));
+  return String16(buffer.get(), length);
 }
 
 String16 toProtocolStringWithTypeCheck(v8::Isolate* isolate,
@@ -284,8 +284,7 @@ bool ProtocolTypeTraits<Binary>::Deserialize(DeserializerState* state,
                                              Binary* value) {
   auto* tokenizer = state->tokenizer();
   if (tokenizer->TokenTag() == cbor::CBORTokenTag::BINARY) {
-    const span<uint8_t> bin = tokenizer->GetBinary();
-    *value = Binary::fromSpan(bin.data(), bin.size());
+    *value = Binary::fromSpan(tokenizer->GetBinary());
     return true;
   }
   if (tokenizer->TokenTag() == cbor::CBORTokenTag::STRING8) {

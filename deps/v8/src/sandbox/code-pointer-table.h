@@ -197,8 +197,6 @@ class V8_EXPORT_PRIVATE CodePointerTable
 
 static_assert(sizeof(CodePointerTable) == CodePointerTable::kSize);
 
-V8_EXPORT_PRIVATE CodePointerTable* GetProcessWideCodePointerTable();
-
 }  // namespace internal
 }  // namespace v8
 

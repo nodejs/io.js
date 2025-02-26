@@ -45,7 +45,7 @@ class V8_EXPORT_PRIVATE ContextSerializer : public Serializer {
 
   // For JS API wrapper objects we serialize embedder-controled data for each
   // object.
-  void SerializeApiWrapperFields(Handle<JSObject> js_object);
+  void SerializeApiWrapperFields(DirectHandle<JSObject> js_object);
 
   StartupSerializer* startup_serializer_;
   SerializeEmbedderFieldsCallback serialize_embedder_fields_;

@@ -1,4 +1,4 @@
-TODO(b/178696376): Remove unprefixed annotation macros from abseil
+TODO: b/145122732 - Remove unprefixed dynamic annotation macros from abseil
 ---
 diff --git a/third_party/abseil-cpp/absl/base/dynamic_annotations.h b/third_party/abseil-cpp/absl/base/dynamic_annotations.h
 index 1444dc48e283..6687291cade3 100644

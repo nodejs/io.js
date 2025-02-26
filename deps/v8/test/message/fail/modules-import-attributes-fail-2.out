@@ -1,0 +1,4 @@
+undefined:1: SyntaxError: Unexpected token '/', "// Copyrig"... is not valid JSON
+// Copyright 2021 the V8 project authors. All rights reserved.
+^
+SyntaxError: Unexpected token '/', "// Copyrig"... is not valid JSON

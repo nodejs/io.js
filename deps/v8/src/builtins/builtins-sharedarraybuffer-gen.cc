@@ -74,20 +74,58 @@ void SharedArrayBufferBuiltinsAssembler::ValidateIntegerTypedArray(
   // Fail if the array's JSArrayBuffer is detached / out of bounds.
   GotoIf(IsJSArrayBufferViewDetachedOrOutOfBoundsBoolean(array), detached);
 
-  // Fail if the array's element type is float32, float64 or clamped.
-  static_assert(INT8_ELEMENTS < FLOAT32_ELEMENTS);
-  static_assert(INT16_ELEMENTS < FLOAT32_ELEMENTS);
-  static_assert(INT32_ELEMENTS < FLOAT32_ELEMENTS);
-  static_assert(UINT8_ELEMENTS < FLOAT32_ELEMENTS);
-  static_assert(UINT16_ELEMENTS < FLOAT32_ELEMENTS);
-  static_assert(UINT32_ELEMENTS < FLOAT32_ELEMENTS);
+  // Fail if the array's element type is float16, float32, float64 or clamped.
+
+  // clang-format off
+  static_assert(
+      INT8_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      INT8_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      INT16_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      INT16_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      INT32_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      INT32_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      BIGINT64_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      BIGINT64_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      UINT8_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      UINT8_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      UINT16_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      UINT16_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      UINT32_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      UINT32_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(
+      BIGUINT64_ELEMENTS >= FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND &&
+      BIGUINT64_ELEMENTS <= LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(FLOAT16_ELEMENTS >=
+                LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(FLOAT32_ELEMENTS >=
+                LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(FLOAT64_ELEMENTS >=
+                LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  static_assert(UINT8_CLAMPED_ELEMENTS >=
+                LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND);
+  // clang-format on
+
   TNode<Int32T> elements_kind =
       GetNonRabGsabElementsKind(LoadMapElementsKind(map));
-  GotoIf(Int32LessThan(elements_kind, Int32Constant(FLOAT32_ELEMENTS)),
-         &not_float_or_clamped);
-  static_assert(BIGINT64_ELEMENTS > UINT8_CLAMPED_ELEMENTS);
-  static_assert(BIGUINT64_ELEMENTS > UINT8_CLAMPED_ELEMENTS);
-  Branch(Int32GreaterThan(elements_kind, Int32Constant(UINT8_CLAMPED_ELEMENTS)),
+  CSA_DCHECK(this, Int32GreaterThanOrEqual(
+                       elements_kind,
+                       Int32Constant(FIRST_FIXED_TYPED_ARRAY_ELEMENTS_KIND)));
+  CSA_DCHECK(this, Int32LessThanOrEqual(
+                       elements_kind,
+                       Int32Constant(LAST_FIXED_TYPED_ARRAY_ELEMENTS_KIND)));
+  CSA_DCHECK(this,
+             Int32GreaterThanOrEqual(
+                 elements_kind,
+                 Int32Constant(FIRST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND)));
+  Branch(Int32LessThanOrEqual(
+             elements_kind,
+             Int32Constant(LAST_VALID_ATOMICS_TYPED_ARRAY_ELEMENTS_KIND)),
          &not_float_or_clamped, &invalid);
 
   BIND(&invalid);

@@ -17,7 +17,7 @@
 
 namespace v8::internal::wasm {
 
-inline MachineRepresentation GetMachineRepresentation(ValueType type) {
+inline MachineRepresentation GetMachineRepresentation(ValueTypeBase type) {
   return type.machine_representation();
 }
 
@@ -175,6 +175,9 @@ class SignatureHasher {
   static constexpr int kTotalWidth = TaggedOnStack::kLastUsedBit + 1;
   // Make sure we can return the full result (params + results) in a uint64_t.
   static_assert(kTotalWidth * 2 <= 64);
+  // Also, we use ~uint64_t{0} as an invalid signature marker, so make sure that
+  // this can't be a valid signature.
+  static_assert(kTotalWidth * 2 < 64);
 
   // Make sure we chose the bit fields large enough.
   static_assert(arraysize(wasm::kGpParamRegisters) <=
@@ -228,6 +231,16 @@ class SignatureHasher {
 
   Counts params_{};
   Counts rets_{};
+};
+
+#else  // V8_ENABLE_SANDBOX
+
+class SignatureHasher {
+ public:
+  template <typename SigType>
+  static uint64_t Hash(const SigType* sig) {
+    return 0;
+  }
 };
 
 #endif  // V8_ENABLE_SANDBOX

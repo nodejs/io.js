@@ -8,12 +8,17 @@
 #include <atomic>
 #include <memory>
 
+#if V8_OS_DARWIN
+#include "pthread.h"
+#endif
+
 #include "src/base/logging.h"
 #include "src/base/macros.h"
 #include "src/base/platform/condition-variable.h"
 #include "src/base/platform/mutex.h"
 #include "src/common/assert-scope.h"
 #include "src/common/ptr-compr.h"
+#include "src/common/thread-local-storage.h"
 #include "src/execution/isolate.h"
 #include "src/handles/global-handles.h"
 #include "src/handles/persistent-handles.h"
@@ -28,6 +33,15 @@ class LocalHandles;
 class MarkingBarrier;
 class MutablePageMetadata;
 class Safepoint;
+
+#if defined(_MSC_VER)
+extern thread_local LocalHeap* g_current_local_heap_ V8_CONSTINIT;
+#else
+// Do not use this variable directly, use LocalHeap::Current() instead.
+// Defined outside of LocalHeap because LocalHeap uses V8_EXPORT_PRIVATE.
+__attribute__((tls_model(V8_TLS_MODEL))) extern thread_local LocalHeap*
+    g_current_local_heap_ V8_CONSTINIT;
+#endif  // defined(_MSC_VER)
 
 // LocalHeap is used by the GC to track all threads with heap access in order to
 // stop them before performing a collection. LocalHeaps can be either Parked or
@@ -61,27 +75,32 @@ class V8_EXPORT_PRIVATE LocalHeap {
   LocalHandles* handles() { return handles_.get(); }
 
   template <typename T>
-  Handle<T> NewPersistentHandle(Tagged<T> object) {
+  IndirectHandle<T> NewPersistentHandle(Tagged<T> object) {
     if (!persistent_handles_) {
       EnsurePersistentHandles();
     }
     return persistent_handles_->NewHandle(object);
   }
 
-  template <typename T>
-  Handle<T> NewPersistentHandle(Handle<T> object) {
+  template <typename T, template <typename> typename HandleType>
+  IndirectHandle<T> NewPersistentHandle(HandleType<T> object)
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+  {
     return NewPersistentHandle(*object);
   }
 
   template <typename T>
-  Handle<T> NewPersistentHandle(T object) {
+  IndirectHandle<T> NewPersistentHandle(T object) {
     static_assert(kTaggedCanConvertToRawObjects);
     return NewPersistentHandle(Tagged<T>(object));
   }
 
-  template <typename T>
-  MaybeHandle<T> NewPersistentMaybeHandle(MaybeHandle<T> maybe_handle) {
-    Handle<T> handle;
+  template <typename T, template <typename> typename MaybeHandleType>
+  MaybeIndirectHandle<T> NewPersistentMaybeHandle(
+      MaybeHandleType<T> maybe_handle)
+    requires(std::is_convertible_v<MaybeHandleType<T>, MaybeDirectHandle<T>>)
+  {
+    DirectHandle<T> handle;
     if (maybe_handle.ToHandle(&handle)) {
       return NewPersistentHandle(handle);
     }
@@ -135,12 +154,19 @@ class V8_EXPORT_PRIVATE LocalHeap {
   void MarkSharedLinearAllocationAreasBlack();
   void UnmarkSharedLinearAllocationsArea();
 
+  // Free all LABs and reset free-lists except for the new and shared space.
+  // Used on black allocation.
+  void FreeLinearAllocationAreasAndResetFreeLists();
+  void FreeSharedLinearAllocationAreasAndResetFreeLists();
+
   // Fetches a pointer to the local heap from the thread local storage.
   // It is intended to be used in handle and write barrier code where it is
   // difficult to get a pointer to the current instance of local heap otherwise.
   // The result may be a nullptr if there is no local heap instance associated
   // with the current thread.
-  static LocalHeap* Current();
+  V8_TLS_DECLARE_GETTER(Current, LocalHeap*, g_current_local_heap_)
+
+  static void SetCurrent(LocalHeap* local_heap);
 
 #ifdef DEBUG
   void VerifyCurrent() const;
@@ -209,6 +235,10 @@ class V8_EXPORT_PRIVATE LocalHeap {
   V8_INLINE void ExecuteMainThreadWhileParked(Callback callback);
   template <typename Callback>
   V8_INLINE void ExecuteBackgroundThreadWhileParked(Callback callback);
+
+#if V8_OS_DARWIN
+  pthread_t thread_handle() { return thread_handle_; }
+#endif
 
  private:
   using ParkedBit = base::BitField8<bool, 0, 1>;
@@ -352,8 +382,14 @@ class V8_EXPORT_PRIVATE LocalHeap {
 
   AtomicThreadState state_;
 
+#if V8_OS_DARWIN
+  pthread_t thread_handle_;
+#endif
+
   bool allocation_failed_;
   int nested_parked_scopes_;
+
+  Isolate* saved_current_isolate_ = nullptr;
 
   LocalHeap* prev_;
   LocalHeap* next_;

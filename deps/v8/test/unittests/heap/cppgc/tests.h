@@ -20,7 +20,14 @@ class DelegatingTracingController : public TracingController {
  public:
 #if !defined(V8_USE_PERFETTO)
   const uint8_t* GetCategoryGroupEnabled(const char* name) override {
+    static const std::string disabled_by_default_tag =
+        TRACE_DISABLED_BY_DEFAULT("");
     static uint8_t yes = 1;
+    static uint8_t no = 0;
+    if (strncmp(name, disabled_by_default_tag.c_str(),
+                disabled_by_default_tag.length()) == 0) {
+      return &no;
+    }
     return &yes;
   }
 

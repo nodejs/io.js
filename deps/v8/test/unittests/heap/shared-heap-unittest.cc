@@ -14,7 +14,9 @@
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-#if V8_CAN_CREATE_SHARED_HEAP_BOOL
+// In multi-cage mode we create one cage per isolate
+// and we don't share objects between cages.
+#if V8_CAN_CREATE_SHARED_HEAP_BOOL && !COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL
 
 namespace v8 {
 namespace internal {
@@ -42,11 +44,11 @@ class SharedHeapNoClientsTest : public TestJSSharedMemoryWithPlatform {
 };
 
 namespace {
-const int kNumIterations = 2000;
+const int kDefaultNumIterations = 2000;
 
 template <typename Callback>
 void SetupClientIsolateAndRunCallback(Callback callback) {
-  IsolateWrapper isolate_wrapper(kNoCounters);
+  IsolateWrapper isolate_wrapper(kNoCounters, false);
   v8::Isolate* client_isolate = isolate_wrapper.isolate();
   Isolate* i_client_isolate = reinterpret_cast<Isolate*>(client_isolate);
   v8::Isolate::Scope isolate_scope(client_isolate);
@@ -65,7 +67,7 @@ class SharedOldSpaceAllocationThread final : public ParkingThread {
         [](v8::Isolate* client_isolate, Isolate* i_client_isolate) {
           HandleScope scope(i_client_isolate);
 
-          for (int i = 0; i < kNumIterations; i++) {
+          for (int i = 0; i < kDefaultNumIterations; i++) {
             i_client_isolate->factory()->NewFixedArray(
                 10, AllocationType::kSharedOld);
           }
@@ -154,7 +156,7 @@ class SharedLargeOldSpaceAllocationThread final : public ParkingThread {
           const int kNumIterations = 50;
 
           for (int i = 0; i < kNumIterations; i++) {
-            HandleScope scope(i_client_isolate);
+            HandleScope inner_scope(i_client_isolate);
             DirectHandle<FixedArray> fixed_array =
                 i_client_isolate->factory()->NewFixedArray(
                     kMaxRegularHeapObjectSize / kTaggedSize,
@@ -203,7 +205,7 @@ class SharedTrustedLargeObjectSpaceAllocationThread final
           constexpr int kNumIterations = 50;
 
           for (int i = 0; i < kNumIterations; i++) {
-            HandleScope scope(i_client_isolate);
+            HandleScope inner_scope(i_client_isolate);
             DirectHandle<TrustedByteArray> fixed_array =
                 i_client_isolate->factory()->NewTrustedByteArray(
                     kMaxRegularHeapObjectSize, AllocationType::kSharedTrusted);
@@ -370,7 +372,7 @@ class SharedMapSpaceAllocationThread final : public ParkingThread {
         [](v8::Isolate* client_isolate, Isolate* i_client_isolate) {
           HandleScope scope(i_client_isolate);
 
-          for (int i = 0; i < kNumIterations; i++) {
+          for (int i = 0; i < kDefaultNumIterations; i++) {
             i_client_isolate->factory()->NewContextlessMap(
                 NATIVE_CONTEXT_TYPE, kVariableSizeSentinel,
                 TERMINAL_FAST_ELEMENTS_KIND, 0, AllocationType::kSharedMap);
@@ -416,7 +418,7 @@ void AllocateInSharedHeap(int iterations = 100) {
         i_client_isolate->factory()->NewFixedArray(kKeptAliveInHeap,
                                                    AllocationType::kYoung);
 
-    for (int i = 0; i < kNumIterations * iterations; i++) {
+    for (int i = 0; i < kDefaultNumIterations * iterations; i++) {
       HandleScope scope(i_client_isolate);
       Handle<FixedArray> array = i_client_isolate->factory()->NewFixedArray(
           100, AllocationType::kSharedOld);
@@ -534,6 +536,8 @@ class ConcurrentThread final : public ParkingThread {
   void Run() override {
     IsolateWrapper isolate_wrapper(kNoCounters);
     i_client_isolate_ = isolate_wrapper.i_isolate();
+
+    v8::Isolate::Scope isolate_scope(isolate_wrapper.isolate());
 
     // Allocate the state on the stack, so that handles, direct handles or raw
     // pointers are stack-allocated.
@@ -838,6 +842,9 @@ TEST_ALL_SCENARIA(SharedHeapTestStateWithRawPointerUnparked, ToEachTheirOwn,
 #undef TEST_SCENARIO
 #undef TEST_ALL_SCENARIA
 
+// TODO(358918874): Re-enable this test once allocation paths are using the
+// right tag for trusted pointers in shared objects.
+#if false
 TEST_F(SharedHeapTest, SharedUntrustedToSharedTrustedPointer) {
   Isolate* isolate = i_isolate();
   Factory* factory = isolate->factory();
@@ -882,6 +889,7 @@ TEST_F(SharedHeapTest, SharedUntrustedToSharedTrustedPointer) {
   bytecode_array->wrapper()->clear_bytecode();
   bytecode_array->set_wrapper(*bytecode_wrapper);
 }
+#endif  // false
 
 }  // namespace internal
 }  // namespace v8

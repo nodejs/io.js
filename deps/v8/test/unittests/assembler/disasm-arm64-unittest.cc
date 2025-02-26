@@ -59,15 +59,15 @@ using DisasmArm64Test = TestWithIsolate;
   DisassemblingDecoder* disasm = new DisassemblingDecoder();                  \
   decoder->AppendVisitor(disasm)
 
-#define SET_UP_ASM()                                                         \
-  HandleScope scope(isolate());                                              \
-  uint8_t* buf = static_cast<uint8_t*>(malloc(INSTR_SIZE));                  \
-  uint32_t encoding = 0;                                                     \
-  Assembler* assm = new Assembler(AssemblerOptions{},                        \
-                                  ExternalAssemblerBuffer(buf, INSTR_SIZE)); \
-  Decoder<DispatchingDecoderVisitor>* decoder =                              \
-      new Decoder<DispatchingDecoderVisitor>();                              \
-  DisassemblingDecoder* disasm = new DisassemblingDecoder();                 \
+#define SET_UP_ASM()                                                          \
+  HandleScope scope(isolate());                                               \
+  uint8_t* buf = static_cast<uint8_t*>(malloc(INSTR_SIZE));                   \
+  uint32_t encoding = 0;                                                      \
+  Assembler* assm = new Assembler(isolate()->allocator(), AssemblerOptions{}, \
+                                  ExternalAssemblerBuffer(buf, INSTR_SIZE));  \
+  Decoder<DispatchingDecoderVisitor>* decoder =                               \
+      new Decoder<DispatchingDecoderVisitor>();                               \
+  DisassemblingDecoder* disasm = new DisassemblingDecoder();                  \
   decoder->AppendVisitor(disasm)
 
 #define COMPARE(ASM, EXP)                                                \
@@ -2014,14 +2014,14 @@ TEST_F(DisasmArm64Test, debug) {
     HandleScope scope(isolate());
     uint8_t* buf = static_cast<uint8_t*>(malloc(INSTR_SIZE));
     uint32_t encoding = 0;
-    AssemblerOptions options;
+    AssemblerOptions options{};
 #ifdef USE_SIMULATOR
     options.enable_simulator_code = (i == 1);
 #else
     CHECK(!options.enable_simulator_code);
 #endif
-    Assembler* assm =
-        new Assembler(options, ExternalAssemblerBuffer(buf, INSTR_SIZE));
+    Assembler* assm = new Assembler(i_isolate()->allocator(), options,
+                                    ExternalAssemblerBuffer(buf, INSTR_SIZE));
     Decoder<DispatchingDecoderVisitor>* decoder =
         new Decoder<DispatchingDecoderVisitor>();
     DisassemblingDecoder* disasm = new DisassemblingDecoder();

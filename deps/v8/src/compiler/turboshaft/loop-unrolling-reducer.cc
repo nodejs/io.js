@@ -10,6 +10,15 @@
 #include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/loop-finder.h"
 
+#ifdef DEBUG
+#define TRACE(x)                                                               \
+  do {                                                                         \
+    if (v8_flags.turboshaft_trace_unrolling) StdoutStream() << x << std::endl; \
+  } while (false)
+#else
+#define TRACE(x)
+#endif
+
 namespace v8::internal::compiler::turboshaft {
 
 using CmpOp = StaticCanonicalForLoopMatcher::CmpOp;
@@ -18,6 +27,8 @@ using BinOp = StaticCanonicalForLoopMatcher::BinOp;
 void LoopUnrollingAnalyzer::DetectUnrollableLoops() {
   for (const auto& [start, info] : loop_finder_.LoopHeaders()) {
     IterationCount iter_count = GetLoopIterationCount(info);
+    TRACE("LoopUnrollingAnalyzer: loop at "
+          << start->index() << " ==> iter_count=" << iter_count);
     loop_iteration_count_.insert({start, iter_count});
 
     if (ShouldFullyUnrollLoop(start) || ShouldPartiallyUnrollLoop(start)) {

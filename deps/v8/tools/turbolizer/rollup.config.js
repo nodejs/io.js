@@ -9,7 +9,7 @@ import path from "path";
 const warningHandler = (warning) => {
   // Silence circular dependency warning for moment package
   const node_modules = path.normalize('node_modules/');
-  if (warning.code === 'CIRCULAR_DEPENDENCY' && warning.importer.indexOf(node_modules)) {
+  if (warning.code === 'CIRCULAR_DEPENDENCY' && warning.ids.some(id => id.indexOf(node_modules) !== -1)) {
     return;
   }
   console.warn(`(!) ${warning.message}`)

@@ -19,5 +19,5 @@ assertTrue(isMaglevved(foo));
 
 // We should deopt here.
 b = 2
-assertEquals(7, foo(5));
 assertFalse(isMaglevved(foo))
+assertEquals(7, foo(5));

@@ -21,7 +21,7 @@
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator.h"
 #include "src/compiler/schedule.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/objects/code.h"
 #include "src/objects/map-inl.h"
 #include "src/utils/utils.h"

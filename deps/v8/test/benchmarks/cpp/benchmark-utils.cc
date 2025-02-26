@@ -22,6 +22,7 @@ v8::ArrayBuffer::Allocator* BenchmarkWithIsolate::v8_ab_allocator_;
 
 // static
 void BenchmarkWithIsolate::InitializeProcess() {
+  v8::V8::SetFlagsFromString("--allow-natives-syntax");
   platform_ = v8::platform::NewDefaultPlatform().release();
   v8::V8::InitializePlatform(platform_);
   v8::V8::Initialize();

@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-top-level-await
 
 assertEquals(globalThis.test262, [
   '1_udir_a', '1_udir_b', '2',

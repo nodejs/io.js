@@ -16,6 +16,7 @@
 #include "src/compiler/js-graph.h"
 #include "src/compiler/machine-operator.h"
 #include "src/numbers/conversions-inl.h"
+#include "src/numbers/ieee754.h"
 #include "test/unittests/compiler/graph-unittest.h"
 #include "test/unittests/compiler/node-test-utils.h"
 #include "testing/gmock-support.h"
@@ -2661,8 +2662,6 @@ TEST_F(MachineOperatorReducerTest,
 
   TRACED_FOREACH(uint64_t, k1, kUint64Values) {
     TRACED_FOREACH(uint64_t, k2, kUint64Values) {
-      uint64_t k1 = 0;
-      uint64_t k2 = 18446744073709551615u;
       Node* node = graph()->NewNode(
           machine()->Uint64LessThanOrEqual(),
           graph()->NewNode(machine()->Int64Add(), p0, Int64Constant(k1)),
@@ -3006,9 +3005,8 @@ TEST_F(MachineOperatorReducerTest, Float64PowWithConstant) {
       Reduction const r = Reduce(graph()->NewNode(
           machine()->Float64Pow(), Float64Constant(x), Float64Constant(y)));
       ASSERT_TRUE(r.Changed());
-      EXPECT_THAT(
-          r.replacement(),
-          IsFloat64Constant(NanSensitiveDoubleEq(base::ieee754::pow(x, y))));
+      EXPECT_THAT(r.replacement(),
+                  IsFloat64Constant(NanSensitiveDoubleEq(math::pow(x, y))));
     }
   }
 }

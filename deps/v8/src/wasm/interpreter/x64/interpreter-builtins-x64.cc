@@ -259,11 +259,12 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // GenericJSToWasmInterpreterWrapperFrame:
   // rbp-N     Args/retvals array for Wasm call
   // ...       ...
-  // rbp-0x50  SignatureData (== rbp-N)
-  // rbp-0x48  CurrentIndex
-  // rbp-0x40  ArgRetsIsArgs
-  // rbp-0x38  ArgRetsAddress
-  // rbp-0x30  ValueTypesArray
+  // rbp-0x58  SignatureData (== rbp-N)
+  // rbp-0x50  CurrentIndex
+  // rbp-0x48  ArgRetsIsArgs
+  // rbp-0x40  ArgRetsAddress
+  // rbp-0x38  ValueTypesArray
+  // rbp-0x30  SigReps
   // rbp-0x28  ReturnCount
   // rbp-0x20  ParamCount
   // rbp-0x18  InParamCount
@@ -286,6 +287,8 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
       BuiltinWasmInterpreterWrapperConstants::kParamCountOffset;
   constexpr int kReturnCountOffset =
       BuiltinWasmInterpreterWrapperConstants::kReturnCountOffset;
+  constexpr int kSigRepsOffset =
+      BuiltinWasmInterpreterWrapperConstants::kSigRepsOffset;
   constexpr int kValueTypesArrayStartOffset =
       BuiltinWasmInterpreterWrapperConstants::kValueTypesArrayStartOffset;
   // Array for arguments and return values. They will be scanned by GC.
@@ -347,6 +350,7 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // top of the stack.
   __ movq(MemOperand(rbp, kParamCountOffset), param_count);
   __ movq(MemOperand(rbp, kReturnCountOffset), return_count);
+  __ movq(MemOperand(rbp, kSigRepsOffset), valuetypes_array_ptr);
   __ movq(MemOperand(rbp, kValueTypesArrayStartOffset), valuetypes_array_ptr);
 
   // -------------------------------------------
@@ -848,7 +852,7 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // Store result in JSArray
   __ StoreTaggedField(FieldOperand(fixed_array, result_index,
                                    static_cast<ScaleFactor>(kTaggedSizeLog2),
-                                   FixedArray::kHeaderSize),
+                                   OFFSET_OF_DATA_START(FixedArray)),
                       return_value);
   __ jmp(&next_return_value);
 }
@@ -1041,15 +1045,15 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // rbp-0x28  expected_arity
   // rbp-0x20  packed_array
   // rbp-0x18  GC_SP
-  // rbp-0x10  GCScanSlotCount
+  // rbp-0x10  GCScanSlotLimit
   // rbp-0x08  Marker(StackFrame::WASM_TO_JS)
   // rbp       Old RBP
 
   constexpr int kMarkerOffset =
-      WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset +
+      WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset +
       kSystemPointerSize;
   static_assert(WasmToJSInterpreterFrameConstants::kGCSPOffset ==
-                WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset -
+                WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset -
                     kSystemPointerSize);
   constexpr int kPackedArrayOffset =
       WasmToJSInterpreterFrameConstants::kGCSPOffset - kSystemPointerSize;
@@ -1071,16 +1075,13 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ subq(rsp, Immediate(kNumSpillSlots * kSystemPointerSize));
 
   __ movq(MemOperand(rbp, kPackedArrayOffset), packed_args);
-
-  // Store null into the stack slot that will contain rsp to be used in GCs that
-  // happen during the JS function call. See WasmToJsFrame::Iterate.
   __ Move(MemOperand(rbp, WasmToJSInterpreterFrameConstants::kGCSPOffset), 0);
 
-  // Count the number of tagged objects at the top of the stack that need to be
-  // visited during GC.
-  __ Move(MemOperand(rbp,
-                     WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset),
-          0);
+  // Points to the end of the stack frame area that contains tagged objects that
+  // need to be visited during GC.
+  __ movq(MemOperand(rbp,
+                     WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset),
+          rsp);
 
 #if V8_OS_POSIX
   // Windows has a different calling convention.
@@ -1106,6 +1107,9 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ LoadTaggedField(
       context, FieldOperand(target_js_function, JSFunction::kContextOffset));
   target_js_function = no_reg;
+
+  // Store context to be retrieved after the call.
+  __ pushq(context);
 
   // Load global receiver if sloppy else use undefined.
   Label receiver_undefined;
@@ -1135,18 +1139,12 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ movq(MemOperand(rbp, kParamCountOffset), param_count);
   shared_function_info = no_reg;
 
-  // The arguments need to be visited during GC.
-  __ movq(MemOperand(rbp,
-                     WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset),
-          param_count);
-
   // Calculate target function arity.
   Register expected_arity = rbx;
   __ movq(expected_arity, param_count);
 
   // Make room to pass args and store the context.
   __ movq(rax, expected_arity);
-  __ incq(rax);  // To store the context.
   __ shlq(rax, Immediate(kSystemPointerSizeLog2));
   __ subq(rsp, rax);  // Args.
 
@@ -1322,11 +1320,6 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // -------------------------------------------
   __ bind(&prepare_for_js_call);
 
-  // Store context to be retrieved after the call.
-  __ movq(Operand(rsp, param_index, times_system_pointer_size, 0), context);
-  __ incq(MemOperand(
-      rbp, WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
-
   // Reset thread_in_wasm_flag.
   Register thread_in_wasm_flag_addr = rcx;
   __ movq(
@@ -1349,15 +1342,12 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // rdi: target JSFunction|JSBoundFunction|...
   //
   __ pushq(receiver);
-  __ incq(MemOperand(
-      rbp, WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
 
-  // We are calling Call_ReceiverIsAny which can call
-  // AdaptorWithBuiltinExitFrame, which adds
-  // BuiltinExitFrameConstants::kNumExtraArgsWithoutReceiver additional tagged
-  // arguments to the stack. We must also scan these additional args in case of
-  // GC. We store the current stack pointer to be able to detect when this
-  // happens.
+  // The process of calling a JS function might increase the number of tagged
+  // values on the stack (arguments adaptation, BuiltinExitFrame arguments,
+  // v8::FunctionCallbackInfo implicit arguments, etc.). In any case these
+  // additional values must be visited by GC too.
+  // We save the current stack pointer to restore it after the call.
   __ movq(MemOperand(rbp, WasmToJSInterpreterFrameConstants::kGCSPOffset), rsp);
 
   __ movq(rax, MemOperand(rbp, kParamCountOffset));
@@ -1372,11 +1362,14 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ popq(receiver);
 
   // Retrieve context.
-  __ movq(context,  // param_count
+  __ movq(context,  // GC_scan_limit
           MemOperand(
-              rbp, WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
-  __ subq(context, Immediate(2));  // do not count receiver and context.
-  __ movq(context, Operand(rsp, context, times_system_pointer_size, 0));
+              rbp, WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset));
+  __ subq(context, Immediate(kSystemPointerSize));
+  __ movq(context, MemOperand(context, 0));
+  __ movq(MemOperand(rbp,
+                     WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset),
+          rsp);
 
   // -------------------------------------------
   // Return handling.
@@ -1410,12 +1403,11 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ movq(rbx, MemOperand(rbp, kReturnCountOffset));
   __ addq(rbx, rbx);
   __ pushq(context);
-  // One tagged object at the top of the stack (the context).
-  __ movq(MemOperand(rbp,
-                     WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset),
-          Immediate(1));
   __ Call(BUILTIN_CODE(masm->isolate(), IterableToFixedArrayForWasm),
           RelocInfo::CODE_TARGET);
+  __ movq(MemOperand(rbp,
+                     WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset),
+          rsp);
   __ popq(context);
   __ movq(fixed_array, rax);
   __ movq(return_count, MemOperand(rbp, kReturnCountOffset));
@@ -1428,7 +1420,7 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ LoadTaggedField(return_reg,
                      FieldOperand(fixed_array, result_index,
                                   static_cast<ScaleFactor>(kTaggedSizeLog2),
-                                  FixedArray::kHeaderSize));
+                                  OFFSET_OF_DATA_START(FixedArray)));
   __ jmp(&convert_return);
 
   // A result converted.
@@ -1448,7 +1440,7 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ LoadTaggedField(return_reg,
                      FieldOperand(fixed_array, result_index,
                                   static_cast<ScaleFactor>(kTaggedSizeLog2),
-                                  FixedArray::kHeaderSize));
+                                  OFFSET_OF_DATA_START(FixedArray)));
   __ jmp(&convert_return);
 
   // -------------------------------------------
@@ -1511,7 +1503,7 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ LoadTaggedField(return_reg,
                      FieldOperand(fixed_array, result_index,
                                   static_cast<ScaleFactor>(kTaggedSizeLog2),
-                                  FixedArray::kHeaderSize));
+                                  OFFSET_OF_DATA_START(FixedArray)));
   __ movq(MemOperand(packed_args, 0), return_reg);
   __ addq(packed_args, Immediate(kSystemPointerSize));
 
@@ -1561,12 +1553,6 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ movq(MemOperand(rbp, kValueTypesArrayStartOffset), valuetypes_array_ptr);
   __ movq(MemOperand(rbp, kCurrentParamOffset), current_param_slot_offset);
 
-  // When calling Wasm->JS conversion builtins, the top of the stack contains
-  // three additional tagged objects that should be visited during GC: receiver
-  // and callable.
-  __ addq(MemOperand(rbp,
-                     WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset),
-          Immediate(3));
   __ pushq(receiver);
   __ pushq(callable);
   __ pushq(context);
@@ -1634,9 +1620,6 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ movq(packed_args, MemOperand(rbp, kPackedArrayOffset));
 
   __ movq(MemOperand(rsp, param_index, times_system_pointer_size, 0), param);
-  __ subq(MemOperand(rbp,
-                     WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset),
-          Immediate(3));
   __ jmp(&param_conversion_done);
 
   // -------------------------------------------
@@ -1649,10 +1632,9 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ movq(MemOperand(rbp, kValueTypesArrayStartOffset), valuetypes_array_ptr);
   __ movq(MemOperand(rbp, kCurrentResultAddressOffset), packed_args);
 
-  // The following slots should be visited during GC.
-  __ Move(MemOperand(rbp,
-                     WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset),
-          2);
+  __ movq(MemOperand(rbp,
+                     WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset),
+          rsp);
   __ pushq(fixed_array);
   __ pushq(context);
 
@@ -1929,1063 +1911,1227 @@ void EmitLoadNextInstructionId(MacroAssembler* masm, Register next_handler_id,
   __ andq(next_handler_id, Immediate(wasm::kInstructionTableMask));
 }
 
-void Generate_r2r_ILoadMem(MacroAssembler* masm, IntValueType value_type,
-                           IntMemoryType memory_type) {
-  Register code = rcx;
-  Register wasm_runtime = r8;
-  Register memory_index = r9;
+template <bool Compressed>
+class WasmInterpreterHandlerCodeEmitter {
+ public:
+  static void EmitLoadSlotOffset(MacroAssembler* masm, Register slot_offset,
+                                 const MemOperand& operand);
+  static void EmitLoadMemoryOffset(MacroAssembler* masm, Register memory_offset,
+                                   const MemOperand& operand);
+};
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_offset = rax;
-  __ movq(memory_offset, MemOperand(code, 0x00));
-  __ movl(memory_index, memory_index);
-  __ addq(memory_offset, memory_index);
-
-  Register result = r9;
-  EmitLoadInstruction(masm, result, memory_start, memory_offset, value_type,
-                      memory_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x08);
-  __ addq(code, Immediate(0x0a));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
+template <>
+void WasmInterpreterHandlerCodeEmitter<true>::EmitLoadSlotOffset(
+    MacroAssembler* masm, Register slot_offset, const MemOperand& operand) {
+  __ movzxwq(slot_offset, operand);
+}
+template <>
+void WasmInterpreterHandlerCodeEmitter<true>::EmitLoadMemoryOffset(
+    MacroAssembler* masm, Register memory_offset, const MemOperand& operand) {
+  __ movl(memory_offset, operand);
 }
 
-void Generate_r2r_FLoadMem(MacroAssembler* masm, FloatType float_type) {
-  Register code = rcx;
-  Register wasm_runtime = r8;
-  Register memory_index = r9;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_offset = rax;
-  __ movq(memory_offset, MemOperand(code, 0x00));
-  __ movl(memory_index, memory_index);
-  __ addq(memory_offset, memory_index);
-
-  EmitLoadInstruction(masm, memory_start, memory_offset, xmm4, float_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x08);
-  __ addq(code, Immediate(0x0a));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
+template <>
+void WasmInterpreterHandlerCodeEmitter<false>::EmitLoadSlotOffset(
+    MacroAssembler* masm, Register slot_offset, const MemOperand& operand) {
+  __ movl(slot_offset, operand);
+}
+template <>
+void WasmInterpreterHandlerCodeEmitter<false>::EmitLoadMemoryOffset(
+    MacroAssembler* masm, Register memory_offset, const MemOperand& operand) {
+  __ movq(memory_offset, operand);
 }
 
-void Generate_r2s_ILoadMem(MacroAssembler* masm, IntValueType value_type,
-                           IntMemoryType memory_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-  Register memory_index = r9;
+template <bool Compressed>
+class WasmInterpreterHandlerBuiltins {
+  using slot_offset_t = wasm::handler_traits<Compressed>::slot_offset_t;
+  using memory_offset32_t = wasm::handler_traits<Compressed>::memory_offset32_t;
+  using handler_id_t = wasm::handler_traits<Compressed>::handler_id_t;
+  using emitter = WasmInterpreterHandlerCodeEmitter<Compressed>;
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_offset = rax;
-  __ movq(memory_offset, MemOperand(code, 0x00));
-  __ movl(memory_index, memory_index);
-  __ addq(memory_offset, memory_index);
-
-  Register value = r10;
-  EmitLoadInstruction(masm, value, memory_start, memory_offset, value_type,
-                      memory_type);
-
-  Register slot_offset = rax;
-  __ movl(slot_offset, MemOperand(code, 0x08));
-
-  WriteToSlot(masm, sp, slot_offset, value, value_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x0c);
-  __ addq(code, Immediate(0x0e));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_r2s_FLoadMem(MacroAssembler* masm, FloatType float_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-  Register memory_index = r9;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_offset = rax;
-  __ movq(memory_offset, MemOperand(code, 0x00));
-  __ movl(memory_index, memory_index);
-  __ addq(memory_offset, memory_index);
-
-  Register slot_offset = r11;
-  __ movl(slot_offset, MemOperand(code, 0x08));
-
-  EmitLoadInstruction(masm, memory_start, memory_offset, sp, slot_offset,
-                      float_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x0c);
-  __ addq(code, Immediate(0x0e));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2r_ILoadMem(MacroAssembler* masm, IntValueType value_type,
-                           IntMemoryType memory_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-
-  Register memory_start = r9;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_index_slot_offset = rax;
-  __ movl(memory_index_slot_offset, MemOperand(code, 0x08));
-
-  Register memory_offset = rax;
-  __ movl(memory_offset, Operand(sp, memory_index_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x00));
-
-  Register value = r9;
-  EmitLoadInstruction(masm, value, memory_start, memory_offset, value_type,
-                      memory_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x0c);
-  __ addq(code, Immediate(0x0e));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2r_FLoadMem(MacroAssembler* masm, FloatType float_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_index_slot_offset = rax;
-  __ movl(memory_index_slot_offset, MemOperand(code, 0x08));
-
-  Register memory_offset = rax;
-  __ movl(memory_offset, Operand(sp, memory_index_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x00));
-
-  EmitLoadInstruction(masm, memory_start, memory_offset, xmm4, float_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x0c);
-  __ addq(code, Immediate(0x0e));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2s_ILoadMem(MacroAssembler* masm, IntValueType value_type,
-                           IntMemoryType memory_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register pop_slot_offset = rax;
-  __ movl(pop_slot_offset, MemOperand(code, 0x08));
-
-  Register push_slot_offset = r11;
-  __ movl(push_slot_offset, MemOperand(code, 0x0c));
-
-  Register memory_index = r9;
-  __ movl(memory_index, Operand(sp, pop_slot_offset, times_4, 0));
-
-  Register memory_offset = rax;
-  __ movq(memory_offset, MemOperand(code, 0x00));
-  __ addq(memory_offset, memory_index);
-
-  Register value = rax;
-  EmitLoadInstruction(masm, value, memory_start, memory_offset, value_type,
-                      memory_type);
-
-  WriteToSlot(masm, sp, push_slot_offset, value, value_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x10);
-  __ addq(code, Immediate(0x12));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2s_FLoadMem(MacroAssembler* masm, FloatType float_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register slot_offset = rax;
-  __ movl(slot_offset, MemOperand(code, 0x08));
-
-  Register push_slot_offset = r11;
-  __ movl(push_slot_offset, MemOperand(code, 0x0c));
-
-  Register memory_index = r9;
-  __ movl(memory_index, Operand(sp, slot_offset, times_4, 0));
-
-  Register memory_offset = rax;
-  __ movq(memory_offset, MemOperand(code, 0x00));
-  __ addq(memory_offset, memory_index);
-
-  EmitLoadInstruction(masm, memory_start, memory_offset, sp, push_slot_offset,
-                      float_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x10);
-  __ addq(code, Immediate(0x12));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2s_ILoadMem_LocalSet(MacroAssembler* masm,
+ public:
+  static void Generate_r2r_ILoadMem(MacroAssembler* masm,
                                     IntValueType value_type,
                                     IntMemoryType memory_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kNextHandlerId =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+    Register code = rcx;
+    Register wasm_runtime = r8;
+    Register memory_index = r9;
 
-  Register pop_slot_offset = rax;
-  __ movl(pop_slot_offset, MemOperand(code, 0x08));
+    __ movl(memory_index, memory_index);
 
-  Register push_slot_offset = r11;
-  __ movl(push_slot_offset, MemOperand(code, 0x0c));
+    Register memory_start_plus_index = memory_index;
+    __ addq(memory_start_plus_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register memory_offset = rax;
-  __ movl(memory_offset, Operand(sp, pop_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x00));
+    Register memory_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  Register value = rax;
-  EmitLoadInstruction(masm, value, memory_start, memory_offset, value_type,
-                      memory_type);
+    Register result = r9;
+    EmitLoadInstruction(masm, result, memory_start_plus_index, memory_offset,
+                        value_type, memory_type);
 
-  WriteToSlot(masm, sp, push_slot_offset, value, value_type);
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
 
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x10);
-  __ addq(code, Immediate(0x12));
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
 
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2s_FLoadMem_LocalSet(MacroAssembler* masm,
+  static void Generate_r2r_FLoadMem(MacroAssembler* masm,
                                     FloatType float_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kNextHandlerId =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+    Register code = rcx;
+    Register wasm_runtime = r8;
+    Register memory_index = r9;
 
-  Register pop_slot_offset = rax;
-  __ movl(pop_slot_offset, MemOperand(code, 0x08));
+    __ movl(memory_index, memory_index);
 
-  Register push_slot_offset = r11;
-  __ movl(push_slot_offset, MemOperand(code, 0x0c));
+    Register memory_start_plus_index = memory_index;
+    __ addq(memory_start_plus_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register memory_offset = rax;
-  __ movl(memory_offset, Operand(sp, pop_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x00));
+    Register memory_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  EmitLoadInstruction(masm, memory_start, memory_offset, sp, push_slot_offset,
-                      float_type);
+    EmitLoadInstruction(masm, memory_start_plus_index, memory_offset, xmm4,
+                        float_type);
 
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x10);
-  __ addq(code, Immediate(0x12));
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
 
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_r2s_IStoreMem(MacroAssembler* masm, IntValueType /*value_type*/,
-                            IntMemoryType memory_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-  Register value = r9;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register memory_index_slot_offset = rax;
-  __ movl(memory_index_slot_offset, MemOperand(code, 0x08));
-
-  Register memory_offset = rax;
-  __ movl(memory_offset, Operand(sp, memory_index_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x00));
-
-  EmitStoreInstruction(masm, value, memory_start, memory_offset, memory_type);
-
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x0c);
-  __ addq(code, Immediate(0x0e));
-
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_r2s_FStoreMem(MacroAssembler* masm, FloatType float_type) {
-  Register code = rcx;
-  Register sp = rdx;
-  Register wasm_runtime = r8;
-
-  XMMRegister value = xmm4;
-  if (float_type == kFloat32) {
-    __ cvtsd2ss(value, xmm4);
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
   }
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+  static void Generate_r2s_ILoadMem(MacroAssembler* masm,
+                                    IntValueType value_type,
+                                    IntMemoryType memory_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kSlotOffset = kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId = kSlotOffset + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register memory_index_slot_offset = rax;
-  __ movl(memory_index_slot_offset, MemOperand(code, 0x08));
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+    Register memory_index = r9;
 
-  Register memory_offset = rax;
-  __ movl(memory_offset, Operand(sp, memory_index_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x00));
+    __ movl(memory_index, memory_index);
 
-  EmitStoreInstruction(masm, value, memory_start, memory_offset, float_type);
+    Register memory_start_plus_index = memory_index;
+    __ addq(memory_start_plus_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x0c);
-  __ addq(code, Immediate(0x0e));
+    Register memory_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register value = r10;
+    EmitLoadInstruction(masm, value, memory_start_plus_index, memory_offset,
+                        value_type, memory_type);
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
+    Register slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, slot_offset,
+                                MemOperand(code, kSlotOffset));
 
-void Generate_s2s_IStoreMem(MacroAssembler* masm, IntValueType /*value_type*/,
-                            IntMemoryType memory_type) {
-  Register sp = rdx;
-  Register code = rcx;
-  Register wasm_runtime = r8;
+    WriteToSlot(masm, sp, slot_offset, value, value_type);
 
-  Register value_slot_offset = rax;
-  __ movl(value_slot_offset, MemOperand(code, 0x00));
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
 
-  Register memory_index_slot_offset = r10;
-  __ movl(memory_index_slot_offset, MemOperand(code, 0x0c));
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
 
-  Register value = r11;
-  switch (memory_type) {
-    case kInt64:
-      __ movq(value, MemOperand(sp, value_slot_offset, times_4, 0));
-      break;
-    case kIntS32:
-      __ movl(value, MemOperand(sp, value_slot_offset, times_4, 0));
-      break;
-    case kIntS16:
-      __ movw(value, MemOperand(sp, value_slot_offset, times_4, 0));
-      break;
-    case kIntS8:
-      __ movb(value, MemOperand(sp, value_slot_offset, times_4, 0));
-      break;
-    default:
-      UNREACHABLE();
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
   }
 
-  Register memory_start = r9;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+  static void Generate_r2s_FLoadMem(MacroAssembler* masm,
+                                    FloatType float_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kSlotOffset = kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId = kSlotOffset + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register memory_offset = rax;
-  __ movl(memory_offset, MemOperand(sp, memory_index_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x04));
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+    Register memory_index = r9;
 
-  EmitStoreInstruction(masm, value, memory_start, memory_offset, memory_type);
+    __ movl(memory_index, memory_index);
 
-  Register next_handler_id = rax;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x10);
-  __ addq(code, Immediate(0x12));
+    Register memory_start_plus_index = memory_index;
+    __ addq(memory_start_plus_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register instr_table = r9;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register memory_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
+    Register slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, slot_offset,
+                                MemOperand(code, kSlotOffset));
 
-void Generate_s2s_FStoreMem(MacroAssembler* masm, FloatType float_type) {
-  Register sp = rdx;
-  Register code = rcx;
-  Register wasm_runtime = r8;
+    EmitLoadInstruction(masm, memory_start_plus_index, memory_offset, sp,
+                        slot_offset, float_type);
 
-  Register value_slot_offset = rax;
-  __ movl(value_slot_offset, MemOperand(code, 0x00));
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
 
-  Register memory_index_slot_offset = r10;
-  __ movl(memory_index_slot_offset, MemOperand(code, 0x0c));
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
 
-  XMMRegister value = xmm0;
-  switch (float_type) {
-    case kFloat32:
-      __ movss(value, MemOperand(sp, value_slot_offset, times_4, 0));
-      break;
-    case kFloat64:
-      __ movsd(value, MemOperand(sp, value_slot_offset, times_4, 0));
-      break;
-    default:
-      UNREACHABLE();
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
   }
 
-  Register memory_start = r11;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+  static void Generate_s2r_ILoadMem(MacroAssembler* masm,
+                                    IntValueType value_type,
+                                    IntMemoryType memory_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kMemoryIndexSlot =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId =
+        kMemoryIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register memory_offset = rax;
-  __ movl(memory_offset, MemOperand(sp, memory_index_slot_offset, times_4, 0));
-  __ addq(memory_offset, MemOperand(code, 0x04));
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
 
-  EmitStoreInstruction(masm, value, memory_start, memory_offset, float_type);
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  Register next_handler_id = r10;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x10);
-  __ addq(code, Immediate(0x12));
+    Register memory_index_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kMemoryIndexSlot));
 
-  Register instr_table = rax;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
 
-void Generate_r2s_ILoadStoreMem(MacroAssembler* masm, IntValueType value_type,
-                                IntMemoryType memory_type) {
-  Register sp = rdx;
-  Register code = rcx;
-  Register wasm_runtime = r8;
-  Register load_index = r9;
+    Register value = r9;
+    EmitLoadInstruction(masm, value, memory_start_plus_offset, memory_index,
+                        value_type, memory_type);
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
 
-  Register load_offset = r11;
-  __ movq(load_offset, MemOperand(code, 0x00));
-  __ movl(load_index, load_index);
-  __ addq(load_offset, load_index);
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
 
-  Register value = rax;
-  EmitLoadInstruction(masm, value, memory_start, load_offset, value_type,
-                      memory_type);
-
-  Register store_index_slot_offset = r9;
-  __ movl(store_index_slot_offset, MemOperand(code, 0x10));
-
-  Register store_offset = r11;
-  __ movl(store_offset, MemOperand(sp, store_index_slot_offset, times_4, 0));
-  __ addq(store_offset, MemOperand(code, 0x08));
-
-  EmitStoreInstruction(masm, value, memory_start, store_offset, memory_type);
-
-  Register next_handler_id = rax;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x14);
-  __ addq(code, Immediate(0x16));
-
-  Register instr_table = r9;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_s2s_ILoadStoreMem(MacroAssembler* masm, IntValueType value_type,
-                                IntMemoryType memory_type) {
-  Register sp = rdx;
-  Register code = rcx;
-  Register wasm_runtime = r8;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register load_index_slot_offset = r9;
-  __ movl(load_index_slot_offset, MemOperand(code, 0x08));
-
-  Register load_offset = r11;
-  __ movl(load_offset, Operand(sp, load_index_slot_offset, times_4, 0));
-  __ addq(load_offset, MemOperand(code, 0x00));
-
-  Register value = rax;
-  EmitLoadInstruction(masm, value, memory_start, load_offset, value_type,
-                      memory_type);
-
-  Register store_index_slot_offset = r9;
-  __ movl(store_index_slot_offset, MemOperand(code, 0x14));
-
-  Register store_offset = r11;
-  __ movl(store_offset, MemOperand(sp, store_index_slot_offset, times_4, 0));
-  __ addq(store_offset, MemOperand(code, 0x0c));
-
-  EmitStoreInstruction(masm, value, memory_start, store_offset, memory_type);
-
-  Register next_handler_id = rax;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x18);
-  __ addq(code, Immediate(0x1a));
-
-  Register instr_table = r9;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
-
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
-
-void Generate_r2s_FLoadStoreMem(MacroAssembler* masm, FloatType float_type) {
-  Register sp = rdx;
-  Register code = rcx;
-  Register wasm_runtime = r8;
-  Register load_index = r9;
-
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
-
-  Register load_offset = r11;
-  __ movq(load_offset, MemOperand(code, 0x00));
-  __ movl(load_index, load_index);
-  __ addq(load_offset, load_index);
-
-  XMMRegister value = xmm0;
-  switch (float_type) {
-    case kFloat32:
-      __ movss(value, Operand(memory_start, load_offset, times_1, 0));
-      break;
-    case kFloat64:
-      __ movsd(value, Operand(memory_start, load_offset, times_1, 0));
-      break;
-    default:
-      UNREACHABLE();
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
   }
 
-  Register store_index_slot_offset = r9;
-  __ movl(store_index_slot_offset, MemOperand(code, 0x10));
+  static void Generate_s2r_FLoadMem(MacroAssembler* masm,
+                                    FloatType float_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kMemoryIndexSlot =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId =
+        kMemoryIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register store_offset = r11;
-  __ movl(store_offset, MemOperand(sp, store_index_slot_offset, times_4, 0));
-  __ addq(store_offset, MemOperand(code, 0x08));
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
 
-  EmitStoreInstruction(masm, value, memory_start, store_offset, float_type);
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  Register next_handler_id = rax;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x14);
-  __ addq(code, Immediate(0x16));
+    Register memory_index_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kMemoryIndexSlot));
 
-  Register instr_table = r9;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
 
-void Generate_s2s_FLoadStoreMem(MacroAssembler* masm, FloatType float_type) {
-  Register sp = rdx;
-  Register code = rcx;
-  Register wasm_runtime = r8;
+    EmitLoadInstruction(masm, memory_start_plus_offset, memory_index, xmm4,
+                        float_type);
 
-  Register memory_start = r10;
-  __ movq(memory_start,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::memory_start_offset()));
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
 
-  Register load_index_slot_offset = r9;
-  __ movl(load_index_slot_offset, MemOperand(code, 0x08));
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
 
-  Register load_offset = r11;
-  __ movl(load_offset, Operand(sp, load_index_slot_offset, times_4, 0));
-  __ addq(load_offset, MemOperand(code, 0x00));
-
-  XMMRegister value = xmm0;
-  switch (float_type) {
-    case kFloat32:
-      __ movss(value, Operand(memory_start, load_offset, times_1, 0));
-      break;
-    case kFloat64:
-      __ movsd(value, Operand(memory_start, load_offset, times_1, 0));
-      break;
-    default:
-      UNREACHABLE();
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
   }
 
-  Register store_index_slot_offset = r9;
-  __ movl(store_index_slot_offset, MemOperand(code, 0x14));
+  static void Generate_s2s_ILoadMem(MacroAssembler* masm,
+                                    IntValueType value_type,
+                                    IntMemoryType memory_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kIndexSlot = kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kResultSlot = kIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kNextHandlerId = kResultSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
 
-  Register store_offset = r11;
-  __ movl(store_offset, MemOperand(sp, store_index_slot_offset, times_4, 0));
-  __ addq(store_offset, MemOperand(code, 0x0c));
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
 
-  EmitStoreInstruction(masm, value, memory_start, store_offset, float_type);
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
 
-  Register next_handler_id = rax;
-  EmitLoadNextInstructionId(masm, next_handler_id, code, 0x18);
-  __ addq(code, Immediate(0x1a));
+    Register memory_index_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kIndexSlot));
 
-  Register instr_table = r9;
-  __ movq(instr_table,
-          MemOperand(wasm_runtime,
-                     wasm::WasmInterpreterRuntime::instruction_table_offset()));
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
 
-  Register next_handler_addr = rax;
-  __ movq(next_handler_addr,
-          MemOperand(instr_table, next_handler_id, times_8, 0));
-  __ jmp(next_handler_addr);
-}
+    Register memory_index = r9;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    Register result_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, result_slot_offset,
+                                MemOperand(code, kResultSlot));
+
+    Register value = rax;
+    EmitLoadInstruction(masm, value, memory_start_plus_offset, memory_index,
+                        value_type, memory_type);
+
+    WriteToSlot(masm, sp, result_slot_offset, value, value_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_FLoadMem(MacroAssembler* masm,
+                                    FloatType float_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kIndexSlot = kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kResultSlot = kIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kNextHandlerId = kResultSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = r9;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    Register result_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, result_slot_offset,
+                                MemOperand(code, kResultSlot));
+
+    EmitLoadInstruction(masm, memory_start_plus_offset, memory_index, sp,
+                        result_slot_offset, float_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_ILoadMem_LocalSet(MacroAssembler* masm,
+                                             IntValueType value_type,
+                                             IntMemoryType memory_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kIndexSlot = kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kSetSlot = kIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kNextHandlerId = kSetSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    Register set_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, set_slot_offset,
+                                MemOperand(code, kSetSlot));
+
+    Register value = rax;
+    EmitLoadInstruction(masm, value, memory_start_plus_offset, memory_index,
+                        value_type, memory_type);
+
+    WriteToSlot(masm, sp, set_slot_offset, value, value_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_FLoadMem_LocalSet(MacroAssembler* masm,
+                                             FloatType float_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kIndexSlot = kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kSetSlot = kIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kNextHandlerId = kSetSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    Register set_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, set_slot_offset,
+                                MemOperand(code, kSetSlot));
+
+    EmitLoadInstruction(masm, memory_start_plus_offset, memory_index, sp,
+                        set_slot_offset, float_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_r2s_IStoreMem(MacroAssembler* masm,
+                                     IntValueType /*value_type*/,
+                                     IntMemoryType memory_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kMemoryIndexSlot =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId =
+        kMemoryIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+    Register value = r9;
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kMemoryIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_offset, memory_index,
+                         memory_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_r2s_FStoreMem(MacroAssembler* masm,
+                                     FloatType float_type) {
+    constexpr uint32_t kMemoryOffset = 0;
+    constexpr uint32_t kMemoryIndexSlot =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId =
+        kMemoryIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register code = rcx;
+    Register sp = rdx;
+    Register wasm_runtime = r8;
+
+    XMMRegister value = xmm4;
+    if (float_type == kFloat32) {
+      __ cvtsd2ss(value, xmm4);
+    }
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kMemoryIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_offset, memory_index,
+                         float_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_IStoreMem(MacroAssembler* masm,
+                                     IntValueType /*value_type*/,
+                                     IntMemoryType memory_type) {
+    constexpr uint32_t kValueSlot = 0;
+    constexpr uint32_t kMemoryOffset = kValueSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kMemoryIndexSlot =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId =
+        kMemoryIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register sp = rdx;
+    Register code = rcx;
+    Register wasm_runtime = r8;
+
+    Register value_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, value_slot_offset,
+                                MemOperand(code, kValueSlot));
+
+    Register value = value_slot_offset;
+    switch (memory_type) {
+      case kInt64:
+        __ movq(value, MemOperand(sp, value_slot_offset, times_4, 0));
+        break;
+      case kIntS32:
+        __ movl(value, MemOperand(sp, value_slot_offset, times_4, 0));
+        break;
+      case kIntS16:
+        __ movw(value, MemOperand(sp, value_slot_offset, times_4, 0));
+        break;
+      case kIntS8:
+        __ movb(value, MemOperand(sp, value_slot_offset, times_4, 0));
+        break;
+      default:
+        UNREACHABLE();
+    }
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kMemoryIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_offset, memory_index,
+                         memory_type);
+
+    Register next_handler_id = rax;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = r9;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_FStoreMem(MacroAssembler* masm,
+                                     FloatType float_type) {
+    constexpr uint32_t kValueSlot = 0;
+    constexpr uint32_t kMemoryOffset = kValueSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kMemoryIndexSlot =
+        kMemoryOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId =
+        kMemoryIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register sp = rdx;
+    Register code = rcx;
+    Register wasm_runtime = r8;
+
+    Register value_slot_offset = rax;
+    emitter::EmitLoadSlotOffset(masm, value_slot_offset,
+                                MemOperand(code, kValueSlot));
+
+    XMMRegister value = xmm0;
+    switch (float_type) {
+      case kFloat32:
+        __ movss(value, MemOperand(sp, value_slot_offset, times_4, 0));
+        break;
+      case kFloat64:
+        __ movsd(value, MemOperand(sp, value_slot_offset, times_4, 0));
+        break;
+      default:
+        UNREACHABLE();
+    }
+
+    Register memory_offset = r10;
+    emitter::EmitLoadMemoryOffset(masm, memory_offset,
+                                  MemOperand(code, kMemoryOffset));
+
+    Register memory_index_slot_offset = r11;
+    emitter::EmitLoadSlotOffset(masm, memory_index_slot_offset,
+                                MemOperand(code, kMemoryIndexSlot));
+
+    Register memory_start_plus_offset = memory_offset;
+    __ addq(memory_start_plus_offset,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register memory_index = memory_index_slot_offset;
+    __ movl(memory_index, Operand(sp, memory_index_slot_offset, times_4, 0));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_offset, memory_index,
+                         float_type);
+
+    Register next_handler_id = r10;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = rax;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_r2s_ILoadStoreMem(MacroAssembler* masm,
+                                         IntValueType value_type,
+                                         IntMemoryType memory_type) {
+    constexpr uint32_t kLoadOffset = 0;
+    constexpr uint32_t kStoreOffset = kLoadOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kStoreIndexSlot =
+        kStoreOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId = kStoreIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register sp = rdx;
+    Register code = rcx;
+    Register wasm_runtime = r8;
+    Register load_index = r9;
+
+    __ movl(load_index, load_index);
+
+    Register memory_start_plus_load_index = load_index;
+    __ addq(memory_start_plus_load_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register load_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, load_offset,
+                                  MemOperand(code, kLoadOffset));
+
+    Register value = r10;
+    EmitLoadInstruction(masm, value, memory_start_plus_load_index, load_offset,
+                        value_type, memory_type);
+
+    Register store_index_slot_offset = r9;
+    emitter::EmitLoadSlotOffset(masm, store_index_slot_offset,
+                                MemOperand(code, kStoreIndexSlot));
+
+    Register store_index = store_index_slot_offset;
+    __ movl(store_index, MemOperand(sp, store_index_slot_offset, times_4, 0));
+
+    Register store_offset = r11;
+    emitter::EmitLoadMemoryOffset(masm, store_offset,
+                                  MemOperand(code, kStoreOffset));
+
+    Register memory_start_plus_store_index = store_index;
+    __ addq(memory_start_plus_store_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_store_index,
+                         store_offset, memory_type);
+
+    Register next_handler_id = rax;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = r9;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_ILoadStoreMem(MacroAssembler* masm,
+                                         IntValueType value_type,
+                                         IntMemoryType memory_type) {
+    constexpr uint32_t kLoadOffset = 0;
+    constexpr uint32_t kLoadIndexSlot = kLoadOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kStoreOffset = kLoadIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kStoreIndexSlot =
+        kStoreOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId = kStoreIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register sp = rdx;
+    Register code = rcx;
+    Register wasm_runtime = r8;
+
+    Register load_index_slot_offset = r9;
+    emitter::EmitLoadSlotOffset(masm, load_index_slot_offset,
+                                MemOperand(code, kLoadIndexSlot));
+
+    Register load_index = load_index_slot_offset;
+    __ movl(load_index, Operand(sp, load_index_slot_offset, times_4, 0));
+
+    Register memory_start_plus_load_index = load_index;
+    __ addq(memory_start_plus_load_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register load_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, load_offset,
+                                  MemOperand(code, kLoadOffset));
+
+    Register value = r10;
+    EmitLoadInstruction(masm, value, memory_start_plus_load_index, load_offset,
+                        value_type, memory_type);
+
+    Register store_index_slot_offset = r9;
+    emitter::EmitLoadSlotOffset(masm, store_index_slot_offset,
+                                MemOperand(code, kStoreIndexSlot));
+
+    Register store_index = store_index_slot_offset;
+    __ movl(store_index, MemOperand(sp, store_index_slot_offset, times_4, 0));
+
+    Register store_offset = r11;
+    emitter::EmitLoadMemoryOffset(masm, store_offset,
+                                  MemOperand(code, kStoreOffset));
+
+    Register memory_start_plus_store_index = store_index;
+    __ addq(memory_start_plus_store_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_store_index,
+                         store_offset, memory_type);
+
+    Register next_handler_id = rax;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = r9;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_r2s_FLoadStoreMem(MacroAssembler* masm,
+                                         FloatType float_type) {
+    constexpr uint32_t kLoadOffset = 0;
+    constexpr uint32_t kStoreOffset = kLoadOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kStoreIndexSlot =
+        kStoreOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId = kStoreIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register sp = rdx;
+    Register code = rcx;
+    Register wasm_runtime = r8;
+    Register load_index = r9;
+
+    __ movl(load_index, load_index);
+
+    Register memory_start_plus_load_index = load_index;
+    __ addq(memory_start_plus_load_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    Register load_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, load_offset,
+                                  MemOperand(code, kLoadOffset));
+
+    XMMRegister value = xmm0;
+    switch (float_type) {
+      case kFloat32:
+        __ movss(value, Operand(memory_start_plus_load_index, load_offset,
+                                times_1, 0));
+        break;
+      case kFloat64:
+        __ movsd(value, Operand(memory_start_plus_load_index, load_offset,
+                                times_1, 0));
+        break;
+      default:
+        UNREACHABLE();
+    }
+
+    Register store_index_slot_offset = r9;
+    emitter::EmitLoadSlotOffset(masm, store_index_slot_offset,
+                                MemOperand(code, kStoreIndexSlot));
+
+    Register store_index = store_index_slot_offset;
+    __ movl(store_index, MemOperand(sp, store_index_slot_offset, times_4, 0));
+
+    Register store_offset = r11;
+    emitter::EmitLoadMemoryOffset(masm, store_offset,
+                                  MemOperand(code, kStoreOffset));
+
+    Register memory_start_plus_store_index = store_index;
+    __ addq(memory_start_plus_store_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_store_index,
+                         store_offset, float_type);
+
+    Register next_handler_id = rax;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = r9;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+
+  static void Generate_s2s_FLoadStoreMem(MacroAssembler* masm,
+                                         FloatType float_type) {
+    constexpr uint32_t kLoadOffset = 0;
+    constexpr uint32_t kLoadIndexSlot = kLoadOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kStoreOffset = kLoadIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kStoreIndexSlot =
+        kStoreOffset + sizeof(memory_offset32_t);
+    constexpr uint32_t kNextHandlerId = kStoreIndexSlot + sizeof(slot_offset_t);
+    constexpr uint32_t kInstructionCodeLength =
+        kNextHandlerId + sizeof(handler_id_t);
+
+    Register sp = rdx;
+    Register code = rcx;
+    Register wasm_runtime = r8;
+
+    Register load_index_slot_offset = r9;
+    emitter::EmitLoadSlotOffset(masm, load_index_slot_offset,
+                                MemOperand(code, kLoadIndexSlot));
+
+    Register load_index = load_index_slot_offset;
+    __ movl(load_index, Operand(sp, load_index_slot_offset, times_4, 0));
+
+    Register memory_start_plus_load_index = load_index;
+    __ addq(memory_start_plus_load_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+    Register load_offset = rax;
+    emitter::EmitLoadMemoryOffset(masm, load_offset,
+                                  MemOperand(code, kLoadOffset));
+
+    XMMRegister value = xmm0;
+    switch (float_type) {
+      case kFloat32:
+        __ movss(value, Operand(memory_start_plus_load_index, load_offset,
+                                times_1, 0));
+        break;
+      case kFloat64:
+        __ movsd(value, Operand(memory_start_plus_load_index, load_offset,
+                                times_1, 0));
+        break;
+      default:
+        UNREACHABLE();
+    }
+
+    Register store_index_slot_offset = r9;
+    emitter::EmitLoadSlotOffset(masm, store_index_slot_offset,
+                                MemOperand(code, kStoreIndexSlot));
+
+    Register store_index = store_index_slot_offset;
+    __ movl(store_index, MemOperand(sp, store_index_slot_offset, times_4, 0));
+
+    Register store_offset = r11;
+    emitter::EmitLoadMemoryOffset(masm, store_offset,
+                                  MemOperand(code, kStoreOffset));
+
+    Register memory_start_plus_store_index = store_index;
+    __ addq(memory_start_plus_store_index,
+            MemOperand(wasm_runtime,
+                       wasm::WasmInterpreterRuntime::memory_start_offset()));
+
+    EmitStoreInstruction(masm, value, memory_start_plus_store_index,
+                         store_offset, float_type);
+
+    Register next_handler_id = rax;
+    EmitLoadNextInstructionId(masm, next_handler_id, code, kNextHandlerId);
+    __ addq(code, Immediate(kInstructionCodeLength));
+
+    Register instr_table = r9;
+    __ movq(
+        instr_table,
+        MemOperand(wasm_runtime,
+                   wasm::WasmInterpreterRuntime::instruction_table_offset()));
+
+    Register next_handler_addr = rax;
+    __ movq(next_handler_addr,
+            MemOperand(instr_table, next_handler_id, times_8, 0));
+    __ jmp(next_handler_addr);
+  }
+};  // class WasmInterpreterHandlerBuiltins<Compressed>
 
 }  // namespace
 
-void Builtins::Generate_r2r_I32LoadMem8S(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_r2r_I32LoadMem8U(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt32, kIntU8);
-}
-void Builtins::Generate_r2r_I32LoadMem16S(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_r2r_I32LoadMem16U(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt32, kIntU16);
-}
-void Builtins::Generate_r2r_I64LoadMem8S(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_r2r_I64LoadMem8U(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kIntU8);
-}
-void Builtins::Generate_r2r_I64LoadMem16S(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_r2r_I64LoadMem16U(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kIntU16);
-}
-void Builtins::Generate_r2r_I64LoadMem32S(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_r2r_I64LoadMem32U(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kIntU32);
-}
-void Builtins::Generate_r2r_I32LoadMem(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_r2r_I64LoadMem(MacroAssembler* masm) {
-  return Generate_r2r_ILoadMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_r2r_F32LoadMem(MacroAssembler* masm) {
-  return Generate_r2r_FLoadMem(masm, kFloat32);
-}
-void Builtins::Generate_r2r_F64LoadMem(MacroAssembler* masm) {
-  return Generate_r2r_FLoadMem(masm, kFloat64);
-}
+#define FOREACH_INT_LOADSTORE_BUILTIN(V)                                     \
+  V(r2r_I32LoadMem8S, Generate_r2r_ILoadMem, kValueInt32, kIntS8)            \
+  V(r2r_I32LoadMem8U, Generate_r2r_ILoadMem, kValueInt32, kIntU8)            \
+  V(r2r_I32LoadMem16S, Generate_r2r_ILoadMem, kValueInt32, kIntS16)          \
+  V(r2r_I32LoadMem16U, Generate_r2r_ILoadMem, kValueInt32, kIntU16)          \
+  V(r2r_I64LoadMem8S, Generate_r2r_ILoadMem, kValueInt64, kIntS8)            \
+  V(r2r_I64LoadMem8U, Generate_r2r_ILoadMem, kValueInt64, kIntU8)            \
+  V(r2r_I64LoadMem16S, Generate_r2r_ILoadMem, kValueInt64, kIntS16)          \
+  V(r2r_I64LoadMem16U, Generate_r2r_ILoadMem, kValueInt64, kIntU16)          \
+  V(r2r_I64LoadMem32S, Generate_r2r_ILoadMem, kValueInt64, kIntS32)          \
+  V(r2r_I64LoadMem32U, Generate_r2r_ILoadMem, kValueInt64, kIntU32)          \
+  V(r2r_I32LoadMem, Generate_r2r_ILoadMem, kValueInt32, kIntS32)             \
+  V(r2r_I64LoadMem, Generate_r2r_ILoadMem, kValueInt64, kInt64)              \
+                                                                             \
+  V(r2s_I32LoadMem8S, Generate_r2s_ILoadMem, kValueInt32, kIntS8)            \
+  V(r2s_I32LoadMem8U, Generate_r2s_ILoadMem, kValueInt32, kIntU8)            \
+  V(r2s_I32LoadMem16S, Generate_r2s_ILoadMem, kValueInt32, kIntS16)          \
+  V(r2s_I32LoadMem16U, Generate_r2s_ILoadMem, kValueInt32, kIntU16)          \
+  V(r2s_I64LoadMem8S, Generate_r2s_ILoadMem, kValueInt64, kIntS8)            \
+  V(r2s_I64LoadMem8U, Generate_r2s_ILoadMem, kValueInt64, kIntU8)            \
+  V(r2s_I64LoadMem16S, Generate_r2s_ILoadMem, kValueInt64, kIntS16)          \
+  V(r2s_I64LoadMem16U, Generate_r2s_ILoadMem, kValueInt64, kIntU16)          \
+  V(r2s_I64LoadMem32S, Generate_r2s_ILoadMem, kValueInt64, kIntS32)          \
+  V(r2s_I64LoadMem32U, Generate_r2s_ILoadMem, kValueInt64, kIntU32)          \
+  V(r2s_I32LoadMem, Generate_r2s_ILoadMem, kValueInt32, kIntS32)             \
+  V(r2s_I64LoadMem, Generate_r2s_ILoadMem, kValueInt64, kInt64)              \
+                                                                             \
+  V(s2r_I32LoadMem8S, Generate_s2r_ILoadMem, kValueInt32, kIntS8)            \
+  V(s2r_I32LoadMem8U, Generate_s2r_ILoadMem, kValueInt32, kIntU8)            \
+  V(s2r_I32LoadMem16S, Generate_s2r_ILoadMem, kValueInt32, kIntS16)          \
+  V(s2r_I32LoadMem16U, Generate_s2r_ILoadMem, kValueInt32, kIntU16)          \
+  V(s2r_I64LoadMem8S, Generate_s2r_ILoadMem, kValueInt64, kIntS8)            \
+  V(s2r_I64LoadMem8U, Generate_s2r_ILoadMem, kValueInt64, kIntU8)            \
+  V(s2r_I64LoadMem16S, Generate_s2r_ILoadMem, kValueInt64, kIntS16)          \
+  V(s2r_I64LoadMem16U, Generate_s2r_ILoadMem, kValueInt64, kIntU16)          \
+  V(s2r_I64LoadMem32S, Generate_s2r_ILoadMem, kValueInt64, kIntS32)          \
+  V(s2r_I64LoadMem32U, Generate_s2r_ILoadMem, kValueInt64, kIntU32)          \
+  V(s2r_I32LoadMem, Generate_s2r_ILoadMem, kValueInt32, kIntS32)             \
+  V(s2r_I64LoadMem, Generate_s2r_ILoadMem, kValueInt64, kInt64)              \
+                                                                             \
+  V(s2s_I32LoadMem8S, Generate_s2s_ILoadMem, kValueInt32, kIntS8)            \
+  V(s2s_I32LoadMem8U, Generate_s2s_ILoadMem, kValueInt32, kIntU8)            \
+  V(s2s_I32LoadMem16S, Generate_s2s_ILoadMem, kValueInt32, kIntS16)          \
+  V(s2s_I32LoadMem16U, Generate_s2s_ILoadMem, kValueInt32, kIntU16)          \
+  V(s2s_I64LoadMem8S, Generate_s2s_ILoadMem, kValueInt64, kIntS8)            \
+  V(s2s_I64LoadMem8U, Generate_s2s_ILoadMem, kValueInt64, kIntU8)            \
+  V(s2s_I64LoadMem16S, Generate_s2s_ILoadMem, kValueInt64, kIntS16)          \
+  V(s2s_I64LoadMem16U, Generate_s2s_ILoadMem, kValueInt64, kIntU16)          \
+  V(s2s_I64LoadMem32S, Generate_s2s_ILoadMem, kValueInt64, kIntS32)          \
+  V(s2s_I64LoadMem32U, Generate_s2s_ILoadMem, kValueInt64, kIntU32)          \
+  V(s2s_I32LoadMem, Generate_s2s_ILoadMem, kValueInt32, kIntS32)             \
+  V(s2s_I64LoadMem, Generate_s2s_ILoadMem, kValueInt64, kInt64)              \
+                                                                             \
+  V(s2s_I32LoadMem8S_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt32,  \
+    kIntS8)                                                                  \
+  V(s2s_I32LoadMem8U_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt32,  \
+    kIntU8)                                                                  \
+  V(s2s_I32LoadMem16S_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt32, \
+    kIntS16)                                                                 \
+  V(s2s_I32LoadMem16U_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt32, \
+    kIntU16)                                                                 \
+  V(s2s_I64LoadMem8S_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64,  \
+    kIntS8)                                                                  \
+  V(s2s_I64LoadMem8U_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64,  \
+    kIntU8)                                                                  \
+  V(s2s_I64LoadMem16S_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64, \
+    kIntS16)                                                                 \
+  V(s2s_I64LoadMem16U_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64, \
+    kIntU16)                                                                 \
+  V(s2s_I64LoadMem32S_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64, \
+    kIntS32)                                                                 \
+  V(s2s_I64LoadMem32U_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64, \
+    kIntU32)                                                                 \
+  V(s2s_I32LoadMem_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt32,    \
+    kIntS32)                                                                 \
+  V(s2s_I64LoadMem_LocalSet, Generate_s2s_ILoadMem_LocalSet, kValueInt64,    \
+    kInt64)                                                                  \
+                                                                             \
+  V(r2s_I32StoreMem8, Generate_r2s_IStoreMem, kValueInt32, kIntS8)           \
+  V(r2s_I32StoreMem16, Generate_r2s_IStoreMem, kValueInt32, kIntS16)         \
+  V(r2s_I64StoreMem8, Generate_r2s_IStoreMem, kValueInt64, kIntS8)           \
+  V(r2s_I64StoreMem16, Generate_r2s_IStoreMem, kValueInt64, kIntS16)         \
+  V(r2s_I64StoreMem32, Generate_r2s_IStoreMem, kValueInt64, kIntS32)         \
+  V(r2s_I32StoreMem, Generate_r2s_IStoreMem, kValueInt32, kIntS32)           \
+  V(r2s_I64StoreMem, Generate_r2s_IStoreMem, kValueInt64, kInt64)            \
+                                                                             \
+  V(s2s_I32StoreMem8, Generate_s2s_IStoreMem, kValueInt32, kIntS8)           \
+  V(s2s_I32StoreMem16, Generate_s2s_IStoreMem, kValueInt32, kIntS16)         \
+  V(s2s_I64StoreMem8, Generate_s2s_IStoreMem, kValueInt64, kIntS8)           \
+  V(s2s_I64StoreMem16, Generate_s2s_IStoreMem, kValueInt64, kIntS16)         \
+  V(s2s_I64StoreMem32, Generate_s2s_IStoreMem, kValueInt64, kIntS32)         \
+  V(s2s_I32StoreMem, Generate_s2s_IStoreMem, kValueInt32, kIntS32)           \
+  V(s2s_I64StoreMem, Generate_s2s_IStoreMem, kValueInt64, kInt64)            \
+                                                                             \
+  V(r2s_I32LoadStoreMem, Generate_r2s_ILoadStoreMem, kValueInt32, kIntS32)   \
+  V(r2s_I64LoadStoreMem, Generate_r2s_ILoadStoreMem, kValueInt64, kInt64)    \
+                                                                             \
+  V(s2s_I32LoadStoreMem, Generate_s2s_ILoadStoreMem, kValueInt32, kIntS32)   \
+  V(s2s_I64LoadStoreMem, Generate_s2s_ILoadStoreMem, kValueInt64, kInt64)
 
-void Builtins::Generate_r2s_I32LoadMem8S(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_r2s_I32LoadMem8U(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt32, kIntU8);
-}
-void Builtins::Generate_r2s_I32LoadMem16S(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_r2s_I32LoadMem16U(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt32, kIntU16);
-}
-void Builtins::Generate_r2s_I64LoadMem8S(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_r2s_I64LoadMem8U(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kIntU8);
-}
-void Builtins::Generate_r2s_I64LoadMem16S(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_r2s_I64LoadMem16U(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kIntU16);
-}
-void Builtins::Generate_r2s_I64LoadMem32S(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_r2s_I64LoadMem32U(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kIntU32);
-}
-void Builtins::Generate_r2s_I32LoadMem(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_r2s_I64LoadMem(MacroAssembler* masm) {
-  return Generate_r2s_ILoadMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_r2s_F32LoadMem(MacroAssembler* masm) {
-  return Generate_r2s_FLoadMem(masm, kFloat32);
-}
-void Builtins::Generate_r2s_F64LoadMem(MacroAssembler* masm) {
-  return Generate_r2s_FLoadMem(masm, kFloat64);
-}
+#define GENERATE_INT_LOADSTORE_BUILTIN(builtin_name, generator, value_type,   \
+                                       memory_type)                           \
+  void Builtins::Generate_##builtin_name##_s(MacroAssembler* masm) {          \
+    return WasmInterpreterHandlerBuiltins<true>::generator(masm, value_type,  \
+                                                           memory_type);      \
+  }                                                                           \
+  void Builtins::Generate_##builtin_name##_l(MacroAssembler* masm) {          \
+    return WasmInterpreterHandlerBuiltins<false>::generator(masm, value_type, \
+                                                            memory_type);     \
+  }
 
-void Builtins::Generate_s2r_I32LoadMem8S(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_s2r_I32LoadMem8U(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt32, kIntU8);
-}
-void Builtins::Generate_s2r_I32LoadMem16S(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_s2r_I32LoadMem16U(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt32, kIntU16);
-}
-void Builtins::Generate_s2r_I64LoadMem8S(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_s2r_I64LoadMem8U(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kIntU8);
-}
-void Builtins::Generate_s2r_I64LoadMem16S(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_s2r_I64LoadMem16U(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kIntU16);
-}
-void Builtins::Generate_s2r_I64LoadMem32S(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_s2r_I64LoadMem32U(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kIntU32);
-}
-void Builtins::Generate_s2r_I32LoadMem(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_s2r_I64LoadMem(MacroAssembler* masm) {
-  return Generate_s2r_ILoadMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_s2r_F32LoadMem(MacroAssembler* masm) {
-  return Generate_s2r_FLoadMem(masm, kFloat32);
-}
-void Builtins::Generate_s2r_F64LoadMem(MacroAssembler* masm) {
-  return Generate_s2r_FLoadMem(masm, kFloat64);
-}
+FOREACH_INT_LOADSTORE_BUILTIN(GENERATE_INT_LOADSTORE_BUILTIN)
+#undef FOREACH_INT_LOADSTORE_BUILTIN
 
-void Builtins::Generate_s2s_I32LoadMem8S(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_s2s_I32LoadMem8U(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt32, kIntU8);
-}
-void Builtins::Generate_s2s_I32LoadMem16S(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_s2s_I32LoadMem16U(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt32, kIntU16);
-}
-void Builtins::Generate_s2s_I64LoadMem8S(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_s2s_I64LoadMem8U(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kIntU8);
-}
-void Builtins::Generate_s2s_I64LoadMem16S(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_s2s_I64LoadMem16U(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kIntU16);
-}
-void Builtins::Generate_s2s_I64LoadMem32S(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_s2s_I64LoadMem32U(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kIntU32);
-}
-void Builtins::Generate_s2s_I32LoadMem(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_s2s_I64LoadMem(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_s2s_F32LoadMem(MacroAssembler* masm) {
-  return Generate_s2s_FLoadMem(masm, kFloat32);
-}
-void Builtins::Generate_s2s_F64LoadMem(MacroAssembler* masm) {
-  return Generate_s2s_FLoadMem(masm, kFloat64);
-}
+#define FOREACH_FLOAT_LOADMEM_BUILTIN(V)                               \
+  V(r2r_F32LoadMem, Generate_r2r_FLoadMem, kFloat32)                   \
+  V(r2r_F64LoadMem, Generate_r2r_FLoadMem, kFloat64)                   \
+  V(r2s_F32LoadMem, Generate_r2s_FLoadMem, kFloat32)                   \
+  V(r2s_F64LoadMem, Generate_r2s_FLoadMem, kFloat64)                   \
+  V(s2r_F32LoadMem, Generate_s2r_FLoadMem, kFloat32)                   \
+  V(s2r_F64LoadMem, Generate_s2r_FLoadMem, kFloat64)                   \
+  V(s2s_F32LoadMem, Generate_s2s_FLoadMem, kFloat32)                   \
+  V(s2s_F64LoadMem, Generate_s2s_FLoadMem, kFloat64)                   \
+  V(s2s_F32LoadMem_LocalSet, Generate_s2s_FLoadMem_LocalSet, kFloat32) \
+  V(s2s_F64LoadMem_LocalSet, Generate_s2s_FLoadMem_LocalSet, kFloat64) \
+  V(r2s_F32StoreMem, Generate_r2s_FStoreMem, kFloat32)                 \
+  V(r2s_F64StoreMem, Generate_r2s_FStoreMem, kFloat64)                 \
+  V(s2s_F32StoreMem, Generate_s2s_FStoreMem, kFloat32)                 \
+  V(s2s_F64StoreMem, Generate_s2s_FStoreMem, kFloat64)                 \
+  V(r2s_F32LoadStoreMem, Generate_r2s_FLoadStoreMem, kFloat32)         \
+  V(r2s_F64LoadStoreMem, Generate_r2s_FLoadStoreMem, kFloat64)         \
+  V(s2s_F32LoadStoreMem, Generate_s2s_FLoadStoreMem, kFloat32)         \
+  V(s2s_F64LoadStoreMem, Generate_s2s_FLoadStoreMem, kFloat64)
 
-void Builtins::Generate_s2s_I32LoadMem8S_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_s2s_I32LoadMem8U_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt32, kIntU8);
-}
-void Builtins::Generate_s2s_I32LoadMem16S_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_s2s_I32LoadMem16U_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt32, kIntU16);
-}
-void Builtins::Generate_s2s_I64LoadMem8S_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_s2s_I64LoadMem8U_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kIntU8);
-}
-void Builtins::Generate_s2s_I64LoadMem16S_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_s2s_I64LoadMem16U_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kIntU16);
-}
-void Builtins::Generate_s2s_I64LoadMem32S_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_s2s_I64LoadMem32U_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kIntU32);
-}
-void Builtins::Generate_s2s_I32LoadMem_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_s2s_I64LoadMem_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_ILoadMem_LocalSet(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_s2s_F32LoadMem_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_FLoadMem_LocalSet(masm, kFloat32);
-}
-void Builtins::Generate_s2s_F64LoadMem_LocalSet(MacroAssembler* masm) {
-  return Generate_s2s_FLoadMem_LocalSet(masm, kFloat64);
-}
+#define GENERATE_FLOAT_LOADMEM_BUILTIN(builtin_name, generator, value_type)    \
+  void Builtins::Generate_##builtin_name##_s(MacroAssembler* masm) {           \
+    return WasmInterpreterHandlerBuiltins<true>::generator(masm, value_type);  \
+  }                                                                            \
+  void Builtins::Generate_##builtin_name##_l(MacroAssembler* masm) {           \
+    return WasmInterpreterHandlerBuiltins<false>::generator(masm, value_type); \
+  }
 
-void Builtins::Generate_r2s_I32StoreMem8(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_r2s_I32StoreMem16(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_r2s_I64StoreMem8(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_r2s_I64StoreMem16(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_r2s_I64StoreMem32(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_r2s_I32StoreMem(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_r2s_I64StoreMem(MacroAssembler* masm) {
-  return Generate_r2s_IStoreMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_r2s_F32StoreMem(MacroAssembler* masm) {
-  return Generate_r2s_FStoreMem(masm, kFloat32);
-}
-void Builtins::Generate_r2s_F64StoreMem(MacroAssembler* masm) {
-  return Generate_r2s_FStoreMem(masm, kFloat64);
-}
-
-void Builtins::Generate_s2s_I32StoreMem8(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt32, kIntS8);
-}
-void Builtins::Generate_s2s_I32StoreMem16(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt32, kIntS16);
-}
-void Builtins::Generate_s2s_I64StoreMem8(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt64, kIntS8);
-}
-void Builtins::Generate_s2s_I64StoreMem16(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt64, kIntS16);
-}
-void Builtins::Generate_s2s_I64StoreMem32(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt64, kIntS32);
-}
-void Builtins::Generate_s2s_I32StoreMem(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_s2s_I64StoreMem(MacroAssembler* masm) {
-  return Generate_s2s_IStoreMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_s2s_F32StoreMem(MacroAssembler* masm) {
-  return Generate_s2s_FStoreMem(masm, kFloat32);
-}
-void Builtins::Generate_s2s_F64StoreMem(MacroAssembler* masm) {
-  return Generate_s2s_FStoreMem(masm, kFloat64);
-}
-
-void Builtins::Generate_r2s_I32LoadStoreMem(MacroAssembler* masm) {
-  return Generate_r2s_ILoadStoreMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_r2s_I64LoadStoreMem(MacroAssembler* masm) {
-  return Generate_r2s_ILoadStoreMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_r2s_F32LoadStoreMem(MacroAssembler* masm) {
-  return Generate_r2s_FLoadStoreMem(masm, kFloat32);
-}
-void Builtins::Generate_r2s_F64LoadStoreMem(MacroAssembler* masm) {
-  return Generate_r2s_FLoadStoreMem(masm, kFloat64);
-}
-void Builtins::Generate_s2s_I32LoadStoreMem(MacroAssembler* masm) {
-  return Generate_s2s_ILoadStoreMem(masm, kValueInt32, kIntS32);
-}
-void Builtins::Generate_s2s_I64LoadStoreMem(MacroAssembler* masm) {
-  return Generate_s2s_ILoadStoreMem(masm, kValueInt64, kInt64);
-}
-void Builtins::Generate_s2s_F32LoadStoreMem(MacroAssembler* masm) {
-  return Generate_s2s_FLoadStoreMem(masm, kFloat32);
-}
-void Builtins::Generate_s2s_F64LoadStoreMem(MacroAssembler* masm) {
-  return Generate_s2s_FLoadStoreMem(masm, kFloat64);
-}
+FOREACH_FLOAT_LOADMEM_BUILTIN(GENERATE_FLOAT_LOADMEM_BUILTIN)
+#undef FOREACH_FLOAT_LOADMEM_BUILTIN
 
 #endif  // !V8_DRUMBRAKE_BOUNDS_CHECKS
 

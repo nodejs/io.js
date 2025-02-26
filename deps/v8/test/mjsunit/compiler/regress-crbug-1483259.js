@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft --turboshaft-future
+// Flags: --allow-natives-syntax --turboshaft
 
 function f0(a1) {
     let v2 = 0;

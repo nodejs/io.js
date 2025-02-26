@@ -5,6 +5,7 @@
 namespace collections {
 
 // https://tc39.es/proposal-set-methods/#sec-set.prototype.isdisjointfrom
+@incrementUseCounter('v8::Isolate::kSetMethods')
 transitioning javascript builtin SetPrototypeIsDisjointFrom(
     js-implicit context: NativeContext, receiver: JSAny)(
     other: JSAny): Boolean {

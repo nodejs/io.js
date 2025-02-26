@@ -146,6 +146,59 @@ absl::flat_hash_set<T> FlatHashSet(size_t count) {
   return result;
 }
 
+template <typename T>
+struct LongCombine {
+  T a[200]{};
+  template <typename H>
+  friend H AbslHashValue(H state, const LongCombine& v) {
+    // This is testing a single call to `combine` with a lot of arguments to
+    // test the performance of the folding logic.
+    return H::combine(
+        std::move(state),  //
+        v.a[0], v.a[1], v.a[2], v.a[3], v.a[4], v.a[5], v.a[6], v.a[7], v.a[8],
+        v.a[9], v.a[10], v.a[11], v.a[12], v.a[13], v.a[14], v.a[15], v.a[16],
+        v.a[17], v.a[18], v.a[19], v.a[20], v.a[21], v.a[22], v.a[23], v.a[24],
+        v.a[25], v.a[26], v.a[27], v.a[28], v.a[29], v.a[30], v.a[31], v.a[32],
+        v.a[33], v.a[34], v.a[35], v.a[36], v.a[37], v.a[38], v.a[39], v.a[40],
+        v.a[41], v.a[42], v.a[43], v.a[44], v.a[45], v.a[46], v.a[47], v.a[48],
+        v.a[49], v.a[50], v.a[51], v.a[52], v.a[53], v.a[54], v.a[55], v.a[56],
+        v.a[57], v.a[58], v.a[59], v.a[60], v.a[61], v.a[62], v.a[63], v.a[64],
+        v.a[65], v.a[66], v.a[67], v.a[68], v.a[69], v.a[70], v.a[71], v.a[72],
+        v.a[73], v.a[74], v.a[75], v.a[76], v.a[77], v.a[78], v.a[79], v.a[80],
+        v.a[81], v.a[82], v.a[83], v.a[84], v.a[85], v.a[86], v.a[87], v.a[88],
+        v.a[89], v.a[90], v.a[91], v.a[92], v.a[93], v.a[94], v.a[95], v.a[96],
+        v.a[97], v.a[98], v.a[99], v.a[100], v.a[101], v.a[102], v.a[103],
+        v.a[104], v.a[105], v.a[106], v.a[107], v.a[108], v.a[109], v.a[110],
+        v.a[111], v.a[112], v.a[113], v.a[114], v.a[115], v.a[116], v.a[117],
+        v.a[118], v.a[119], v.a[120], v.a[121], v.a[122], v.a[123], v.a[124],
+        v.a[125], v.a[126], v.a[127], v.a[128], v.a[129], v.a[130], v.a[131],
+        v.a[132], v.a[133], v.a[134], v.a[135], v.a[136], v.a[137], v.a[138],
+        v.a[139], v.a[140], v.a[141], v.a[142], v.a[143], v.a[144], v.a[145],
+        v.a[146], v.a[147], v.a[148], v.a[149], v.a[150], v.a[151], v.a[152],
+        v.a[153], v.a[154], v.a[155], v.a[156], v.a[157], v.a[158], v.a[159],
+        v.a[160], v.a[161], v.a[162], v.a[163], v.a[164], v.a[165], v.a[166],
+        v.a[167], v.a[168], v.a[169], v.a[170], v.a[171], v.a[172], v.a[173],
+        v.a[174], v.a[175], v.a[176], v.a[177], v.a[178], v.a[179], v.a[180],
+        v.a[181], v.a[182], v.a[183], v.a[184], v.a[185], v.a[186], v.a[187],
+        v.a[188], v.a[189], v.a[190], v.a[191], v.a[192], v.a[193], v.a[194],
+        v.a[195], v.a[196], v.a[197], v.a[198], v.a[199]);
+  }
+};
+
+template <typename T>
+auto MakeLongTuple() {
+  auto t1 = std::tuple<T>();
+  auto t2 = std::tuple_cat(t1, t1);
+  auto t3 = std::tuple_cat(t2, t2);
+  auto t4 = std::tuple_cat(t3, t3);
+  auto t5 = std::tuple_cat(t4, t4);
+  auto t6 = std::tuple_cat(t5, t5);
+  // Ideally this would be much larger, but some configurations can't handle
+  // making tuples with that many elements. They break inside std::tuple itself.
+  static_assert(std::tuple_size<decltype(t6)>::value == 32, "");
+  return t6;
+}
+
 // Generates a benchmark and a codegen method for the provided types.  The
 // codegen method provides a well known entrypoint for dumping assembly.
 #define MAKE_BENCHMARK(hash, name, ...)                          \
@@ -171,6 +224,10 @@ MAKE_BENCHMARK(AbslHash, PairInt64Int64, std::pair<int64_t, int64_t>{});
 MAKE_BENCHMARK(AbslHash, TupleInt32BoolInt64,
                std::tuple<int32_t, bool, int64_t>{});
 MAKE_BENCHMARK(AbslHash, String_0, std::string());
+MAKE_BENCHMARK(AbslHash, String_1, std::string(1, 'a'));
+MAKE_BENCHMARK(AbslHash, String_2, std::string(2, 'a'));
+MAKE_BENCHMARK(AbslHash, String_4, std::string(4, 'a'));
+MAKE_BENCHMARK(AbslHash, String_8, std::string(8, 'a'));
 MAKE_BENCHMARK(AbslHash, String_10, std::string(10, 'a'));
 MAKE_BENCHMARK(AbslHash, String_30, std::string(30, 'a'));
 MAKE_BENCHMARK(AbslHash, String_90, std::string(90, 'a'));
@@ -212,6 +269,10 @@ MAKE_BENCHMARK(AbslHash, PairStringString_200,
                std::make_pair(std::string(200, 'a'), std::string(200, 'b')));
 MAKE_BENCHMARK(AbslHash, PairStringString_5000,
                std::make_pair(std::string(5000, 'a'), std::string(5000, 'b')));
+MAKE_BENCHMARK(AbslHash, LongTupleInt32, MakeLongTuple<int>());
+MAKE_BENCHMARK(AbslHash, LongTupleString, MakeLongTuple<std::string>());
+MAKE_BENCHMARK(AbslHash, LongCombineInt32, LongCombine<int>());
+MAKE_BENCHMARK(AbslHash, LongCombineString, LongCombine<std::string>());
 
 MAKE_BENCHMARK(TypeErasedAbslHash, Int32, int32_t{});
 MAKE_BENCHMARK(TypeErasedAbslHash, Int64, int64_t{});

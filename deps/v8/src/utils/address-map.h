@@ -70,7 +70,6 @@ class RootIndexMap {
     }
     return false;
   }
-  V8_EXPORT_PRIVATE bool Lookup(Address obj, RootIndex* out_root_list) const;
 
  private:
   HeapObjectToIndexHashMap* map_;

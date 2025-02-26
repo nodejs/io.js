@@ -9,11 +9,11 @@
 
 // A function to be called from Wasm code.
 own wasm_trap_t* fail_callback(
-  void* env, const wasm_val_t args[], wasm_val_t results[]
+  void* env, const wasm_val_vec_t* args, wasm_val_vec_t* results
 ) {
   printf("Calling back...\n");
   own wasm_name_t message;
-  wasm_name_new_from_string(&message, "callback abort");
+  wasm_name_new_from_string_nt(&message, "callback abort");
   own wasm_trap_t* trap = wasm_trap_new((wasm_store_t*)env, &message);
   wasm_name_delete(&message);
   return trap;
@@ -38,7 +38,7 @@ int main(int argc, const char* argv[]) {
 
   // Load binary.
   printf("Loading binary...\n");
-  FILE* file = fopen("trap.wasm", "r");
+  FILE* file = fopen("trap.wasm", "rb");
   if (!file) {
     printf("> Error loading module!\n");
     return 1;
@@ -75,9 +75,10 @@ int main(int argc, const char* argv[]) {
 
   // Instantiate.
   printf("Instantiating module...\n");
-  const wasm_extern_t* imports[] = { wasm_func_as_extern(fail_func) };
+  wasm_extern_t* externs[] = { wasm_func_as_extern(fail_func) };
+  wasm_extern_vec_t imports = WASM_ARRAY_VEC(externs);
   own wasm_instance_t* instance =
-    wasm_instance_new(store, module, imports, NULL);
+    wasm_instance_new(store, module, &imports, NULL);
   if (!instance) {
     printf("> Error instantiating module!\n");
     return 1;
@@ -106,7 +107,9 @@ int main(int argc, const char* argv[]) {
     }
 
     printf("Calling export %d...\n", i);
-    own wasm_trap_t* trap = wasm_func_call(func, NULL, NULL);
+    wasm_val_vec_t args = WASM_EMPTY_VEC;
+    wasm_val_vec_t results = WASM_EMPTY_VEC;
+    own wasm_trap_t* trap = wasm_func_call(func, &args, &results);
     if (!trap) {
       printf("> Error calling function, expected trap!\n");
       return 1;

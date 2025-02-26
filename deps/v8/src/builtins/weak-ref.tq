@@ -14,6 +14,7 @@ extern runtime JSWeakRefAddToKeptObjects(
 namespace weakref {
 
 // https://tc39.es/ecma262/#sec-weak-ref-target
+@incrementUseCounter('v8::Isolate::kWeakReferences')
 transitioning javascript builtin WeakRefConstructor(
     js-implicit context: NativeContext, receiver: JSAny, newTarget: JSAny,
     target: JSFunction)(...arguments): JSWeakRef {

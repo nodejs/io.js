@@ -151,7 +151,7 @@ class LiftoffCompileEnvironment {
                                               function->code.end_offset());
 
     bool is_shared =
-        native_module->module()->types[function->sig_index].is_shared;
+        native_module->module()->type(function->sig_index).is_shared;
     FunctionBody body{sig, 0, function_wire_bytes.begin(),
                       function_wire_bytes.end(), is_shared};
     return {code, body};

@@ -135,6 +135,10 @@ class V8_EXPORT_PRIVATE FlagList {
 
   static void PrintValues();
 
+  // Prints JS and Wasm feature flags, categorized by in-progress, staging, and
+  // shipping, as JSON. Used by scripts to clean up flags in test files.
+  static void PrintFeatureFlagsJSON();
+
   // Reset some contradictory flags provided on the command line during
   // fuzzing.
   static void ResolveContradictionsWhenFuzzing();

@@ -33,5 +33,16 @@ char const* DeoptimizeReasonToString(DeoptimizeReason reason) {
   return kDeoptimizeReasonStrings[index];
 }
 
+char const* DeoptimizeReasonToString(LazyDeoptimizeReason reason) {
+  static char const* kDeoptimizeReasonStrings[] = {
+#define LAZY_DEOPTIMIZE_REASON(Name, message) message,
+      LAZY_DEOPTIMIZE_REASON_LIST(LAZY_DEOPTIMIZE_REASON)
+#undef LAZY_DEOPTIMIZE_REASON
+  };
+  size_t const index = static_cast<size_t>(reason);
+  DCHECK_LT(index, arraysize(kDeoptimizeReasonStrings));
+  return kDeoptimizeReasonStrings[index];
+}
+
 }  // namespace internal
 }  // namespace v8

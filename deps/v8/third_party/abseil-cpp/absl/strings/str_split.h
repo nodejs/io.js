@@ -444,8 +444,10 @@ using EnableSplitIfString =
 // behavior works for:
 //
 // 1) All standard STL containers including `std::vector`, `std::list`,
-//    `std::deque`, `std::set`,`std::multiset`, 'std::map`, and `std::multimap`
+//    `std::deque`, `std::set`,`std::multiset`, 'std::map`, and `std::multimap`.
 // 2) `std::pair` (which is not actually a container). See below.
+// 3) `std::array`, which is a container but has different behavior due to its
+//    fixed size. See below.
 //
 // Example:
 //
@@ -486,6 +488,21 @@ using EnableSplitIfString =
 //   // Stores first two split strings as the members in a std::pair.
 //   std::pair<std::string, std::string> p = absl::StrSplit("a,b,c", ',');
 //   // p.first == "a", p.second == "b"       // "c" is omitted.
+//
+//
+// Splitting to `std::array` is similar to splitting to `std::pair`, but for
+// N elements instead of two; missing elements are filled with the empty string
+// and extra elements are discarded.
+//
+// Examples:
+//
+//   // Stores first two split strings as the elements in a std::array.
+//   std::array<std::string, 2> a = absl::StrSplit("a,b,c", ',');
+//   // a[0] == "a", a[1] == "b"   // "c" is omitted.
+//
+//   // The second element is empty.
+//   std::array<std::string, 2> a = absl::StrSplit("a,", ',');
+//   // a[0] == "a", a[1] == ""
 //
 // The `StrSplit()` function can be used multiple times to perform more
 // complicated splitting logic, such as intelligently parsing key-value pairs.

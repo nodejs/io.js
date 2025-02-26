@@ -19,6 +19,7 @@ absl_source_set("distribution_caller") {
   deps = [
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:fast_type_id",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/utility",
   ]
   visibility = [ "//third_party/abseil-cpp/absl/random/*" ]
@@ -104,6 +105,7 @@ absl_source_set("salted_seed_seq") {
 absl_source_set("iostream_state_saver") {
   public = [ "iostream_state_saver.h" ]
   deps = [
+    "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/meta:type_traits",
     "//third_party/abseil-cpp/absl/numeric:int128",
   ]
@@ -224,6 +226,7 @@ absl_source_set("randen_hwaes") {
     ":platform",
     ":randen_hwaes_impl",
     "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/types:optional",
   ]
   visibility = [ "//third_party/abseil-cpp/absl/random/*" ]
 }
@@ -290,6 +293,16 @@ absl_source_set("mock_overload_set") {
     "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/random:mocking_bit_gen",
     "//third_party/googletest:gtest",
+  ]
+}
+
+absl_test("nonsecure_base_test") {
+  sources = [ "nonsecure_base_test.cc" ]
+  deps = [
+    ":nonsecure_base",
+    "//third_party/abseil-cpp/absl/meta:type_traits",
+    "//third_party/abseil-cpp/absl/random",
+    "//third_party/abseil-cpp/absl/random:distributions",
   ]
 }
 

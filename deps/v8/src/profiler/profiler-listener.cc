@@ -202,7 +202,7 @@ void ProfilerListener::CodeCreateEvent(CodeTag tag,
               inline_is_shared_cross_origin);
           inline_entry->FillFunctionInfo(*pos_info.shared);
 
-          // Create a canonical CodeEntry for each inlined frame and then re-use
+          // Create a canonical CodeEntry for each inlined frame and then reuse
           // them for subsequent inline stacks to avoid a lot of duplication.
           CodeEntry* cached_entry = GetOrInsertCachedEntry(
               &cached_inline_entries, inline_entry, code_entries_);
@@ -280,7 +280,8 @@ void ProfilerListener::SetterCallbackEvent(Handle<Name> name,
 }
 
 void ProfilerListener::RegExpCodeCreateEvent(Handle<AbstractCode> code,
-                                             Handle<String> source) {
+                                             Handle<String> source,
+                                             RegExpFlags flags) {
   CodeEventsContainer evt_rec(CodeEventRecord::Type::kCodeCreation);
   CodeCreateEventRecord* rec = &evt_rec.CodeCreateEventRecord_;
   PtrComprCageBase cage_base(isolate_);

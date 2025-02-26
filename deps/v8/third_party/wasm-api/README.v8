@@ -1,9 +1,9 @@
 Name: Wasm C/C++ API
 Short Name: wasm-c-api
 URL: https://github.com/WebAssembly/wasm-c-api/
-Version: 0
-Revision: 6db391ee7121a0695602945d11001ea3e00b0afb
-Date: 2019-08-08
+Version: N/A
+Revision: debd0908627e3028b1aa460a4934732c2c3b00a6
+Date: 2025-01-17
 License: Apache 2.0
 License File: LICENSE
 Security Critical: yes

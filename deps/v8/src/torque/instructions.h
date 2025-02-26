@@ -379,11 +379,14 @@ std::ostream& operator<<(std::ostream& os,
 
 struct LoadReferenceInstruction : InstructionBase {
   TORQUE_INSTRUCTION_BOILERPLATE()
-  explicit LoadReferenceInstruction(const Type* type) : type(type) {}
+  explicit LoadReferenceInstruction(const Type* type,
+                                    FieldSynchronization synchronization)
+      : type(type), synchronization(synchronization) {}
 
   DefinitionLocation GetValueDefinition() const;
 
   const Type* type;
+  FieldSynchronization synchronization;
 };
 
 inline std::ostream& operator<<(std::ostream& os,

@@ -169,7 +169,7 @@ class ExecArgs {
       return false;
     }
     {
-      int len = prog.length() + 3;
+      size_t len = prog.length() + 3;
       char* c_arg = new char[len];
       snprintf(c_arg, len, "%s", *prog);
       exec_args_[0] = c_arg;
@@ -187,7 +187,7 @@ class ExecArgs {
             "os.system(): String conversion of argument failed.");
         return false;
       }
-      int len = utf8_arg.length() + 1;
+      size_t len = utf8_arg.length() + 1;
       char* c_arg = new char[len];
       snprintf(c_arg, len, "%s", *utf8_arg);
       exec_args_[i] = c_arg;

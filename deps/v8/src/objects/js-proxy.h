@@ -21,26 +21,26 @@ class KeyAccumulator;
 // The JSProxy describes ECMAScript Harmony proxies
 class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
  public:
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSProxy> New(Isolate* isolate,
-                                                        Handle<Object>,
-                                                        Handle<Object>);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSProxy> New(
+      Isolate* isolate, DirectHandle<Object>, DirectHandle<Object>);
 
   V8_INLINE bool IsRevoked() const;
   static void Revoke(DirectHandle<JSProxy> proxy);
 
   // ES6 9.5.1
-  static MaybeHandle<HeapObject> GetPrototype(DirectHandle<JSProxy> receiver);
+  static MaybeDirectHandle<JSPrototype> GetPrototype(
+      DirectHandle<JSProxy> receiver);
 
   // ES6 9.5.2
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetPrototype(
-      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Object> value,
+      Isolate* isolate, DirectHandle<JSProxy> proxy, DirectHandle<Object> value,
       bool from_javascript, ShouldThrow should_throw);
   // ES6 9.5.3
   V8_WARN_UNUSED_RESULT static Maybe<bool> IsExtensible(
       DirectHandle<JSProxy> proxy);
 
   // ES6, #sec-isarray.  NOT to be confused with %_IsArray.
-  V8_WARN_UNUSED_RESULT static Maybe<bool> IsArray(Handle<JSProxy> proxy);
+  V8_WARN_UNUSED_RESULT static Maybe<bool> IsArray(DirectHandle<JSProxy> proxy);
 
   // ES6 9.5.4 (when passed kDontThrow)
   V8_WARN_UNUSED_RESULT static Maybe<bool> PreventExtensions(
@@ -48,54 +48,51 @@ class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
 
   // ES6 9.5.5
   V8_WARN_UNUSED_RESULT static Maybe<bool> GetOwnPropertyDescriptor(
-      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Name> name,
+      Isolate* isolate, DirectHandle<JSProxy> proxy, DirectHandle<Name> name,
       PropertyDescriptor* desc);
 
   // ES6 9.5.6
   V8_WARN_UNUSED_RESULT static Maybe<bool> DefineOwnProperty(
-      Isolate* isolate, Handle<JSProxy> object, Handle<Object> key,
+      Isolate* isolate, DirectHandle<JSProxy> object, DirectHandle<Object> key,
       PropertyDescriptor* desc, Maybe<ShouldThrow> should_throw);
 
   // ES6 9.5.7
   V8_WARN_UNUSED_RESULT static Maybe<bool> HasProperty(
-      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Name> name);
+      Isolate* isolate, DirectHandle<JSProxy> proxy, DirectHandle<Name> name);
 
   // This function never returns false.
   // It returns either true or throws.
   V8_WARN_UNUSED_RESULT static Maybe<bool> CheckHasTrap(
-      Isolate* isolate, Handle<Name> name, Handle<JSReceiver> target);
+      Isolate* isolate, DirectHandle<Name> name,
+      DirectHandle<JSReceiver> target);
 
   // ES6 9.5.10
   V8_WARN_UNUSED_RESULT static Maybe<bool> CheckDeleteTrap(
-      Isolate* isolate, Handle<Name> name, Handle<JSReceiver> target);
+      Isolate* isolate, DirectHandle<Name> name,
+      DirectHandle<JSReceiver> target);
 
   // ES6 9.5.8
   V8_WARN_UNUSED_RESULT static MaybeHandle<JSAny> GetProperty(
-      Isolate* isolate, DirectHandle<JSProxy> proxy, Handle<Name> name,
-      Handle<Object> receiver, bool* was_found);
+      Isolate* isolate, DirectHandle<JSProxy> proxy, DirectHandle<Name> name,
+      DirectHandle<JSAny> receiver, bool* was_found);
 
   enum AccessKind { kGet, kSet };
 
-  static MaybeHandle<JSAny> CheckGetSetTrapResult(Isolate* isolate,
-                                                  Handle<Name> name,
-                                                  Handle<JSReceiver> target,
-                                                  Handle<Object> trap_result,
-                                                  AccessKind access_kind);
+  static MaybeHandle<JSAny> CheckGetSetTrapResult(
+      Isolate* isolate, DirectHandle<Name> name,
+      DirectHandle<JSReceiver> target, DirectHandle<Object> trap_result,
+      AccessKind access_kind);
 
   // ES6 9.5.9
   V8_WARN_UNUSED_RESULT static Maybe<bool> SetProperty(
-      DirectHandle<JSProxy> proxy, Handle<Name> name, Handle<Object> value,
-      Handle<Object> receiver, Maybe<ShouldThrow> should_throw);
+      DirectHandle<JSProxy> proxy, DirectHandle<Name> name,
+      DirectHandle<Object> value, DirectHandle<JSAny> receiver,
+      Maybe<ShouldThrow> should_throw);
 
   // ES6 9.5.10 (when passed LanguageMode::kSloppy)
   V8_WARN_UNUSED_RESULT static Maybe<bool> DeletePropertyOrElement(
-      DirectHandle<JSProxy> proxy, Handle<Name> name,
+      DirectHandle<JSProxy> proxy, DirectHandle<Name> name,
       LanguageMode language_mode);
-
-  // ES6 9.5.12
-  V8_WARN_UNUSED_RESULT static Maybe<bool> OwnPropertyKeys(
-      Isolate* isolate, Handle<JSReceiver> receiver, Handle<JSProxy> proxy,
-      PropertyFilter filter, KeyAccumulator* accumulator);
 
   V8_WARN_UNUSED_RESULT static Maybe<PropertyAttributes> GetPropertyAttributes(
       LookupIterator* it);
@@ -115,8 +112,9 @@ class JSProxy : public TorqueGeneratedJSProxy<JSProxy, JSReceiver> {
   using BodyDescriptor =
       FixedBodyDescriptor<JSReceiver::kPropertiesOrHashOffset, kSize, kSize>;
 
-  static Maybe<bool> SetPrivateSymbol(Isolate* isolate, Handle<JSProxy> proxy,
-                                      Handle<Symbol> private_name,
+  static Maybe<bool> SetPrivateSymbol(Isolate* isolate,
+                                      DirectHandle<JSProxy> proxy,
+                                      DirectHandle<Symbol> private_name,
                                       PropertyDescriptor* desc,
                                       Maybe<ShouldThrow> should_throw);
 

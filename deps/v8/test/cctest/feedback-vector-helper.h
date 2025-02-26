@@ -28,7 +28,7 @@ class FeedbackVectorHelper {
     }
   }
 
-  Handle<FeedbackVector> vector() { return vector_; }
+  DirectHandle<FeedbackVector> vector() { return vector_; }
 
   // Returns slot identifier by numerical index.
   FeedbackSlot slot(int index) const { return slots_[index]; }

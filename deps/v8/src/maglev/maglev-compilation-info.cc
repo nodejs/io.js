@@ -74,8 +74,8 @@ static bool SpecializeToFunctionContext(
 }  // namespace
 
 MaglevCompilationInfo::MaglevCompilationInfo(
-    Isolate* isolate, Handle<JSFunction> function, BytecodeOffset osr_offset,
-    std::optional<compiler::JSHeapBroker*> js_broker,
+    Isolate* isolate, IndirectHandle<JSFunction> function,
+    BytecodeOffset osr_offset, std::optional<compiler::JSHeapBroker*> js_broker,
     std::optional<bool> specialize_to_function_context,
     bool for_turboshaft_frontend)
     : zone_(isolate->allocator(), kMaglevZoneName),
@@ -110,7 +110,7 @@ MaglevCompilationInfo::MaglevCompilationInfo(
     // Heap broker initialization may already use IsPendingAllocation.
     isolate->heap()->PublishMainThreadPendingAllocations();
     broker()->InitializeAndStartSerializing(
-        handle(function->native_context(), isolate));
+        direct_handle(function->native_context(), isolate));
     broker()->StopSerializing();
 
     // Serialization may have allocated.
@@ -146,15 +146,15 @@ void MaglevCompilationInfo::set_code_generator(
 
 namespace {
 template <typename T>
-Handle<T> CanonicalHandle(CanonicalHandlesMap* canonical_handles,
-                          Tagged<T> object, Isolate* isolate) {
+IndirectHandle<T> CanonicalHandle(CanonicalHandlesMap* canonical_handles,
+                                  Tagged<T> object, Isolate* isolate) {
   DCHECK_NOT_NULL(canonical_handles);
   DCHECK(PersistentHandlesScope::IsActive(isolate));
   auto find_result = canonical_handles->FindOrInsert(object);
   if (!find_result.already_exists) {
-    *find_result.entry = Handle<T>(object, isolate).location();
+    *find_result.entry = IndirectHandle<T>(object, isolate).location();
   }
-  return Handle<T>(*find_result.entry);
+  return IndirectHandle<T>(*find_result.entry);
 }
 }  // namespace
 

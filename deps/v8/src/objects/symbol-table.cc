@@ -8,7 +8,7 @@ namespace v8 {
 namespace internal {
 
 Tagged<Object> RegisteredSymbolTable::SlowReverseLookup(Tagged<Object> value) {
-  ReadOnlyRoots roots = this->GetReadOnlyRoots();
+  ReadOnlyRoots roots = GetReadOnlyRoots();
   for (InternalIndex i : this->IterateEntries()) {
     Tagged<Object> k;
     if (!this->ToKey(roots, i, &k)) continue;

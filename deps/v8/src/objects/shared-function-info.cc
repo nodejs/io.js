@@ -37,7 +37,7 @@ void SharedFunctionInfo::Init(ReadOnlyRoots ro_roots, int unique_id) {
   DisallowGarbageCollection no_gc;
 
   // Set the function data to the "illegal" builtin. Ideally we'd use some sort
-  // of "uninitialized" marker here, but it's cheaper to use a valid buitin and
+  // of "uninitialized" marker here, but it's cheaper to use a valid builtin and
   // avoid having to do uninitialized checks elsewhere.
   set_builtin_id(Builtin::kIllegal);
 
@@ -412,7 +412,7 @@ void SharedFunctionInfo::DiscardCompiled(
   int start_position = shared_info->StartPosition();
   int end_position = shared_info->EndPosition();
 
-  MaybeHandle<UncompiledData> data;
+  MaybeDirectHandle<UncompiledData> data;
   if (!shared_info->HasUncompiledDataWithPreparseData()) {
     // Create a new UncompiledData, without pre-parsed scope.
     data = isolate->factory()->NewUncompiledDataWithoutPreparseData(
@@ -440,7 +440,7 @@ void SharedFunctionInfo::DiscardCompiled(
 }
 
 // static
-Handle<Object> SharedFunctionInfo::GetSourceCode(
+DirectHandle<Object> SharedFunctionInfo::GetSourceCode(
     Isolate* isolate, DirectHandle<SharedFunctionInfo> shared) {
   if (!shared->HasSourceCode()) return isolate->factory()->undefined_value();
   Handle<String> source(Cast<String>(Cast<Script>(shared->script())->source()),
@@ -464,14 +464,15 @@ Handle<Object> SharedFunctionInfo::GetSourceCodeHarmony(
   DCHECK(!shared->name_should_print_as_anonymous());
   IncrementalStringBuilder builder(isolate);
   builder.AppendCStringLiteral("function ");
-  builder.AppendString(Handle<String>(shared->Name(), isolate));
+  builder.AppendString(DirectHandle<String>(shared->Name(), isolate));
   builder.AppendCharacter('(');
   DirectHandle<FixedArray> args(
       Cast<Script>(shared->script())->wrapped_arguments(), isolate);
   int argc = args->length();
   for (int i = 0; i < argc; i++) {
     if (i > 0) builder.AppendCStringLiteral(", ");
-    builder.AppendString(Handle<String>(Cast<String>(args->get(i)), isolate));
+    builder.AppendString(
+        DirectHandle<String>(Cast<String>(args->get(i)), isolate));
   }
   builder.AppendCStringLiteral(") {\n");
   builder.AppendString(source);
@@ -492,8 +493,6 @@ std::ostream& operator<<(std::ostream& os, const SourceCodeOf& v) {
   // we are already creating a stack dump.
   Tagged<String> script_source =
       UncheckedCast<String>(Cast<Script>(s->script())->source());
-
-  if (!script_source->LooksValid()) return os << "<Invalid Source>";
 
   if (!s->is_toplevel()) {
     os << "function ";
@@ -572,13 +571,14 @@ void SharedFunctionInfo::InitFromFunctionLiteral(IsolateT* isolate,
 
     raw_sfi->set_is_toplevel(is_toplevel);
     DCHECK(IsTheHole(raw_sfi->outer_scope_info()));
-    if (!is_toplevel) {
-      Scope* outer_scope = lit->scope()->GetOuterScopeWithContext();
-      if (outer_scope) {
-        raw_sfi->set_outer_scope_info(*outer_scope->scope_info());
-        raw_sfi->set_private_name_lookup_skips_outer_class(
-            lit->scope()->private_name_lookup_skips_outer_class());
-      }
+    Scope* outer_scope = lit->scope()->GetOuterScopeWithContext();
+    if (outer_scope && (!is_toplevel || !outer_scope->is_script_scope())) {
+      raw_sfi->set_outer_scope_info(*outer_scope->scope_info());
+      raw_sfi->set_private_name_lookup_skips_outer_class(
+          lit->scope()->private_name_lookup_skips_outer_class());
+    }
+    if (lit->scope()->is_reparsed()) {
+      raw_sfi->SetScopeInfo(*lit->scope()->scope_info());
     }
 
     raw_sfi->set_length(lit->function_length());
@@ -607,7 +607,7 @@ template <typename IsolateT>
 void SharedFunctionInfo::CreateAndSetUncompiledData(IsolateT* isolate,
                                                     FunctionLiteral* lit) {
   DCHECK(!lit->shared_function_info()->HasUncompiledData());
-  Handle<UncompiledData> data;
+  DirectHandle<UncompiledData> data;
   ProducedPreparseData* scope_data = lit->produced_preparse_data();
   if (scope_data != nullptr) {
     Handle<PreparseData> preparse_data = scope_data->Serialize(isolate);
@@ -819,7 +819,7 @@ void SharedFunctionInfo::EnsureBytecodeArrayAvailable(
 
 // static
 void SharedFunctionInfo::EnsureSourcePositionsAvailable(
-    Isolate* isolate, Handle<SharedFunctionInfo> shared_info) {
+    Isolate* isolate, DirectHandle<SharedFunctionInfo> shared_info) {
   if (shared_info->CanCollectSourcePosition(isolate)) {
     std::optional<Isolate::ExceptionScope> exception_scope;
     if (isolate->has_exception()) {
@@ -840,8 +840,7 @@ void SharedFunctionInfo::InstallDebugBytecode(
 
   {
     DisallowGarbageCollection no_gc;
-    base::SharedMutexGuard<base::kExclusive> mutex_guard(
-        isolate->shared_function_info_access());
+    base::SpinningMutexGuard guard(isolate->shared_function_info_access());
     Tagged<DebugInfo> debug_info = shared->GetDebugInfo(isolate);
     debug_info->set_original_bytecode_array(*original_bytecode_array,
                                             kReleaseStore);
@@ -854,8 +853,7 @@ void SharedFunctionInfo::InstallDebugBytecode(
 void SharedFunctionInfo::UninstallDebugBytecode(
     Tagged<SharedFunctionInfo> shared, Isolate* isolate) {
   DisallowGarbageCollection no_gc;
-  base::SharedMutexGuard<base::kExclusive> mutex_guard(
-      isolate->shared_function_info_access());
+  base::SpinningMutexGuard guard(isolate->shared_function_info_access());
   Tagged<DebugInfo> debug_info = shared->GetDebugInfo(isolate);
   Tagged<BytecodeArray> original_bytecode_array =
       debug_info->OriginalBytecodeArray(isolate);

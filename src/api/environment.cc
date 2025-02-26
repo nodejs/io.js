@@ -308,17 +308,15 @@ Isolate* NewIsolate(Isolate::CreateParams* params,
     SnapshotBuilder::InitializeIsolateParams(snapshot_data, params);
   }
 
-#ifdef NODE_V8_SHARED_RO_HEAP
   {
-    // In shared-readonly-heap mode, V8 requires all snapshots used for
-    // creating Isolates to be identical. This isn't really memory-safe
+    // Because it uses a shared readonly-heap, V8 requires all snapshots used
+    // for creating Isolates to be identical. This isn't really memory-safe
     // but also otherwise just doesn't work, and the only real alternative
     // is disabling shared-readonly-heap mode altogether.
     static Isolate::CreateParams first_params = *params;
     params->snapshot_blob = first_params.snapshot_blob;
     params->external_references = first_params.external_references;
   }
-#endif
 
   // Register the isolate on the platform before the isolate gets initialized,
   // so that the isolate can access the platform during initialization.

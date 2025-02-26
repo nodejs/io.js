@@ -148,8 +148,8 @@ double LogUniformIntChiSquaredTest::ChiSquaredTestImpl() {
   const auto bucket_index = [base_log, is_2, &param](int32_t x) {
     uint64_t y = static_cast<uint64_t>(x) - param.min();
     return (y == 0) ? 0
-                    : is_2 ? static_cast<int>(1 + std::log2(y))
-                           : static_cast<int>(1 + std::log(y) * base_log);
+           : is_2   ? static_cast<int>(1 + std::log2(y))
+                    : static_cast<int>(1 + std::log(y) * base_log);
   };
   const int max_bucket = bucket_index(param.max());  // inclusive
   const size_t trials = 15 + (max_bucket + 1) * 10;

@@ -36,7 +36,11 @@ function getX(o) { return o.x; }
   await asyncTimeout(0);
 
   // Collect the old 'o', which will also collect the 'Foo{x}' map.
-  gc();
+  // We need to invoke GC asynchronously and wait for it to finish, so that
+  // it doesn't need to scan the stack. Otherwise, some objects may not be
+  // reclaimed because of conservative stack scanning and the test may not
+  // work as intended.
+  await gc({ type: 'major', execution: 'async' });
 
   // Make sure the old 'o' was collected.
   assertEquals(undefined, weak_o.deref());
@@ -49,5 +53,4 @@ function getX(o) { return o.x; }
   o = new Foo();
   o.x = 42;
   assertEquals(getX(o), 42);
-
 })();

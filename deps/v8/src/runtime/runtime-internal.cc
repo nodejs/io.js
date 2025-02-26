@@ -25,7 +25,7 @@ namespace internal {
 RUNTIME_FUNCTION(Runtime_AccessCheck) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<JSObject> object = args.at<JSObject>(0);
+  DirectHandle<JSObject> object = args.at<JSObject>(0);
   if (!isolate->MayAccess(isolate->native_context(), object)) {
     RETURN_FAILURE_ON_EXCEPTION(isolate,
                                 isolate->ReportFailedAccessCheck(object));
@@ -448,8 +448,7 @@ RUNTIME_FUNCTION(Runtime_AllocateInYoungGeneration) {
 
   // When this is called from WasmGC code, clear the "thread in wasm" flag,
   // which is important in case any GC needs to happen.
-  // TODO(chromium:1236668): Find a better fix, likely by replacing the global
-  // flag.
+  // TODO(40192807): Find a better fix, likely by replacing the global flag.
   SaveAndClearThreadInWasmFlag clear_wasm_flag(isolate);
 
   // TODO(v8:9472): Until double-aligned allocation is fixed for new-space
@@ -467,6 +466,12 @@ RUNTIME_FUNCTION(Runtime_AllocateInOldGeneration) {
   // TODO(v8:13070): Align allocations in the builtins that call this.
   int size = ALIGN_TO_ALLOCATION_ALIGNMENT(args.smi_value_at(0));
   int flags = args.smi_value_at(1);
+
+  // When this is called from WasmGC code, clear the "thread in wasm" flag,
+  // which is important in case any GC needs to happen.
+  // TODO(40192807): Find a better fix, likely by replacing the global flag.
+  SaveAndClearThreadInWasmFlag clear_wasm_flag(isolate);
+
   AllocationAlignment alignment =
       AllocateDoubleAlignFlag::decode(flags) ? kDoubleAligned : kTaggedAligned;
   CHECK(IsAligned(size, kTaggedSize));
@@ -486,7 +491,7 @@ RUNTIME_FUNCTION(Runtime_AllocateByteArray) {
 RUNTIME_FUNCTION(Runtime_ThrowIteratorError) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> object = args.at(0);
+  DirectHandle<Object> object = args.at(0);
   return isolate->Throw(*ErrorUtils::NewIteratorError(isolate, object));
 }
 
@@ -495,14 +500,14 @@ RUNTIME_FUNCTION(Runtime_ThrowSpreadArgError) {
   DCHECK_EQ(2, args.length());
   int message_id_smi = args.smi_value_at(0);
   MessageTemplate message_id = MessageTemplateFromInt(message_id_smi);
-  Handle<Object> object = args.at(1);
+  DirectHandle<Object> object = args.at(1);
   return ErrorUtils::ThrowSpreadArgError(isolate, message_id, object);
 }
 
 RUNTIME_FUNCTION(Runtime_ThrowCalledNonCallable) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> object = args.at(0);
+  DirectHandle<Object> object = args.at(0);
   return isolate->Throw(
       *ErrorUtils::NewCalledNonCallableError(isolate, object));
 }
@@ -510,7 +515,7 @@ RUNTIME_FUNCTION(Runtime_ThrowCalledNonCallable) {
 RUNTIME_FUNCTION(Runtime_ThrowConstructedNonConstructable) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> object = args.at(0);
+  DirectHandle<Object> object = args.at(0);
   return isolate->Throw(
       *ErrorUtils::NewConstructedNonConstructable(isolate, object));
 }
@@ -518,9 +523,9 @@ RUNTIME_FUNCTION(Runtime_ThrowConstructedNonConstructable) {
 RUNTIME_FUNCTION(Runtime_ThrowPatternAssignmentNonCoercible) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> object = args.at(0);
+  DirectHandle<Object> object = args.at(0);
   return ErrorUtils::ThrowLoadFromNullOrUndefined(isolate, object,
-                                                  MaybeHandle<Object>());
+                                                  MaybeDirectHandle<Object>());
 }
 
 RUNTIME_FUNCTION(Runtime_ThrowConstructorReturnedNonObject) {
@@ -536,7 +541,7 @@ RUNTIME_FUNCTION(Runtime_ThrowConstructorReturnedNonObject) {
 RUNTIME_FUNCTION(Runtime_CreateListFromArrayLike) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<Object> object = args.at(0);
+  DirectHandle<Object> object = args.at(0);
   RETURN_RESULT_OR_FAILURE(isolate, Object::CreateListFromArrayLike(
                                         isolate, object, ElementTypes::kAll));
 }
@@ -638,8 +643,8 @@ RUNTIME_FUNCTION(Runtime_GetAndResetRuntimeCallStats) {
 RUNTIME_FUNCTION(Runtime_OrdinaryHasInstance) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<Object> callable = args.at(0);
-  Handle<Object> object = args.at(1);
+  DirectHandle<JSAny> callable = args.at<JSAny>(0);
+  DirectHandle<JSAny> object = args.at<JSAny>(1);
   RETURN_RESULT_OR_FAILURE(
       isolate, Object::OrdinaryHasInstance(isolate, callable, object));
 }
@@ -655,7 +660,7 @@ RUNTIME_FUNCTION(Runtime_AllowDynamicFunction) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
   DirectHandle<JSFunction> target = args.at<JSFunction>(0);
-  Handle<JSObject> global_proxy(target->global_proxy(), isolate);
+  DirectHandle<JSObject> global_proxy(target->global_proxy(), isolate);
   return *isolate->factory()->ToBoolean(
       Builtins::AllowDynamicFunction(isolate, target, global_proxy));
 }
@@ -664,21 +669,20 @@ RUNTIME_FUNCTION(Runtime_CreateAsyncFromSyncIterator) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
 
-  Handle<Object> sync_iterator = args.at(0);
-
-  if (!IsJSReceiver(*sync_iterator)) {
+  DirectHandle<JSAny> sync_iterator_any = args.at<JSAny>(0);
+  DirectHandle<JSReceiver> sync_iterator;
+  if (!TryCast<JSReceiver>(sync_iterator_any, &sync_iterator)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewTypeError(MessageTemplate::kSymbolIteratorInvalid));
   }
 
-  Handle<Object> next;
+  DirectHandle<Object> next;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, next,
       Object::GetProperty(isolate, sync_iterator,
                           isolate->factory()->next_string()));
 
-  return *isolate->factory()->NewJSAsyncFromSyncIterator(
-      Cast<JSReceiver>(sync_iterator), next);
+  return *isolate->factory()->NewJSAsyncFromSyncIterator(sync_iterator, next);
 }
 
 RUNTIME_FUNCTION(Runtime_GetTemplateObject) {
@@ -702,7 +706,7 @@ RUNTIME_FUNCTION(Runtime_ReportMessageFromMicrotask) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
 
-  Handle<Object> exception = args.at(0);
+  DirectHandle<Object> exception = args.at(0);
 
   DCHECK(!isolate->has_exception());
   isolate->set_exception(*exception);
@@ -718,8 +722,8 @@ RUNTIME_FUNCTION(Runtime_GetInitializerFunction) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
 
-  Handle<JSReceiver> constructor = args.at<JSReceiver>(0);
-  Handle<Symbol> key = isolate->factory()->class_fields_symbol();
+  DirectHandle<JSReceiver> constructor = args.at<JSReceiver>(0);
+  DirectHandle<Symbol> key = isolate->factory()->class_fields_symbol();
   DirectHandle<Object> initializer =
       JSReceiver::GetDataProperty(isolate, constructor, key);
   return *initializer;
@@ -732,10 +736,11 @@ RUNTIME_FUNCTION(Runtime_DoubleToStringWithRadix) {
   int32_t radix = 0;
   CHECK(Object::ToInt32(args[1], &radix));
 
-  char* const str = DoubleToRadixCString(number, radix);
+  char chars[kDoubleToRadixMaxChars];
+  base::Vector<char> buffer = base::ArrayVector(chars);
+  std::string_view str = DoubleToRadixStringView(number, radix, buffer);
   DirectHandle<String> result =
       isolate->factory()->NewStringFromAsciiChecked(str);
-  DeleteArray(str);
   return *result;
 }
 
@@ -743,20 +748,20 @@ RUNTIME_FUNCTION(Runtime_SharedValueBarrierSlow) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
   Handle<HeapObject> value = args.at<HeapObject>(0);
-  Handle<Object> shared_value;
+  DirectHandle<Object> shared_value;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, shared_value, Object::ShareSlow(isolate, value, kThrowOnError));
   return *shared_value;
 }
 
-RUNTIME_FUNCTION(Runtime_InvalidateDependentCodeForConstTrackingLet) {
+RUNTIME_FUNCTION(Runtime_InvalidateDependentCodeForScriptContextSlot) {
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
   auto const_tracking_let_cell =
-      Cast<ConstTrackingLetCell>(args.at<HeapObject>(0));
+      Cast<ContextSidePropertyCell>(args.at<HeapObject>(0));
   DependentCode::DeoptimizeDependencyGroups(
       isolate, *const_tracking_let_cell,
-      DependentCode::kConstTrackingLetChangedGroup);
+      DependentCode::kScriptContextSlotPropertyChangedGroup);
   return ReadOnlyRoots(isolate).undefined_value();
 }
 

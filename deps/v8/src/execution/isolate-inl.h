@@ -30,9 +30,6 @@ Isolate::CurrentPerIsolateThreadData() {
 }
 
 // static
-V8_INLINE Isolate* Isolate::TryGetCurrent() { return g_current_isolate_; }
-
-// static
 V8_INLINE Isolate* Isolate::Current() {
   Isolate* isolate = TryGetCurrent();
   DCHECK_NOT_NULL(isolate);
@@ -66,7 +63,7 @@ void Isolate::clear_topmost_script_having_context() {
   thread_local_top()->topmost_script_having_context_ = Context();
 }
 
-Handle<NativeContext> Isolate::GetIncumbentContext() {
+DirectHandle<NativeContext> Isolate::GetIncumbentContext() {
   Tagged<Context> maybe_topmost_script_having_context =
       topmost_script_having_context();
   if (V8_LIKELY(!maybe_topmost_script_having_context.is_null())) {
@@ -80,7 +77,7 @@ Handle<NativeContext> Isolate::GetIncumbentContext() {
     Tagged<NativeContext> incumbent_context =
         maybe_topmost_script_having_context->native_context();
     DCHECK_EQ(incumbent_context, *GetIncumbentContextSlow());
-    return handle(incumbent_context, this);
+    return direct_handle(incumbent_context, this);
   }
   return GetIncumbentContextSlow();
 }
@@ -226,9 +223,9 @@ Isolate::ExceptionScope::~ExceptionScope() {
   isolate_->set_exception(*exception_);
 }
 
-bool Isolate::IsAnyInitialArrayPrototype(Tagged<JSArray> array) {
+bool Isolate::IsInitialArrayPrototype(Tagged<JSArray> array) {
   DisallowGarbageCollection no_gc;
-  return IsInAnyContext(array, Context::INITIAL_ARRAY_PROTOTYPE_INDEX);
+  return IsInCreationContext(array, Context::INITIAL_ARRAY_PROTOTYPE_INDEX);
 }
 
 #define NATIVE_CONTEXT_FIELD_ACCESSOR(index, type, name)              \

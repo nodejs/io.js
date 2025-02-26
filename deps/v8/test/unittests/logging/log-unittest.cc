@@ -273,9 +273,10 @@ class TestCodeEventHandler : public v8::CodeEventHandler {
     std::string name = std::string(code_event->GetComment());
     if (name.empty()) {
       v8::Local<v8::String> functionName = code_event->GetFunctionName();
-      std::string buffer(functionName->Utf8Length(isolate_) + 1, 0);
-      functionName->WriteUtf8(isolate_, &buffer[0],
-                              functionName->Utf8Length(isolate_) + 1);
+      size_t buffer_size = functionName->Utf8LengthV2(isolate_) + 1;
+      std::string buffer(buffer_size, 0);
+      functionName->WriteUtf8V2(isolate_, &buffer[0], buffer_size,
+                                String::WriteFlags::kNullTerminate);
       // Sanitize name, removing unwanted \0 resulted from WriteUtf8
       name = std::string(buffer.c_str());
     }
@@ -296,9 +297,10 @@ namespace {
 
 class SimpleExternalString : public v8::String::ExternalStringResource {
  public:
-  explicit SimpleExternalString(const char* source)
-      : utf_source_(
-            v8::base::OwnedVector<uint16_t>::Of(v8::base::CStrVector(source))) {
+  explicit SimpleExternalString(const char* source) {
+    size_t len = strlen(source);
+    utf_source_ = base::OwnedVector<uint16_t>::NewForOverwrite(len);
+    std::copy(source, source + len, utf_source_.data());
   }
   ~SimpleExternalString() override = default;
   size_t length() const override { return utf_source_.size(); }

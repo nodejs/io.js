@@ -21,36 +21,9 @@ class Value;
  */
 class V8_EXPORT EmbedderRootsHandler {
  public:
-  enum class RootHandling {
-    kQueryEmbedderForNonDroppableReferences,
-    kDontQueryEmbedderForAnyReference,
-  };
-
   virtual ~EmbedderRootsHandler() = default;
 
   EmbedderRootsHandler() = default;
-
-  V8_DEPRECATED("Use the default constructor instead.")
-  explicit EmbedderRootsHandler(RootHandling default_traced_reference_handling)
-      : default_traced_reference_handling_(default_traced_reference_handling) {}
-
-  /**
-   * Returns true if the |TracedReference| handle should be considered as root
-   * for the currently running non-tracing garbage collection and false
-   * otherwise. The default implementation will keep all |TracedReference|
-   * references as roots.
-   *
-   * If this returns false, then V8 may decide that the object referred to by
-   * such a handle is reclaimed. In that case, V8 calls |ResetRoot()| for the
-   * |TracedReference|.
-   *
-   * Note that the `handle` is different from the handle that the embedder holds
-   * for retaining the object.
-   *
-   * The concrete implementations must be thread-safe.
-   */
-  V8_DEPRECATED("Use TracedReferenceHandling::kDroppable instead.")
-  virtual bool IsRoot(const v8::TracedReference<v8::Value>& handle) = 0;
 
   /**
    * Used in combination with |IsRoot|. Called by V8 when an
@@ -74,9 +47,6 @@ class V8_EXPORT EmbedderRootsHandler {
   }
 
  private:
-  const RootHandling default_traced_reference_handling_ =
-      RootHandling::kDontQueryEmbedderForAnyReference;
-
   friend class internal::TracedHandles;
 };
 

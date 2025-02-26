@@ -98,7 +98,7 @@ class LocalFactoryTest : public TestWithIsolateAndZone {
 
   ParseInfo* parse_info() { return &parse_info_; }
 
-  Handle<Script> script() { return script_; }
+  DirectHandle<Script> script() { return script_; }
 
   LocalIsolate* local_isolate() { return local_isolate_; }
   LocalFactory* local_factory() { return local_isolate()->factory(); }

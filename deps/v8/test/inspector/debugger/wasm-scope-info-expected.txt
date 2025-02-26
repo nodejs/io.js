@@ -11,7 +11,7 @@ Setting breakpoint on line 2 (first instruction) of third function
     scriptId : <scriptId>
 }
 Paused:
-Script wasm://wasm/e33badc2 byte offset 169: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/8daa7452 byte offset 169: Wasm opcode 0x20 (kExprLocalGet)
 Scope:
 at $C (interpreted) (0:169):
  - scope (wasm-expression-stack):
@@ -64,7 +64,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 171: Wasm opcode 0x24 (kExprGlobalSet)
+Script wasm://wasm/8daa7452 byte offset 171: Wasm opcode 0x24 (kExprGlobalSet)
 Scope:
 at $C (interpreted) (0:171):
  - scope (wasm-expression-stack):
@@ -117,7 +117,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 173: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/8daa7452 byte offset 173: Wasm opcode 0x41 (kExprI32Const)
 Scope:
 at $C (interpreted) (0:173):
  - scope (wasm-expression-stack):
@@ -170,7 +170,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 175: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/8daa7452 byte offset 175: Wasm opcode 0x21 (kExprLocalSet)
 Scope:
 at $C (interpreted) (0:175):
  - scope (wasm-expression-stack):
@@ -223,7 +223,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 177: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8daa7452 byte offset 177: Wasm opcode 0x0b (kExprEnd)
 Scope:
 at $C (interpreted) (0:177):
  - scope (wasm-expression-stack):
@@ -276,7 +276,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 160: Wasm opcode 0x1a (kExprDrop)
+Script wasm://wasm/8daa7452 byte offset 160: Wasm opcode 0x1a (kExprDrop)
 Scope:
 at $B (liftoff) (0:160):
  - scope (wasm-expression-stack):
@@ -314,7 +314,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 161: Wasm opcode 0x1a (kExprDrop)
+Script wasm://wasm/8daa7452 byte offset 161: Wasm opcode 0x1a (kExprDrop)
 Scope:
 at $B (liftoff) (0:161):
  - scope (wasm-expression-stack):
@@ -352,7 +352,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 162: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8daa7452 byte offset 162: Wasm opcode 0x0b (kExprEnd)
 Scope:
 at $B (liftoff) (0:162):
  - scope (wasm-expression-stack):
@@ -390,7 +390,7 @@ at (anonymous) (0:17):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/e33badc2 byte offset 130: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8daa7452 byte offset 130: Wasm opcode 0x0b (kExprEnd)
 Scope:
 at $A (liftoff) (0:130):
  - scope (wasm-expression-stack):

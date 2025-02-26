@@ -211,7 +211,6 @@ const StructType* TypeVisitor::ComputeType(
             offset.SingleValue(),
             false,
             field.const_qualified,
-            FieldSynchronization::kNone,
             FieldSynchronization::kNone};
     auto optional_size = SizeOf(f.name_and_type.type);
     struct_type->RegisterField(f);
@@ -374,23 +373,22 @@ const Type* TypeVisitor::ComputeType(TypeExpression* type_expression) {
       LanguageServerData::AddDefinition(type_expression->pos, pos);
     }
     return type;
-
-  } else if (auto* union_type =
-                 UnionTypeExpression::DynamicCast(type_expression)) {
+  }
+  if (auto* union_type = UnionTypeExpression::DynamicCast(type_expression)) {
     return TypeOracle::GetUnionType(ComputeType(union_type->a),
                                     ComputeType(union_type->b));
-  } else if (auto* function_type_exp =
-                 FunctionTypeExpression::DynamicCast(type_expression)) {
+  }
+  if (auto* function_type_exp =
+          FunctionTypeExpression::DynamicCast(type_expression)) {
     TypeVector argument_types;
     for (TypeExpression* type_exp : function_type_exp->parameters) {
       argument_types.push_back(ComputeType(type_exp));
     }
     return TypeOracle::GetBuiltinPointerType(
-        argument_types, ComputeType(function_type_exp->return_type));
-  } else {
-    auto* precomputed = PrecomputedTypeExpression::cast(type_expression);
-    return precomputed->type;
+        std::move(argument_types), ComputeType(function_type_exp->return_type));
   }
+  auto* precomputed = PrecomputedTypeExpression::cast(type_expression);
+  return precomputed->type;
 }
 
 Signature TypeVisitor::MakeSignature(const CallableDeclaration* declaration) {
@@ -448,8 +446,7 @@ void TypeVisitor::VisitClassFieldsAndMethods(
          class_offset.SingleValue(),
          field_expression.custom_weak_marking,
          field_expression.const_qualified,
-         field_expression.read_synchronization,
-         field_expression.write_synchronization});
+         field_expression.synchronization});
     ResidueClass field_size = std::get<0>(field.GetFieldSizeInformation());
     if (field.index) {
       // Validate that a value at any index in a packed array is aligned

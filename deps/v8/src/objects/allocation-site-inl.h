@@ -216,7 +216,8 @@ bool AllocationSite::DigestTransitionFeedback(DirectHandle<AllocationSite> site,
   bool result = false;
 
   if (site->PointsToLiteral() && IsJSArray(site->boilerplate())) {
-    Handle<JSArray> boilerplate(Cast<JSArray>(site->boilerplate()), isolate);
+    DirectHandle<JSArray> boilerplate(Cast<JSArray>(site->boilerplate()),
+                                      isolate);
     ElementsKind kind = boilerplate->GetElementsKind();
     // if kind is holey ensure that to_kind is as well.
     if (IsHoleyElementsKind(kind)) {

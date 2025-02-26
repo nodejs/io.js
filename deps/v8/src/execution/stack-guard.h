@@ -34,16 +34,17 @@ class V8_EXPORT_PRIVATE V8_NODISCARD StackGuard final {
   // the simulator's stack instead of using {limit}.
   void SetStackLimit(uintptr_t limit);
 
-  // Similar to the method above, with one important difference: With Wasm
-  // stack switching, we always want to switch to {limit}, even when running on
-  // the simulator, since we might be switching to a Wasm continuation that's
-  // not on the main stack.
+  // Try to compare and swap the given jslimit without the ExecutionAccess lock.
+  // Expects potential concurrent writes of the interrupt limit, and of the
+  // interrupt limit only.
   void SetStackLimitForStackSwitching(uintptr_t limit);
 
+#ifdef USE_SIMULATOR
   // The simulator uses a separate JS stack. Limits on the JS stack might have
   // to be adjusted in order to reflect overflows of the C stack, because we
   // cannot rely on the interleaving of frames on the simulator.
   void AdjustStackLimitForSimulator();
+#endif
 
   // Threading support.
   char* ArchiveStackGuard(char* to);
@@ -104,12 +105,24 @@ class V8_EXPORT_PRIVATE V8_NODISCARD StackGuard final {
 #undef V
   }
 
-  uintptr_t climit() { return thread_local_.climit(); }
+  uintptr_t climit() {
+#ifdef USE_SIMULATOR
+    return thread_local_.climit();
+#else
+    return thread_local_.jslimit();
+#endif
+  }
   uintptr_t jslimit() { return thread_local_.jslimit(); }
   // This provides an asynchronous read of the stack limits for the current
   // thread.  There are no locks protecting this, but it is assumed that you
   // have the global V8 lock if you are using multiple V8 threads.
-  uintptr_t real_climit() { return thread_local_.real_climit_; }
+  uintptr_t real_climit() {
+#ifdef USE_SIMULATOR
+    return thread_local_.real_climit_;
+#else
+    return thread_local_.real_jslimit_;
+#endif
+  }
   uintptr_t real_jslimit() { return thread_local_.real_jslimit_; }
   Address address_of_jslimit() {
     return reinterpret_cast<Address>(&thread_local_.jslimit_);
@@ -185,25 +198,43 @@ class V8_EXPORT_PRIVATE V8_NODISCARD StackGuard final {
 
     void Initialize(Isolate* isolate, const ExecutionAccess& lock);
 
-    // The stack limit is split into a JavaScript and a C++ stack limit. These
-    // two are the same except when running on a simulator where the C++ and
-    // JavaScript stacks are separate. Each of the two stack limits have two
-    // values. The one with the real_ prefix is the actual stack limit
-    // set for the VM. The one without the real_ prefix has the same value as
-    // the actual stack limit except when there is an interruption (e.g. debug
-    // break or preemption) in which case it is lowered to make stack checks
-    // fail. Both the generated code and the runtime system check against the
-    // one without the real_ prefix.
+    // The stack limit has two values: the one with the real_ prefix is the
+    // actual stack limit set for the VM.  The one without the real_ prefix has
+    // the same value as the actual stack limit except when there is an
+    // interruption (e.g. debug break or preemption) in which case it is lowered
+    // to make stack checks fail. Both the generated code and the runtime system
+    // check against the one without the real_ prefix.
+    // For simulator builds, we also use a separate C++ stack limit.
 
     // Actual JavaScript stack limit set for the VM.
     uintptr_t real_jslimit_ = kIllegalLimit;
+#ifdef USE_SIMULATOR
     // Actual C++ stack limit set for the VM.
     uintptr_t real_climit_ = kIllegalLimit;
+#else
+    // Padding to match the missing {real_climit_} field, renamed to make it
+    // explicit that this field is unused in this configuration. But the padding
+    // field is needed:
+    // - To keep the isolate's LinearAllocationArea fields from crossing cache
+    // lines (see Isolate::CheckIsolateLayout).
+    // - To ensure that jslimit_offset() is the same in mksnapshot and in V8:
+    // When cross-compiling V8, mksnapshot's host and target may be different
+    // even if they are the same for V8, which results in a different value for
+    // USE_SIMULATOR. Without this padding, this causes the builtins to use the
+    // wrong jslimit_offset() for stack checks.
+    uintptr_t padding1_;
+#endif
 
     // jslimit_ and climit_ can be read without any lock.
-    // Writing requires the ExecutionAccess lock.
+    // Writing requires the ExecutionAccess lock, or may be updated with a
+    // strong compare-and-swap (e.g. for stack-switching).
     base::AtomicWord jslimit_ = kIllegalLimit;
+#ifdef USE_SIMULATOR
     base::AtomicWord climit_ = kIllegalLimit;
+#else
+    // See {padding1_}.
+    uintptr_t padding2_;
+#endif
 
     uintptr_t jslimit() {
       return base::bit_cast<uintptr_t>(base::Relaxed_Load(&jslimit_));
@@ -212,6 +243,7 @@ class V8_EXPORT_PRIVATE V8_NODISCARD StackGuard final {
       return base::Relaxed_Store(&jslimit_,
                                  static_cast<base::AtomicWord>(limit));
     }
+#ifdef USE_SIMULATOR
     uintptr_t climit() {
       return base::bit_cast<uintptr_t>(base::Relaxed_Load(&climit_));
     }
@@ -219,6 +251,7 @@ class V8_EXPORT_PRIVATE V8_NODISCARD StackGuard final {
       return base::Relaxed_Store(&climit_,
                                  static_cast<base::AtomicWord>(limit));
     }
+#endif
 
     // Interrupt request bytes can be read without any lock.
     // Writing requires the ExecutionAccess lock.

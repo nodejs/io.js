@@ -7,7 +7,7 @@
 
 #include <tuple>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/vector.h"
 
 namespace v8::internal::compiler::turboshaft {

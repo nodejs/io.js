@@ -64,7 +64,9 @@ int HeapSnapshotJSONSerializer::to_node_index(const HeapEntry* e) {
 }
 
 int HeapSnapshotJSONSerializer::to_node_index(int entry_index) {
-  return entry_index * kNodeFieldsCount;
+  return entry_index * (trace_function_count_
+                            ? kNodeFieldsCountWithTraceNodeId
+                            : kNodeFieldsCountWithoutTraceNodeId);
 }
 
 }  // namespace internal

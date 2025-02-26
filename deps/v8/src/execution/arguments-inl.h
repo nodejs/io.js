@@ -19,7 +19,7 @@ Arguments<T>::ChangeValueScope::ChangeValueScope(Isolate* isolate,
                                                  Arguments* args, int index,
                                                  Tagged<Object> value)
     : location_(args->address_of_arg_at(index)) {
-  old_value_ = handle(Tagged<Object>(*location_), isolate);
+  old_value_ = direct_handle(Tagged<Object>(*location_), isolate);
   *location_ = value.ptr();
 }
 

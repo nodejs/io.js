@@ -70,6 +70,7 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
   size_t Insert(Tagged<Smi> smi);
   size_t Insert(double number);
   size_t Insert(const AstRawString* raw_string);
+  size_t Insert(const AstConsString* cons_string);
   size_t Insert(AstBigInt bigint);
   size_t Insert(const Scope* scope);
 #define INSERT_ENTRY(NAME, ...) size_t Insert##NAME();
@@ -121,6 +122,8 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
         : heap_number_(heap_number), tag_(Tag::kHeapNumber) {}
     explicit Entry(const AstRawString* raw_string)
         : raw_string_(raw_string), tag_(Tag::kRawString) {}
+    explicit Entry(const AstConsString* cons_string)
+        : cons_string_(cons_string), tag_(Tag::kConsString) {}
     explicit Entry(AstBigInt bigint) : bigint_(bigint), tag_(Tag::kBigInt) {}
     explicit Entry(const Scope* scope) : scope_(scope), tag_(Tag::kScope) {}
 
@@ -161,10 +164,11 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
     explicit Entry(Tag tag) : tag_(tag) {}
 
     union {
-      Handle<Object> handle_;
+      IndirectHandle<Object> handle_;
       Tagged<Smi> smi_;
       double heap_number_;
       const AstRawString* raw_string_;
+      const AstConsString* cons_string_;
       AstBigInt bigint_;
       const Scope* scope_;
     };
@@ -174,6 +178,7 @@ class V8_EXPORT_PRIVATE ConstantArrayBuilder final {
       kHandle,
       kSmi,
       kRawString,
+      kConsString,
       kHeapNumber,
       kBigInt,
       kScope,

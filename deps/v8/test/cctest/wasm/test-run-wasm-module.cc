@@ -122,8 +122,8 @@ TEST(Run_WasmModule_CompilationHintsLazy) {
     HandleScope scope(isolate);
     testing::SetupIsolateForWasmModule(isolate);
     ErrorThrower thrower(isolate, "CompileAndRunWasmModule");
-    MaybeHandle<WasmModuleObject> module = testing::CompileForTesting(
-        isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()));
+    MaybeHandle<WasmModuleObject> module =
+        testing::CompileForTesting(isolate, &thrower, base::VectorOf(buffer));
     CHECK(!module.is_null());
 
     // Lazy function was not invoked and therefore not compiled yet.
@@ -134,8 +134,9 @@ TEST(Run_WasmModule_CompilationHintsLazy) {
     CHECK(compilation_state->baseline_compilation_finished());
 
     // Instantiate and invoke function.
-    MaybeHandle<WasmInstanceObject> instance = GetWasmEngine()->SyncInstantiate(
-        isolate, &thrower, module.ToHandleChecked(), {}, {});
+    MaybeDirectHandle<WasmInstanceObject> instance =
+        GetWasmEngine()->SyncInstantiate(isolate, &thrower,
+                                         module.ToHandleChecked(), {}, {});
     CHECK(!instance.is_null());
     int32_t result = testing::CallWasmFunctionForTesting(
         isolate, instance.ToHandleChecked(), "main", {});
@@ -182,8 +183,8 @@ TEST(Run_WasmModule_CompilationHintsNoTiering) {
     HandleScope scope(isolate);
     testing::SetupIsolateForWasmModule(isolate);
     ErrorThrower thrower(isolate, "CompileAndRunWasmModule");
-    MaybeHandle<WasmModuleObject> module = testing::CompileForTesting(
-        isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()));
+    MaybeDirectHandle<WasmModuleObject> module =
+        testing::CompileForTesting(isolate, &thrower, base::VectorOf(buffer));
     CHECK(!module.is_null());
 
     // Synchronous compilation finished and no tiering units were initialized.
@@ -230,8 +231,8 @@ TEST(Run_WasmModule_CompilationHintsTierUp) {
     HandleScope scope(isolate);
     testing::SetupIsolateForWasmModule(isolate);
     ErrorThrower thrower(isolate, "CompileAndRunWasmModule");
-    MaybeHandle<WasmModuleObject> module = testing::CompileForTesting(
-        isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()));
+    MaybeDirectHandle<WasmModuleObject> module =
+        testing::CompileForTesting(isolate, &thrower, base::VectorOf(buffer));
     CHECK(!module.is_null());
 
     // Expect baseline or top tier code.
@@ -293,8 +294,8 @@ TEST(Run_WasmModule_CompilationHintsLazyBaselineEagerTopTier) {
     HandleScope scope(isolate);
     testing::SetupIsolateForWasmModule(isolate);
     ErrorThrower thrower(isolate, "CompileAndRunWasmModule");
-    MaybeHandle<WasmModuleObject> module = testing::CompileForTesting(
-        isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()));
+    MaybeDirectHandle<WasmModuleObject> module =
+        testing::CompileForTesting(isolate, &thrower, base::VectorOf(buffer));
     CHECK(!module.is_null());
 
     NativeModule* native_module = module.ToHandleChecked()->native_module();
@@ -307,9 +308,9 @@ TEST(Run_WasmModule_CompilationHintsLazyBaselineEagerTopTier) {
     constexpr int kFuncIndex = 0;
     WasmCodeRefScope code_ref_scope;
     while (true) {
-      auto* code = native_module->GetCode(kFuncIndex);
-      if (!code) continue;
-      CHECK_EQ(ExecutionTier::kTurbofan, code->tier());
+      auto* function_code = native_module->GetCode(kFuncIndex);
+      if (!function_code) continue;
+      CHECK_EQ(ExecutionTier::kTurbofan, function_code->tier());
       break;
     }
     CHECK(compilation_state->baseline_compilation_finished());
@@ -573,9 +574,9 @@ TEST(TestInterruptLoop) {
     HandleScope scope(isolate);
     testing::SetupIsolateForWasmModule(isolate);
     ErrorThrower thrower(isolate, "Test");
-    const Handle<WasmInstanceObject> instance =
-        CompileAndInstantiateForTesting(
-            isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()))
+    const DirectHandle<WasmInstanceObject> instance =
+        CompileAndInstantiateForTesting(isolate, &thrower,
+                                        base::VectorOf(buffer))
             .ToHandleChecked();
 
     DirectHandle<JSArrayBuffer> memory(
@@ -660,15 +661,16 @@ TEST(Run_WasmModule_GrowMemOobFixedIndex) {
     testing::SetupIsolateForWasmModule(isolate);
 
     ErrorThrower thrower(isolate, "Test");
-    Handle<WasmInstanceObject> instance =
-        CompileAndInstantiateForTesting(
-            isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()))
+    DirectHandle<WasmInstanceObject> instance =
+        CompileAndInstantiateForTesting(isolate, &thrower,
+                                        base::VectorOf(buffer))
             .ToHandleChecked();
 
     // Initial memory size is 16 pages, should trap till index > MemSize on
     // consecutive GrowMem calls
     for (uint32_t i = 1; i < 5; i++) {
-      Handle<Object> params[1] = {handle(Smi::FromInt(i), isolate)};
+      DirectHandle<Object> params[1] = {
+          direct_handle(Smi::FromInt(i), isolate)};
       v8::TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
       testing::CallWasmFunctionForTesting(isolate, instance, "main",
                                           base::ArrayVector(params));
@@ -676,7 +678,7 @@ TEST(Run_WasmModule_GrowMemOobFixedIndex) {
       isolate->clear_exception();
     }
 
-    Handle<Object> params[1] = {handle(Smi::FromInt(1), isolate)};
+    DirectHandle<Object> params[1] = {direct_handle(Smi::FromInt(1), isolate)};
     int32_t result = testing::CallWasmFunctionForTesting(
         isolate, instance, "main", base::ArrayVector(params));
     CHECK_EQ(0xACED, result);
@@ -709,16 +711,16 @@ TEST(Run_WasmModule_GrowMemOobVariableIndex) {
     testing::SetupIsolateForWasmModule(isolate);
 
     ErrorThrower thrower(isolate, "Test");
-    Handle<WasmInstanceObject> instance =
-        CompileAndInstantiateForTesting(
-            isolate, &thrower, ModuleWireBytes(buffer.begin(), buffer.end()))
+    DirectHandle<WasmInstanceObject> instance =
+        CompileAndInstantiateForTesting(isolate, &thrower,
+                                        base::VectorOf(buffer))
             .ToHandleChecked();
 
     // Initial memory size is 16 pages, should trap till index > MemSize on
     // consecutive GrowMem calls
     for (int i = 1; i < 5; i++) {
-      Handle<Object> params[1] = {
-          Handle<Object>(Smi::FromInt((16 + i) * kPageSize - 3), isolate)};
+      DirectHandle<Object> params[] = {
+          direct_handle(Smi::FromInt((16 + i) * kPageSize - 3), isolate)};
       v8::TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
       testing::CallWasmFunctionForTesting(isolate, instance, "main",
                                           base::ArrayVector(params));
@@ -727,15 +729,16 @@ TEST(Run_WasmModule_GrowMemOobVariableIndex) {
     }
 
     for (int i = 1; i < 5; i++) {
-      Handle<Object> params[1] = {
-          handle(Smi::FromInt((20 + i) * kPageSize - 4), isolate)};
+      DirectHandle<Object> params[] = {
+          direct_handle(Smi::FromInt((20 + i) * kPageSize - 4), isolate)};
       int32_t result = testing::CallWasmFunctionForTesting(
           isolate, instance, "main", base::ArrayVector(params));
       CHECK_EQ(0xACED, result);
     }
 
     v8::TryCatch try_catch(reinterpret_cast<v8::Isolate*>(isolate));
-    Handle<Object> params[1] = {handle(Smi::FromInt(25 * kPageSize), isolate)};
+    DirectHandle<Object> params[] = {
+        direct_handle(Smi::FromInt(25 * kPageSize), isolate)};
     testing::CallWasmFunctionForTesting(isolate, instance, "main",
                                         base::ArrayVector(params));
     CHECK(try_catch.HasCaught());
@@ -770,7 +773,6 @@ static void RunWasmModuleGlobalInitTest(ValueType type, CType expected) {
   {
     v8::internal::AccountingAllocator allocator;
     Zone zone(&allocator, ZONE_NAME);
-    TestSignatures sigs;
 
     ValueType types[] = {type};
     FunctionSig sig(1, 0, types);
@@ -838,8 +840,7 @@ TEST(InitDataAtTheUpperLimit) {
         'c'         // data bytes
     };
 
-    CompileAndInstantiateForTesting(
-        isolate, &thrower, ModuleWireBytes(data, data + arraysize(data)));
+    CompileAndInstantiateForTesting(isolate, &thrower, base::VectorOf(data));
     if (thrower.error()) {
       Print(*thrower.Reify());
       FATAL("compile or instantiate error");
@@ -874,8 +875,7 @@ TEST(EmptyMemoryNonEmptyDataSegment) {
         'c'         // data bytes
     };
 
-    CompileAndInstantiateForTesting(
-        isolate, &thrower, ModuleWireBytes(data, data + arraysize(data)));
+    CompileAndInstantiateForTesting(isolate, &thrower, base::VectorOf(data));
     // It should not be possible to instantiate this module.
     CHECK(thrower.error());
   }
@@ -907,8 +907,7 @@ TEST(EmptyMemoryEmptyDataSegment) {
         U32V_1(0),  // source size
     };
 
-    CompileAndInstantiateForTesting(
-        isolate, &thrower, ModuleWireBytes(data, data + arraysize(data)));
+    CompileAndInstantiateForTesting(isolate, &thrower, base::VectorOf(data));
     // It should be possible to instantiate this module.
     CHECK(!thrower.error());
   }

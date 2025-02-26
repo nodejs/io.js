@@ -9,7 +9,7 @@
 
 #include "src/base/compiler-specific.h"
 #include "src/base/flags.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/common/globals.h"
 #include "src/handles/handles.h"
 #include "src/zone/zone.h"
@@ -231,9 +231,9 @@ template <>
 struct OpHash<double> : public base::bit_hash<double> {};
 
 template <class T>
-struct OpEqualTo<Handle<T>> : public Handle<T>::equal_to {};
+struct OpEqualTo<IndirectHandle<T>> : public IndirectHandle<T>::equal_to {};
 template <class T>
-struct OpHash<Handle<T>> : public Handle<T>::hash {};
+struct OpHash<IndirectHandle<T>> : public IndirectHandle<T>::hash {};
 
 }  // namespace compiler
 }  // namespace internal

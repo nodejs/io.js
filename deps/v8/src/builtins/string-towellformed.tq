@@ -13,6 +13,7 @@ namespace string {
 extern macro StringBuiltinsAssembler::ReplaceUnpairedSurrogates(
     String, String): void labels Indirect;
 
+@incrementUseCounter('v8::Isolate::kStringWellFormed')
 transitioning javascript builtin StringPrototypeToWellFormed(
     js-implicit context: NativeContext, receiver: JSAny)(
     ...arguments): String {
@@ -32,7 +33,7 @@ transitioning javascript builtin StringPrototypeToWellFormed(
   // 4. Let k be 0.
   // 5. Let result be the empty String.
   const flat = Flatten(s);
-  if (flat.IsOneByteRepresentationUnderneath()) return flat;
+  if (flat.IsOneByteRepresentation()) return flat;
   let result = flat;
 
   // 6. Repeat, while k < strLen,

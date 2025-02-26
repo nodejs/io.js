@@ -6,8 +6,19 @@
 
 #include "src/codegen/arm/constants-arm.h"
 
+#include "src/common/code-memory-access-inl.h"
+
 namespace v8 {
 namespace internal {
+
+void Instruction::SetInstructionBits(Instr value,
+                                     WritableJitAllocation* jit_allocation) {
+  if (jit_allocation) {
+    jit_allocation->WriteValue(reinterpret_cast<Address>(this), value);
+  } else {
+    *reinterpret_cast<Instr*>(this) = value;
+  }
+}
 
 Float64 Instruction::DoubleImmedVmov() const {
   // Reconstruct a double from the immediate encoded in the vmov instruction.

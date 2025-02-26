@@ -19,9 +19,17 @@ MacroAssemblerBase::MacroAssemblerBase(Isolate* isolate,
                                        const AssemblerOptions& options,
                                        CodeObjectRequired create_code_object,
                                        std::unique_ptr<AssemblerBuffer> buffer)
-    : Assembler(options, std::move(buffer)), isolate_(isolate) {
+    : MacroAssemblerBase(isolate, isolate->allocator(), options,
+                         create_code_object, std::move(buffer)) {}
+
+MacroAssemblerBase::MacroAssemblerBase(Isolate* isolate,
+                                       MaybeAssemblerZone zone,
+                                       AssemblerOptions options,
+                                       CodeObjectRequired create_code_object,
+                                       std::unique_ptr<AssemblerBuffer> buffer)
+    : Assembler(zone, options, std::move(buffer)), isolate_(isolate) {
   if (create_code_object == CodeObjectRequired::kYes) {
-    code_object_ = Handle<HeapObject>::New(
+    code_object_ = IndirectHandle<HeapObject>::New(
         ReadOnlyRoots(isolate).self_reference_marker(), isolate);
   }
 }

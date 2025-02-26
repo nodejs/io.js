@@ -231,6 +231,18 @@ struct RuntimeCallDescriptor {
         Operator::kNoDeopt | Operator::kNoThrow;
   };
 
+  struct TryMigrateInstanceAndMarkMapAsMigrationTarget
+      : public Descriptor<TryMigrateInstanceAndMarkMapAsMigrationTarget> {
+    static constexpr auto kFunction =
+        Runtime::kTryMigrateInstanceAndMarkMapAsMigrationTarget;
+    using arguments_t = std::tuple<V<HeapObject>>;
+    using result_t = V<Object>;
+
+    static constexpr bool kNeedsFrameState = false;
+    static constexpr Operator::Properties kProperties =
+        Operator::kNoDeopt | Operator::kNoThrow;
+  };
+
   struct ThrowAccessedUninitializedVariable
       : public Descriptor<ThrowAccessedUninitializedVariable> {
     static constexpr auto kFunction =

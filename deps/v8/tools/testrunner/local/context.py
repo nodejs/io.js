@@ -10,7 +10,12 @@ import sys
 from contextlib import contextmanager
 
 from ..local.android import Driver
-from .command import AndroidCommand, IOSCommand, PosixCommand, WindowsCommand, taskkill_windows
+from .command import (
+    AndroidCommand,
+    IOSCommand,
+    PosixCommand,
+    WindowsCommand,
+    terminate_process_windows)
 from .pool import DefaultExecutionPool
 from .process_utils import EMPTY_PROCESS_LOGGER, PROCESS_LOGGER
 from ..testproc.util import list_processes_linux
@@ -34,6 +39,10 @@ class DefaultOSContext:
 
   def platform_shell(self, shell, args, outdir):
     return outdir.resolve() / shell
+
+  @property
+  def device_type(self):
+    return None
 
 
 class DesktopContext(DefaultOSContext):
@@ -64,7 +73,7 @@ class WindowsContext(DesktopContext):
     super().__init__(WindowsCommand)
 
   def terminate_process(self, process):
-    taskkill_windows(process, verbose=True, force=False)
+    terminate_process_windows(process)
 
   def platform_shell(self, shell, args, outdir):
     return outdir.resolve() / f'{shell}.exe'
@@ -82,6 +91,10 @@ class AndroidOSContext(DefaultOSContext):
       yield
     finally:
       AndroidCommand.driver.tear_down()
+
+  @property
+  def device_type(self):
+    return AndroidCommand.driver.device_type
 
 
 class IOSContext(DefaultOSContext):

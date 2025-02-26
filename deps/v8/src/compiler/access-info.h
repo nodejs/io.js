@@ -8,7 +8,7 @@
 #include <optional>
 
 #include "src/compiler/heap-refs.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {
@@ -67,7 +67,9 @@ class PropertyAccessInfo final {
     kFastAccessorConstant,
     kDictionaryProtoAccessorConstant,
     kModuleExport,
-    kStringLength
+    kStringLength,
+    kStringWrapperLength,
+    kTypedArrayLength
   };
 
   static PropertyAccessInfo NotFound(Zone* zone, MapRef receiver_map,
@@ -90,6 +92,9 @@ class PropertyAccessInfo final {
   static PropertyAccessInfo ModuleExport(Zone* zone, MapRef receiver_map,
                                          CellRef cell);
   static PropertyAccessInfo StringLength(Zone* zone, MapRef receiver_map);
+  static PropertyAccessInfo StringWrapperLength(Zone* zone,
+                                                MapRef receiver_map);
+  static PropertyAccessInfo TypedArrayLength(Zone* zone, MapRef receiver_map);
   static PropertyAccessInfo Invalid(Zone* zone);
   static PropertyAccessInfo DictionaryProtoDataConstant(
       Zone* zone, MapRef receiver_map, JSObjectRef holder,
@@ -112,6 +117,8 @@ class PropertyAccessInfo final {
   }
   bool IsModuleExport() const { return kind() == kModuleExport; }
   bool IsStringLength() const { return kind() == kStringLength; }
+  bool IsStringWrapperLength() const { return kind() == kStringWrapperLength; }
+  bool IsTypedArrayLength() const { return kind() == kTypedArrayLength; }
   bool IsDictionaryProtoDataConstant() const {
     return kind() == kDictionaryProtoDataConstant;
   }
@@ -182,6 +189,11 @@ class PropertyAccessInfo final {
     return name_.value();
   }
 
+  void set_elements_kind(ElementsKind elements_kind) {
+    elements_kind_ = elements_kind;
+  }
+  ElementsKind elements_kind() const { return elements_kind_; }
+
  private:
   explicit PropertyAccessInfo(Zone* zone);
   PropertyAccessInfo(Zone* zone, Kind kind, OptionalJSObjectRef holder,
@@ -219,6 +231,9 @@ class PropertyAccessInfo final {
   // Members only used for dictionary mode holders:
   InternalIndex dictionary_index_;
   OptionalNameRef name_;
+
+  // Members only used for kTypedArrayLength:
+  ElementsKind elements_kind_;
 };
 
 // Factory class for {ElementAccessInfo}s and {PropertyAccessInfo}s.

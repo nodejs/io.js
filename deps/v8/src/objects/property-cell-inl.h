@@ -68,15 +68,17 @@ void PropertyCell::Transition(PropertyDetails new_details,
   set_property_details_raw(new_details.AsSmi(), kReleaseStore);
 }
 
-TQ_OBJECT_CONSTRUCTORS_IMPL(ConstTrackingLetCell)
+TQ_OBJECT_CONSTRUCTORS_IMPL(ContextSidePropertyCell)
 
-ACCESSORS(ConstTrackingLetCell, dependent_code, Tagged<DependentCode>,
+RELEASE_ACQUIRE_ACCESSORS(ContextSidePropertyCell, context_side_property_raw,
+                          Tagged<Smi>, kPropertyDetailsRawOffset)
+
+ACCESSORS(ContextSidePropertyCell, dependent_code, Tagged<DependentCode>,
           kDependentCodeOffset)
 
-bool ConstTrackingLetCell::IsNotConst(Tagged<Object> object) {
-  DCHECK(IsConstTrackingLetCell(object) ||
-         (object == kNonConstMarker || object == kConstMarker));
-  return object == kNonConstMarker;
+ContextSidePropertyCell::Property
+ContextSidePropertyCell::context_side_property() const {
+  return FromSmi(context_side_property_raw(kAcquireLoad));
 }
 
 }  // namespace internal

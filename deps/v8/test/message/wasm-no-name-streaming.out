@@ -1,4 +1,4 @@
 RuntimeError: unreachable
-    at wasm://wasm/44ee3bce:wasm-function[0]:0x22
+    at wasm://wasm/e5b00f2a:wasm-function[0]:0x22
     at test/message/wasm-no-name-async.js:{NUMBER}:27
     at test/mjsunit/mjsunit.js:*

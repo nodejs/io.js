@@ -96,4 +96,3 @@ TEST(Examples, CreateingCorrelatedVariateSequences) {
     EXPECT_EQ(absl::Uniform<uint32_t>(gen_1), absl::Uniform<uint32_t>(gen_2));
   }
 }
-

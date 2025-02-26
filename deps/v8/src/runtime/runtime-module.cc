@@ -11,21 +11,23 @@ namespace internal {
 
 RUNTIME_FUNCTION(Runtime_DynamicImportCall) {
   HandleScope scope(isolate);
-  DCHECK_LE(2, args.length());
-  DCHECK_GE(3, args.length());
+  DCHECK_LE(3, args.length());
+  DCHECK_GE(4, args.length());
   DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   Handle<Object> specifier = args.at(1);
+  ModuleImportPhase phase =
+      static_cast<ModuleImportPhase>(args.smi_value_at(2));
 
-  MaybeHandle<Object> import_options;
-  if (args.length() == 3) {
-    import_options = args.at<Object>(2);
+  MaybeDirectHandle<Object> import_options;
+  if (args.length() == 4) {
+    import_options = args.at<Object>(3);
   }
 
-  Handle<Script> referrer_script = handle(
+  DirectHandle<Script> referrer_script(
       Cast<Script>(function->shared()->script())->GetEvalOrigin(), isolate);
-  RETURN_RESULT_OR_FAILURE(isolate,
-                           isolate->RunHostImportModuleDynamicallyCallback(
-                               referrer_script, specifier, import_options));
+  RETURN_RESULT_OR_FAILURE(
+      isolate, isolate->RunHostImportModuleDynamicallyCallback(
+                   referrer_script, specifier, phase, import_options));
 }
 
 RUNTIME_FUNCTION(Runtime_GetModuleNamespace) {
@@ -39,7 +41,7 @@ RUNTIME_FUNCTION(Runtime_GetModuleNamespace) {
 RUNTIME_FUNCTION(Runtime_GetImportMetaObject) {
   HandleScope scope(isolate);
   DCHECK_EQ(0, args.length());
-  Handle<SourceTextModule> module(isolate->context()->module(), isolate);
+  DirectHandle<SourceTextModule> module(isolate->context()->module(), isolate);
   RETURN_RESULT_OR_FAILURE(isolate,
                            SourceTextModule::GetImportMeta(isolate, module));
 }

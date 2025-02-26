@@ -12,9 +12,9 @@ per-file BUILD.bazel=file:COMMON_OWNERS
 per-file BUILD.gn=file:COMMON_OWNERS
 per-file DEPS=file:COMMON_OWNERS
 per-file INFRA_OWNERS=file:INFRA_OWNERS
+per-file MODULE.bazel=file:COMMON_OWNERS
 per-file PRESUBMIT.py=file:INFRA_OWNERS
 per-file WATCHLISTS=file:COMMON_OWNERS
-per-file WORKSPACE=file:COMMON_OWNERS
 
 # Needed by the auto_tag builder
 per-file WATCHLISTS=v8-ci-autoroll-builder@chops-service-accounts.iam.gserviceaccount.com

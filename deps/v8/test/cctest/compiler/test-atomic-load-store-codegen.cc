@@ -26,7 +26,7 @@ namespace compiler {
                                                                  \
     RawMachineAssemblerTester<ctype> m;                          \
     Node* base = m.PointerConstant(&buffer[0]);                  \
-    Node* index = m.Int32Constant(0);                            \
+    Node* index = m.IntPtrConstant(0);                           \
     AtomicLoadParameters params(mach_type, order);               \
     if (mach_type.MemSize() == 8) {                              \
       m.Return(m.AtomicLoad64(params, base, index));             \
@@ -147,13 +147,13 @@ void AtomicLoadTagged(MachineType type, AtomicMemoryOrder order) {
           reinterpret_cast<Tagged<T>*>(LSB(base_pointer, kTaggedSize));
     }
     Node* base = m.PointerConstant(base_pointer);
-    Node* index = m.Int32Constant(i * sizeof(buffer[0]));
+    Node* index = m.IntPtrConstant(i * sizeof(buffer[0]));
     AtomicLoadParameters params(type, order);
     Node* load;
     if (kTaggedSize == 8) {
       load = m.AtomicLoad64(params, base, index);
     } else {
-      load = m.AtomicLoad(params, base, index);
+      load = m.ChangeInt32ToIntPtr(m.AtomicLoad(params, base, index));
     }
     m.Return(load);
     CheckEq<Tagged<T>>(buffer[i], m.Call());
@@ -187,7 +187,7 @@ TEST(SeqCstLoadTagged) {
     BufferedRawMachineAssemblerTester<int32_t> m(mach_type);                  \
     Node* value = m.Parameter(0);                                             \
     Node* base = m.PointerConstant(&buffer[0]);                               \
-    Node* index = m.Int32Constant(0);                                         \
+    Node* index = m.IntPtrConstant(0);                                        \
     AtomicStoreParameters params(mach_type.representation(), kNoWriteBarrier, \
                                  order);                                      \
     if (mach_type.MemSize() == 8) {                                           \

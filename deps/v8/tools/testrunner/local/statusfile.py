@@ -60,9 +60,9 @@ for key in [SKIP, FAIL, PASS, CRASH, HEAVY, SLOW, FAIL_OK, NO_VARIANTS,
 VARIABLES = {ALWAYS: True}
 for var in [
     "debug", "release", "big", "little", "android", "arm", "arm64", "ia32",
-    "mips64", "mips64el", "x64", "ppc64", "s390", "s390x", "macos", "windows",
-    "linux", "aix", "r1", "r2", "r3", "r5", "r6", "riscv32", "riscv64",
-    "loong64", "zos"
+    "mips64", "mips64el", "x64", "ppc64", "s390x", "macos", "windows", "linux",
+    "aix", "r1", "r2", "r3", "r5", "r6", "riscv32", "riscv64", "loong64", "zos",
+    "bullhead", "panther",
 ]:
   assert var not in VARIABLES
   VARIABLES[var] = var
@@ -303,23 +303,30 @@ def _ReadSection(section, variables, rules, prefix_rules):
       _ParseOutcomeList(rule, outcome_list, variables, rules)
 
 JS_TEST_PATHS = {
-  'debugger': [[]],
-  'inspector': [[]],
-  'intl': [[]],
-  'message': [[]],
-  'mjsunit': [[]],
-  'mozilla': [['data']],
-  'test262': [['data', 'test'], ['local-tests', 'test']],
-  'webkit': [[]],
+    'debugger': [[]],
+    'inspector': [[]],
+    'intl': [[]],
+    'message': [[]],
+    'mjsunit': [[]],
+    'mozilla': [['data']],
+    'test262': [['data', 'test'], ['local-tests', 'test']],
+    'wasm-js': [['tests']],
+    'wasm-spec-tests': [['tests']],
+    'webkit': [[]],
 }
 
-FILE_EXTENSIONS = [".js", ".mjs"]
+DEFAULT_JS_TEST_EXTENSIONS = ['.js', '.mjs']
+JS_TEST_EXTENSIONS = {
+    'wasm-js': ['.any.js'],
+}
 
 def PresubmitCheck(path):
   with open(path) as f:
     contents = ReadContent(f.read())
   basename = os.path.basename(os.path.dirname(path))
   root_prefix = basename + "/"
+  test_extensions = JS_TEST_EXTENSIONS.get(
+      basename, DEFAULT_JS_TEST_EXTENSIONS)
   status = {"success": True}
   def _assert(check, message):  # Like "assert", but doesn't throw.
     if not check:
@@ -340,11 +347,13 @@ def PresubmitCheck(path):
                 ".js extension must not be used in rule keys.")
         _assert('*' not in rule or (rule.count('*') == 1 and rule[-1] == '*'),
                 "Only the last character of a rule key can be a wildcard")
-        if basename in JS_TEST_PATHS  and '*' not in rule:
+        if basename in JS_TEST_PATHS and '*' not in rule:
           def _any_exist(paths):
-            return any(os.path.exists(os.path.join(os.path.dirname(path),
-                                      *(paths + [rule + ext])))
-                       for ext in FILE_EXTENSIONS)
+            return any(
+                os.path.exists(
+                    os.path.join(
+                        os.path.dirname(path), *(paths + [rule + ext])))
+                for ext in test_extensions)
           _assert(any(_any_exist(paths)
                       for paths in JS_TEST_PATHS[basename]),
                   "missing file for %s test %s" % (basename, rule))

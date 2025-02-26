@@ -104,8 +104,8 @@ struct CachedKey {
 
 using KeyCache = std::unordered_map<std::string, CachedKey>;
 
-Handle<Name> CreateKeyWithHash(Isolate* isolate, KeyCache& keys,
-                               const Key& key);
+DirectHandle<Name> CreateKeyWithHash(Isolate* isolate, KeyCache& keys,
+                                     const Key& key);
 
 class RuntimeTestRunner;
 class CSATestRunner;
@@ -125,7 +125,8 @@ class TestSequence {
   // debugging easier.
   static constexpr bool kVerifyAfterEachStep = false;
 
-  void Add(Handle<Name> key, Handle<Object> value, PropertyDetails details) {
+  void Add(DirectHandle<Name> key, DirectHandle<Object> value,
+           PropertyDetails details) {
     runner_.Add(key, value, details);
 
     if (kVerifyAfterEachStep) {
@@ -143,14 +144,15 @@ class TestSequence {
       details = PropertyDetails::Empty();
     }
 
-    Handle<Name> key_handle = CreateKeyWithHash(isolate, keys_, key);
-    Handle<Object> value_handle = isolate->factory()->NewStringFromAsciiChecked(
-        value.value().c_str(), AllocationType::kYoung);
+    DirectHandle<Name> key_handle = CreateKeyWithHash(isolate, keys_, key);
+    DirectHandle<Object> value_handle =
+        isolate->factory()->NewStringFromAsciiChecked(value.value().c_str(),
+                                                      AllocationType::kYoung);
 
     Add(key_handle, value_handle, details.value());
   }
 
-  void UpdateByKey(Handle<Name> key, Handle<Object> new_value,
+  void UpdateByKey(DirectHandle<Name> key, DirectHandle<Object> new_value,
                    PropertyDetails new_details) {
     InternalIndex entry = runner_.FindEntry(key);
     CHECK(entry.is_found());
@@ -163,14 +165,16 @@ class TestSequence {
 
   void UpdateByKey(const Key& existing_key, Value new_value,
                    PropertyDetails new_details) {
-    Handle<Name> key_handle = CreateKeyWithHash(isolate, keys_, existing_key);
-    Handle<Object> value_handle = isolate->factory()->NewStringFromAsciiChecked(
-        new_value.c_str(), AllocationType::kYoung);
+    DirectHandle<Name> key_handle =
+        CreateKeyWithHash(isolate, keys_, existing_key);
+    DirectHandle<Object> value_handle =
+        isolate->factory()->NewStringFromAsciiChecked(new_value.c_str(),
+                                                      AllocationType::kYoung);
 
     UpdateByKey(key_handle, value_handle, new_details);
   }
 
-  void DeleteByKey(Handle<Name> key) {
+  void DeleteByKey(DirectHandle<Name> key) {
     InternalIndex entry = runner_.FindEntry(key);
     CHECK(entry.is_found());
     runner_.Delete(entry);
@@ -181,12 +185,13 @@ class TestSequence {
   }
 
   void DeleteByKey(const Key& existing_key) {
-    Handle<Name> key_handle = CreateKeyWithHash(isolate, keys_, existing_key);
+    DirectHandle<Name> key_handle =
+        CreateKeyWithHash(isolate, keys_, existing_key);
 
     DeleteByKey(key_handle);
   }
 
-  void CheckDataAtKey(Handle<Name> key, IndexOpt expected_index_opt,
+  void CheckDataAtKey(DirectHandle<Name> key, IndexOpt expected_index_opt,
                       std::optional<Handle<Object>> expected_value_opt,
                       PropertyDetailsOpt expected_details_opt) {
     InternalIndex actual_index = runner_.FindEntry(key);
@@ -212,7 +217,8 @@ class TestSequence {
   void CheckDataAtKey(const Key& expected_key, IndexOpt expected_index,
                       ValueOpt expected_value = kNoValue,
                       PropertyDetailsOpt expected_details = kNoDetails) {
-    Handle<Name> key_handle = CreateKeyWithHash(isolate, keys_, expected_key);
+    DirectHandle<Name> key_handle =
+        CreateKeyWithHash(isolate, keys_, expected_key);
     std::optional<Handle<Object>> value_handle_opt;
     if (expected_value) {
       value_handle_opt = isolate->factory()->NewStringFromAsciiChecked(
@@ -223,17 +229,19 @@ class TestSequence {
                    expected_details);
   }
 
-  void CheckKeyAbsent(Handle<Name> key) {
+  void CheckKeyAbsent(DirectHandle<Name> key) {
     CHECK(runner_.FindEntry(key).is_not_found());
   }
 
   void CheckKeyAbsent(const Key& expected_key) {
-    Handle<Name> key_handle = CreateKeyWithHash(isolate, keys_, expected_key);
+    DirectHandle<Name> key_handle =
+        CreateKeyWithHash(isolate, keys_, expected_key);
     CheckKeyAbsent(key_handle);
   }
 
   void CheckHasKey(const Key& expected_key) {
-    Handle<Name> key_handle = CreateKeyWithHash(isolate, keys_, expected_key);
+    DirectHandle<Name> key_handle =
+        CreateKeyWithHash(isolate, keys_, expected_key);
 
     CHECK(runner_.FindEntry(key_handle).is_found());
   }

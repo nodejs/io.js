@@ -347,6 +347,11 @@ class V8_EXPORT Value : public Data {
   bool IsWasmMemoryObject() const;
 
   /**
+   * Returns true if this value is a WasmMemoryMapDescriptor.
+   */
+  bool IsWasmMemoryMapDescriptor() const;
+
+  /**
    * Returns true if this value is a WasmModuleObject.
    */
   bool IsWasmModuleObject() const;

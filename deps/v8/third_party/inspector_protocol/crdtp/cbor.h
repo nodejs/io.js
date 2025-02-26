@@ -46,7 +46,7 @@ namespace cbor {
 // Checks whether |msg| is a cbor message.
 bool IsCBORMessage(span<uint8_t> msg);
 
-// Performs a leightweight check of |msg|.
+// Performs a lightweight check of |msg|.
 // Disallows:
 // - Empty message
 // - Not starting with the two bytes 0xd8, 0x5a
@@ -127,7 +127,7 @@ class EnvelopeHeader {
   EnvelopeHeader() = default;
   ~EnvelopeHeader() = default;
 
-  // Parse envelope. Implies that `in` accomodates the entire size of envelope.
+  // Parse envelope. Implies that `in` accommodates the entire size of envelope.
   static StatusOr<EnvelopeHeader> Parse(span<uint8_t> in);
   // Parse envelope, but allow `in` to only include the beginning of the
   // envelope.
@@ -252,7 +252,8 @@ class CBORTokenizer {
   span<uint8_t> GetString8() const;
 
   // Wire representation for STRING16 is low byte first (little endian).
-  // To be called only if ::TokenTag() == CBORTokenTag::STRING16.
+  // To be called only if ::TokenTag() == CBORTokenTag::STRING16. The result is
+  // guaranteed to have even length.
   span<uint8_t> GetString16WireRep() const;
 
   // To be called only if ::TokenTag() == CBORTokenTag::BINARY.

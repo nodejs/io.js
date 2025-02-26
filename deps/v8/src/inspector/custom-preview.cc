@@ -256,16 +256,16 @@ void bodyCallback(const v8::FunctionCallbackInfo<v8::Value>& info) {
 }
 }  // anonymous namespace
 
-void generateCustomPreview(int sessionId, const String16& groupName,
+void generateCustomPreview(v8::Isolate* isolate, int sessionId,
+                           const String16& groupName,
                            v8::Local<v8::Object> object,
                            v8::MaybeLocal<v8::Value> maybeConfig, int maxDepth,
                            std::unique_ptr<CustomPreview>* preview) {
   v8::Local<v8::Context> context;
-  if (!object->GetCreationContext().ToLocal(&context)) {
+  if (!object->GetCreationContext(isolate).ToLocal(&context)) {
     return;
   }
 
-  v8::Isolate* isolate = context->GetIsolate();
   v8::MicrotasksScope microtasksScope(context,
                                       v8::MicrotasksScope::kDoNotRunMicrotasks);
   v8::TryCatch tryCatch(isolate);

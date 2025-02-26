@@ -5,8 +5,8 @@
 #include "src/compiler/turboshaft/phase.h"
 
 #include "src/compiler/backend/register-allocator.h"
-#include "src/compiler/graph-visualizer.h"
 #include "src/compiler/js-heap-broker.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 #include "src/compiler/turboshaft/graph-visualizer.h"
 #include "src/diagnostics/code-tracer.h"
 #include "src/utils/ostreams.h"

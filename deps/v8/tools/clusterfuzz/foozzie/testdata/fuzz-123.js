@@ -4,3 +4,6 @@
 
 // Empty test dummy.
 print("js-mutation: start generated test case");
+
+// For testing filters based on content.
+let b = %DontUseThis();

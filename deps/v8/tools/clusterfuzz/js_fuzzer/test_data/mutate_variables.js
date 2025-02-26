@@ -28,3 +28,5 @@ console.log(__v_1);
 console.log(__v_2);
 console.log(__v_3);
 __f_0();
+let __v_10 = __v_0;
+let {prop: __v_11} = {};

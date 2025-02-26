@@ -15,6 +15,9 @@ BUILTIN(Illegal) {
   UNREACHABLE();
 }
 
+// TODO(ishell): remove this unused builtin.
+BUILTIN(DummyBuiltin) { UNREACHABLE(); }
+
 BUILTIN(IllegalInvocationThrower) {
   HandleScope scope(isolate);
   THROW_NEW_ERROR_RETURN_FAILURE(
@@ -22,6 +25,11 @@ BUILTIN(IllegalInvocationThrower) {
 }
 
 BUILTIN(EmptyFunction) { return ReadOnlyRoots(isolate).undefined_value(); }
+
+// TODO(366374966): remove this second version of EmptyFunction once the
+// CPP macro becomes the source of truth for the builtin's formal parameter
+// count.
+BUILTIN(EmptyFunction1) { return ReadOnlyRoots(isolate).undefined_value(); }
 
 BUILTIN(UnsupportedThrower) {
   HandleScope scope(isolate);

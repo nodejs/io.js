@@ -59,6 +59,10 @@ bool PrivateHandleAccessor::ParseFrom(CommandLineFlag& flag,
   return flag.ParseFrom(value, set_mode, source, error);
 }
 
+absl::string_view PrivateHandleAccessor::TypeName(const CommandLineFlag& flag) {
+  return flag.TypeName();
+}
+
 }  // namespace flags_internal
 ABSL_NAMESPACE_END
 }  // namespace absl

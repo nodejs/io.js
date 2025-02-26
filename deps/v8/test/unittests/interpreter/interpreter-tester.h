@@ -22,12 +22,14 @@ namespace interpreter {
 
 template <class... A>
 static MaybeHandle<Object> CallInterpreter(Isolate* isolate,
-                                           Handle<JSFunction> function,
-                                           Handle<Object> receiver, A... args) {
+                                           DirectHandle<JSFunction> function,
+                                           DirectHandle<Object> receiver,
+                                           A... args) {
   // Pad the array with an empty handle to ensure that argv size is at least 1.
   // It avoids MSVC error C2466.
-  Handle<Object> argv[] = {args..., Handle<Object>()};
-  return Execution::Call(isolate, function, receiver, sizeof...(args), argv);
+  DirectHandle<Object> arguments[] = {args..., DirectHandle<Object>()};
+  return Execution::Call(isolate, function, receiver,
+                         {arguments, sizeof...(args)});
 }
 
 template <class... A>
@@ -65,7 +67,7 @@ class InterpreterCallableWithReceiver : public InterpreterCallable<A...> {
   InterpreterCallableWithReceiver(Isolate* isolate, Handle<JSFunction> function)
       : InterpreterCallable<A...>(isolate, function) {}
 
-  MaybeHandle<Object> operator()(Handle<Object> receiver, A... args) {
+  MaybeHandle<Object> operator()(DirectHandle<Object> receiver, A... args) {
     return CallInterpreter(this->isolate_, this->function_, receiver, args...);
   }
 };
@@ -113,7 +115,7 @@ class InterpreterTester {
 
   Local<Message> CheckThrowsReturnMessage();
 
-  static Handle<Object> NewObject(const char* script);
+  static Handle<JSAny> NewObject(const char* script);
 
   static DirectHandle<String> GetName(Isolate* isolate, const char* name);
 
@@ -171,7 +173,8 @@ class InterpreterTester {
       is_compiled_scope = function->shared()->is_compiled_scope(isolate_);
     }
     if (HasFeedbackMetadata()) {
-      function->set_raw_feedback_cell(isolate_->heap()->many_closures_cell());
+      function->set_raw_feedback_cell(
+          *isolate_->factory()->many_closures_cell());
       // Set the raw feedback metadata to circumvent checks that we are not
       // overwriting existing metadata.
       function->shared()->set_raw_outer_scope_info_or_feedback_metadata(

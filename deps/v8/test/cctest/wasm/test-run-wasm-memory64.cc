@@ -22,12 +22,12 @@ class Memory64Runner : public WasmRunner<ReturnType, ParamTypes...> {
 
   template <typename T>
   T* AddMemoryElems(uint32_t count) {
-    return this->builder().template AddMemoryElems<T>(count, kMemory64);
+    return this->builder().template AddMemoryElems<T>(count, AddressType::kI64);
   }
 
   uint8_t* AddMemory(uint32_t size, size_t max_size,
                      SharedFlag shared = SharedFlag::kNotShared) {
-    return this->builder().AddMemory(size, shared, kMemory64, max_size);
+    return this->builder().AddMemory(size, shared, AddressType::kI64, max_size);
   }
 };
 
@@ -82,8 +82,8 @@ WASM_EXEC_TEST(InitExpression) {
               'c')                            // data bytes
   };
 
-  testing::CompileAndInstantiateForTesting(
-      isolate, &thrower, ModuleWireBytes(data, data + arraysize(data)));
+  testing::CompileAndInstantiateForTesting(isolate, &thrower,
+                                           base::VectorOf(data));
   if (thrower.error()) {
     Print(*thrower.Reify());
     FATAL("compile or instantiate error");

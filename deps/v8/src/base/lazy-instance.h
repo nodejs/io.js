@@ -94,8 +94,8 @@ struct LeakyInstanceTrait {
 
 template <typename T>
 struct StaticallyAllocatedInstanceTrait {
-  using StorageType =
-      typename std::aligned_storage<sizeof(T), alignof(T)>::type;
+  using StorageType = char[sizeof(T)];
+  using AlignmentType = T;
 
   static T* MutableInstance(StorageType* storage) {
     return reinterpret_cast<T*>(storage);
@@ -111,6 +111,7 @@ struct StaticallyAllocatedInstanceTrait {
 template <typename T>
 struct DynamicallyAllocatedInstanceTrait {
   using StorageType = T*;
+  using AlignmentType = T*;
 
   static T* MutableInstance(StorageType* storage) {
     return *storage;
@@ -164,6 +165,7 @@ template <typename T, typename AllocationTrait, typename CreateTrait,
 struct LazyInstanceImpl {
  public:
   using StorageType = typename AllocationTrait::StorageType;
+  using AlignmentType = typename AllocationTrait::AlignmentType;
 
  private:
   static void InitInstance(void* storage) {
@@ -187,10 +189,7 @@ struct LazyInstanceImpl {
   }
 
   mutable OnceType once_;
-  // Note that the previous field, OnceType, is an AtomicWord which guarantees
-  // 4-byte alignment of the storage field below. If compiling with GCC (>4.2),
-  // the LAZY_ALIGN macro above will guarantee correctness for any alignment.
-  mutable StorageType storage_;
+  alignas(AlignmentType) mutable StorageType storage_;
 };
 
 
@@ -232,16 +231,16 @@ class LeakyObject {
  public:
   template <typename... Args>
   explicit LeakyObject(Args&&... args) {
-    new (&storage_) T(std::forward<Args>(args)...);
+    new (storage_) T(std::forward<Args>(args)...);
   }
 
   LeakyObject(const LeakyObject&) = delete;
   LeakyObject& operator=(const LeakyObject&) = delete;
 
-  T* get() { return reinterpret_cast<T*>(&storage_); }
+  T* get() { return reinterpret_cast<T*>(storage_); }
 
  private:
-  typename std::aligned_storage<sizeof(T), alignof(T)>::type storage_;
+  alignas(T) char storage_[sizeof(T)];
 };
 
 // Define a function which returns a pointer to a lazily initialized and never

@@ -29,6 +29,7 @@ class Counters;
 namespace wasm {
 
 class NativeModule;
+struct UnpublishedWasmCode;
 class WasmCode;
 class WasmEngine;
 class WasmError;
@@ -36,16 +37,6 @@ class WasmError;
 enum DynamicTiering : bool {
   kDynamicTiering = true,
   kNoDynamicTiering = false
-};
-
-// Further information about a location for a deopt: A call_ref can either be
-// just an inline call (that didn't cause a deopt) with a deopt happening within
-// the inlinee or it could be the deopt point itself. This changes whether the
-// relevant stackstate is the one before the call or after the call.
-enum class LocationKindForDeopt : uint8_t {
-  kNone,
-  kEagerDeopt,   // The location is the point of an eager deopt.
-  kInlinedCall,  // The loation is an inlined call, not a deopt.
 };
 
 // The Arm architecture does not specify the results in memory of
@@ -75,15 +66,12 @@ struct CompilationEnv {
 
   std::atomic<const MachineSignature*>* fast_api_signatures;
 
-  uint32_t deopt_info_bytecode_offset = std::numeric_limits<uint32_t>::max();
-  LocationKindForDeopt deopt_location_kind = LocationKindForDeopt::kNone;
-
   // Create a {CompilationEnv} object for compilation. The caller has to ensure
   // that the {WasmModule} pointer stays valid while the {CompilationEnv} is
   // being used.
   static inline CompilationEnv ForModule(const NativeModule* native_module);
 
-  static constexpr CompilationEnv NoModuleAllFeatures();
+  static constexpr CompilationEnv NoModuleAllFeaturesForTesting();
 
  private:
   constexpr CompilationEnv(
@@ -112,7 +100,6 @@ class WireBytesStorage {
 // {kFinishedBaselineCompilation}.
 enum class CompilationEvent : uint8_t {
   kFinishedBaselineCompilation,
-  kFinishedExportWrappers,
   kFinishedCompilationChunk,
   kFailedCompilation,
 };
@@ -142,6 +129,12 @@ class V8_EXPORT_PRIVATE CompilationEventCallback {
 class V8_EXPORT_PRIVATE CompilationState {
  public:
   ~CompilationState();
+
+  // Override {operator delete} to avoid implicit instantiation of {operator
+  // delete} with {size_t} argument. The {size_t} argument would be incorrect.
+  void operator delete(void* ptr) { ::operator delete(ptr); }
+
+  CompilationState() = delete;
 
   void InitCompileJob();
 
@@ -178,16 +171,17 @@ class V8_EXPORT_PRIVATE CompilationState {
 
   DynamicTiering dynamic_tiering() const;
 
-  // Override {operator delete} to avoid implicit instantiation of {operator
-  // delete} with {size_t} argument. The {size_t} argument would be incorrect.
-  void operator delete(void* ptr) { ::operator delete(ptr); }
-
-  CompilationState() = delete;
-
   size_t EstimateCurrentMemoryConsumption() const;
 
   std::vector<WasmCode*> PublishCode(
-      base::Vector<std::unique_ptr<WasmCode>> unpublished_code);
+      base::Vector<UnpublishedWasmCode> unpublished_code);
+
+  WasmDetectedFeatures detected_features() const;
+
+  // Update the set of detected features. Returns any features that were not
+  // detected previously.
+  V8_WARN_UNUSED_RESULT WasmDetectedFeatures
+      UpdateDetectedFeatures(WasmDetectedFeatures);
 
  private:
   // NativeModule is allowed to call the static {New} method.
@@ -198,7 +192,7 @@ class V8_EXPORT_PRIVATE CompilationState {
   // certain scopes.
   static std::unique_ptr<CompilationState> New(
       const std::shared_ptr<NativeModule>&, std::shared_ptr<Counters>,
-      DynamicTiering dynamic_tiering);
+      DynamicTiering dynamic_tiering, WasmDetectedFeatures detected_features);
 };
 
 }  // namespace wasm

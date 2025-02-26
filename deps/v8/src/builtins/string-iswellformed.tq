@@ -13,6 +13,7 @@ namespace string {
 extern macro StringBuiltinsAssembler::HasUnpairedSurrogate(String):
     bool labels Indirect;
 
+@incrementUseCounter('v8::Isolate::kStringWellFormed')
 transitioning javascript builtin StringPrototypeIsWellFormed(
     js-implicit context: NativeContext, receiver: JSAny)(
     ...arguments): Boolean {
@@ -34,7 +35,7 @@ transitioning javascript builtin StringPrototypeIsWellFormed(
   // InstanceType. See
   // https://docs.google.com/document/d/15f-1c_Ysw3lvjy_Gx0SmmD9qeO8UuXuAbWIpWCnTDO8/
   const flat = Flatten(s);
-  if (flat.IsOneByteRepresentationUnderneath()) return True;
+  if (flat.IsOneByteRepresentation()) return True;
   try {
     const illFormed = HasUnpairedSurrogate(flat) otherwise Indirect;
     return illFormed ? False : True;

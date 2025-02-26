@@ -101,7 +101,9 @@ class PageMetadata : public MutablePageMetadata {
   void AllocateFreeListCategories();
   void ReleaseFreeListCategories();
 
-  ActiveSystemPages* active_system_pages() { return active_system_pages_; }
+  ActiveSystemPages* active_system_pages() {
+    return active_system_pages_.get();
+  }
 
   template <RememberedSetType remembered_set>
   void ClearTypedSlotsInFreeMemory(const TypedSlotSet::FreeRangesMap& ranges) {
@@ -125,14 +127,6 @@ class PageMetadata : public MutablePageMetadata {
  private:
   friend class MemoryAllocator;
 };
-
-// Validate our estimates on the header size.
-static_assert(sizeof(MemoryChunkMetadata) <=
-              MemoryChunkLayout::kMemoryChunkMetadataSize);
-static_assert(sizeof(MutablePageMetadata) <=
-              MemoryChunkLayout::kMutablePageMetadataSize);
-static_assert(sizeof(PageMetadata) <=
-              MemoryChunkLayout::kMutablePageMetadataSize);
 
 }  // namespace internal
 

@@ -57,7 +57,7 @@ class WasmJSLoweringReducer : public Next {
   }
 
  private:
-  OpIndex CreateFrameStateWithUpdatedBailoutId(OpIndex frame_state) {
+  OpIndex CreateFrameStateWithUpdatedBailoutId(V<FrameState> frame_state) {
     // Create new FrameState with the correct source position (the position of
     // the trap location).
     const FrameStateOp& frame_state_op =

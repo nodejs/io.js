@@ -4,100 +4,32 @@
 
 [
 [ALWAYS, {
-  'skip-stack-guard-page': [PASS, ['((arch == ppc64 or arch == s390 or arch == s390x) and simulator_run)', SKIP]],
-
-  # Missing rebase in the proposal repository.
-  'proposals/js-types/table': [FAIL],
-  'proposals/js-types/globals': [FAIL],
+  'skip-stack-guard-page': [PASS, ['((arch == ppc64 or arch == s390x) and simulator_run)', SKIP]],
 
   # Tests that need to run sequentially (e.g. due to memory consumption).
-  'simd_f32x4*': [PASS, HEAVY],
-  'simd_f64x2*': [PASS, HEAVY],
+  'simd/simd_f32x4*': [PASS, HEAVY],
+  'simd/simd_f64x2*': [PASS, HEAVY],
   'f32*': [PASS, HEAVY],
   'f64*': [PASS, HEAVY],
 
-  # TODO(https://crbug.com/364917766): Failing test after spec test update.
-  'proposals/memory64/ref_null': [FAIL],
-  'proposals/memory64/table': [FAIL],
-  'proposals/memory64/table_fill': [FAIL],
-  'proposals/memory64/table_get': [FAIL],
-  'proposals/memory64/table_grow': [FAIL],
-  'proposals/memory64/table_set': [FAIL],
-  'proposals/memory64/throw': [FAIL],
-  'proposals/memory64/throw_ref': [FAIL],
-  'proposals/memory64/try_table': [FAIL],
-
-  # The function-references spec tests haven't been updated to the final
-  # binary encoding. We don't care, because the GC tests are up to date and
-  # we'll ship both proposals together.
-  'proposals/function-references/*': [SKIP],
-
-  # These break with the GC proposal (because they check that certain modules
-  # don't validate that become valid with GC). The GC proposal will update them
-  # when it is merged into the main spec repository.
-  'data': [FAIL],
-  'proposals/extended-const/data': [FAIL],
-  'proposals/multi-memory/data': [FAIL],
-
-  # These break with the GC proposal (because they check that certain modules
-  # don't validate that become valid with GC). The GC proposal will update them
-  # when it is merged into the main spec repository.
-  # With the GC proposal global.get is a constant instruction, independent on
-  # the type of the global. In the main spec repository, only global.get of
-  # imported globals are allowed.
-  'elem': [FAIL],
-  'proposals/extended-const/elem': [FAIL],
-  'proposals/js-types/elem': [FAIL],
-  'proposals/multi-memory/elem': [FAIL],
-  'proposals/tail-call/elem': [FAIL],
-  'proposals/exception-handling/elem': [FAIL],
-  'proposals/js-promise-integration/elem': [FAIL],
-
-  'global': [FAIL],
-  'proposals/extended-const/global': [FAIL],
-
-  # These tests need to be rebased on the multi-memory proposal once it's
-  # merged into the main repository.
-  # "memory" tests that not more than one memory can be declared.
-  'memory': [FAIL],
-  'proposals/exception-handling/memory': [FAIL],
-  'proposals/extended-const/memory': [FAIL],
-  'proposals/gc/memory': [FAIL],
-  'proposals/js-promise-integration/memory': [FAIL],
-  'proposals/js-types/memory': [FAIL],
-  'proposals/tail-call/memory': [FAIL],
-  # "imports" tests that not more than one memory can be imported.
-  'imports': [FAIL],
-  'proposals/exception-handling/imports': [FAIL],
-  'proposals/extended-const/imports': [FAIL],
-  'proposals/gc/imports': [FAIL],
-  'proposals/js-promise-integration/imports': [FAIL],
-  'proposals/js-types/imports': [FAIL],
-  'proposals/tail-call/imports': [FAIL],
-  # "binary" tests that the byte for encoding the memory index is a single
-  # byte (and no LEB).
-  'binary': [FAIL],
-  'proposals/exception-handling/binary': [FAIL],
-  'proposals/extended-const/binary': [FAIL],
-  'proposals/gc/binary': [FAIL],
-  'proposals/js-promise-integration/binary': [FAIL],
-  'proposals/js-types/binary': [FAIL],
-  'proposals/tail-call/binary': [FAIL],
-
   # The test is incorrect as it exports a function with an exnref in the
   # signature, which is a runtime type error.
-  'proposals/exception-handling/ref_null': [FAIL]
+  'ref_null': [FAIL],
+
+  # TODO(clemensb/evih): Resolve https://github.com/WebAssembly/memory64/pull/103#issuecomment-2548870034
+  'proposals/memory64/memory64': [FAIL],
+  'proposals/memory64/table': [FAIL],
 }],  # ALWAYS
 
 ['arch == arm and not simulator_run', {
   # See https://crbug.com/v8/10938 denormals not handled correctly on ARM.
-  'simd_f32x4': [PASS, FAIL],
-  'simd_f32x4_arith': [PASS, FAIL],
-  'simd_f32x4_cmp': [PASS, FAIL],
+  'simd/simd_f32x4': [PASS, FAIL],
+  'simd/simd_f32x4_arith': [PASS, FAIL],
+  'simd/simd_f32x4_cmp': [PASS, FAIL],
   # This test only has 1 problematic use of f32x4.min and f32x4.div, consider
   # removing it from upstream, then we can run this test.
-  'simd_splat' : [PASS, FAIL],
-  'simd_f32x4_pmin_pmax' : [PASS, FAIL],
+  'simd/simd_splat' : [PASS, FAIL],
+  'simd/simd_f32x4_pmin_pmax' : [PASS, FAIL],
 }],  # arch == arm and not simulator_run
 
 ['arch == mips64el or arch == mips64', {
@@ -106,33 +38,6 @@
   'float_exprs': [SKIP],
   'f32': [SKIP],
   'f64': [SKIP],
-  'f32_bitwise': [SKIP],
-  'f64_bitwise': [SKIP],
-  'proposals/reference-types/conversions':  [SKIP],
-  'proposals/bulk-memory-operations/conversions': [SKIP],
-  'proposals/js-types/f32': [SKIP],
-  'proposals/js-types/f64': [SKIP],
-  'proposals/js-types/f32_bitwise': [SKIP],
-  'proposals/js-types/f64_bitwise': [SKIP],
-  'proposals/js-types/float_exprs': [SKIP],
-  'proposals/js-types/float_misc': [SKIP],
-  'proposals/js-types/conversions': [SKIP],
-  'proposals/bulk-memory-operations/f32': [SKIP],
-  'proposals/bulk-memory-operations/f64': [SKIP],
-  'proposals/reference-types/f32': [SKIP],
-  'proposals/reference-types/f64': [SKIP],
-  'proposals/bulk-memory-operations/float_misc': [SKIP],
-  'proposals/reference-types/float_misc': [SKIP],
-  'proposals/tail-call/f32': [SKIP],
-  'proposals/tail-call/f32_bitwise': [SKIP],
-  'proposals/tail-call/f64': [SKIP],
-  'proposals/tail-call/f64_bitwise': [SKIP],
-  'proposals/tail-call/float_exprs': [SKIP],
-  'proposals/tail-call/float_misc': [SKIP],
-  'proposals/tail-call/conversions': [SKIP],
-  'proposals/gc/float_misc': [SKIP],
-  'proposals/extended-const/float_misc': [SKIP],
-  'proposals/exception-handling/float_misc': [SKIP],
 
   # MIPS64 doesn't support JSPI yet.
   'proposals/js-promise-integration/*': [SKIP],
@@ -147,13 +52,11 @@
 ['(arch == mips64el or arch == loong64) and simulator_run', {
   # These tests need larger stack size on simulator.
   'skip-stack-guard-page': '--sim-stack-size=8192',
-  'proposals/tail-call/skip-stack-guard-page': '--sim-stack-size=8192',
 }],  # '(arch == mips64el or arch == loong64) and simulator_run'
 
 ['arch == riscv64', {
    # These tests need larger stack size on simulator.
    'skip-stack-guard-page': '--sim-stack-size=8192',
-   'proposals/tail-call/skip-stack-guard-page': '--sim-stack-size=8192',
 }],  # 'arch == riscv64'
 
 
@@ -161,7 +64,6 @@
 ['arch == riscv32', {
    # These tests need larger stack size on simulator.
    'skip-stack-guard-page': '--sim-stack-size=8192',
-   'proposals/tail-call/skip-stack-guard-page': '--sim-stack-size=8192',
 
    'func': ['variant == stress', SKIP],
 }],  # 'arch == riscv32'
@@ -170,35 +72,15 @@
   # These tests fail because ppc float min and max doesn't convert sNaN to qNaN.
   'f32': [SKIP],
   'f64': [SKIP],
-  'proposals/js-types/f32': [SKIP],
-  'proposals/js-types/f64': [SKIP],
-  'proposals/bulk-memory-operations/f32': [SKIP],
-  'proposals/bulk-memory-operations/f64': [SKIP],
-  'proposals/reference-types/f32': [SKIP],
-  'proposals/reference-types/f64': [SKIP],
-  'proposals/tail-call/f32': [SKIP],
-  'proposals/tail-call/f64': [SKIP],
   # This test fails because ppc float to double doesn't convert sNaN to qNaN.
   'conversions': [SKIP],
-  'proposals/js-types/conversions': [SKIP],
-  'proposals/bulk-memory-operations/conversions': [SKIP],
-  'proposals/reference-types/conversions':  [SKIP],
-  'proposals/tail-call/conversions':  [SKIP],
 }],  # 'arch == ppc64'
 
-['arch == s390 or arch == s390x', {
-  # These tests fail because s390 float min and max doesn't convert sNaN to qNaN.
+['arch == s390x', {
+  # These tests fail because s390x float min and max doesn't convert sNaN to qNaN.
   'f32': [SKIP],
   'f64': [SKIP],
-  'proposals/js-types/f32': [SKIP],
-  'proposals/js-types/f64': [SKIP],
-  'proposals/bulk-memory-operations/f32': [SKIP],
-  'proposals/bulk-memory-operations/f64': [SKIP],
-  'proposals/reference-types/f32': [SKIP],
-  'proposals/reference-types/f64': [SKIP],
-  'proposals/tail-call/f32': [SKIP],
-  'proposals/tail-call/f64': [SKIP],
-}],  # 'arch == s390 or arch == s390x'
+}],  # 'arch == s390x'
 
 ##############################################################################
 # TODO(v8:7777): Change this once wasm is supported in jitless mode.
@@ -214,14 +96,15 @@
 ##############################################################################
 ['no_simd_hardware == True', {
   'linking': [SKIP],
-  'proposals/js-types/linking': [SKIP],
 
+  'relaxed-simd*': [SKIP],
   'simd*': [SKIP],
   'proposals/exception-handling/simd*': [SKIP],
   'proposals/extended-const/simd*': [SKIP],
   'proposals/gc/simd*': [SKIP],
   'proposals/js-promise-integration/simd*': [SKIP],
   'proposals/js-types/simd*': [SKIP],
+  'proposals/memory64/relaxed-simd*': [SKIP],
   'proposals/memory64/simd*': [SKIP],
   'proposals/multi-memory/simd*': [SKIP],
   'proposals/tail-call/simd*': [SKIP],

@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 
 namespace collections {
-
 // https://tc39.es/proposal-set-methods/#sec-set.prototype.difference
+@incrementUseCounter('v8::Isolate::kSetMethods')
 transitioning javascript builtin SetPrototypeDifference(
     js-implicit context: NativeContext, receiver: JSAny)(other: JSAny): JSSet {
   const methodName: constexpr string = 'Set.prototype.difference';
@@ -87,11 +87,11 @@ transitioning javascript builtin SetPrototypeDifference(
     // 6. If thisSize ≤ otherRec.[[Size]], then
     if (Convert<Number>(thisSize) <= otherRec.size) {
       // a. Let index be 0.
-      let thisIter = collections::NewOrderedHashSetIterator(table.GetTable());
+      let thisIter = collections::NewOrderedHashSetIterator(resultSetData);
 
       // b. Repeat, while index < thisSize,
       while (true) {
-        // i. Let e be O.[[SetData]][index].
+        // i. Let e be O.[[resultSetData]][index].
         const key = thisIter.Next() otherwise Done;
 
         // ii. Set index to index + 1.

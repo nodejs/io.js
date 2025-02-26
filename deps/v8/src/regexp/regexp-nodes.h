@@ -148,7 +148,7 @@ class RegExpNode : public ZoneObject {
   // not at the start of the input.  In this case anchored branches will always
   // fail and can be ignored when determining how many characters are consumed
   // on success.  If this node has not been analyzed yet, EatsAtLeast returns 0.
-  int EatsAtLeast(bool not_at_start);
+  uint32_t EatsAtLeast(bool not_at_start);
   // Returns how many characters this node must consume in order to succeed,
   // given that this is a LoopChoiceNode whose counter register is in a
   // newly-initialized state at the current position in the generated code. For

@@ -336,6 +336,7 @@ Reject(JSAny) {
 }
 
 // https://tc39.es/ecma262/#sec-promise.any
+@incrementUseCounter('v8::Isolate::kPromiseAny')
 transitioning javascript builtin PromiseAny(
     js-implicit context: Context, receiver: JSAny)(iterable: JSAny): JSAny {
   const nativeContext = LoadNativeContext(context);

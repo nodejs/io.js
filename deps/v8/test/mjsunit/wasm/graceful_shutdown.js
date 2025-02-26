@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm --no-wait-for-background-tasks
+// Flags: --no-wait-for-background-tasks
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 

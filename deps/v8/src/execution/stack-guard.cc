@@ -4,6 +4,7 @@
 
 #include "src/execution/stack-guard.h"
 
+#include "src/base/atomicops.h"
 #include "src/compiler-dispatcher/optimizing-compile-dispatcher.h"
 #include "src/execution/interrupts-scope.h"
 #include "src/execution/isolate.h"
@@ -35,10 +36,14 @@ void StackGuard::update_interrupt_requests_and_stack_limits(
   DCHECK_NOT_NULL(isolate_);
   if (has_pending_interrupts(lock)) {
     thread_local_.set_jslimit(kInterruptLimit);
+#ifdef USE_SIMULATOR
     thread_local_.set_climit(kInterruptLimit);
+#endif
   } else {
     thread_local_.set_jslimit(thread_local_.real_jslimit_);
+#ifdef USE_SIMULATOR
     thread_local_.set_climit(thread_local_.real_climit_);
+#endif
   }
   for (InterruptLevel level :
        std::array{InterruptLevel::kNoGC, InterruptLevel::kNoHeapWrites,
@@ -54,37 +59,34 @@ void StackGuard::SetStackLimit(uintptr_t limit) {
                         SimulatorStack::JsLimitFromCLimit(isolate_, limit));
 }
 
-void StackGuard::SetStackLimitForStackSwitching(uintptr_t limit) {
-  ExecutionAccess access(isolate_);
-  uintptr_t climit = SimulatorStack::ShouldSwitchCStackForWasmStackSwitching()
-                         ? limit
-                         : thread_local_.real_climit_;
-  SetStackLimitInternal(access, climit, limit);
-}
-
 void StackGuard::SetStackLimitInternal(const ExecutionAccess& lock,
                                        uintptr_t limit, uintptr_t jslimit) {
-  // If secondary stack SP is not 0, it means we are currently switching
-  // to the central stack from a secondary stack.
-  if (isolate_->thread_local_top()->secondary_stack_sp_ != 0) {
-    DCHECK(isolate_->thread_local_top()->is_on_central_stack_flag_);
-    // Update only logical stack limit here.
-    // It will be synchronized on the exit from CEntry.
-    isolate_->thread_local_top()->secondary_stack_limit_ = jslimit;
-    return;
-  }
   // If the current limits are special (e.g. due to a pending interrupt) then
   // leave them alone.
   if (thread_local_.jslimit() == thread_local_.real_jslimit_) {
     thread_local_.set_jslimit(jslimit);
   }
+  thread_local_.real_jslimit_ = jslimit;
+#ifdef USE_SIMULATOR
   if (thread_local_.climit() == thread_local_.real_climit_) {
     thread_local_.set_climit(limit);
   }
   thread_local_.real_climit_ = limit;
-  thread_local_.real_jslimit_ = jslimit;
+#endif
 }
 
+void StackGuard::SetStackLimitForStackSwitching(uintptr_t limit) {
+  // Try to compare and swap the new jslimit without the ExecutionAccess lock.
+  uintptr_t old_jslimit = base::Relaxed_CompareAndSwap(
+      &thread_local_.jslimit_, thread_local_.real_jslimit_, limit);
+  USE(old_jslimit);
+  DCHECK_IMPLIES(old_jslimit != thread_local_.real_jslimit_,
+                 old_jslimit == kInterruptLimit);
+  // Either way, set the real limit. This does not require synchronization.
+  thread_local_.real_jslimit_ = limit;
+}
+
+#ifdef USE_SIMULATOR
 void StackGuard::AdjustStackLimitForSimulator() {
   ExecutionAccess access(isolate_);
   uintptr_t climit = thread_local_.real_climit_;
@@ -95,6 +97,7 @@ void StackGuard::AdjustStackLimitForSimulator() {
     thread_local_.set_jslimit(jslimit);
   }
 }
+#endif
 
 void StackGuard::PushInterruptsScope(InterruptsScope* scope) {
   ExecutionAccess access(isolate_);
@@ -229,7 +232,7 @@ char* StackGuard::RestoreStackGuard(char* from) {
 void StackGuard::FreeThreadResources() {
   Isolate::PerIsolateThreadData* per_thread =
       isolate_->FindOrAllocatePerThreadDataForThisThread();
-  per_thread->set_stack_limit(thread_local_.real_climit_);
+  per_thread->set_stack_limit(real_climit());
 }
 
 void StackGuard::ThreadLocal::Initialize(Isolate* isolate,
@@ -239,8 +242,10 @@ void StackGuard::ThreadLocal::Initialize(Isolate* isolate,
   uintptr_t limit = GetCurrentStackPosition() - kLimitSize;
   real_jslimit_ = SimulatorStack::JsLimitFromCLimit(isolate, limit);
   set_jslimit(SimulatorStack::JsLimitFromCLimit(isolate, limit));
+#ifdef USE_SIMULATOR
   real_climit_ = limit;
   set_climit(limit);
+#endif
   interrupt_scopes_ = nullptr;
   interrupt_flags_ = 0;
 }

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --wasm-deopt --turboshaft-wasm --allow-natives-syntax --no-jit-fuzzing
+// Flags: --wasm-deopt --allow-natives-syntax --no-jit-fuzzing
 // Flags: --wasm-inlining-ignore-call-counts --liftoff
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');

@@ -39,7 +39,7 @@ def CherryPickWithMessage(host,
     destination.
     """
   path = 'changes/%s/revisions/%s/cherrypick' % (change, revision)
-  body = {'destination': destination}
+  body = {'destination': destination, 'allow_conflicts': True}
   if message is not None:
     body['message'] = message
   conn = gerrit_util.CreateHttpConn(host, path, reqtype='POST', body=body)
@@ -113,22 +113,44 @@ def main(sys_args=None):
   # Create a cherry pick commit from the original commit.
   cherry_pick = CherryPickWithMessage(
       GERRIT_HOST, revision, branch_rev, message="\n".join(commit_msg))
+  print(cherry_pick)
   # Use the cherry pick number to refer to it, rather than the 'id', because
   # cherry picks end up having the same Change-Id as the original CL.
   cherry_pick_id = cherry_pick['_number']
   print(
       f"Created cherry-pick: https://{GERRIT_HOST}/c/{cherry_pick['_number']}")
 
+  has_conflicts = cherry_pick['contains_git_conflicts']
+  if has_conflicts:
+    print("==================================================")
+    print("WARNING: Cherry-pick created with merge conflicts.")
+    print("Resolve locally with:")
+    print(
+        f"  git cl patch --branch merge-{cherry_pick_id} --force {cherry_pick_id}"
+    )
+    print(
+        f"  git fetch --refmap='' origin refs/branch-heads/{branch}:refs/remotes/branch-heads/{branch}"
+    )
+    print(f"  git branch --set-upstream-to branch-heads/{branch}")
+    print("==================================================")
+
   # Set Auto-Submit +1
   print("Setting 'Auto-Submit +1'...")
   try:
     gerrit_util.SetReview(
-        GERRIT_HOST, cherry_pick_id, labels={"Auto-Submit": 1})
+        GERRIT_HOST,
+        cherry_pick_id,
+        labels={"Auto-Submit": 1},
+        ready=not has_conflicts)
   except:
     logging.warning("Could not set Auto-Submit +1")
 
   print(f"Adding {','.join(reviewers)} as reviewer(s)...")
-  gerrit_util.AddReviewers(GERRIT_HOST, cherry_pick_id, reviewers=reviewers)
+  gerrit_util.AddReviewers(
+      GERRIT_HOST,
+      cherry_pick_id,
+      reviewers=reviewers,
+      notify=not has_conflicts)
 
   print("Done.")
 

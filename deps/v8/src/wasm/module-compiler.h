@@ -54,26 +54,24 @@ struct WasmModule;
 V8_EXPORT_PRIVATE
 std::shared_ptr<NativeModule> CompileToNativeModule(
     Isolate* isolate, WasmEnabledFeatures enabled_features,
-    CompileTimeImports compile_imports, ErrorThrower* thrower,
-    std::shared_ptr<const WasmModule> module, ModuleWireBytes wire_bytes,
-    int compilation_id, v8::metrics::Recorder::ContextId context_id,
-    ProfileInformation* pgo_info);
-
-V8_EXPORT_PRIVATE
-void CompileJsToWasmWrappers(Isolate* isolate, const WasmModule* module);
+    WasmDetectedFeatures detected_features, CompileTimeImports compile_imports,
+    ErrorThrower* thrower, std::shared_ptr<const WasmModule> module,
+    base::OwnedVector<const uint8_t> wire_bytes, int compilation_id,
+    v8::metrics::Recorder::ContextId context_id, ProfileInformation* pgo_info);
 
 V8_EXPORT_PRIVATE WasmError ValidateAndSetBuiltinImports(
     const WasmModule* module, base::Vector<const uint8_t> wire_bytes,
-    const CompileTimeImports& imports);
+    const CompileTimeImports& imports, WasmDetectedFeatures* detected);
 
 // Compiles the wrapper for this (kind, sig) pair and sets the corresponding
 // cache entry. Assumes the key already exists in the cache but has not been
 // compiled yet.
 V8_EXPORT_PRIVATE
-WasmCode* CompileImportWrapperForTest(NativeModule* native_module,
-                                      Counters* counters, ImportCallKind kind,
-                                      const FunctionSig* sig,
-                                      uint32_t canonical_type_index,
+WasmCode* CompileImportWrapperForTest(Isolate* isolate,
+                                      NativeModule* native_module,
+                                      ImportCallKind kind,
+                                      const CanonicalSig* sig,
+                                      CanonicalTypeIndex type_index,
                                       int expected_arity, Suspend suspend);
 
 // Triggered by the WasmCompileLazy builtin. The return value indicates whether
@@ -97,6 +95,15 @@ V8_EXPORT_PRIVATE void TierUpNowForTesting(Isolate*,
 // Same, but all functions.
 V8_EXPORT_PRIVATE void TierUpAllForTesting(Isolate*,
                                            Tagged<WasmTrustedInstanceData>);
+
+V8_EXPORT_PRIVATE void InitializeCompilationForTesting(
+    NativeModule* native_module);
+
+// Publish a set of detected features in a given isolate. If this is the initial
+// compilation, also the "kWasmModuleCompilation" use counter is incremented to
+// serve as a baseline for the other detected features.
+void PublishDetectedFeatures(WasmDetectedFeatures, Isolate*,
+                             bool is_initial_compilation);
 
 // Encapsulates all the state and steps of an asynchronous compilation.
 // An asynchronous compile job consists of a number of tasks that are executed
@@ -126,7 +133,7 @@ class AsyncCompileJob {
 
   Isolate* isolate() const { return isolate_; }
 
-  Handle<NativeContext> context() const { return native_context_; }
+  DirectHandle<NativeContext> context() const { return native_context_; }
   v8::metrics::Recorder::ContextId context_id() const { return context_id_; }
 
  private:
@@ -215,6 +222,7 @@ class AsyncCompileJob {
   Isolate* const isolate_;
   const char* const api_method_name_;
   const WasmEnabledFeatures enabled_features_;
+  WasmDetectedFeatures detected_features_;
   CompileTimeImports compile_imports_;
   const DynamicTiering dynamic_tiering_;
   base::TimeTicks start_time_;
@@ -224,13 +232,13 @@ class AsyncCompileJob {
   // Reference to the wire bytes (held in {bytes_copy_} or as part of
   // {native_module_}).
   ModuleWireBytes wire_bytes_;
-  Handle<NativeContext> native_context_;
-  Handle<NativeContext> incumbent_context_;
+  IndirectHandle<NativeContext> native_context_;
+  IndirectHandle<NativeContext> incumbent_context_;
   v8::metrics::Recorder::ContextId context_id_;
   v8::metrics::WasmModuleDecoded metrics_event_;
   const std::shared_ptr<CompilationResultResolver> resolver_;
 
-  Handle<WasmModuleObject> module_object_;
+  IndirectHandle<WasmModuleObject> module_object_;
   std::shared_ptr<NativeModule> native_module_;
 
   std::unique_ptr<CompileStep> step_;

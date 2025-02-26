@@ -10,9 +10,12 @@ namespace v8 {
 namespace internal {
 
 void SharedHeapDeserializer::DeserializeIntoIsolate() {
-  // Don't deserialize into client Isolates. If there are client Isolates, the
-  // shared heap object cache should already be populated.
-  if (isolate()->has_shared_space() && !isolate()->is_shared_space_isolate()) {
+  // Don't deserialize into isolates that don't own their string table. If there
+  // are client Isolates, the shared heap object cache should already be
+  // populated.
+  // TODO(372493838): The shared heap object cache can only contain strings.
+  // Update name to reflect this.
+  if (!isolate()->OwnsStringTables()) {
     DCHECK(!isolate()->shared_heap_object_cache()->empty());
     return;
   }

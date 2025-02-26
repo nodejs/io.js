@@ -30,7 +30,9 @@
   'ParsingTest.ParserSync': [PASS, NO_VARIANTS],
 
   # Slow tests.
+  'Mutex.SharedMutexThreadsFuzz': [PASS, SLOW],
   'ParsingTest.ObjectRestNegativeTestSlow': [PASS, ['mode == debug', SKIP]],
+  'SignalAndMutexTest.SignalsPlusSharedMutexes': [PASS, SLOW],
 
   # Tests that need to run sequentially (e.g. due to memory consumption).
   'LogAllTest.LogAll': [PASS, SLOW, HEAVY],
@@ -335,5 +337,24 @@
   # Too slow tests.
   'LogAllTest.LogAll': [SKIP],
 }],  # 'clang_coverage and mode == debug'
+
+['device_type == bullhead', {
+  # https://crbug.com/374300658
+  'SandboxTest.*': [SKIP],
+}],  # 'device_type == bullhead'
+
+##############################################################################
+['variant == stress_pinning_scavenger', {
+  'ExperimentalFlagImplication/ExperimentalFlagImplicationTest.TestExperimentalNotEnabled/*': [SKIP],
+}],  # variant == stress_pinning_scavenger
+
+##############################################################################
+['simulator_run', {
+  # Do not execute tests which abort the process in the simulator; the
+  # simulator will start the interactive debugger and then timeout because
+  # there is no input.
+  'MacroAssemblerTest.TestCheck': [SKIP],
+  'MacroAssemblerTest.TestHardAbort': [SKIP],
+}],  # simulator_run
 
 ]

@@ -102,7 +102,7 @@ void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
         RememberedSet<OLD_TO_NEW>::template Iterate<AccessMode::NON_ATOMIC>(
             slot_set_, chunk_, callback, SlotSet::FREE_EMPTY_BUCKETS);
     if (slot_count == 0) {
-      SlotSet::Delete(slot_set_, chunk_->buckets());
+      SlotSet::Delete(slot_set_);
       slot_set_ = nullptr;
     }
   }
@@ -112,7 +112,7 @@ void YoungGenerationRememberedSetsMarkingWorklist::MarkingItem::
             AccessMode::NON_ATOMIC>(background_slot_set_, chunk_, callback,
                                     SlotSet::FREE_EMPTY_BUCKETS);
     if (slot_count == 0) {
-      SlotSet::Delete(background_slot_set_, chunk_->buckets());
+      SlotSet::Delete(background_slot_set_);
       background_slot_set_ = nullptr;
     }
   }

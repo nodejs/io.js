@@ -12,7 +12,7 @@
 //   See the License for the specific language governing permissions and
 //   limitations under the License.
 
-#include "time_zone_fixed.h"
+#include "absl/time/internal/cctz/src/time_zone_fixed.h"
 
 #include <algorithm>
 #include <cassert>

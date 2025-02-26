@@ -69,9 +69,7 @@ PipelineStatisticsBase::PipelineStatisticsBase(
     : outer_zone_(outer_zone),
       zone_stats_(zone_stats),
       compilation_stats_(compilation_stats),
-      code_kind_(code_kind),
-      phase_kind_name_(nullptr),
-      phase_name_(nullptr) {
+      code_kind_(code_kind) {
   total_stats_.Begin(this);
 }
 

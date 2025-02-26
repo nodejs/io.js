@@ -4,9 +4,8 @@
 
 // Flags: --allow-natives-syntax
 // Enable memory64 so we can also test the ArrayBuffer of a 16GB Wasm memory.
-// Flags: --experimental-wasm-memory64
 
-// Flags: --js-float16array
+// Flags: --js-staging
 
 // This file tests all TypedArray method that an be tested without iterating the
 // whole TypedArray.
@@ -28,9 +27,9 @@ function makeWasmMemory(length) {
   const kWasmPageSize = 64 * 1024;
   assertTrue(kHasWasm);
   assertEquals(0, length % kWasmPageSize);
-  let num_pages = length / kWasmPageSize;
+  let num_pages = BigInt(length / kWasmPageSize);
   let wasm_mem = new WebAssembly.Memory(
-      {initial: num_pages, maximum: num_pages, index: 'i64'});
+      {initial: num_pages, maximum: num_pages, address: 'i64'});
   return wasm_mem.buffer;
 }
 
@@ -55,6 +54,13 @@ const kTestConfigs = [
   [Int8Array, num_elems => new Int8Array(makeWasmMemory(num_elems)), 16*GB]
 ] : []);
 
+function isOom(e) {
+  return (e instanceof RangeError) &&
+          (e.message.includes('Out of memory') ||
+           e.message.includes('could not allocate memory') ||
+           e.message.includes('Array buffer allocation failed'));
+}
+
 function ignoreOOM(fn) {
   try {
     return fn();
@@ -62,12 +68,8 @@ function ignoreOOM(fn) {
     // Uncomment the next line in local debugging to ensure that the tests
     // actually run.
     //throw e;
-    const is_oom = (e instanceof RangeError) &&
-        (e.message.includes('Out of memory') ||
-         e.message.includes('could not allocate memory') ||
-         e.message.includes('Array buffer allocation failed'));
-    if (!is_oom) throw e;
-    return undefined;
+    if (isOom(e)) return undefined;
+    throw e;
   }
 }
 

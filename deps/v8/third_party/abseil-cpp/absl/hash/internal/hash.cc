@@ -14,6 +14,14 @@
 
 #include "absl/hash/internal/hash.h"
 
+#include <cstddef>
+#include <cstdint>
+#include <type_traits>
+
+#include "absl/base/attributes.h"
+#include "absl/base/config.h"
+#include "absl/hash/internal/low_level_hash.h"
+
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace hash_internal {
@@ -21,9 +29,10 @@ namespace hash_internal {
 uint64_t MixingHashState::CombineLargeContiguousImpl32(
     uint64_t state, const unsigned char* first, size_t len) {
   while (len >= PiecewiseChunkSize()) {
-    state = Mix(state,
-                hash_internal::CityHash32(reinterpret_cast<const char*>(first),
-                                          PiecewiseChunkSize()));
+    state = Mix(
+        state ^ hash_internal::CityHash32(reinterpret_cast<const char*>(first),
+                                          PiecewiseChunkSize()),
+        kMul);
     len -= PiecewiseChunkSize();
     first += PiecewiseChunkSize();
   }
@@ -35,7 +44,7 @@ uint64_t MixingHashState::CombineLargeContiguousImpl32(
 uint64_t MixingHashState::CombineLargeContiguousImpl64(
     uint64_t state, const unsigned char* first, size_t len) {
   while (len >= PiecewiseChunkSize()) {
-    state = Mix(state, Hash64(first, PiecewiseChunkSize()));
+    state = Mix(state ^ Hash64(first, PiecewiseChunkSize()), kMul);
     len -= PiecewiseChunkSize();
     first += PiecewiseChunkSize();
   }
@@ -46,22 +55,13 @@ uint64_t MixingHashState::CombineLargeContiguousImpl64(
 
 ABSL_CONST_INIT const void* const MixingHashState::kSeed = &kSeed;
 
-// The salt array used by LowLevelHash. This array is NOT the mechanism used to
-// make absl::Hash non-deterministic between program invocations.  See `Seed()`
-// for that mechanism.
-//
-// Any random values are fine. These values are just digits from the decimal
-// part of pi.
-// https://en.wikipedia.org/wiki/Nothing-up-my-sleeve_number
-constexpr uint64_t kHashSalt[5] = {
-    uint64_t{0x243F6A8885A308D3}, uint64_t{0x13198A2E03707344},
-    uint64_t{0xA4093822299F31D0}, uint64_t{0x082EFA98EC4E6C89},
-    uint64_t{0x452821E638D01377},
-};
+#ifdef ABSL_INTERNAL_NEED_REDUNDANT_CONSTEXPR_DECL
+constexpr uint64_t MixingHashState::kStaticRandomData[];
+#endif
 
 uint64_t MixingHashState::LowLevelHashImpl(const unsigned char* data,
                                            size_t len) {
-  return LowLevelHashLenGt16(data, len, Seed(), kHashSalt);
+  return LowLevelHashLenGt16(data, len, Seed(), &kStaticRandomData[0]);
 }
 
 }  // namespace hash_internal

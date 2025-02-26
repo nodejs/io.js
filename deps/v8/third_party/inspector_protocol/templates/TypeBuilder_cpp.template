@@ -116,7 +116,7 @@ const char* {{ literal | to_title_case}} = "{{literal}}";
 void Frontend::{{event.name | to_method_case}}(
     {%- for parameter in event.parameters %}
       {% if "optional" in parameter -%}
-        Maybe<{{protocol.resolve_type(parameter).raw_type}}>
+        {{protocol.optional_type(parameter)}}
       {%- else -%}
         {{protocol.resolve_type(parameter).pass_type}}
       {%- endif %} {{parameter.name}}{%- if not loop.last -%}, {% endif -%}
@@ -215,7 +215,7 @@ public:
     void sendSuccess(
       {%- for parameter in command.returns -%}
         {%- if "optional" in parameter -%}
-        Maybe<{{protocol.resolve_type(parameter).raw_type}}> {{parameter.name}}
+        {{protocol.optional_type(parameter)}} {{parameter.name}}
         {%- else -%}
         {{protocol.resolve_type(parameter).pass_type}} {{parameter.name}}
         {%- endif -%}
@@ -249,7 +249,7 @@ struct {{command.name}}Params : public {{config.crdtp.namespace}}::Deserializabl
       {% for parameter in command.parameters %}
         {% set parameter_type = protocol.resolve_type(parameter) %}
         {% if parameter.optional %}
-    Maybe<{{parameter_type.raw_type}}> {{parameter.name}};
+    {{protocol.optional_type(parameter)}} {{parameter.name}};
         {% else %}
     {{parameter_type.type}} {{parameter.name}};
         {% endif %}
@@ -286,7 +286,7 @@ void DomainDispatcherImpl::{{command.name}}(const {{config.crdtp.namespace}}::Di
     // Declare output parameters.
       {% for parameter in command.returns %}
         {% if "optional" in parameter %}
-    Maybe<{{protocol.resolve_type(parameter).raw_type}}> out_{{parameter.name}};
+    {{protocol.optional_type(parameter)}} out_{{parameter.name}};
         {% else %}
     {{protocol.resolve_type(parameter).type}} out_{{parameter.name}};
         {% endif %}

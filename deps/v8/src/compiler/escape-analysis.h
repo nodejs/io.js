@@ -5,7 +5,7 @@
 #ifndef V8_COMPILER_ESCAPE_ANALYSIS_H_
 #define V8_COMPILER_ESCAPE_ANALYSIS_H_
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/common/globals.h"
 #include "src/compiler/graph-reducer.h"
 #include "src/compiler/js-graph.h"

@@ -42,7 +42,6 @@ from testrunner.outproc import test262
 #
 # Multiple flags are allowed, separated by space.
 FEATURE_FLAGS = {
-    'Intl.DurationFormat': '--harmony-intl-duration-format',
     'Intl.Locale-info': '--harmony-intl-locale-info-func',
     'FinalizationRegistry': '--harmony-weak-refs-with-cleanup-some',
     'WeakRef': '--harmony-weak-refs-with-cleanup-some',
@@ -62,11 +61,13 @@ FEATURE_FLAGS = {
     'regexp-duplicate-named-groups': '--js-regexp-duplicate-named-groups',
     'regexp-modifiers': '--js-regexp-modifiers',
     'Float16Array': '--js-float16array',
-    'explicit-resource-management': '--js_explicit_resource_management',
+    'explicit-resource-management': '--js-explicit-resource-management',
     'decorators': '--js-decorators',
     'promise-try': '--js-promise-try',
     'Atomics.pause': '--js-atomics-pause',
     'source-phase-imports': '--js-source-phase-imports --allow-natives-syntax',
+    'Error.isError': '--js-error-iserror',
+    'uint8array-base64': '--js-base-64',
 }
 
 SKIPPED_FEATURES = set([])
@@ -79,7 +80,7 @@ TEST_262_NATIVE_FILES = ["detachArrayBuffer.js"]
 
 TEST_262_SUITE_PATH = Path("data") / "test"
 TEST_262_HARNESS_PATH = Path("data") / "harness"
-TEST_262_TOOLS_ABS_PATH = BASE_DIR / "third_party" / "test262-harness" / "src"
+TEST_262_TOOLS_ABS_PATH = TEST262_DIR / Path("data") / "tools" / "packaging"
 TEST_262_LOCAL_TESTS_PATH = Path("local-tests") / "test"
 
 sys.path.append(str(TEST_262_TOOLS_ABS_PATH))

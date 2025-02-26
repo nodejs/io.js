@@ -12,17 +12,29 @@ d8.file.execute('inline_test.js')
 d8.file.execute('complex_case_test.js');
 d8.file.execute('case_test.js');
 d8.file.execute('match.js');
+d8.file.execute('replaceall_emoji_g.js');
+d8.file.execute('replaceall_emoji_gu.js');
+d8.file.execute('replaceall_emoji_gv.js');
+d8.file.execute('replace_emoji_g.js');
+d8.file.execute('replace_emoji_gu.js');
+d8.file.execute('replace_emoji_gv.js');
 d8.file.execute('replace.js');
 d8.file.execute('search.js');
-d8.file.execute('split.js');
-d8.file.execute('test.js');
 d8.file.execute('slow_exec.js');
 d8.file.execute('slow_flags.js');
 d8.file.execute('slow_match.js');
+d8.file.execute('slow_replaceall_emoji_g.js');
+d8.file.execute('slow_replaceall_emoji_gu.js');
+d8.file.execute('slow_replaceall_emoji_gv.js');
+d8.file.execute('slow_replace_emoji_g.js');
+d8.file.execute('slow_replace_emoji_gu.js');
+d8.file.execute('slow_replace_emoji_gv.js');
 d8.file.execute('slow_replace.js');
 d8.file.execute('slow_search.js');
 d8.file.execute('slow_split.js');
 d8.file.execute('slow_test.js');
+d8.file.execute('split.js');
+d8.file.execute('test.js');
 
 var success = true;
 

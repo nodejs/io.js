@@ -19,7 +19,7 @@ const int kNumThreads = 10;
 const int kIterationsPerThread = 3;
 int g_traces;
 
-own<Trap> Callback(void* env, const Val args[], Val results[]) {
+own<Trap> Callback(void* env, const vec<Val>& args, vec<Val>& results) {
   std::lock_guard<std::mutex> lock(*reinterpret_cast<std::mutex*>(env));
   g_traces += args[0].i32();
   return nullptr;
@@ -33,12 +33,12 @@ void Main(Engine* engine, Shared<Module>* shared, std::mutex* mutex, int id) {
     std::this_thread::sleep_for(std::chrono::microseconds(100));
 
     // Create imports.
-    own<FuncType> func_type =
-        FuncType::make(ownvec<ValType>::make(ValType::make(::wasm::I32)),
-                       ownvec<ValType>::make());
+    own<FuncType> func_type = FuncType::make(
+        ownvec<ValType>::make(ValType::make(::wasm::ValKind::I32)),
+        ownvec<ValType>::make());
     own<Func> func = Func::make(store.get(), func_type.get(), Callback, mutex);
-    own<::wasm::GlobalType> global_type =
-        ::wasm::GlobalType::make(ValType::make(::wasm::I32), ::wasm::CONST);
+    own<::wasm::GlobalType> global_type = ::wasm::GlobalType::make(
+        ValType::make(::wasm::ValKind::I32), ::wasm::Mutability::CONST);
     own<Global> global =
         Global::make(store.get(), global_type.get(), Val::i32(id));
 
@@ -46,11 +46,13 @@ void Main(Engine* engine, Shared<Module>* shared, std::mutex* mutex, int id) {
     // With the current implementation of the WasmModuleBuilder, global
     // imports always come before function imports, regardless of the
     // order of builder()->Add*Import() calls below.
-    Extern* imports[] = {global.get(), func.get()};
+    vec<Extern*> imports = vec<Extern*>::make(global.get(), func.get());
     own<Instance> instance = Instance::make(store.get(), module.get(), imports);
     ownvec<Extern> exports = instance->exports();
     Func* run_func = exports[0]->func();
-    run_func->call();
+    vec<Val> rets = vec<Val>::make_uninitialized();
+    vec<Val> args = vec<Val>::make_uninitialized();
+    run_func->call(args, rets);
   }
 }
 

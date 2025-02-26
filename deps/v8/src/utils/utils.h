@@ -22,7 +22,7 @@
 #include "src/common/globals.h"
 
 #if defined(V8_USE_SIPHASH)
-#include "src/third_party/siphash/halfsiphash.h"
+#include "third_party/siphash/halfsiphash.h"
 #endif
 
 #if defined(V8_OS_AIX)
@@ -41,7 +41,7 @@
 #endif
 
 #ifdef __SSE3__
-#include <immintrin.h>
+#include <pmmintrin.h>
 #endif
 
 #if defined(V8_TARGET_ARCH_ARM64) && \
@@ -89,9 +89,10 @@ T JSMin(T x, T y) {
 }
 
 // Returns the absolute value of its argument.
-template <typename T,
-          typename = typename std::enable_if<std::is_signed<T>::value>::type>
-typename std::make_unsigned<T>::type Abs(T a) {
+template <typename T>
+typename std::make_unsigned<T>::type Abs(T a)
+  requires std::is_signed<T>::value
+{
   // This is a branch-free implementation of the absolute value function and is
   // described in Warren's "Hacker's Delight", chapter 2. It avoids undefined
   // behavior with the arithmetic negation operation on signed values as well.
@@ -423,12 +424,13 @@ V8_INLINE V8_CLANG_NO_SANITIZE("alignment") bool SimdMemEqual(const Char* lhs,
   }
 
   // count: [33, ...]
-  const auto lhs0 = vld1q_u8(lhs);
-  const auto rhs0 = vld1q_u8(rhs);
-  const auto xored = veorq_u8(lhs0, rhs0);
-  if (static_cast<bool>(
-          vgetq_lane_u64(vreinterpretq_u64_u8(vpmaxq_u8(xored, xored)), 0)))
+  const auto first_lhs0 = vld1q_u8(lhs);
+  const auto first_rhs0 = vld1q_u8(rhs);
+  const auto first_xored = veorq_u8(first_lhs0, first_rhs0);
+  if (static_cast<bool>(vgetq_lane_u64(
+          vreinterpretq_u64_u8(vpmaxq_u8(first_xored, first_xored)), 0))) {
     return false;
+  }
   for (size_t i = count % sizeof(uint8x16_t); i < count;
        i += sizeof(uint8x16_t)) {
     const auto lhs0 = vld1q_u8(lhs + i);

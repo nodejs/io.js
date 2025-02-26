@@ -96,17 +96,9 @@ userFunction (test.js:1:36)
 
 EmptyStack - Regular
 userFunction (test.js:1:36)
--- inner async --
--- outer async --
-runWithRegular (utils.js:2:12)
-(anonymous) (test.js:3:10)
 
 EmptyStack - EmptyName
 userFunction (test.js:1:36)
--- inner async --
--- <empty> --
-runWithEmptyName (utils.js:6:12)
-(anonymous) (test.js:3:10)
 
 EmptyStack - EmptyStack
 userFunction (test.js:1:36)
@@ -116,23 +108,15 @@ userFunction (test.js:1:36)
 
 EmptyStack - External
 userFunction (test.js:1:36)
--- inner async --
-  <external stack>
 
 EmptyNameEmptyStack
 userFunction (test.js:1:36)
 
 EmptyNameEmptyStack - Regular
 userFunction (test.js:1:36)
--- outer async --
-runWithRegular (utils.js:2:12)
-(anonymous) (test.js:3:10)
 
 EmptyNameEmptyStack - EmptyName
 userFunction (test.js:1:36)
--- <empty> --
-runWithEmptyName (utils.js:6:12)
-(anonymous) (test.js:3:10)
 
 EmptyNameEmptyStack - EmptyStack
 userFunction (test.js:1:36)
@@ -142,8 +126,6 @@ userFunction (test.js:1:36)
 
 EmptyNameEmptyStack - External
 userFunction (test.js:1:36)
--- <empty> --
-  <external stack>
 
 External
 userFunction (test.js:1:36)

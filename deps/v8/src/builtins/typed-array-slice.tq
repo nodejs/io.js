@@ -30,6 +30,8 @@ macro FastCopy(
     goto IfSlow;
   }
 
+  // Since the source typed array already exists, the byte size can't be too
+  // big, so the error case is unreachable.
   const countBytes: uintptr = destInfo.CalculateByteLength(count)
       otherwise unreachable;
   const startOffset: uintptr = destInfo.CalculateByteLength(k)

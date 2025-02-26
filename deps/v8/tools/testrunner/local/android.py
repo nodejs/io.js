@@ -68,6 +68,11 @@ class Driver(object):
     self.device = device_utils.DeviceUtils.HealthyDevices(
         retries=5, enable_usb_resets=True, device_arg=device)[0]
 
+    # Retrieve device parameters.
+    product_prop = 'getprop ro.build.product'
+    self.device_type = self.device.adb.Shell(product_prop).rstrip('\n')
+    assert self.device_type, 'No device type found in android environment.'
+
     # This remembers what we have already pushed to the device.
     self.pushed = set()
 

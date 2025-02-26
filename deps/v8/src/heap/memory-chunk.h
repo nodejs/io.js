@@ -6,8 +6,10 @@
 #define V8_HEAP_MEMORY_CHUNK_H_
 
 #include "src/base/build_config.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/flags/flags.h"
+#include "src/heap/memory-chunk-constants.h"
+#include "src/init/isolate-group.h"
 
 #if V8_ENABLE_STICKY_MARK_BITS_BOOL
 #define UNREACHABLE_WITH_STICKY_MARK_BITS() UNREACHABLE()
@@ -17,6 +19,10 @@
 
 namespace v8 {
 namespace internal {
+
+namespace debug_helper_internal {
+class ReadStringVisitor;
+}  // namespace  debug_helper_internal
 
 class Heap;
 class MemoryChunkMetadata;
@@ -70,53 +76,63 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
     // allocations. Such chunks can never contain any young objects.
     CONTAINS_ONLY_OLD = 1u << 8,
 
+    // Page was allocated during major incremental marking. May only contain old
+    // objects.
+    BLACK_ALLOCATED = 1u << 9,
+
     // ----------------------------------------------------------------
     // Values below here are not critical for the heap write barrier.
 
-    LARGE_PAGE = 1u << 9,
-    EVACUATION_CANDIDATE = 1u << 10,
-    NEVER_EVACUATE = 1u << 11,
+    LARGE_PAGE = 1u << 10,
+    EVACUATION_CANDIDATE = 1u << 11,
+    NEVER_EVACUATE = 1u << 12,
 
     // |PAGE_NEW_OLD_PROMOTION|: A page tagged with this flag has been promoted
     // from new to old space during evacuation.
-    PAGE_NEW_OLD_PROMOTION = 1u << 12,
+    PAGE_NEW_OLD_PROMOTION = 1u << 13,
 
     // This flag is intended to be used for testing. Works only when both
     // v8_flags.stress_compaction and
     // v8_flags.manual_evacuation_candidates_selection are set. It forces the
     // page to become an evacuation candidate at next candidates selection
     // cycle.
-    FORCE_EVACUATION_CANDIDATE_FOR_TESTING = 1u << 13,
+    FORCE_EVACUATION_CANDIDATE_FOR_TESTING = 1u << 14,
 
     // This flag is intended to be used for testing.
-    NEVER_ALLOCATE_ON_PAGE = 1u << 14,
+    NEVER_ALLOCATE_ON_PAGE = 1u << 15,
 
     // The memory chunk is already logically freed, however the actual freeing
     // still has to be performed.
-    PRE_FREED = 1u << 15,
+    PRE_FREED = 1u << 16,
 
     // |COMPACTION_WAS_ABORTED|: Indicates that the compaction in this page
     //   has been aborted and needs special handling by the sweeper.
-    COMPACTION_WAS_ABORTED = 1u << 16,
+    COMPACTION_WAS_ABORTED = 1u << 17,
 
-    NEW_SPACE_BELOW_AGE_MARK = 1u << 17,
+    NEW_SPACE_BELOW_AGE_MARK = 1u << 18,
 
     // The memory chunk freeing bookkeeping has been performed but the chunk has
     // not yet been freed.
-    UNREGISTERED = 1u << 18,
+    UNREGISTERED = 1u << 19,
 
     // The memory chunk is pinned in memory and can't be moved. This is likely
     // because there exists a potential pointer to somewhere in the chunk which
     // can't be updated.
-    PINNED = 1u << 19,
+    PINNED = 1u << 20,
 
     // A Page with code objects.
-    IS_EXECUTABLE = 1u << 20,
+    IS_EXECUTABLE = 1u << 21,
 
     // The memory chunk belongs to the trusted space. When the sandbox is
     // enabled, the trusted space is located outside of the sandbox and so its
     // content cannot be corrupted by an attacker.
-    IS_TRUSTED = 1u << 21,
+    IS_TRUSTED = 1u << 22,
+
+    // A quarantined page that contains objects reachable from stack during a
+    // scavenge. The page will be move to "to space", swept, and not used for
+    // further allocations (to make it easier to keep track of the intermediate
+    // generation). This flag should only ever be set during a scavenge cycle.
+    IS_QUARANTINED = 1u << 23,
   };
 
   using MainThreadFlags = base::Flags<Flag, uintptr_t>;
@@ -137,7 +153,6 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
   static constexpr MainThreadFlags kSkipEvacuationSlotsRecordingMask =
       MainThreadFlags(kEvacuationCandidateMask) |
       MainThreadFlags(kIsInYoungGenerationMask);
-
   static constexpr MainThreadFlags kIsOnlyOldOrMajorGCInProgressMask =
       MainThreadFlags(CONTAINS_ONLY_OLD) |
       MainThreadFlags(IS_MAJOR_GC_IN_PROGRESS);
@@ -292,6 +307,8 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
     return GetFlags() & kIsOnlyOldOrMajorGCInProgressMask;
   }
 
+  bool IsQuarantined() const { return IsFlagSet(IS_QUARANTINED); }
+
   V8_INLINE static constexpr bool IsAligned(Address address) {
     return (address & kAlignmentMask) == 0;
   }
@@ -338,15 +355,11 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
 #endif
 
  private:
-  // Flags that are only mutable from the main thread when no concurrent
-  // component (e.g. marker, sweeper, compilation, allocation) is running.
-  MainThreadFlags main_thread_flags_;
-
-#ifdef V8_ENABLE_SANDBOX
-  uint32_t metadata_index_;
-#else
-  MemoryChunkMetadata* metadata_;
-#endif
+  // Keep offsets and masks private to only expose them with matching friend
+  // declarations.
+  static constexpr intptr_t FlagsOffset() {
+    return offsetof(MemoryChunk, main_thread_flags_);
+  }
 
   static constexpr intptr_t kAlignment =
       (static_cast<uintptr_t>(1) << kPageSizeBits);
@@ -357,46 +370,45 @@ class V8_EXPORT_PRIVATE MemoryChunk final {
 #error The global metadata pointer table requires a single external code space.
 #endif
 
-  static constexpr size_t kPagesInMainCage =
-      kPtrComprCageReservationSize / kRegularPageSize;
-  static constexpr size_t kPagesInCodeCage =
-      kMaximalCodeRangeSize / kRegularPageSize;
-  static constexpr size_t kPagesInTrustedCage =
-      kMaximalTrustedRangeSize / kRegularPageSize;
-
-  static constexpr size_t kMainCageMetadataOffset = 0;
-  static constexpr size_t kTrustedSpaceMetadataOffset =
-      kMainCageMetadataOffset + kPagesInMainCage;
-  static constexpr size_t kCodeRangeMetadataOffset =
-      kTrustedSpaceMetadataOffset + kPagesInTrustedCage;
-
-  static constexpr size_t kMetadataPointerTableSizeLog2 = base::bits::BitWidth(
-      kPagesInMainCage + kPagesInCodeCage + kPagesInTrustedCage);
-  static constexpr size_t kMetadataPointerTableSize =
-      1 << kMetadataPointerTableSizeLog2;
-  static constexpr size_t kMetadataPointerTableSizeMask =
-      kMetadataPointerTableSize - 1;
-
-  static MemoryChunkMetadata*
-      metadata_pointer_table_[kMetadataPointerTableSize];
+  static constexpr intptr_t MetadataIndexOffset() {
+    return offsetof(MemoryChunk, metadata_index_);
+  }
 
   V8_INLINE static MemoryChunkMetadata* FromIndex(uint32_t index);
   static uint32_t MetadataTableIndex(Address chunk_address);
 
-  V8_INLINE static Address MetadataTableAddress() {
-    return reinterpret_cast<Address>(metadata_pointer_table_);
+  V8_INLINE static MemoryChunkMetadata** MetadataTableAddress() {
+    return IsolateGroup::current()->metadata_pointer_table();
   }
 
-  // For access to the kMetadataPointerTableSizeMask;
-  friend class CodeStubAssembler;
-  friend class MacroAssembler;
-  // For access to the MetadataTableAddress;
+  // For MetadataIndexOffset().
+  friend class debug_helper_internal::ReadStringVisitor;
+  // For MetadataTableAddress().
   friend class ExternalReference;
   friend class TestDebugHelper;
 
-#endif  // V8_ENABLE_SANDBOX
+#else  // !V8_ENABLE_SANDBOX
 
-  friend class MemoryChunkValidator;
+  static constexpr intptr_t MetadataOffset() {
+    return offsetof(MemoryChunk, metadata_);
+  }
+
+#endif  // !V8_ENABLE_SANDBOX
+
+  // Flags that are only mutable from the main thread when no concurrent
+  // component (e.g. marker, sweeper, compilation, allocation) is running.
+  MainThreadFlags main_thread_flags_;
+
+#ifdef V8_ENABLE_SANDBOX
+  uint32_t metadata_index_;
+#else
+  MemoryChunkMetadata* metadata_;
+#endif
+
+  // For kMetadataPointerTableSizeMask, FlagsOffset(), MetadataIndexOffset(),
+  // MetadataOffset().
+  friend class CodeStubAssembler;
+  friend class MacroAssembler;
 };
 
 DEFINE_OPERATORS_FOR_FLAGS(MemoryChunk::MainThreadFlags)

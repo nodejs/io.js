@@ -177,7 +177,8 @@ TEST_F(BackgroundCompileTaskTest, CompileOnBackgroundThread) {
   base::Semaphore semaphore(0);
   auto background_task = std::make_unique<CompileTask>(task.get(), &semaphore);
 
-  V8::GetCurrentPlatform()->CallOnWorkerThread(std::move(background_task));
+  V8::GetCurrentPlatform()->PostTaskOnWorkerThread(TaskPriority::kUserVisible,
+                                                   std::move(background_task));
   semaphore.Wait();
   ASSERT_TRUE(Compiler::FinalizeBackgroundCompileTask(
       task.get(), isolate(), Compiler::KEEP_EXCEPTION));

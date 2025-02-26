@@ -5,6 +5,7 @@
 namespace collections {
 
 // https://tc39.es/proposal-set-methods/#sec-set.prototype.issupersetof
+@incrementUseCounter('v8::Isolate::kSetMethods')
 transitioning javascript builtin SetPrototypeIsSupersetOf(
     js-implicit context: NativeContext, receiver: JSAny)(
     other: JSAny): Boolean {

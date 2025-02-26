@@ -7,6 +7,9 @@
 
 #include <memory>
 
+#include "include/v8-external-memory-accounter.h"
+#include "include/v8config.h"
+#include "src/api/api.h"
 #include "src/base/logging.h"
 #include "src/base/platform/mutex.h"
 #include "src/heap/sweeper.h"
@@ -30,7 +33,7 @@ struct ArrayBufferList final {
   size_t ApproximateBytes() const { return bytes_; }
   size_t BytesSlow() const;
 
-  void Append(ArrayBufferExtension* extension);
+  size_t Append(ArrayBufferExtension* extension);
   void Append(ArrayBufferList& list);
 
   V8_EXPORT_PRIVATE bool ContainsSlow(ArrayBufferExtension* extension) const;
@@ -61,8 +64,10 @@ class ArrayBufferSweeper final {
                     TreatAllYoungAsPromoted treat_all_young_as_promoted);
   void EnsureFinished();
 
-  // Track the given ArrayBufferExtension for the given JSArrayBuffer.
-  void Append(Tagged<JSArrayBuffer> object, ArrayBufferExtension* extension);
+  // Track the given ArrayBufferExtension.
+  void Append(ArrayBufferExtension* extension);
+
+  void Resize(ArrayBufferExtension* extension, int64_t delta);
 
   // Detaches an ArrayBufferExtension.
   void Detach(ArrayBufferExtension* extension);
@@ -86,6 +91,8 @@ class ArrayBufferSweeper final {
   void FinishIfDone();
   void Finish();
 
+  void UpdateApproximateBytes(int64_t delta, ArrayBufferExtension::Age age);
+
   // Increments external memory counters outside of ArrayBufferSweeper.
   // Increment may trigger GC.
   void IncrementExternalMemoryCounters(size_t bytes);
@@ -104,6 +111,12 @@ class ArrayBufferSweeper final {
   std::unique_ptr<SweepingState> state_;
   ArrayBufferList young_{ArrayBufferList::Age::kYoung};
   ArrayBufferList old_{ArrayBufferList::Age::kOld};
+  // Track accounting bytes adjustment during sweeping including freeing, and
+  // resizing. Adjustment are applied to the accounted bytes when sweeping
+  // finishes.
+  int64_t young_bytes_adjustment_while_sweeping_{0};
+  int64_t old_bytes_adjustment_while_sweeping_{0};
+  V8_NO_UNIQUE_ADDRESS ExternalMemoryAccounter external_memory_accounter_;
 };
 
 }  // namespace internal

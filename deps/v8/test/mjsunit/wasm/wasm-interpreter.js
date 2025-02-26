@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --wasm-test-streaming --allow-natives-syntax
+// Flags: --wasm-test-streaming --allow-natives-syntax --expose-gc
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -1549,13 +1549,19 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   builder.addFunction("test_br_on_non_null_with_nullref_voidsig", kSig_v_v)
     .exportAs("test_br_on_non_null_with_nullref_voidsig").addBody([
       kExprLoop, sig_v_v,
+        ...wasmI32Const(5),
+        kGCPrefix, kExprArrayNewDefault, array_type_index,
         ...wasmI32Const(-8),
         kGCPrefix, kExprStructNew, struct_type_index,
         kExprRefNull, array_type_index,
         kExprBrOnNonNull, 0, // drop null ref and don't jump
         kExprDrop, // drop the struct
+       ...wasmI32Const(13), // value
+       ...wasmI32Const(-2), // array index
+       kGCPrefix, kExprArraySet, array_type_index,
       kExprEnd,
     ]);
+
 
   builder.addFunction("test_br_on_non_null_with_nonnullref_nonvoidsig", kSig_i_i)
     .exportAs("test_br_on_non_null_with_nonnullref_nonvoidsig")
@@ -1630,12 +1636,16 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
       kExprLoop, sig_v_v,
         kExprLocalGet, 0,
         ...wasmI32Const(1),
-        kExprLocalSet, 0, // set local to 0 to end loop at next iteration.
+        kExprI32Add,
+        kExprLocalSet, 0, // inc(local(0))
+        ...wasmI32Const(3),
+        kExprLocalGet, 0,
+        kExprI32Eq,
         kExprBrIf, 1,
         kExprRefNull, array_type_index,
         kExprBrOnNull, 0,
-        kExprDrop, // drop the ref
-      kExprEnd,
+        kExprUnreachable,
+     kExprEnd,
     ]);
 
   builder.addFunction("test_br_on_null_with_nonnullref_nonvoidsig", kSig_i_i)
@@ -1682,7 +1692,7 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   let instance = builder.instantiate();
   assertEquals(0, instance.exports.test_br_on_non_null_with_nullref_nonvoidsig(1));
   assertTraps(kTrapArrayOutOfBounds, () => instance.exports.test_br_on_non_null_with_nullref_nonvoidsig(1234));
-  instance.exports.test_br_on_non_null_with_nullref_voidsig();
+  assertTraps(kTrapArrayOutOfBounds, () => instance.exports.test_br_on_non_null_with_nullref_voidsig());
   assertEquals(42, instance.exports.test_br_on_non_null_with_nonnullref_nonvoidsig(1234));
   instance.exports.test_br_on_non_null_with_nonnullref_voidsig(1234);
   assertEquals(42, instance.exports.test_br_on_null_with_nullref_nonvoidsig(1234));
@@ -1887,4 +1897,792 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
     }
   });
   assertThrows(() => instance.exports.main(), TypeError);
+})();
+
+(function TestRefArrayOperationsWithNegativeLength() {
+  print(arguments.callee.name);
+
+  var builder = new WasmModuleBuilder();
+  let array_type_index = builder.addArray(kWasmI32, true);
+
+  // ArrayCopy
+  builder.addFunction("test_array_copy", kSig_v_v)
+    .addBody([
+      ...wasmI32Const(-57),
+      ...wasmI32Const(72),
+      kGCPrefix, kExprArrayNew, array_type_index,
+
+      ...wasmI32Const(61),
+      ...wasmI32Const(91),
+      ...wasmI32Const(79),
+      kGCPrefix, kExprArrayNew, array_type_index,
+
+      ...wasmI32Const(64),
+      ...wasmI32Const(-50),
+      kGCPrefix, kExprArrayCopy, array_type_index, array_type_index,
+    ])
+    .exportAs("test_array_copy");
+
+  // ArrayNewData
+  let dummy_byte = 0xff;
+  let element_0 = 1000;
+  let element_1 = -2222;
+  let data_segment = builder.addPassiveDataSegment(
+    [dummy_byte, element_0 & 0xff, (element_0 >> 8) & 0xff,
+      element_1 & 0xff, (element_1 >> 8) & 0xff]);
+  builder.addFunction("test_array_new_segment", kSig_v_v)
+    .addBody([
+      ...wasmI32Const(64),
+      ...wasmI32Const(-50),
+      kGCPrefix, kExprArrayNewData, array_type_index, data_segment,
+      kExprDrop
+    ])
+    .exportAs("test_array_new_segment");
+
+  // ArrayFill
+  builder.addFunction("test_array_fill", kSig_v_v)
+    .addBody([
+      ...wasmI32Const(-57),
+      ...wasmI32Const(72),
+      kGCPrefix, kExprArrayNew, array_type_index,
+
+      ...wasmI32Const(8),  // offset.
+      ...wasmI32Const(42),  // value.
+      ...wasmI32Const(-6),  // length.
+      kGCPrefix, kExprArrayFill, array_type_index,
+    ])
+    .exportAs("test_array_fill");
+
+
+  let instance = builder.instantiate();
+  assertTraps(kTrapArrayOutOfBounds, () => instance.exports.test_array_copy());
+  assertTraps(
+    kTrapArrayTooLarge, () => instance.exports.test_array_new_segment());
+  assertTraps(kTrapArrayOutOfBounds, () => instance.exports.test_array_fill());
+})();
+
+(function TestPreserveRefStackAcrossRecursiveImportCalls() {
+  print(arguments.callee.name);
+  let count = 100;
+
+  function rec(v) {
+    if (--count == 0) {
+      return;
+    }
+
+    var builder = new WasmModuleBuilder();
+    const import_func = builder.addImport('m', 'f', makeSig(v, []));
+
+    let body = [];
+    for (let i = 0; i < v.length; i++) {
+      body.push(kExprLocalGet, i);
+    }
+    body.push(kExprCallFunction, import_func);
+
+    builder.addFunction('main', makeSig(v, []))
+      .addBody(body).exportFunc();
+
+    const instance = builder.instantiate({
+      m: {
+        f: f5
+      }
+    });
+    instance.exports.main();
+  }
+
+  function f5() {
+    rec([kWasmExternRef, kWasmExternRef, kWasmExternRef, kWasmExternRef, kWasmExternRef]);
+  }
+
+  rec([]);
+})();
+
+(function TestStackOverflowCallingImportedExportedFunction() {
+  print(arguments.callee.name);
+
+  function run(f) {
+    function t() {
+      try {
+        return t();
+      } catch (e) {
+        return f();
+      }
+    }
+    return t();
+  }
+  const builder = new WasmModuleBuilder();
+  builder.addImport("e", "f", kSig_v_v);
+  builder.addExport("f", 0);
+
+  const instance = builder.instantiate({
+    e: {
+      f: () => { },
+    },
+  });
+
+  function foo() {
+    instance.exports.f();
+  }
+
+  run(() => {
+    return foo();
+  });
+})();
+
+(function TestWriteBarrierInWasmGCArrays() {
+  print(arguments.callee.name);
+
+  const builder = new WasmModuleBuilder();
+  let refarraytype = builder.addArray(kWasmArrayRef, true);
+  let intarraytype = builder.addArray(kWasmI32, true);
+
+  builder.addFunction(undefined, makeSig([kWasmI32], [wasmRefType(refarraytype)]))
+    .exportAs('make_ref_array')
+    .addBody([
+      kExprLocalGet, 0,
+      kGCPrefix, kExprArrayNewDefault, refarraytype
+    ]);
+
+  builder.addFunction(undefined, makeSig([kWasmI32], [wasmRefType(intarraytype)]))
+    .exportAs('make_int_array')
+    .addBody([
+      kExprLocalGet, 0,
+      kGCPrefix, kExprArrayNewDefault, intarraytype
+    ]);
+
+  builder.addFunction(undefined, makeSig([wasmRefNullType(refarraytype), kWasmI32], [kWasmArrayRef]))
+    .exportAs('ref_array_get')
+      .addBody([
+        kExprLocalGet, 0,
+        kExprLocalGet, 1,
+        kGCPrefix, kExprArrayGet, refarraytype
+      ]);
+
+  builder.addFunction(undefined, makeSig([wasmRefType(refarraytype), kWasmI32, wasmRefNullType(intarraytype)], []))
+    .exportAs('ref_array_set')
+    .addBody([
+      kExprLocalGet, 0, // array
+      kExprLocalGet, 1, // index
+      kExprLocalGet, 2, // value
+      kGCPrefix, kExprArraySet, refarraytype,
+    ]);
+
+  builder.addFunction(undefined, makeSig([wasmRefNullType(refarraytype), kWasmI32, kWasmI32, kWasmI32], []))
+    .exportAs('ref_array_fill')
+    .addBody([
+      kExprLocalGet, 0, // array
+      kExprLocalGet, 1, // offset
+      kExprLocalGet, 2,
+      kGCPrefix, kExprArrayNewDefault, intarraytype,
+
+      kExprLocalGet, 3, // size
+      kGCPrefix, kExprArrayFill, refarraytype
+    ]);
+
+  (function testArraySet() {
+    const instance = builder.instantiate({});
+    var ref_array = instance.exports.make_ref_array(2);
+    gc({ type: 'minor' });
+    var int_array = instance.exports.make_int_array(1);
+    instance.exports.ref_array_set(ref_array, 1, int_array);
+    gc({ type: 'major' });
+    instance.exports.ref_array_get(ref_array, 1);
+  })();
+
+  (function testArrayFill() {
+    const instance = builder.instantiate({});
+    var ref_array = instance.exports.make_ref_array(1);
+    gc({ type: 'minor' });
+    instance.exports.ref_array_fill(ref_array, 0, 0, 1);
+    gc({ type: 'major' });
+    instance.exports.ref_array_get(ref_array, 0);
+  })();
+})();
+
+(function TestWriteBarrierInWasmGCStructs() {
+  print(arguments.callee.name);
+
+  const builder = new WasmModuleBuilder();
+  let array_type_index = builder.addArray(kWasmI32, true);
+  let struct_type_index = builder.addStruct([makeField(kWasmI32, true), makeField(wasmRefType(array_type_index), true)]);
+
+  builder.addFunction(undefined, makeSig([wasmRefType(array_type_index)], [wasmRefType(struct_type_index)]))
+    .exportAs('make_struct')
+    .addBody([
+      ...wasmI32Const(42),
+      kExprLocalGet, 0,
+      kGCPrefix, kExprStructNew, struct_type_index
+    ]);
+
+  builder.addFunction(undefined, makeSig([kWasmI32], [wasmRefType(array_type_index)]))
+    .exportAs('make_int_array')
+    .addBody([
+      kExprLocalGet, 0,
+      kGCPrefix, kExprArrayNewDefault, array_type_index
+    ]);
+
+  builder.addFunction(undefined, makeSig([wasmRefType(struct_type_index)], [kWasmArrayRef]))
+    .exportAs('struct_get')
+    .addBody([
+      kExprLocalGet, 0,
+      kGCPrefix, kExprStructGet, struct_type_index, 1
+    ]);
+
+  builder.addFunction(undefined, makeSig([wasmRefType(struct_type_index), wasmRefType(array_type_index)], []))
+    .exportAs('struct_set')
+    .addBody([
+      kExprLocalGet, 0, // struct
+      kExprLocalGet, 1, // value
+      kGCPrefix, kExprStructSet, struct_type_index, 1
+    ]);
+
+  (function testStructSet() {
+    const instance = builder.instantiate({});
+    var temp_array = instance.exports.make_int_array(1);
+    var struct = instance.exports.make_struct(temp_array);
+    gc({ type: 'minor' });
+    var int_array = instance.exports.make_int_array(1);
+    instance.exports.struct_set(struct, int_array);
+    gc({ type: 'major' });
+    instance.exports.struct_get(struct);
+  })();
+})();
+
+(function testCopySlotMulti() {
+  print(arguments.callee.name);
+  var builder = new WasmModuleBuilder();
+  var kSig_d_ilfd = makeSig([kWasmI32, kWasmI64, kWasmF32, kWasmF64], [kWasmF64]);
+
+  // Function 0.
+  builder.addFunction("main", kSig_d_ilfd)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprLocalGet, 1,
+      kExprLocalGet, 2,
+      kExprLocalGet, 3,
+      kExprCallFunction, 1
+    ])
+    .exportAs("main");
+
+  // Function 1.
+  builder.addFunction("fn1", kSig_d_ilfd)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprF64UConvertI32,
+      kExprLocalGet, 1,
+      kExprF64UConvertI64,
+      kExprLocalGet, 2,
+      kExprF64ConvertF32,
+      kExprLocalGet, 3,
+      kExprF64Add,
+      kExprF64Add,
+      kExprF64Add
+    ]);
+
+
+  let instance = builder.instantiate({});
+  assertEquals(10.0, instance.exports.main(1, 2n, 3.0, 4.0));
+})();
+
+(function testBytecodeCompressedSlotOffset() {
+  print(arguments.callee.name);
+  var builder = new WasmModuleBuilder();
+  let main = builder.addFunction("main", kSig_v_v)
+    .addLocals(kWasmI32, 3);
+  let body = [
+    ...wasmI32Const(42),
+    kExprLocalTee, 0,
+    kExprLocalTee, 1,
+  ];
+
+  for (let i = 0; i < 0x8000; i++) {
+    body.push(kExprLocalGet, 0);
+    body.push(kExprLocalGet, 1);
+    body.push(kExprI32Add);
+    body.push(...wasmI32Const(42));
+    body.push(kExprI32Sub);
+    body.push(kExprLocalSet, 2);
+  }
+  body.push(...wasmI32Const(42));
+  body.push(kExprLocalGet, 2);
+  body.push(kExprI32Eq);
+  body.push(kExprBrIf, 0);
+  body.push(kExprUnreachable);
+  main.addBody(body)
+    .exportAs("main");
+
+  let instance = builder.instantiate({});
+  instance.exports.main();
+})();
+
+(function testLoadStoreInstructions() {
+  print(arguments.callee.name);
+  var builder = new WasmModuleBuilder();
+  builder.addMemory(1, 1, false);
+
+  const i32 = 0;
+  const i64 = 1;
+  const f32 = 2;
+  const f64 = 3;
+
+  let cmp_ops = [
+    kExprI32Ne, kExprI64Ne, kExprF32Ne, kExprF64Ne
+  ];
+  let add_ops = [
+    kExprI32Add, kExprI64Add, kExprF32Add, kExprF64Add
+  ];
+  let vals = [
+    [...wasmI32Const(42)], [...wasmI64Const(42)], [...wasmF32Const(42.0)], [...wasmF64Const(42.0)]
+  ];
+  let zeroes = [
+    [...wasmI32Const(0)], [...wasmI64Const(0)], [...wasmF32Const(0.0)], [...wasmF64Const(0.0)]
+  ];
+
+  let instrs = [
+    { store_op: kExprI32StoreMem, load_op: kExprI32LoadMem, type: i32 },
+    { store_op: kExprI32StoreMem8, load_op: kExprI32LoadMem8U, type: i32 },
+    { store_op: kExprI32StoreMem8, load_op: kExprI32LoadMem8S, type: i32 },
+    { store_op: kExprI32StoreMem16, load_op: kExprI32LoadMem16U, type: i32 },
+    { store_op: kExprI32StoreMem16, load_op: kExprI32LoadMem16S, type: i32 },
+    { store_op: kExprI64StoreMem, load_op: kExprI64LoadMem, type: i64 },
+    { store_op: kExprI64StoreMem8, load_op: kExprI64LoadMem8U, type: i64 },
+    { store_op: kExprI64StoreMem8, load_op: kExprI64LoadMem8S, type: i64 },
+    { store_op: kExprI64StoreMem16, load_op: kExprI64LoadMem16U, type: i64 },
+    { store_op: kExprI64StoreMem16, load_op: kExprI64LoadMem16S, type: i64 },
+    { store_op: kExprI64StoreMem32, load_op: kExprI64LoadMem32U, type: i64 },
+    { store_op: kExprI64StoreMem32, load_op: kExprI64LoadMem32S, type: i64 },
+    { store_op: kExprF32StoreMem, load_op: kExprF32LoadMem, type: f32 },
+    { store_op: kExprF64StoreMem, load_op: kExprF64LoadMem, type: f64 },
+  ];
+
+  let body = [];
+  for (const instr of instrs) {
+    let type = instr.type;
+    let val = vals[type];
+    let zero = zeroes[type]
+    let cmp_op = cmp_ops[type];
+    let add_op = add_ops[type];
+
+    // r2s_store s2s_load
+    body.push(...wasmI32Const(0)); // store index
+    for (const v of val) body.push(v);
+    for (const z of zero) body.push(z);
+    body.push(add_op);
+    body.push(instr.store_op, 0, 0);
+    body.push(...wasmI32Const(0)); // load index
+    body.push(instr.load_op, 0, 0);
+    for (const v of val) body.push(v);
+    body.push(cmp_op);
+    body.push(kExprIf, kWasmVoid);
+    body.push(kExprUnreachable);
+    body.push(kExprEnd);
+
+    // s2s_loadstore
+    body.push(...wasmI32Const(0)); // store index
+    body.push(...wasmI32Const(0)); // load index
+    body.push(instr.load_op, 0, 0);
+    body.push(instr.store_op, 0, 0);
+
+    // r2s_loadstore
+    body.push(...wasmI32Const(0)); // store index
+    body.push(...wasmI32Const(0));
+    body.push(...wasmI32Const(0));
+    body.push(kExprI32Add); // load index = 0 + 0
+    body.push(instr.load_op, 0, 0);
+    body.push(instr.store_op, 0, 0);
+
+    // r2s_load
+    body.push(...wasmI32Const(0));
+    body.push(...wasmI32Const(0));
+    body.push(kExprI32Add); // load index
+    body.push(instr.load_op, 0, 0);
+    for (const v of val) body.push(v);
+    body.push(cmp_op);
+    body.push(kExprIf, kWasmVoid);
+    body.push(kExprUnreachable);
+    body.push(kExprEnd);
+
+    // s2s_store
+    body.push(...wasmI32Const(0)); // index
+    for (const v of val) body.push(v);
+    body.push(instr.store_op, 0, 0);
+
+    // r2r_load
+    for (const v of val) body.push(v);
+    body.push(...wasmI32Const(0));
+    body.push(...wasmI32Const(0));
+    body.push(kExprI32Add); // load index = 0 + 0
+    body.push(instr.load_op, 0, 0);
+    body.push(cmp_op);
+    body.push(kExprIf, kWasmVoid);
+    body.push(kExprUnreachable);
+    body.push(kExprEnd);
+
+    // s2r_load
+    for (const v of val) body.push(v);
+    body.push(...wasmI32Const(0)); // load index
+    body.push(instr.load_op, 0, 0);
+    body.push(cmp_op);
+    body.push(kExprIf, kWasmVoid);
+    body.push(kExprUnreachable);
+    body.push(kExprEnd);
+
+    // s2s_loadset
+    body.push(...wasmI32Const(0)); // load index
+    body.push(instr.load_op, 0, 0);
+    body.push(kExprLocalSet, type);
+  }
+
+  builder.addFunction("main", kSig_v_v)
+    .addLocals(kWasmI32, 1)
+    .addLocals(kWasmI64, 1)
+    .addLocals(kWasmF32, 1)
+    .addLocals(kWasmF64, 1)
+    .addBody(body)
+    .exportAs("main");
+
+  let instance = builder.instantiate({});
+  instance.exports.main();
+})();
+
+(function testGCInImportedFunctionWithMultipleResults() {
+  print(arguments.callee.name);
+  var builder = new WasmModuleBuilder();
+  var kSig_lll_l = makeSig([kWasmI64], [kWasmI64, kWasmI64, kWasmI64]);
+
+  builder.addImport('imports', 'f', kSig_lll_l);
+
+  builder.addFunction("main", kSig_lll_l)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprCallFunction, 0])
+    .exportAs("main")
+
+  function foo(x) {
+    //gc();
+    return [x, x, x];
+  }
+
+  let instance = builder.instantiate({ 'imports': { 'f': foo } });
+  for (let i = 0; i < 1e5; i++) {
+    assertEquals(instance.exports.main(42n), [42n, 42n, 42n]);
+  }
+})();
+
+(function TestCallRefWithMultipleRefResults() {
+  print(arguments.callee.name);
+
+  const builder = new WasmModuleBuilder();
+  let array_type_index = builder.addArray(kWasmI32, true);
+  let struct_type_index = builder.addStruct([makeField(kWasmI32, true)]);
+  let kSig_xy_v = makeSig([], [wasmRefType(array_type_index), wasmRefType(struct_type_index)]);
+  const funcTypeId = builder.addType(kSig_xy_v);
+
+  builder.addFunction("main", kSig_v_v)
+    .addBody([
+      kExprRefNull, array_type_index,
+      kExprCallFunction, 2,
+      kExprDrop])
+    .exportAs("main");
+
+  let f1 = builder.addFunction("func2", kSig_xy_v)
+    .addBody([
+      ...wasmI32Const(3),
+      kGCPrefix, kExprArrayNewDefault, array_type_index,
+      ...wasmI32Const(5),
+      kGCPrefix, kExprStructNew, struct_type_index])
+    .exportFunc();;
+
+  builder.addFunction("func1", kSig_v_v)
+    .addBody([
+      kExprRefFunc, f1.index,
+      kExprCallRef, funcTypeId,
+      ...wasmI32Const(1),
+      kGCPrefix, kExprStructSet, struct_type_index, 0,
+      kExprDrop]);
+
+  let instance = builder.instantiate({});
+  instance.exports.main();
+})();
+
+(function TestIndirectCallToDifferentInstanceWithMultipleRefResults() {
+  print(arguments.callee.name);
+
+  const builder = new WasmModuleBuilder();
+  let array_type_index = builder.addArray(kWasmI32, true);
+  let struct_type_index = builder.addStruct([makeField(kWasmI32, true)]);
+  let kSig_xy_v = makeSig([], [wasmRefType(array_type_index), wasmRefType(struct_type_index)]);
+  let sig_index = builder.addType(kSig_xy_v);
+
+  let table = new WebAssembly.Table({
+    initial: 10, maximum: 10, element: 'anyfunc',
+  });
+  builder.addImportedTable('o', 'table');
+
+  builder.addFunction("main", kSig_v_v)
+    .addBody([
+      kExprRefNull, array_type_index,
+      kExprCallFunction, 2,
+      kExprDrop])
+    .exportAs("main");
+
+  builder.addFunction("func2", kSig_xy_v)
+    .addBody([
+      ...wasmI32Const(3),
+      kGCPrefix, kExprArrayNewDefault, array_type_index,
+      ...wasmI32Const(5),
+      kGCPrefix, kExprStructNew, struct_type_index])
+    .exportAs("func2");
+
+  builder.addFunction("func1", kSig_v_v)
+    .addBody([
+      kExprI32Const, 0,
+      kExprCallIndirect, sig_index, kTableZero,
+      ...wasmI32Const(1),
+      kGCPrefix, kExprStructSet, struct_type_index, 0,
+      kExprDrop]);
+
+  let instance2 = builder.instantiate({
+    o: {
+      table: table,
+    }
+  });
+  table.set(0, instance2.exports.func2);
+
+  let instance1 = builder.instantiate({
+    o: {
+      table: table,
+    }
+  });
+
+  instance1.exports.main();
+})();
+
+(function TestIndirectCallToJSFunctionWithMultipleRefResults() {
+  print(arguments.callee.name);
+
+  const builder = new WasmModuleBuilder();
+  let array_type_index = builder.addArray(kWasmI32, true);
+  let struct_type_index = builder.addStruct([makeField(kWasmI32, true)]);
+  let kSig_xy_v = makeSig([], [wasmRefType(array_type_index), wasmRefType(struct_type_index)]);
+  let sig_index = builder.addType(kSig_xy_v);
+
+  let table = new WebAssembly.Table({
+    initial: 10, maximum: 10, element: 'anyfunc',
+  });
+  builder.addImportedTable('o', 'table');
+
+  // Function 0
+  builder.addImport("o", "fn", kSig_xy_v);
+  builder.addExport("fn", 0);
+
+  // Function 1
+  builder.addFunction("main", kSig_v_v)
+    .addBody([
+      kExprRefNull, array_type_index,
+      kExprCallFunction, 3,
+      kExprDrop])
+    .exportAs("main");
+
+  // Function 2
+  builder.addFunction("func2", kSig_xy_v)
+    .addBody([
+      ...wasmI32Const(3),
+      kGCPrefix, kExprArrayNewDefault, array_type_index,
+      ...wasmI32Const(5),
+      kGCPrefix, kExprStructNew, struct_type_index])
+    .exportAs("func2");
+
+  // Function 3
+  builder.addFunction("func1", kSig_v_v)
+    .addBody([
+      kExprI32Const, 0,
+      kExprCallIndirect, sig_index, kTableZero,
+      ...wasmI32Const(1),
+      kGCPrefix, kExprStructSet, struct_type_index, 0,
+      kExprDrop]);
+
+  let instance2 = builder.instantiate({
+    o: {
+      table: table,
+      fn: () => { return instance2.exports.func2(); },
+    }
+  });
+  table.set(0, instance2.exports.fn);
+
+  let instance1 = builder.instantiate({
+    o: {
+      table: table,
+      fn: () => {},
+    }
+  });
+
+  instance1.exports.main();
+})();
+
+(function testWasmExceptionCaughtAfterTailCall() {
+  print(arguments.callee.name);
+
+  var builder = new WasmModuleBuilder();
+  let except = builder.addTag(kSig_v_v);
+
+  builder.addFunction("main", kSig_i_v)
+    .addBody([
+      kExprTry, kWasmVoid,
+        kExprThrow, except,
+      kExprCatchAll,
+      kExprEnd,
+      kExprReturnCall, 1,
+    ])
+    .exportAs("main");
+
+  // Function 1
+  builder.addFunction("func1", kSig_i_v)
+    .addBody([
+      kExprTry, kWasmVoid,
+        kExprTry, kWasmVoid,
+          kExprTry, kWasmVoid,
+            kExprThrow, except,
+          kExprCatch, except,
+          kExprEnd,
+        kExprEnd,
+      kExprEnd,
+      kExprI32Const, 3,
+    ]);
+
+  let instance = builder.instantiate({});
+
+  let result = instance.exports.main();
+  assertEquals(3, result);
+})();
+
+(function TestCodeUnreachableAfterTailCalls() {
+  print(arguments.callee.name);
+
+  let builder = new WasmModuleBuilder();
+  let array_type_index = builder.addArray(kWasmI32, true);
+  let struct_type_index = builder.addStruct([makeField(kWasmI32, true)]);
+  let kSig_array_v = makeSig([], [wasmRefType(array_type_index)]);
+  let sig_array_index = builder.addType(kSig_array_v);
+  let kSig_struct_v = makeSig([], [wasmRefType(struct_type_index)]);
+  let sig_struct_index = builder.addType(kSig_struct_v);
+
+  builder.addImport("o", "imported_func", kSig_array_v);
+  builder.addExport("imported_func", 0);
+
+  let table = new WebAssembly.Table({
+    initial: 3, maximum: 3, element: 'anyfunc',
+  });
+  builder.addImportedTable('o', 'table');
+
+  let f3 = builder.addFunction("create_array", kSig_array_v)
+    .addBody([
+      ...wasmI32Const(1),
+      kGCPrefix, kExprArrayNewDefault, array_type_index,
+    ])
+    .exportAs("create_array");
+
+  builder.addFunction("test_return_callref", makeSig([], [wasmRefType(kSig_array_v)]))
+    .addBody([
+      kExprBlock, sig_struct_index,
+        kExprRefFunc, f3.index,
+        kExprReturnCallRef, sig_array_index,
+      kExprEnd,
+      kExprUnreachable,
+   ])
+    .exportAs("test_return_callref");
+
+  builder.addFunction("test_return_call_imported", makeSig([], [wasmRefType(kSig_array_v)]))
+    .addBody([
+      kExprBlock, sig_struct_index,
+        kExprReturnCall, 0,  // Tail call imported_func.
+      kExprEnd,
+      kExprUnreachable,
+    ])
+    .exportAs("test_return_call_imported");
+
+  builder.addFunction("test_return_call_indirect_wasm_same_instance", makeSig([], [wasmRefType(kSig_array_v)]))
+    .addBody([
+      kExprBlock, sig_struct_index,
+        kExprI32Const, 0,
+        kExprReturnCallIndirect, sig_array_index, kTableZero,
+      kExprEnd,
+      kExprUnreachable,
+    ])
+    .exportAs("test_return_call_indirect_wasm_same_instance");
+
+  builder.addFunction("test_return_call_indirect_wasm_different_instance", makeSig([], [wasmRefType(kSig_array_v)]))
+    .addBody([
+      kExprBlock, sig_struct_index,
+        kExprI32Const, 2,
+        kExprReturnCallIndirect, sig_array_index, kTableZero,
+      kExprEnd,
+      kExprUnreachable,
+    ])
+    .exportAs("test_return_call_indirect_wasm_different_instance");
+
+  builder.addFunction("test_return_call_indirect_js", makeSig([], [wasmRefType(kSig_array_v)]))
+    .addBody([
+      kExprBlock, sig_struct_index,
+        kExprI32Const, 1,
+        kExprReturnCallIndirect, sig_array_index, kTableZero,
+      kExprEnd,
+      kExprUnreachable,
+    ])
+    .exportAs("test_return_call_indirect_js");
+
+  let instance1 = null;
+  instance1 = builder.instantiate({
+    o: {
+      table: table,
+      imported_func: function () {
+        return instance1.exports.create_array();
+      }
+    }
+  });
+
+  let instance2 = null;
+  instance2 = builder.instantiate({
+    o: {
+      table: table,
+      imported_func: function () {
+        return instance2.exports.create_array();
+      }
+    }
+  });
+  table.set(0, instance1.exports.create_array); // Wasm function, same module.
+  table.set(1, instance1.exports.imported_func); // JS function.
+  table.set(2, instance2.exports.create_array); // Wasm function, other module.
+
+  instance1.exports.test_return_callref();
+  instance1.exports.test_return_call_imported();
+  instance1.exports.test_return_call_indirect_wasm_same_instance();
+  instance1.exports.test_return_call_indirect_wasm_different_instance();
+  instance1.exports.test_return_call_indirect_js();
+})();
+
+(function testRefLocalsWithTailCall() {
+  print(arguments.callee.name);
+
+  var builder = new WasmModuleBuilder();
+  let array_index1 = builder.addArray(kWasmI16, true, kNoSuperType, true);
+  let array_index2 = builder.addArray(kWasmI16, true, kNoSuperType, false);
+
+  builder.addFunction("main", kSig_i_i)
+    .addLocals(wasmRefNullType(array_index1), 2)
+    .addBody([
+      kExprLocalGet, 0,
+      kExprIf, kWasmVoid,
+        kExprLocalGet, 0,
+        kExprReturn,
+      kExprEnd,
+      kExprLocalGet, 1,
+      kGCPrefix, kExprRefCastNull, array_index2,
+      ...wasmI32Const(1),
+      kExprReturnCall, 0,
+    ])
+    .exportAs("main");
+
+  let instance = builder.instantiate({});
+  assertEquals(1, instance.exports.main(0));
 })();

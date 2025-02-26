@@ -23,6 +23,8 @@ String.prototype.__proto__ = new Proxy(String.prototype.__proto__, {
   }
 });
 
+assertUnoptimized(foo);
+%DeoptimizeFunction(foo);
 assertEquals("f", foo("abcdef"));
 %PrepareFunctionForOptimization(foo);
 assertEquals("5", foo("a"));

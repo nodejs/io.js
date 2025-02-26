@@ -23,15 +23,14 @@ namespace v8 {
  * type check for a supertype must succeed for any subtype.
  *
  * The tag is currently in practice limited to 15 bits since it needs to fit
- * together with a marking bit into the unused parts of a pointer (the top 16
- * bits).
+ * together with a marking bit into the unused parts of a pointer.
  */
 enum class CppHeapPointerTag : uint16_t {
   kFirstTag = 0,
   kNullTag = 0,
 
   /**
-   *  The lower type ids are reserved for the embedder to assign. For that, the
+   * The lower type ids are reserved for the embedder to assign. For that, the
    * main requirement is that all (transitive) child classes of a given parent
    * class have type ids in the same range, and that there are no unrelated
    * types in that range. For example, given the following type hierarchy:
@@ -67,6 +66,7 @@ enum class CppHeapPointerTag : uint16_t {
 // against supertypes, which cover a range of types (their subtypes).
 // Both the lower- and the upper bound are inclusive. In other words, this
 // struct represents the range [lower_bound, upper_bound].
+// TODO(saelo): reuse internal::TagRange here.
 struct CppHeapPointerTagRange {
   constexpr CppHeapPointerTagRange(CppHeapPointerTag lower,
                                    CppHeapPointerTag upper)

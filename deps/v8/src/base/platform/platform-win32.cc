@@ -1245,20 +1245,17 @@ void OS::Abort() {
 
   switch (g_abort_mode) {
     case AbortMode::kExitWithSuccessAndIgnoreDcheckFailures:
-      _exit(0);
+      ExitProcess(0);
     case AbortMode::kExitWithFailureAndIgnoreDcheckFailures:
-      _exit(-1);
+      ExitProcess(-1);
     case AbortMode::kImmediateCrash:
       IMMEDIATE_CRASH();
     case AbortMode::kDefault:
       break;
   }
 
-  // Make the MSVCRT do a silent abort.
-  raise(SIGABRT);
-
   // Make sure function doesn't return.
-  abort();
+  ExitProcess(3);
 }
 
 

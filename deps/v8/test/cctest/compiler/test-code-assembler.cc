@@ -64,7 +64,7 @@ TEST(SimpleIntPtrReturn) {
   m.Return(m.BitcastWordToTagged(
       m.IntPtrConstant(reinterpret_cast<intptr_t>(&test))));
   FunctionTester ft(asm_tester.GenerateCode());
-  MaybeHandle<Object> result = ft.Call();
+  MaybeDirectHandle<Object> result = ft.Call();
   CHECK_EQ(reinterpret_cast<Address>(&test), (*result.ToHandleChecked()).ptr());
 }
 
@@ -157,13 +157,13 @@ TEST(SimpleCallJSFunction0Arg) {
     auto receiver = SmiTag(&m, m.IntPtrConstant(42));
 
     TNode<Object> result =
-        m.CallJS(Builtins::Call(), context, function, {}, receiver);
+        m.CallJS(Builtins::Call(), context, function, receiver);
     m.Return(result);
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
 
   Handle<JSFunction> sum = CreateSumAllArgumentsFunction(&ft);
-  MaybeHandle<Object> result = ft.Call(sum);
+  MaybeDirectHandle<Object> result = ft.Call(sum);
   CHECK_EQ(Smi::FromInt(42), *result.ToHandleChecked());
 }
 
@@ -180,13 +180,13 @@ TEST(SimpleCallJSFunction1Arg) {
     auto a = SmiTag(&m, m.IntPtrConstant(13));
 
     TNode<Object> result =
-        m.CallJS(Builtins::Call(), context, function, {}, receiver, a);
+        m.CallJS(Builtins::Call(), context, function, receiver, a);
     m.Return(result);
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
 
   Handle<JSFunction> sum = CreateSumAllArgumentsFunction(&ft);
-  MaybeHandle<Object> result = ft.Call(sum);
+  MaybeDirectHandle<Object> result = ft.Call(sum);
   CHECK_EQ(Smi::FromInt(55), *result.ToHandleChecked());
 }
 
@@ -204,13 +204,13 @@ TEST(SimpleCallJSFunction2Arg) {
     auto b = SmiTag(&m, m.IntPtrConstant(153));
 
     TNode<Object> result =
-        m.CallJS(Builtins::Call(), context, function, {}, receiver, a, b);
+        m.CallJS(Builtins::Call(), context, function, receiver, a, b);
     m.Return(result);
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
 
   Handle<JSFunction> sum = CreateSumAllArgumentsFunction(&ft);
-  MaybeHandle<Object> result = ft.Call(sum);
+  MaybeDirectHandle<Object> result = ft.Call(sum);
   CHECK_EQ(Smi::FromInt(208), *result.ToHandleChecked());
 }
 

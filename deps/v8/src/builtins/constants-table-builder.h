@@ -54,6 +54,10 @@ class BuiltinsConstantsTableBuilder final {
   // Maps objects to corresponding indices within the constants list.
   using ConstantsMap = IdentityMap<uint32_t, FreeStoreAllocationPolicy>;
   ConstantsMap map_;
+
+  // Protects accesses to map_, which is concurrently accessed when generating
+  // builtins off-main-thread.
+  base::SpinningMutex mutex_;
 };
 
 }  // namespace internal

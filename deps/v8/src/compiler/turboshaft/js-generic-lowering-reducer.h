@@ -60,7 +60,7 @@ class JSGenericLoweringReducer : public Next {
     }
   }
 
-  OpIndex REDUCE(ToNumberOrNumeric)(V<Object> input, OpIndex frame_state,
+  OpIndex REDUCE(ToNumberOrNumeric)(V<Object> input, V<FrameState> frame_state,
                                     V<Context> context, Object::Conversion kind,
                                     LazyDeoptOnThrow lazy_deopt_on_throw) {
     Label<Object> done(this);

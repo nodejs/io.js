@@ -42,7 +42,7 @@ RUNTIME_FUNCTION(Runtime_GetSubstitution) {
       *capture_exists = false;
       return match_;  // Return arbitrary string handle.
     }
-    MaybeHandle<String> GetNamedCapture(Handle<String> name,
+    MaybeHandle<String> GetNamedCapture(DirectHandle<String> name,
                                         CaptureState* state) override {
       UNREACHABLE();
     }
@@ -117,7 +117,7 @@ RUNTIME_FUNCTION(Runtime_StringReplaceOneCharWithString) {
   // retry with a flattened subject string.
   const int kRecursionLimit = 0x1000;
   bool found = false;
-  Handle<String> result;
+  DirectHandle<String> result;
   if (StringReplaceOneCharWithString(isolate, subject, search, replace, &found,
                                      kRecursionLimit).ToHandle(&result)) {
     return *result;
@@ -153,7 +153,7 @@ RUNTIME_FUNCTION(Runtime_StringSubstring) {
 }
 
 RUNTIME_FUNCTION(Runtime_StringAdd) {
-  // This is used by Wasm stringrefs.
+  // This is used by Wasm.
   SaveAndClearThreadInWasmFlag non_wasm_scope(isolate);
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
@@ -172,6 +172,7 @@ RUNTIME_FUNCTION(Runtime_InternalizeString) {
 }
 
 RUNTIME_FUNCTION(Runtime_StringCharCodeAt) {
+  SaveAndClearThreadInWasmFlag non_wasm_scope(isolate);
   HandleScope handle_scope(isolate);
   DCHECK_EQ(2, args.length());
 
@@ -264,7 +265,7 @@ RUNTIME_FUNCTION(Runtime_StringBuilderConcat) {
   }
 
   if (one_byte) {
-    Handle<SeqOneByteString> answer;
+    DirectHandle<SeqOneByteString> answer;
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, answer, isolate->factory()->NewRawOneByteString(length));
     DisallowGarbageCollection no_gc;
@@ -272,7 +273,7 @@ RUNTIME_FUNCTION(Runtime_StringBuilderConcat) {
                               array_length);
     return *answer;
   } else {
-    Handle<SeqTwoByteString> answer;
+    DirectHandle<SeqTwoByteString> answer;
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
         isolate, answer, isolate->factory()->NewRawTwoByteString(length));
     DisallowGarbageCollection no_gc;
@@ -300,7 +301,7 @@ RUNTIME_FUNCTION(Runtime_StringToArray) {
   if (s->IsFlat() && s->IsOneByteRepresentation()) {
     DisallowGarbageCollection no_gc;
     String::FlatContent content = s->GetFlatContent(no_gc);
-    // Use pre-initialized single characters to intialize all the elements.
+    // Use pre-initialized single characters to initialize all the elements.
     // This can be false if the string is sliced from an externalized
     // two-byte string that has only one-byte chars, in that case we will do
     // a LookupSingleCharacterStringFromCode for each of the characters.
@@ -340,8 +341,8 @@ RUNTIME_FUNCTION(Runtime_StringToArray) {
 RUNTIME_FUNCTION(Runtime_StringLessThan) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<String> x = args.at<String>(0);
-  Handle<String> y = args.at<String>(1);
+  DirectHandle<String> x = args.at<String>(0);
+  DirectHandle<String> y = args.at<String>(1);
   ComparisonResult result = String::Compare(isolate, x, y);
   DCHECK_NE(result, ComparisonResult::kUndefined);
   return isolate->heap()->ToBoolean(
@@ -351,8 +352,8 @@ RUNTIME_FUNCTION(Runtime_StringLessThan) {
 RUNTIME_FUNCTION(Runtime_StringLessThanOrEqual) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<String> x = args.at<String>(0);
-  Handle<String> y = args.at<String>(1);
+  DirectHandle<String> x = args.at<String>(0);
+  DirectHandle<String> y = args.at<String>(1);
   ComparisonResult result = String::Compare(isolate, x, y);
   DCHECK_NE(result, ComparisonResult::kUndefined);
   return isolate->heap()->ToBoolean(
@@ -362,8 +363,8 @@ RUNTIME_FUNCTION(Runtime_StringLessThanOrEqual) {
 RUNTIME_FUNCTION(Runtime_StringGreaterThan) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<String> x = args.at<String>(0);
-  Handle<String> y = args.at<String>(1);
+  DirectHandle<String> x = args.at<String>(0);
+  DirectHandle<String> y = args.at<String>(1);
   ComparisonResult result = String::Compare(isolate, x, y);
   DCHECK_NE(result, ComparisonResult::kUndefined);
   return isolate->heap()->ToBoolean(
@@ -373,8 +374,8 @@ RUNTIME_FUNCTION(Runtime_StringGreaterThan) {
 RUNTIME_FUNCTION(Runtime_StringGreaterThanOrEqual) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<String> x = args.at<String>(0);
-  Handle<String> y = args.at<String>(1);
+  DirectHandle<String> x = args.at<String>(0);
+  DirectHandle<String> y = args.at<String>(1);
   ComparisonResult result = String::Compare(isolate, x, y);
   DCHECK_NE(result, ComparisonResult::kUndefined);
   return isolate->heap()->ToBoolean(
@@ -382,10 +383,11 @@ RUNTIME_FUNCTION(Runtime_StringGreaterThanOrEqual) {
 }
 
 RUNTIME_FUNCTION(Runtime_StringEqual) {
+  SaveAndClearThreadInWasmFlag non_wasm_scope(isolate);
   HandleScope handle_scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<String> x = args.at<String>(0);
-  Handle<String> y = args.at<String>(1);
+  DirectHandle<String> x = args.at<String>(0);
+  DirectHandle<String> y = args.at<String>(1);
   return isolate->heap()->ToBoolean(String::Equals(isolate, x, y));
 }
 
@@ -393,8 +395,8 @@ RUNTIME_FUNCTION(Runtime_StringCompare) {
   SaveAndClearThreadInWasmFlag non_wasm_scope(isolate);
   DCHECK_EQ(2, args.length());
   HandleScope scope(isolate);
-  Handle<String> lhs(Cast<String>(args[0]), isolate);
-  Handle<String> rhs(Cast<String>(args[1]), isolate);
+  DirectHandle<String> lhs(Cast<String>(args[0]), isolate);
+  DirectHandle<String> rhs(Cast<String>(args[1]), isolate);
   ComparisonResult result = String::Compare(isolate, lhs, rhs);
   DCHECK_NE(result, ComparisonResult::kUndefined);
   return Smi::FromInt(static_cast<int>(result));
@@ -415,13 +417,13 @@ RUNTIME_FUNCTION(Runtime_StringMaxLength) {
 RUNTIME_FUNCTION(Runtime_StringEscapeQuotes) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<String> string = args.at<String>(0);
+  DirectHandle<String> string = args.at<String>(0);
 
   // Equivalent to global replacement `string.replace(/"/g, "&quot")`, but this
   // does not modify any global state (e.g. the regexp match info).
 
   const int string_length = string->length();
-  Handle<String> quotes =
+  DirectHandle<String> quotes =
       isolate->factory()->LookupSingleCharacterStringFromCode('"');
 
   int quote_index = String::IndexOf(isolate, string, quotes, 0);
@@ -467,7 +469,7 @@ RUNTIME_FUNCTION(Runtime_StringEscapeQuotes) {
 RUNTIME_FUNCTION(Runtime_StringIsWellFormed) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<String> string = args.at<String>(0);
+  DirectHandle<String> string = args.at<String>(0);
   return isolate->heap()->ToBoolean(
       String::IsWellFormedUnicode(isolate, string));
 }
@@ -475,10 +477,10 @@ RUNTIME_FUNCTION(Runtime_StringIsWellFormed) {
 RUNTIME_FUNCTION(Runtime_StringToWellFormed) {
   HandleScope handle_scope(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<String> source = args.at<String>(0);
+  DirectHandle<String> source = args.at<String>(0);
   if (String::IsWellFormedUnicode(isolate, source)) return *source;
   // String::IsWellFormedUnicode would have returned true above otherwise.
-  DCHECK(!String::IsOneByteRepresentationUnderneath(*source));
+  DCHECK(!source->IsOneByteRepresentation());
   const int length = source->length();
   DirectHandle<SeqTwoByteString> dest =
       isolate->factory()->NewRawTwoByteString(length).ToHandleChecked();

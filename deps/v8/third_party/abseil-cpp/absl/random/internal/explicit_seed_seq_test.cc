@@ -29,14 +29,18 @@ using ::absl::random_internal::ExplicitSeedSeq;
 template <typename Sseq>
 bool ConformsToInterface() {
   // Check that the SeedSequence can be default-constructed.
-  { Sseq default_constructed_seq; }
+  {
+    Sseq default_constructed_seq;
+  }
   // Check that the SeedSequence can be constructed with two iterators.
   {
     uint32_t init_array[] = {1, 3, 5, 7, 9};
     Sseq iterator_constructed_seq(init_array, &init_array[5]);
   }
   // Check that the SeedSequence can be std::initializer_list-constructed.
-  { Sseq list_constructed_seq = {1, 3, 5, 7, 9, 11, 13}; }
+  {
+    Sseq list_constructed_seq = {1, 3, 5, 7, 9, 11, 13};
+  }
   // Check that param() and size() return state provided to constructor.
   {
     uint32_t init_array[] = {1, 2, 3, 4, 5};

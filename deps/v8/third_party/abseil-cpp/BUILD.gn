@@ -96,6 +96,7 @@ group("absl_component_deps") {
     "//third_party/abseil-cpp/absl/numeric:bits",
     "//third_party/abseil-cpp/absl/numeric:int128",
     "//third_party/abseil-cpp/absl/random",
+    "//third_party/abseil-cpp/absl/random:bit_gen_ref",
     "//third_party/abseil-cpp/absl/random:distributions",
     "//third_party/abseil-cpp/absl/status",
     "//third_party/abseil-cpp/absl/status:statusor",
@@ -159,6 +160,7 @@ source_set("absl_full") {
       # part of Chrome.
       "//components/optimization_guide/internal/*",
       "//third_party/fuzztest:*",
+      "//third_party/webrtc/*",
 
       # GoogleTest doesn't actually need absl_full, but this makes gn check
       # happier.
@@ -181,11 +183,6 @@ group("absl_full_deps") {
     # those macros.
     "//third_party/abseil-cpp/absl/log",
     "//third_party/abseil-cpp/absl/log:check",
-
-    # TODO(danilchap): Investigate if these targets need to be banned in 3rd party library code.
-    "//third_party/abseil-cpp/absl/log:globals",
-    "//third_party/abseil-cpp/absl/log:initialize",
-    "//third_party/abseil-cpp/absl/random:bit_gen_ref",
   ]
 
   visibility = [
@@ -230,18 +227,6 @@ config("absl_default_cflags_cc") {
     if (!is_nacl) {
       cflags_cc += [ "-Wbitfield-enum-conversion" ]
     }
-  }
-}
-
-config("absl_public_cflags_cc") {
-  # Non-chromium users of abseil have more lax style guides and use additional features in
-  # abseil, Remove a few extra warnings for that use case.
-  if (!build_with_chromium && is_clang) {
-    cflags = [
-      # Allow the use of enable_if()
-      "-Wno-gcc-compat",
-      "-Wno-unreachable-code-break",
-    ]
   }
 }
 
@@ -343,6 +328,7 @@ if (absl_build_tests) {
         "absl/log:vlog_is_on_test",
         "absl/log/internal:fnmatch_test",
         "absl/log/internal:stderr_log_sink_test",
+        "absl/log/internal:structured_proto_test",
         "absl/memory:memory_test",
         "absl/meta:type_traits_test",
         "absl/numeric:int128_test",
@@ -350,6 +336,7 @@ if (absl_build_tests) {
         "absl/profiling:periodic_sampler_test",
         "absl/random:distributions_test",
         "absl/random:mock_distributions_test",
+        "absl/random/internal:nonsecure_base_test",
         "absl/status:status_matchers_test",
         "absl/status:status_test",
         "absl/status:statusor_test",
@@ -372,6 +359,7 @@ if (absl_build_tests) {
         "absl/strings:has_absl_stringify_test",
         "absl/strings:has_ostream_operator_test",
         "absl/strings:match_test",
+        "absl/strings:str_cat_test",
         "absl/strings:str_format_arg_test",
         "absl/strings:str_format_bind_test",
         "absl/strings:str_format_checker_test",

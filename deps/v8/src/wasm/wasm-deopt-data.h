@@ -97,6 +97,9 @@ class WasmDeoptDataProcessor {
 struct LiftoffFrameDescriptionForDeopt {
   uint32_t wire_bytes_offset = 0;
   uint32_t pc_offset = 0;
+#ifdef V8_ENABLE_CET_SHADOW_STACK
+  uint32_t adapt_shadow_stack_pc_offset = 0;
+#endif  // V8_ENABLE_CET_SHADOW_STACK
   std::vector<LiftoffVarState> var_state = {};
   // If the trusted_instance is cached in a register additionally to the stack
   // slot, this register needs to be updated as well.

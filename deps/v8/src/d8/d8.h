@@ -180,13 +180,13 @@ class SerializationDataQueue {
   void Clear();
 
  private:
-  base::Mutex mutex_;
+  base::SpinningMutex mutex_;
   std::vector<std::unique_ptr<SerializationData>> data_;
 };
 
 class Worker : public std::enable_shared_from_this<Worker> {
  public:
-  static constexpr i::ExternalPointerTag kManagedTag = i::kGenericManagedTag;
+  static constexpr i::ExternalPointerTag kManagedTag = i::kD8WorkerTag;
 
   explicit Worker(Isolate* parent_isolate, const char* script);
   ~Worker();
@@ -278,7 +278,7 @@ class Worker : public std::enable_shared_from_this<Worker> {
 
   // Protects reading / writing task_runner_. (The TaskRunner itself doesn't
   // need locking, but accessing the Worker's data member does.)
-  base::Mutex worker_mutex_;
+  base::SpinningMutex worker_mutex_;
 
   // The isolate should only be accessed by the worker itself, or when holding
   // the worker_mutex_ and after checking the worker state.
@@ -512,6 +512,7 @@ class ShellOptions {
   DisallowReassignment<bool> wasm_trap_handler = {"wasm-trap-handler", true};
 #endif  // V8_ENABLE_WEBASSEMBLY
   DisallowReassignment<bool> expose_fast_api = {"expose-fast-api", false};
+  DisallowReassignment<bool> flush_denormals = {"flush-denormals", false};
   DisallowReassignment<size_t> max_serializer_memory = {"max-serializer-memory",
                                                         1 * i::MB};
 };
@@ -529,6 +530,9 @@ class Shell : public i::AllStatic {
   };
   enum class CodeType { kFileName, kString, kFunction, kInvalid, kNone };
 
+  // Boolean return values (for any method below) typically denote "success".
+  // We return `false` on uncaught exceptions, except for termination
+  // exceptions.
   static bool ExecuteString(Isolate* isolate, Local<String> source,
                             Local<String> name,
                             ReportExceptions report_exceptions,
@@ -601,6 +605,8 @@ class Shell : public i::AllStatic {
   static void InstallConditionalFeatures(
       const v8::FunctionCallbackInfo<v8::Value>& info);
   static void EnableJSPI(const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void SetFlushDenormals(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
 
   static void AsyncHooksCreateHook(
       const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -642,6 +648,8 @@ class Shell : public i::AllStatic {
   static void Version(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void WriteFile(const v8::FunctionCallbackInfo<v8::Value>& info);
   static void ReadFile(const v8::FunctionCallbackInfo<v8::Value>& info);
+  static void CreateWasmMemoryMapDescriptor(
+      const v8::FunctionCallbackInfo<v8::Value>& info);
   static char* ReadChars(const char* name, int* size_out);
   static MaybeLocal<PrimitiveArray> ReadLines(Isolate* isolate,
                                               const char* name);
@@ -718,6 +726,10 @@ class Shell : public i::AllStatic {
       Local<Context> context, Local<Data> host_defined_options,
       Local<Value> resource_name, Local<String> specifier,
       Local<FixedArray> import_attributes);
+  static MaybeLocal<Promise> HostImportModuleWithPhaseDynamically(
+      Local<Context> context, Local<Data> host_defined_options,
+      Local<Value> resource_name, Local<String> specifier,
+      ModuleImportPhase phase, Local<FixedArray> import_attributes);
 
   static void ModuleResolutionSuccessCallback(
       const v8::FunctionCallbackInfo<v8::Value>& info);
@@ -777,13 +789,13 @@ class Shell : public i::AllStatic {
   static base::OnceType quit_once_;
   static Global<Function> stringify_function_;
 
-  static base::Mutex profiler_end_callback_lock_;
+  static base::SpinningMutex profiler_end_callback_lock_;
   static std::map<Isolate*, std::pair<Global<Function>, Global<Context>>>
       profiler_end_callback_;
 
   static const char* stringify_source_;
   static CounterMap* counter_map_;
-  static base::SharedMutex counter_mutex_;
+  static base::SpinningMutex counter_mutex_;
   // We statically allocate a set of local counters to be used if we
   // don't want to store the stats in a memory-mapped file
   static CounterCollection local_counters_;

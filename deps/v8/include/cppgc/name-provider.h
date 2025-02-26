@@ -55,6 +55,9 @@ class V8_EXPORT NameProvider {
    * Specifies a name for the garbage-collected object. Such names will never
    * be hidden, as they are explicitly specified by the user of this API.
    *
+   * Implementations of this function must not allocate garbage-collected
+   * objects or otherwise modify the cppgc heap.
+   *
    * V8 may call this function while generating a heap snapshot or at other
    * times. If V8 is currently generating a heap snapshot (according to
    * HeapProfiler::IsTakingSnapshot), then the returned string must stay alive

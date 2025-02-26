@@ -1744,7 +1744,7 @@ TEST_F(DisasmArmTest, SplitAddImmediate) {
   SET_UP();
 
   if (CpuFeatures::IsSupported(ARMv7)) {
-    // Re-use the destination as a scratch.
+    // Reuse the destination as a scratch.
     COMPARE(add(r0, r1, Operand(0x12345678)),
             "e3050678       movw r0, #22136",
             "e3410234       movt r0, #4660",
@@ -1756,7 +1756,7 @@ TEST_F(DisasmArmTest, SplitAddImmediate) {
             "e341c234       movt ip, #4660",
             "e080000c       add r0, r0, ip");
   } else {
-    // Re-use the destination as a scratch.
+    // Reuse the destination as a scratch.
     COMPARE_REGEX(add(r0, r1, Operand(0x12345678)),
                   "e59f0[0-9a-f]{3}       "
                       "ldr r0, \\[pc, #\\+[0-9]+\\] \\(addr 0x[0-9a-f]{8}\\)",

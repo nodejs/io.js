@@ -10,7 +10,7 @@
 #include "src/compiler/heap-refs.h"
 #include "src/compiler/node.h"
 #include "src/compiler/operator-properties.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 
 namespace v8 {
 namespace internal {

@@ -16,7 +16,7 @@
 #include "src/base/small-vector.h"
 #include "src/base/threaded-list.h"
 #include "src/common/globals.h"
-#include "src/parsing/import-assertions.h"
+#include "src/parsing/import-attributes.h"
 #include "src/parsing/parse-info.h"
 #include "src/parsing/parser-base.h"
 #include "src/parsing/parsing.h"
@@ -157,10 +157,11 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   // their corresponding scope infos. Therefore, looking up variables in the
   // deserialized scopes is not possible.
   template <typename IsolateT>
-  void DeserializeScopeChain(IsolateT* isolate, ParseInfo* info,
-                             MaybeHandle<ScopeInfo> maybe_outer_scope_info,
-                             Scope::DeserializationMode mode =
-                                 Scope::DeserializationMode::kScopesOnly);
+  void DeserializeScopeChain(
+      IsolateT* isolate, ParseInfo* info,
+      MaybeDirectHandle<ScopeInfo> maybe_outer_scope_info,
+      Scope::DeserializationMode mode =
+          Scope::DeserializationMode::kScopesOnly);
 
   // Move statistics to Isolate
   void UpdateStatistics(Isolate* isolate, DirectHandle<Script> script);
@@ -180,10 +181,10 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   friend class i::ArrowHeadParsingScope<ParserTypes<Parser>>;
   friend bool v8::internal::parsing::ParseProgram(
       ParseInfo*, DirectHandle<Script>,
-      MaybeHandle<ScopeInfo> maybe_outer_scope_info, Isolate*,
+      MaybeDirectHandle<ScopeInfo> maybe_outer_scope_info, Isolate*,
       parsing::ReportStatisticsMode stats_mode);
   friend bool v8::internal::parsing::ParseFunction(
-      ParseInfo*, Handle<SharedFunctionInfo> shared_info, Isolate*,
+      ParseInfo*, DirectHandle<SharedFunctionInfo> shared_info, Isolate*,
       parsing::ReportStatisticsMode stats_mode);
 
   bool AllowsLazyParsingWithoutUnresolvedVariables() const {
@@ -224,7 +225,7 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   // Sets the literal on |info| if parsing succeeded.
   void ParseProgram(Isolate* isolate, DirectHandle<Script> script,
                     ParseInfo* info,
-                    MaybeHandle<ScopeInfo> maybe_outer_scope_info);
+                    MaybeDirectHandle<ScopeInfo> maybe_outer_scope_info);
 
   // Sets the literal on |info| if parsing succeeded.
   void ParseFunction(Isolate* isolate, ParseInfo* info,
@@ -240,7 +241,7 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
                                    const AstRawString* raw_name);
 
   FunctionLiteral* ParseClassForMemberInitialization(
-      FunctionKind initalizer_kind, int initializer_pos, int initializer_id,
+      FunctionKind initializer_kind, int initializer_pos, int initializer_id,
       int initializer_end_pos, const AstRawString* class_name);
 
   // Called by ParseProgram after setting up the scanner.
@@ -314,8 +315,8 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
                                  const CatchInfo& catch_info, int pos);
   void ParseGeneratorFunctionBody(int pos, FunctionKind kind,
                                   ScopedPtrList<Statement>* body);
-  void ParseAndRewriteAsyncGeneratorFunctionBody(
-      int pos, FunctionKind kind, ScopedPtrList<Statement>* body);
+  void ParseAsyncGeneratorFunctionBody(int pos, FunctionKind kind,
+                                       ScopedPtrList<Statement>* body);
   void DeclareFunctionNameVar(const AstRawString* function_name,
                               FunctionSyntaxKind function_syntax_kind,
                               DeclarationScope* function_scope);
@@ -379,8 +380,6 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   Statement* DeclareNative(const AstRawString* name, int pos);
 
   Block* IgnoreCompletion(Statement* statement);
-
-  Scope* NewHiddenCatchScope();
 
   bool HasCheckedSyntax() {
     return scope()->GetDeclarationScope()->has_checked_syntax();
@@ -636,7 +635,7 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
     ExpressionStatement* e_stat = statement->AsExpressionStatement();
     if (e_stat == nullptr) return false;
     Literal* literal = e_stat->expression()->AsLiteral();
-    if (literal == nullptr || !literal->IsString()) return false;
+    if (literal == nullptr || !literal->IsRawString()) return false;
     return arg == nullptr || literal->AsRawString() == arg;
   }
 
@@ -790,9 +789,10 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
   V8_INLINE const AstRawString* GetNumberAsSymbol() const {
     double double_value = scanner()->DoubleValue();
     char array[100];
-    const char* string =
-        DoubleToCString(double_value, base::ArrayVector(array));
-    return ast_value_factory()->GetOneByteString(string);
+    std::string_view string =
+        DoubleToStringView(double_value, base::ArrayVector(array));
+    return ast_value_factory()->GetOneByteString(
+        base::OneByteVector(string.data(), string.length()));
   }
 
   const AstRawString* GetBigIntAsSymbol();
@@ -886,7 +886,7 @@ class V8_EXPORT_PRIVATE Parser : public NON_EXPORTED_BASE(ParserBase<Parser>) {
       // If the parameter list is simple, declare the parameters normally with
       // their names. If the parameter list is not simple, declare a temporary
       // for each parameter - the corresponding named variable is declared by
-      // BuildParamerterInitializationBlock.
+      // BuildParameterInitializationBlock.
       scope->DeclareParameter(
           is_simple ? parameter->name() : ast_value_factory()->empty_string(),
           is_simple ? VariableMode::kVar : VariableMode::kTemporary,

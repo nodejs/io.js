@@ -2594,6 +2594,7 @@ double cosh(double x) {
   return huge * huge;
 }
 
+namespace legacy {
 /*
  * ES2019 Draft 2019-01-02 12.6.4
  * Math.pow & Exponentiation Operator
@@ -2746,7 +2747,7 @@ double pow(double x, double y) {
   /* special value of x */
   if (lx == 0) {
     if (ix == 0x7ff00000 || ix == 0 || ix == 0x3ff00000) {
-      z = ax;                         /*x is +-0,+-inf,+-1*/
+      z = ax;                               /*x is +-0,+-inf,+-1*/
       if (hy < 0) z = base::Divide(one, z); /* z = (1/|x|) */
       if (hx < 0) {
         if (((ix - 0x3ff00000) | yisint) == 0) {
@@ -2904,6 +2905,8 @@ double pow(double x, double y) {
   }
   return s * z;
 }
+
+}  // namespace legacy
 
 /*
  * ES6 draft 09-27-13, section 20.2.2.30.

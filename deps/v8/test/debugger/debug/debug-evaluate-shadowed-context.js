@@ -179,7 +179,7 @@ listener_delegate = function(exec_state) {
 EndTest();
 
 BeginTest("Check that outer functions also get the correct block list calculated");
-// This test is important once we re-use block list info. The block list for `g`
+// This test is important once we reuse block list info. The block list for `g`
 // needs to be correctly calculated already when we stop on break_position 1.
 
 let break_position;

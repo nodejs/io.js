@@ -43,7 +43,7 @@ class IncrementalMarkingJob final {
   Heap* const heap_;
   const std::shared_ptr<v8::TaskRunner> user_blocking_task_runner_;
   const std::shared_ptr<v8::TaskRunner> user_visible_task_runner_;
-  mutable base::Mutex mutex_;
+  mutable base::SpinningMutex mutex_;
   v8::base::TimeTicks scheduled_time_;
   bool pending_task_ = false;
 };

@@ -34,8 +34,8 @@ namespace internal {
 // guaranteed to work (similar for how we do it for ExternalPointerTags).
 
 constexpr int kIndirectPointerTagShift = 48;
-constexpr uint64_t kIndirectPointerTagMask = 0x7fff000000000000;
-constexpr uint64_t kTrustedPointerTableMarkBit = 0x8000000000000000;
+constexpr uint64_t kIndirectPointerTagMask = 0x7fff'0000'0000'0000;
+constexpr uint64_t kTrustedPointerTableMarkBit = 0x8000'0000'0000'0000;
 // We use a reserved bit for the free entry tag so that the
 // kUnknownIndirectPointerTag cannot untag free entries. Due to that, not all
 // tags in the kAllTagsForAndBasedTypeChecking are usable here (which is
@@ -46,20 +46,58 @@ constexpr uint64_t kTrustedPointerTableMarkBit = 0x8000000000000000;
 // Note that we use a bit in the 2nd most significant byte here due to top byte
 // ignore (TBI), which allows dereferencing pointers even if bits in the most
 // significant byte are set.
-constexpr uint64_t kTrustedPointerTableFreeEntryBit = 0x0080000000000000;
+constexpr uint64_t kTrustedPointerTableFreeEntryBit = 0x0080'0000'0000'0000;
 constexpr uint64_t kIndirectPointerTagMaskWithoutFreeEntryBit =
-    0x7f7f000000000000;
+    0x7f7f'0000'0000'0000;
 
-// Format is (name, instance type, tag id)
-#define INDIRECT_POINTER_TAG_LIST(V)                        \
-  V(kCodeIndirectPointerTag, 1)                             \
-  V(kBytecodeArrayIndirectPointerTag, 2)                    \
-  V(kInterpreterDataIndirectPointerTag, 3)                  \
-  V(kUncompiledDataIndirectPointerTag, 4)                   \
-  V(kRegExpDataIndirectPointerTag, 5)                       \
-  IF_WASM(V, kWasmTrustedInstanceDataIndirectPointerTag, 6) \
-  IF_WASM(V, kWasmInternalFunctionIndirectPointerTag, 7)    \
-  IF_WASM(V, kWasmFunctionDataIndirectPointerTag, 8)
+// TODO(saelo): Also switch the trusted pointer table to use a range-based type
+// checking mechanism instead of the AND-based one. This will allow us to
+// support type hierarchies and allow for more tags. See the
+// ExternalPointerTable for the type checking scheme that we should use here.
+constexpr uint64_t kAllTagsForAndBasedTypeChecking[] = {
+    0b00001111, 0b00010111, 0b00011011, 0b00011101, 0b00011110, 0b00100111,
+    0b00101011, 0b00101101, 0b00101110, 0b00110011, 0b00110101, 0b00110110,
+    0b00111001, 0b00111010, 0b00111100, 0b01000111, 0b01001011, 0b01001101,
+    0b01001110, 0b01010011, 0b01010101, 0b01010110, 0b01011001, 0b01011010,
+    0b01011100, 0b01100011, 0b01100101, 0b01100110, 0b01101001, 0b01101010,
+    0b01101100, 0b01110001, 0b01110010, 0b01110100, 0b01111000, 0b10000111,
+    0b10001011, 0b10001101, 0b10001110, 0b10010011, 0b10010101, 0b10010110,
+    0b10011001, 0b10011010, 0b10011100, 0b10100011, 0b10100101, 0b10100110,
+    0b10101001, 0b10101010, 0b10101100, 0b10110001, 0b10110010, 0b10110100,
+    0b10111000, 0b11000011, 0b11000101, 0b11000110, 0b11001001, 0b11001010,
+    0b11001100, 0b11010001, 0b11010010, 0b11010100, 0b11011000, 0b11100001,
+    0b11100010, 0b11100100, 0b11101000, 0b11110000};
+
+// Shared trusted pointers are owned by the shared Isolate and stored in the
+// shared trusted pointer table associated with that Isolate, where they can
+// be accessed from multiple threads at the same time. The objects referenced
+// in this way must therefore always be thread-safe.
+// TODO(358918874): Consider having explicitly shared types (e.g.
+// `ExposedSharedTrustedObject`) and enforcing that shared tags are only ever
+// used with shared types.
+#define SHARED_TRUSTED_POINTER_TAG_LIST(V) \
+  V(kFirstSharedTrustedTag, 1)             \
+  V(kLastSharedTrustedTag, 1)
+// Leave some space in the tag range here for future shared tags.
+
+// Trusted pointers using these tags are kept in a per-Isolate trusted
+// pointer table and can only be accessed when this Isolate is active.
+#define PER_ISOLATE_INDIRECT_POINTER_TAG_LIST(V)             \
+  V(kFirstPerIsolateTrustedTag, 6)                           \
+  V(kCodeIndirectPointerTag, 6)                              \
+  V(kBytecodeArrayIndirectPointerTag, 7)                     \
+  V(kInterpreterDataIndirectPointerTag, 8)                   \
+  V(kUncompiledDataIndirectPointerTag, 9)                    \
+  V(kRegExpDataIndirectPointerTag, 10)                       \
+  IF_WASM(V, kWasmTrustedInstanceDataIndirectPointerTag, 11) \
+  IF_WASM(V, kWasmInternalFunctionIndirectPointerTag, 12)    \
+  IF_WASM(V, kWasmFunctionDataIndirectPointerTag, 13)        \
+  IF_WASM(V, kWasmDispatchTableIndirectPointerTag, 14)       \
+  V(kLastPerIsolateTrustedTag, 14)
+
+#define INDIRECT_POINTER_TAG_LIST(V) \
+  SHARED_TRUSTED_POINTER_TAG_LIST(V) \
+  PER_ISOLATE_INDIRECT_POINTER_TAG_LIST(V)
 
 #define MAKE_TAG(i) \
   (kAllTagsForAndBasedTypeChecking[i] << kIndirectPointerTagShift)
@@ -123,15 +161,26 @@ static_assert((kFreeTrustedPointerTableEntryTag & kIndirectPointerTagMask) ==
 static_assert((kFreeTrustedPointerTableEntryTag &
                kIndirectPointerTagMaskWithoutFreeEntryBit) == 0);
 
+// True if the external pointer must be accessed from the shared isolate's
+// external pointer table.
+V8_INLINE static constexpr bool IsSharedTrustedPointerType(
+    IndirectPointerTag tag) {
+  static_assert(IndirectPointerTag::kFirstSharedTrustedTag <=
+                IndirectPointerTag::kLastSharedTrustedTag);
+  return tag >= IndirectPointerTag::kFirstSharedTrustedTag &&
+         tag <= IndirectPointerTag::kLastSharedTrustedTag;
+}
+
+V8_INLINE static constexpr bool IsPerIsolateTrustedPointerType(
+    IndirectPointerTag tag) {
+  static_assert(IndirectPointerTag::kFirstPerIsolateTrustedTag <=
+                IndirectPointerTag::kLastPerIsolateTrustedTag);
+  return tag >= IndirectPointerTag::kFirstPerIsolateTrustedTag &&
+         tag <= IndirectPointerTag::kLastPerIsolateTrustedTag;
+}
+
 V8_INLINE constexpr bool IsValidIndirectPointerTag(IndirectPointerTag tag) {
-#define VALID_INDIRECT_POINTER_TAG_CASE(tag, tag_id) case tag:
-  switch (tag) {
-    INDIRECT_POINTER_TAG_LIST(VALID_INDIRECT_POINTER_TAG_CASE)
-    return true;
-    default:
-      return false;
-  }
-#undef VALID_INDIRECT_POINTER_TAG_CASE
+  return IsPerIsolateTrustedPointerType(tag) || IsSharedTrustedPointerType(tag);
 }
 
 // Migrating objects into trusted space is typically performed in multiple
@@ -171,6 +220,8 @@ IndirectPointerTagFromInstanceType(InstanceType instance_type) {
       // our tag checking mechanism.
       return kRegExpDataIndirectPointerTag;
 #if V8_ENABLE_WEBASSEMBLY
+    case WASM_DISPATCH_TABLE_TYPE:
+      return kWasmDispatchTableIndirectPointerTag;
     case WASM_TRUSTED_INSTANCE_DATA_TYPE:
       return kWasmTrustedInstanceDataIndirectPointerTag;
     case WASM_INTERNAL_FUNCTION_TYPE:
@@ -203,6 +254,21 @@ InstanceTypeFromIndirectPointerTag(IndirectPointerTag tag) {
 }
 
 #undef MAKE_TAG
+
+// Sanity checks.
+#define CHECK_SHARED_TRUSTED_POINTER_TAGS(Tag, ...) \
+  static_assert(IsSharedTrustedPointerType(Tag));
+#define CHECK_NON_SHARED_TRUSTED_POINTER_TAGS(Tag, ...) \
+  static_assert(!IsSharedTrustedPointerType(Tag));
+
+SHARED_TRUSTED_POINTER_TAG_LIST(CHECK_SHARED_TRUSTED_POINTER_TAGS)
+PER_ISOLATE_INDIRECT_POINTER_TAG_LIST(CHECK_NON_SHARED_TRUSTED_POINTER_TAGS)
+
+#undef CHECK_NON_SHARED_TRUSTED_POINTER_TAGS
+#undef CHECK_SHARED_TRUSTED_POINTER_TAGS
+
+#undef SHARED_TRUSTED_POINTER_TAG_LIST
+#undef PER_ISOLATE_INDIRECT_POINTER_TAG_LIST
 #undef INDIRECT_POINTER_TAG_LIST
 
 }  // namespace internal

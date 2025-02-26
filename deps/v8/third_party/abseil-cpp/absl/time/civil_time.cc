@@ -14,6 +14,7 @@
 
 #include "absl/time/civil_time.h"
 
+#include <cerrno>
 #include <cstdlib>
 #include <ostream>
 #include <string>

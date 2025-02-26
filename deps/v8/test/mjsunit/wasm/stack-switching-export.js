@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --wasm-generic-wrapper --expose-gc --allow-natives-syntax
-// Flags: --experimental-wasm-jspi
+// Flags: --wasm-staging
 
 // This is a port of the generic-wrapper.js tests for the JS Promise Integration
 // variant of the wrapper. We don't suspend the stacks in this test, we only

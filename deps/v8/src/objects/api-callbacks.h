@@ -65,8 +65,9 @@ class AccessorInfo
 
   // Append all descriptors to the array that are not already there.
   // Return number added.
-  static int AppendUnique(Isolate* isolate, Handle<Object> descriptors,
-                          Handle<FixedArray> array, int valid_descriptors);
+  static int AppendUnique(Isolate* isolate, DirectHandle<Object> descriptors,
+                          DirectHandle<FixedArray> array,
+                          int valid_descriptors);
 
   DECL_PRINTER(AccessorInfo)
 

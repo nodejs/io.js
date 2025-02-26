@@ -207,7 +207,8 @@ class DebugInfoImpl {
   WasmCode* RecompileLiftoffWithBreakpoints(int func_index,
                                             base::Vector<const int> offsets,
                                             int dead_breakpoint) {
-    DCHECK(!mutex_.TryLock());  // Mutex is held externally.
+    mutex_.AssertHeld();  // Mutex is held externally.
+    DCHECK(!v8_flags.wasm_jitless);
 
     ForDebugging for_debugging = offsets.size() == 1 && offsets[0] == 0
                                      ? kForStepping
@@ -235,7 +236,7 @@ class DebugInfoImpl {
     CompilationEnv env = CompilationEnv::ForModule(native_module_);
     const WasmFunction* function = &env.module->functions[func_index];
     base::Vector<const uint8_t> wire_bytes = native_module_->wire_bytes();
-    bool is_shared = env.module->types[function->sig_index].is_shared;
+    bool is_shared = env.module->type(function->sig_index).is_shared;
     FunctionBody body{function->sig, function->code.offset(),
                       wire_bytes.begin() + function->code.offset(),
                       wire_bytes.begin() + function->code.end_offset(),
@@ -271,12 +272,13 @@ class DebugInfoImpl {
     if (!result.succeeded()) FATAL("Liftoff compilation failed");
     DCHECK_EQ(generate_debug_sidetable, debug_sidetable != nullptr);
 
+    DCHECK_NULL(result.assumptions);
     WasmCode* new_code =
         native_module_->PublishCode(native_module_->AddCompiledCode(result));
 
     DCHECK(new_code->is_inspectable());
     if (generate_debug_sidetable) {
-      base::MutexGuard lock(&debug_side_tables_mutex_);
+      base::SpinningMutexGuard lock(&debug_side_tables_mutex_);
       DCHECK_EQ(0, debug_side_tables_.count(new_code));
       debug_side_tables_.emplace(new_code, std::move(debug_sidetable));
     }
@@ -284,7 +286,7 @@ class DebugInfoImpl {
     // Insert new code into the cache. Insert before existing elements for LRU.
     cached_debugging_code_.insert(
         cached_debugging_code_.begin(),
-        CachedDebuggingCode{func_index, base::OwnedVector<int>::Of(offsets),
+        CachedDebuggingCode{func_index, base::OwnedCopyOf(offsets),
                             dead_breakpoint, new_code});
     // Increase the ref count (for the cache entry).
     new_code->IncRef();
@@ -302,13 +304,17 @@ class DebugInfoImpl {
   }
 
   void SetBreakpoint(int func_index, int offset, Isolate* isolate) {
+    // TODO(paolosev@microsoft.com) - Add support for breakpoints in Wasm
+    // interpreter.
+    if (v8_flags.wasm_jitless) return;
+
     // Put the code ref scope outside of the mutex, so we don't unnecessarily
     // hold the mutex while freeing code.
     WasmCodeRefScope wasm_code_ref_scope;
 
     // Hold the mutex while modifying breakpoints, to ensure consistency when
     // multiple isolates set/remove breakpoints at the same time.
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
 
     // offset == 0 indicates flooding and should not happen here.
     DCHECK_NE(0, offset);
@@ -351,7 +357,7 @@ class DebugInfoImpl {
   }
 
   std::vector<int> FindAllBreakpoints(int func_index) {
-    DCHECK(!mutex_.TryLock());  // Mutex must be held externally.
+    mutex_.AssertHeld();  // Mutex must be held externally.
     std::set<int> breakpoints;
     for (auto& data : per_isolate_data_) {
       auto it = data.second.breakpoints_per_function.find(func_index);
@@ -364,18 +370,24 @@ class DebugInfoImpl {
   void UpdateBreakpoints(int func_index, base::Vector<int> breakpoints,
                          Isolate* isolate, StackFrameId stepping_frame,
                          int dead_breakpoint) {
-    DCHECK(!mutex_.TryLock());  // Mutex is held externally.
+    // TODO(paolosev@microsoft.com) - Add support for breakpoints in Wasm
+    // interpreter.
+    if (v8_flags.wasm_jitless) return;
+    mutex_.AssertHeld();  // Mutex is held externally.
     WasmCode* new_code = RecompileLiftoffWithBreakpoints(
         func_index, breakpoints, dead_breakpoint);
     UpdateReturnAddresses(isolate, new_code, stepping_frame);
   }
 
   void FloodWithBreakpoints(WasmFrame* frame, ReturnLocation return_location) {
+    // TODO(paolosev@microsoft.com) - Add support for breakpoints in Wasm
+    // interpreter.
+    if (v8_flags.wasm_jitless) return;
     // 0 is an invalid offset used to indicate flooding.
     constexpr int kFloodingBreakpoints[] = {0};
     DCHECK(frame->wasm_code()->is_liftoff());
     // Generate an additional source position for the current byte offset.
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
     WasmCode* new_code = RecompileLiftoffWithBreakpoints(
         frame->function_index(), base::ArrayVector(kFloodingBreakpoints), 0);
     UpdateReturnAddress(frame, new_code, return_location);
@@ -411,8 +423,11 @@ class DebugInfoImpl {
   }
 
   void ClearStepping(WasmFrame* frame) {
+    // TODO(paolosev@microsoft.com) - Add support for breakpoints in Wasm
+    // interpreter.
+    if (v8_flags.wasm_jitless) return;
     WasmCodeRefScope wasm_code_ref_scope;
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
     auto* code = frame->wasm_code();
     if (code->for_debugging() != kForStepping) return;
     int func_index = code->index();
@@ -424,7 +439,7 @@ class DebugInfoImpl {
   }
 
   void ClearStepping(Isolate* isolate) {
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
     auto it = per_isolate_data_.find(isolate);
     if (it != per_isolate_data_.end()) it->second.stepping_frame = NO_ID;
   }
@@ -432,7 +447,7 @@ class DebugInfoImpl {
   bool IsStepping(WasmFrame* frame) {
     Isolate* isolate = frame->isolate();
     if (isolate->debug()->last_step_action() == StepInto) return true;
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
     auto it = per_isolate_data_.find(isolate);
     return it != per_isolate_data_.end() &&
            it->second.stepping_frame == frame->id();
@@ -445,7 +460,7 @@ class DebugInfoImpl {
 
     // Hold the mutex while modifying breakpoints, to ensure consistency when
     // multiple isolates set/remove breakpoints at the same time.
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
 
     const auto& function = native_module_->module()->functions[func_index];
     int offset = position - function.code.offset();
@@ -471,14 +486,14 @@ class DebugInfoImpl {
   }
 
   void RemoveDebugSideTables(base::Vector<WasmCode* const> codes) {
-    base::MutexGuard guard(&debug_side_tables_mutex_);
+    base::SpinningMutexGuard guard(&debug_side_tables_mutex_);
     for (auto* code : codes) {
       debug_side_tables_.erase(code);
     }
   }
 
   DebugSideTable* GetDebugSideTableIfExists(const WasmCode* code) const {
-    base::MutexGuard guard(&debug_side_tables_mutex_);
+    base::SpinningMutexGuard guard(&debug_side_tables_mutex_);
     auto it = debug_side_tables_.find(code);
     return it == debug_side_tables_.end() ? nullptr : it->second.get();
   }
@@ -500,7 +515,7 @@ class DebugInfoImpl {
     // hold the mutex while freeing code.
     WasmCodeRefScope wasm_code_ref_scope;
 
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
     auto per_isolate_data_it = per_isolate_data_.find(isolate);
     if (per_isolate_data_it == per_isolate_data_.end()) return;
     std::unordered_map<int, std::vector<int>> removed_per_function =
@@ -518,19 +533,19 @@ class DebugInfoImpl {
   }
 
   size_t EstimateCurrentMemoryConsumption() const {
-    UPDATE_WHEN_CLASS_CHANGES(DebugInfoImpl, 208);
+    UPDATE_WHEN_CLASS_CHANGES(DebugInfoImpl, 128);
     UPDATE_WHEN_CLASS_CHANGES(CachedDebuggingCode, 40);
     UPDATE_WHEN_CLASS_CHANGES(PerIsolateDebugData, 48);
     size_t result = sizeof(DebugInfoImpl);
     {
-      base::MutexGuard lock(&debug_side_tables_mutex_);
+      base::SpinningMutexGuard lock(&debug_side_tables_mutex_);
       result += ContentSize(debug_side_tables_);
       for (const auto& [code, table] : debug_side_tables_) {
         result += table->EstimateCurrentMemoryConsumption();
       }
     }
     {
-      base::MutexGuard lock(&mutex_);
+      base::SpinningMutexGuard lock(&mutex_);
       result += ContentSize(cached_debugging_code_);
       for (const CachedDebuggingCode& code : cached_debugging_code_) {
         result += code.breakpoint_offsets.size() * sizeof(int);
@@ -579,7 +594,7 @@ class DebugInfoImpl {
     {
       // Only hold the mutex temporarily. We can't hold it while generating the
       // debug side table, because compilation takes the {NativeModule} lock.
-      base::MutexGuard guard(&debug_side_tables_mutex_);
+      base::SpinningMutexGuard guard(&debug_side_tables_mutex_);
       auto it = debug_side_tables_.find(code);
       if (it != debug_side_tables_.end()) return it->second.get();
     }
@@ -592,7 +607,7 @@ class DebugInfoImpl {
     // Check cache again, maybe another thread concurrently generated a debug
     // side table already.
     {
-      base::MutexGuard guard(&debug_side_tables_mutex_);
+      base::SpinningMutexGuard guard(&debug_side_tables_mutex_);
       auto& slot = debug_side_tables_[code];
       if (slot != nullptr) return slot.get();
       slot = std::move(debug_side_table);
@@ -609,7 +624,7 @@ class DebugInfoImpl {
                      const DebugSideTable::Entry* debug_side_table_entry,
                      int index, Address stack_frame_base,
                      Address debug_break_fp, Isolate* isolate) const {
-    const auto* value =
+    const DebugSideTable::Entry::Value* value =
         debug_side_table->FindValue(debug_side_table_entry, index);
     if (value->is_constant()) {
       DCHECK(value->type == kWasmI32 || value->type == kWasmI64);
@@ -640,7 +655,9 @@ class DebugInfoImpl {
           Handle<Object> obj(
               Tagged<Object>(ReadUnalignedValue<Address>(gp_addr(reg.gp()))),
               isolate);
-          return WasmValue(obj, value->type);
+          // TODO(jkummerow): Consider changing {value->type} to be a
+          // CanonicalValueType.
+          return WasmValue(obj, value->module->canonical_type(value->type));
         } else {
           UNREACHABLE();
         }
@@ -686,12 +703,13 @@ class DebugInfoImpl {
         Handle<Object> obj(
             Tagged<Object>(ReadUnalignedValue<Address>(stack_address)),
             isolate);
-        return WasmValue(obj, value->type);
+        return WasmValue(obj, value->module->canonical_type(value->type));
       }
       case kI8:
       case kI16:
       case kF16:
       case kVoid:
+      case kTop:
       case kBottom:
         UNREACHABLE();
     }
@@ -772,14 +790,14 @@ class DebugInfoImpl {
 
   NativeModule* const native_module_;
 
-  mutable base::Mutex debug_side_tables_mutex_;
+  mutable base::SpinningMutex debug_side_tables_mutex_;
 
   // DebugSideTable per code object, lazily initialized.
   std::unordered_map<const WasmCode*, std::unique_ptr<DebugSideTable>>
       debug_side_tables_;
 
   // {mutex_} protects all fields below.
-  mutable base::Mutex mutex_;
+  mutable base::SpinningMutex mutex_;
 
   // Cache a fixed number of WasmCode objects that were generated for debugging.
   // This is useful especially in stepping, because stepping code is cleared on
@@ -1086,7 +1104,7 @@ bool WasmScript::ClearBreakPointById(DirectHandle<Script> script,
       continue;
     }
     auto breakpoint_info = Cast<BreakPointInfo>(obj);
-    Handle<BreakPoint> breakpoint;
+    DirectHandle<BreakPoint> breakpoint;
     if (BreakPointInfo::GetBreakPointById(isolate, breakpoint_info,
                                           breakpoint_id)
             .ToHandle(&breakpoint)) {
@@ -1236,8 +1254,8 @@ bool CheckBreakPoint(Isolate* isolate, DirectHandle<BreakPoint> break_point,
   if (break_point->condition()->length() == 0) return true;
 
   HandleScope scope(isolate);
-  Handle<String> condition(break_point->condition(), isolate);
-  Handle<Object> result;
+  DirectHandle<String> condition(break_point->condition(), isolate);
+  DirectHandle<Object> result;
   // The Wasm engine doesn't perform any sort of inlining.
   const int inlined_jsframe_index = 0;
   const bool throw_on_side_effect = false;
@@ -1253,7 +1271,7 @@ bool CheckBreakPoint(Isolate* isolate, DirectHandle<BreakPoint> break_point,
 }  // namespace
 
 // static
-MaybeHandle<FixedArray> WasmScript::CheckBreakPoints(
+MaybeDirectHandle<FixedArray> WasmScript::CheckBreakPoints(
     Isolate* isolate, DirectHandle<Script> script, int position,
     StackFrameId frame_id) {
   if (!script->has_wasm_breakpoint_infos()) return {};
@@ -1280,13 +1298,14 @@ MaybeHandle<FixedArray> WasmScript::CheckBreakPoints(
     }
     // If breakpoint does fire, clear any prior muting behavior.
     isolate->debug()->ClearMutedLocation();
-    Handle<FixedArray> break_points_hit = isolate->factory()->NewFixedArray(1);
+    DirectHandle<FixedArray> break_points_hit =
+        isolate->factory()->NewFixedArray(1);
     break_points_hit->set(0, *break_points);
     return break_points_hit;
   }
 
   auto array = Cast<FixedArray>(break_points);
-  Handle<FixedArray> break_points_hit =
+  DirectHandle<FixedArray> break_points_hit =
       isolate->factory()->NewFixedArray(array->length());
   int break_points_hit_count = 0;
   for (int i = 0; i < array->length(); ++i) {

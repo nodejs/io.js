@@ -14,9 +14,10 @@
 #endif  // !V8_ENABLE_WEBASSEMBLY
 
 namespace v8::internal::wasm {
-// Convenience macro listing all builtins called from wasm. Note that the first
-// few elements of the list coincide with {compiler::TrapId}, order matters.
-#define WASM_BUILTIN_LIST(V, VTRAP) /*                                      */ \
+// Convenience macro listing all builtins called directly from wasm via the far
+// jump table. Note that the first few elements of the list coincide with
+// {compiler::TrapId}, order matters.
+#define WASM_BUILTINS_WITH_JUMP_TABLE_SLOT(V, VTRAP) /*                     */ \
   FOREACH_WASM_TRAPREASON(VTRAP)                                               \
   V(WasmCompileLazy)                                                           \
   V(WasmTriggerTierUp)                                                         \
@@ -52,6 +53,7 @@ namespace v8::internal::wasm {
   V(WasmAllocateFixedArray)                                                    \
   V(WasmThrow)                                                                 \
   V(WasmRethrow)                                                               \
+  V(WasmThrowRef)                                                              \
   V(WasmRethrowExplicitContext)                                                \
   V(WasmHandleStackOverflow)                                                   \
   V(WasmTraceEnter)                                                            \
@@ -98,7 +100,7 @@ namespace v8::internal::wasm {
   V(WasmArrayInitSegment)                                                      \
   V(WasmAllocateStructWithRtt)                                                 \
   V(WasmOnStackReplace)                                                        \
-  V(WasmSuspend)                                                               \
+  V(WasmReject)                                                                \
   V(WasmStringNewWtf8)                                                         \
   V(WasmStringNewWtf16)                                                        \
   V(WasmStringConst)                                                           \
@@ -137,14 +139,27 @@ namespace v8::internal::wasm {
   V(StringAdd_CheckNone)                                                       \
   V(DebugPrintFloat64)                                                         \
   V(DebugPrintWordPtr)                                                         \
-  V(WasmAllocateInYoungGeneration)                                             \
-  V(WasmAllocateInOldGeneration)                                               \
-  V(IterableToFixedArrayForWasm)                                               \
-  V(WasmAllocateZeroedFixedArray)                                              \
   V(WasmFastApiCallTypeCheckAndUpdateIC)                                       \
   V(DeoptimizationEntry_Eager)                                                 \
   V(WasmLiftoffDeoptFinish)                                                    \
-  V(WasmPropagateException)
+  V(WasmPropagateException)                                                    \
+  IF_SHADOW_STACK(V, AdaptShadowStackForDeopt)
+
+// Other wasm builtins that are not called via the far jump table, but need the
+// {is_wasm} assembler option for proper stack-switching support.
+#define WASM_BUILTINS_WITHOUT_JUMP_TABLE_SLOT(V) \
+  V(IterableToFixedArrayForWasm)                 \
+  V(WasmAllocateInYoungGeneration)               \
+  V(WasmAllocateInOldGeneration)                 \
+  V(WasmAllocateZeroedFixedArray)                \
+  V(WasmSuspend)                                 \
+  V(WasmToJsWrapperInvalidSig)                   \
+  V(WasmTrap)                                    \
+  V(WasmTrapHandlerThrowTrap)
+
+#define WASM_BUILTIN_LIST(V, VTRAP)            \
+  WASM_BUILTINS_WITH_JUMP_TABLE_SLOT(V, VTRAP) \
+  WASM_BUILTINS_WITHOUT_JUMP_TABLE_SLOT(V)
 
 namespace detail {
 constexpr std::array<uint8_t, static_cast<int>(Builtin::kFirstBytecodeHandler)>
@@ -155,7 +170,7 @@ InitBuiltinToFarJumpTableIndex() {
 #define DEF_INIT_LOOKUP(NAME) \
   result[static_cast<int>(Builtin::k##NAME)] = next_index++;
 #define DEF_INIT_LOOKUP_TRAP(NAME) DEF_INIT_LOOKUP(ThrowWasm##NAME)
-  WASM_BUILTIN_LIST(DEF_INIT_LOOKUP, DEF_INIT_LOOKUP_TRAP)
+  WASM_BUILTINS_WITH_JUMP_TABLE_SLOT(DEF_INIT_LOOKUP, DEF_INIT_LOOKUP_TRAP)
 #undef DEF_INIT_LOOKUP_TRAP
 #undef DEF_INIT_LOOKUP
   return result;
@@ -194,7 +209,7 @@ class BuiltinLookup {
  private:
 #define BUILTIN_COUNTER(NAME) +1
   static constexpr int kBuiltinCount =
-      0 WASM_BUILTIN_LIST(BUILTIN_COUNTER, BUILTIN_COUNTER);
+      0 WASM_BUILTINS_WITH_JUMP_TABLE_SLOT(BUILTIN_COUNTER, BUILTIN_COUNTER);
 #undef BUILTIN_COUNTER
 
   static constexpr auto kFarJumpTableIndexToBuiltin =
@@ -206,7 +221,8 @@ class BuiltinLookup {
   }                           \
   ++next_index;
 #define DEF_INIT_LOOKUP_TRAP(NAME) DEF_INIT_LOOKUP(ThrowWasm##NAME)
-        WASM_BUILTIN_LIST(DEF_INIT_LOOKUP, DEF_INIT_LOOKUP_TRAP)
+        WASM_BUILTINS_WITH_JUMP_TABLE_SLOT(DEF_INIT_LOOKUP,
+                                           DEF_INIT_LOOKUP_TRAP)
 #undef DEF_INIT_LOOKUP_TRAP
 #undef DEF_INIT_LOOKUP
         return Builtin::kNoBuiltinId;
@@ -219,5 +235,7 @@ class BuiltinLookup {
 }  // namespace v8::internal::wasm
 
 #undef WASM_BUILTIN_LIST
+#undef WASM_BUILTINS_WITHOUT_JUMP_TABLE_SLOT
+#undef WASM_BUILTINS_WITH_JUMP_TABLE_SLOT
 
 #endif  // V8_WASM_WASM_BUILTIN_LIST_H_

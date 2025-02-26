@@ -7,10 +7,14 @@
 #include <optional>
 
 #include "src/ast/modules.h"
+#include "src/builtins/builtins-inl.h"
 #include "src/builtins/builtins-utils.h"
 #include "src/codegen/code-factory.h"
 #include "src/codegen/interface-descriptors-inl.h"
+#include "src/common/globals.h"
 #include "src/compiler/access-builder.h"
+#include "src/compiler/allocation-builder-inl.h"
+#include "src/compiler/allocation-builder.h"
 #include "src/compiler/common-operator.h"
 #include "src/compiler/compilation-dependencies.h"
 #include "src/compiler/graph-assembler.h"
@@ -20,14 +24,21 @@
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/node.h"
+#include "src/compiler/opcodes.h"
 #include "src/compiler/operator-properties.h"
 #include "src/compiler/simplified-operator.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/compiler/type-cache.h"
-#include "src/compiler/types.h"
+#include "src/deoptimizer/deoptimize-reason.h"
 #include "src/execution/protectors.h"
+#include "src/flags/flags.h"
+#include "src/objects/casting.h"
+#include "src/objects/heap-number.h"
 #include "src/objects/js-generator.h"
 #include "src/objects/module-inl.h"
 #include "src/objects/objects-inl.h"
+#include "src/objects/objects.h"
+#include "src/objects/property-cell.h"
 
 namespace v8 {
 namespace internal {
@@ -135,6 +146,14 @@ class JSBinopReduction final {
   bool ShouldCreateConsString() {
     DCHECK_EQ(IrOpcode::kJSAdd, node_->opcode());
     DCHECK(OneInputIs(Type::String()));
+    if (node_->InputAt(1)->opcode() == IrOpcode::kNewConsString) {
+      // If the right hand side is a ConsString, then we can create a
+      // ConsString. This doesn't work with the left hand side, since the right
+      // hand side of a ConsString cannot be the empty string except when the
+      // left hand side is a SeqString or External string, but we don't know
+      // that here.
+      return true;
+    }
     if (BothInputsAre(Type::String()) ||
         GetBinaryOperationHint(node_) == BinaryOperationHint::kString) {
       HeapObjectBinopMatcher m(node_);
@@ -1285,10 +1304,15 @@ Reduction JSTypedLowering::ReduceJSToObject(Node* node) {
         graph()->zone(), callable.descriptor(),
         callable.descriptor().GetStackParameterCount(),
         CallDescriptor::kNeedsFrameState, node->op()->properties());
-    rfalse = efalse = if_false =
+    Node* call = rfalse = efalse = if_false =
         graph()->NewNode(common()->Call(call_descriptor),
                          jsgraph()->HeapConstantNoHole(callable.code()),
                          receiver, context, frame_state, efalse, if_false);
+
+    // We preserve the type of {node}. This is generally useful (to  enable
+    // type-based optimizations), and is also required in order to help
+    // verification of TypeGuards.
+    NodeProperties::SetType(call, NodeProperties::GetType(node));
   }
 
   // Update potential {IfException} uses of {node} to point to the above
@@ -1579,6 +1603,135 @@ Reduction JSTypedLowering::ReduceJSLoadContext(Node* node) {
   return Changed(node);
 }
 
+Reduction JSTypedLowering::ReduceJSLoadScriptContext(Node* node) {
+  DCHECK_EQ(IrOpcode::kJSLoadScriptContext, node->opcode());
+  ContextAccess const& access = ContextAccessOf(node->op());
+  Node* effect = NodeProperties::GetEffectInput(node);
+  Node* control = NodeProperties::GetControlInput(node);
+  JSGraphAssembler gasm(broker(), jsgraph(), jsgraph()->zone(),
+                        BranchSemantics::kJS);
+  gasm.InitializeEffectControl(effect, control);
+
+  TNode<Context> context =
+      TNode<Context>::UncheckedCast(NodeProperties::GetContextInput(node));
+  for (size_t i = 0; i < access.depth(); ++i) {
+    context = gasm.LoadField<Context>(
+        AccessBuilder::ForContextSlotKnownPointer(Context::PREVIOUS_INDEX),
+        context);
+  }
+
+  TNode<Object> value = gasm.LoadField<Object>(
+      AccessBuilder::ForContextSlot(access.index()), context);
+  TNode<Object> result =
+      gasm.SelectIf<Object>(gasm.ObjectIsSmi(value))
+          .Then([&] { return value; })
+          .Else([&] {
+            TNode<Map> value_map =
+                gasm.LoadMap(TNode<HeapObject>::UncheckedCast(value));
+            return gasm.SelectIf<Object>(gasm.IsHeapNumberMap(value_map))
+                .Then([&] {
+                  size_t side_data_index =
+                      access.index() - Context::MIN_CONTEXT_EXTENDED_SLOTS;
+                  TNode<FixedArray> side_data = gasm.LoadField<FixedArray>(
+                      AccessBuilder::ForContextSlot(
+                          Context::CONTEXT_SIDE_TABLE_PROPERTY_INDEX),
+                      context);
+                  TNode<Object> data = gasm.LoadField<Object>(
+                      AccessBuilder::ForFixedArraySlot(side_data_index),
+                      side_data);
+                  TNode<Object> property =
+                      gasm.SelectIf<Object>(gasm.ObjectIsSmi(data))
+                          .Then([&] { return data; })
+                          .Else([&] {
+                            return gasm.LoadField<Object>(
+                                AccessBuilder::ForContextSideProperty(),
+                                TNode<HeapObject>::UncheckedCast(data));
+                          })
+                          .Value();
+                  if (v8_flags.script_context_mutable_heap_int32) {
+                    return gasm
+                        .SelectIf<Object>(gasm.ReferenceEqual(
+                            property,
+                            TNode<Object>::UncheckedCast(gasm.SmiConstant(
+                                ContextSidePropertyCell::kMutableInt32))))
+                        .Then([&] {
+                          Node* number = gasm.LoadField(
+                              AccessBuilder::ForHeapInt32Value(), value);
+                          // Allocate a new HeapNumber.
+                          AllocationBuilder a(jsgraph(), broker(),
+                                              gasm.effect(), gasm.control());
+                          a.Allocate(sizeof(HeapNumber), AllocationType::kYoung,
+                                     Type::OtherInternal());
+                          a.Store(AccessBuilder::ForMap(),
+                                  broker()->heap_number_map());
+                          a.Store(AccessBuilder::ForHeapNumberValue(), number);
+                          Node* new_heap_number = a.Finish();
+                          gasm.UpdateEffectControlWith(new_heap_number);
+                          return TNode<Object>::UncheckedCast(new_heap_number);
+                        })
+                        .Else([&] {
+                          return gasm
+                              .SelectIf<Object>(gasm.ReferenceEqual(
+                                  property,
+                                  TNode<Object>::UncheckedCast(gasm.SmiConstant(
+                                      ContextSidePropertyCell::
+                                          kMutableHeapNumber))))
+                              .Then([&] {
+                                Node* number = gasm.LoadHeapNumberValue(value);
+                                // Allocate a new HeapNumber.
+                                AllocationBuilder a(jsgraph(), broker(),
+                                                    gasm.effect(),
+                                                    gasm.control());
+                                a.Allocate(sizeof(HeapNumber),
+                                           AllocationType::kYoung,
+                                           Type::OtherInternal());
+                                a.Store(AccessBuilder::ForMap(),
+                                        broker()->heap_number_map());
+                                a.Store(AccessBuilder::ForHeapNumberValue(),
+                                        number);
+                                Node* new_heap_number = a.Finish();
+                                gasm.UpdateEffectControlWith(new_heap_number);
+                                return TNode<Object>::UncheckedCast(
+                                    new_heap_number);
+                              })
+                              .Else([&] { return value; })
+                              .Value();
+                        })
+                        .Value();
+                  } else {
+                    return gasm
+                        .SelectIf<Object>(gasm.ReferenceEqual(
+                            property,
+                            TNode<Object>::UncheckedCast(gasm.SmiConstant(
+                                ContextSidePropertyCell::kMutableHeapNumber))))
+                        .Then([&] {
+                          Node* number = gasm.LoadHeapNumberValue(value);
+                          // Allocate a new HeapNumber.
+                          AllocationBuilder a(jsgraph(), broker(),
+                                              gasm.effect(), gasm.control());
+                          a.Allocate(sizeof(HeapNumber), AllocationType::kYoung,
+                                     Type::OtherInternal());
+                          a.Store(AccessBuilder::ForMap(),
+                                  broker()->heap_number_map());
+                          a.Store(AccessBuilder::ForHeapNumberValue(), number);
+                          Node* new_heap_number = a.Finish();
+                          gasm.UpdateEffectControlWith(new_heap_number);
+                          return TNode<Object>::UncheckedCast(new_heap_number);
+                        })
+                        .Else([&] { return value; })
+                        .Value();
+                  }
+                })
+                .Else([&] { return value; })
+                .ExpectFalse()
+                .Value();
+          })
+          .Value();
+
+  ReplaceWithValue(node, result, gasm.effect(), gasm.control());
+  return Changed(node);
+}
+
 Reduction JSTypedLowering::ReduceJSStoreContext(Node* node) {
   DCHECK_EQ(IrOpcode::kJSStoreContext, node->opcode());
   ContextAccess const& access = ContextAccessOf(node->op());
@@ -1598,6 +1751,113 @@ Reduction JSTypedLowering::ReduceJSStoreContext(Node* node) {
   NodeProperties::ChangeOp(
       node,
       simplified()->StoreField(AccessBuilder::ForContextSlot(access.index())));
+  return Changed(node);
+}
+
+Reduction JSTypedLowering::ReduceJSStoreScriptContext(Node* node) {
+  DCHECK_EQ(IrOpcode::kJSStoreScriptContext, node->opcode());
+  ContextAccess const& access = ContextAccessOf(node->op());
+  Node* effect = NodeProperties::GetEffectInput(node);
+  Node* control = NodeProperties::GetControlInput(node);
+  JSGraphAssembler gasm(broker(), jsgraph(), jsgraph()->zone(),
+                        BranchSemantics::kJS);
+  gasm.InitializeEffectControl(effect, control);
+
+  TNode<Context> context =
+      TNode<Context>::UncheckedCast(NodeProperties::GetContextInput(node));
+  for (size_t i = 0; i < access.depth(); ++i) {
+    context = gasm.LoadField<Context>(
+        AccessBuilder::ForContextSlotKnownPointer(Context::PREVIOUS_INDEX),
+        context);
+  }
+
+  TNode<Object> old_value = gasm.LoadField<Object>(
+      AccessBuilder::ForContextSlot(access.index()), context);
+  TNode<Object> new_value =
+      TNode<Object>::UncheckedCast(NodeProperties::GetValueInput(node, 0));
+
+  gasm.IfNot(gasm.ReferenceEqual(old_value, new_value)).Then([&] {
+    size_t side_data_index =
+        access.index() - Context::MIN_CONTEXT_EXTENDED_SLOTS;
+    TNode<FixedArray> side_data = gasm.LoadField<FixedArray>(
+        AccessBuilder::ForContextSlot(
+            Context::CONTEXT_SIDE_TABLE_PROPERTY_INDEX),
+        context);
+    TNode<Object> data = gasm.LoadField<Object>(
+        AccessBuilder::ForFixedArraySlot(side_data_index), side_data);
+
+    TNode<Boolean> is_other = gasm.ReferenceEqual(
+        data, TNode<Object>::UncheckedCast(
+                  gasm.SmiConstant(ContextSidePropertyCell::kOther)));
+    gasm.If(is_other)
+        .Then([&] {
+          gasm.StoreField(AccessBuilder::ForContextSlot(access.index()),
+                          context, new_value);
+        })
+        .Else([&] {
+          gasm.CheckIf(gasm.BooleanNot(gasm.IsUndefined(data)),
+                       DeoptimizeReason::kWrongValue);
+          TNode<Object> property =
+              gasm.SelectIf<Object>(gasm.ObjectIsSmi(data))
+                  .Then([&] { return data; })
+                  .Else([&] {
+                    return gasm.LoadField<Object>(
+                        AccessBuilder::ForContextSideProperty(),
+                        TNode<HeapObject>::UncheckedCast(data));
+                  })
+                  .Value();
+          TNode<Boolean> is_const = gasm.ReferenceEqual(
+              property, TNode<Object>::UncheckedCast(
+                            gasm.SmiConstant(ContextSidePropertyCell::kConst)));
+          gasm.CheckIf(gasm.BooleanNot(is_const),
+                       DeoptimizeReason::kWrongValue);
+          if (v8_flags.script_context_mutable_heap_number) {
+            TNode<Boolean> is_smi_marker = gasm.ReferenceEqual(
+                property, TNode<Object>::UncheckedCast(
+                              gasm.SmiConstant(ContextSidePropertyCell::kSmi)));
+            gasm.If(is_smi_marker)
+                .Then([&] {
+                  Node* smi_value = gasm.CheckSmi(new_value);
+                  gasm.StoreField(
+                      AccessBuilder::ForContextSlotSmi(access.index()), context,
+                      smi_value);
+                })
+                .Else([&] {
+                  if (v8_flags.script_context_mutable_heap_int32) {
+                    TNode<Boolean> is_mutable_int32 = gasm.ReferenceEqual(
+                        property, TNode<Object>::UncheckedCast(gasm.SmiConstant(
+                                      ContextSidePropertyCell::kMutableInt32)));
+                    gasm.If(is_mutable_int32)
+                        .Then([&] {
+                          // It is a mutable int32 number.
+                          Node* number_value =
+                              gasm.CheckNumberFitsInt32(new_value);
+                          gasm.StoreField(AccessBuilder::ForHeapInt32Value(),
+                                          old_value, number_value);
+                        })
+                        .Else([&] {
+                          // It must be a mutable heap number in this case.
+                          Node* number_value = gasm.CheckNumber(new_value);
+                          gasm.StoreField(AccessBuilder::ForHeapNumberValue(),
+                                          old_value, number_value);
+                        });
+
+                  } else {
+                    // It must be a mutable heap number in this case.
+                    Node* number_value = gasm.CheckNumber(new_value);
+                    gasm.StoreField(AccessBuilder::ForHeapNumberValue(),
+                                    old_value, number_value);
+                  }
+                });
+
+          } else {
+            gasm.StoreField(AccessBuilder::ForContextSlot(access.index()),
+                            context, new_value);
+          }
+        })
+        .ExpectTrue();
+  });
+  ReplaceWithValue(node, gasm.effect(), gasm.effect(), gasm.control());
   return Changed(node);
 }
 
@@ -1692,6 +1952,12 @@ void ReduceBuiltin(JSGraph* jsgraph, Node* node, Builtin builtin, int arity,
   // -- 6 + n + 1: argc (Int32)
   // -----------------------------------
 
+  // These SBXCHECKs are a defense-in-depth measure to ensure that we always
+  // generate valid calls here (with matching signatures).
+  SBXCHECK(Builtins::IsCpp(builtin));
+  SBXCHECK_GE(arity + kJSArgcReceiverSlots,
+              Builtins::GetFormalParameterCount(builtin));
+
   // The logic contained here is mirrored in Builtins::Generate_Adaptor.
   // Keep these in sync.
 
@@ -1716,7 +1982,6 @@ void ReduceBuiltin(JSGraph* jsgraph, Node* node, Builtin builtin, int arity,
 
   // CPP builtins are implemented in C++, and we can inline it.
   // CPP builtins create a builtin exit frame.
-  DCHECK(Builtins::IsCpp(builtin));
   const bool has_builtin_exit_frame = true;
 
   Node* stub =
@@ -1726,12 +1991,16 @@ void ReduceBuiltin(JSGraph* jsgraph, Node* node, Builtin builtin, int arity,
   const int argc = arity + BuiltinArguments::kNumExtraArgsWithReceiver;
   Node* argc_node = jsgraph->ConstantNoHole(argc);
 
-  static const int kStubAndReceiver = 2;
+  static const int kStub = 1;
+  static_assert(BuiltinArguments::kNewTargetIndex == 0);
+  static_assert(BuiltinArguments::kTargetIndex == 1);
+  static_assert(BuiltinArguments::kArgcIndex == 2);
+  static_assert(BuiltinArguments::kPaddingIndex == 3);
   node->InsertInput(zone, 1, new_target);
   node->InsertInput(zone, 2, target);
   node->InsertInput(zone, 3, argc_node);
   node->InsertInput(zone, 4, jsgraph->PaddingConstant());
-  int cursor = arity + kStubAndReceiver + BuiltinArguments::kNumExtraArgs;
+  int cursor = arity + kStub + BuiltinArguments::kNumExtraArgsWithReceiver;
 
   Address entry = Builtins::CppEntryOf(builtin);
   ExternalReference entry_ref = ExternalReference::Create(entry);
@@ -1949,6 +2218,11 @@ Reduction JSTypedLowering::ReduceJSCall(Node* node) {
       node->InsertInput(graph()->zone(), formal_count + 2, new_target);
       node->InsertInput(graph()->zone(), formal_count + 3,
                         jsgraph()->ConstantNoHole(JSParameterCount(arity)));
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+      node->InsertInput(
+          graph()->zone(), formal_count + 4,
+          jsgraph()->ConstantNoHole(kPlaceholderDispatchHandle.value()));
+#endif
       NodeProperties::ChangeOp(node,
                                common()->Call(Linkage::GetJSCallDescriptor(
                                    graph()->zone(), false, 1 + formal_count,
@@ -1958,10 +2232,16 @@ Reduction JSTypedLowering::ReduceJSCall(Node* node) {
       // Patch {node} to a direct CEntry call.
       ReduceBuiltin(jsgraph(), node, shared->builtin_id(), arity, flags);
     } else if (shared->HasBuiltinId()) {
-      DCHECK(Builtins::HasJSLinkage(shared->builtin_id()));
+      Builtin builtin = shared->builtin_id();
+      DCHECK(Builtins::HasJSLinkage(builtin));
+
+      // This SBXCHECK is a defense-in-depth measure to ensure that we always
+      // generate valid calls here (with matching signatures).
+      SBXCHECK_GE(arity + kJSArgcReceiverSlots,
+                  Builtins::GetFormalParameterCount(builtin));
+
       // Patch {node} to a direct code object call.
-      Callable callable =
-          Builtins::CallableFor(isolate(), shared->builtin_id());
+      Callable callable = Builtins::CallableFor(isolate(), builtin);
 
       const CallInterfaceDescriptor& descriptor = callable.descriptor();
       auto call_descriptor = Linkage::GetStubCallDescriptor(
@@ -1972,6 +2252,11 @@ Reduction JSTypedLowering::ReduceJSCall(Node* node) {
       node->InsertInput(graph()->zone(), 2, new_target);
       node->InsertInput(graph()->zone(), 3,
                         jsgraph()->ConstantNoHole(JSParameterCount(arity)));
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+      node->InsertInput(
+          graph()->zone(), 4,
+          jsgraph()->ConstantNoHole(kPlaceholderDispatchHandle.value()));
+#endif
       NodeProperties::ChangeOp(node, common()->Call(call_descriptor));
     } else {
       // Patch {node} to a direct call.
@@ -1979,6 +2264,11 @@ Reduction JSTypedLowering::ReduceJSCall(Node* node) {
       node->InsertInput(graph()->zone(), arity + 2, new_target);
       node->InsertInput(graph()->zone(), arity + 3,
                         jsgraph()->ConstantNoHole(JSParameterCount(arity)));
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+      node->InsertInput(
+          graph()->zone(), arity + 4,
+          jsgraph()->ConstantNoHole(kPlaceholderDispatchHandle.value()));
+#endif
       NodeProperties::ChangeOp(node,
                                common()->Call(Linkage::GetJSCallDescriptor(
                                    graph()->zone(), false, 1 + arity,
@@ -2605,8 +2895,12 @@ Reduction JSTypedLowering::Reduce(Node* node) {
       return ReduceJSLoadNamed(node);
     case IrOpcode::kJSLoadContext:
       return ReduceJSLoadContext(node);
+    case IrOpcode::kJSLoadScriptContext:
+      return ReduceJSLoadScriptContext(node);
     case IrOpcode::kJSStoreContext:
       return ReduceJSStoreContext(node);
+    case IrOpcode::kJSStoreScriptContext:
+      return ReduceJSStoreScriptContext(node);
     case IrOpcode::kJSLoadModule:
       return ReduceJSLoadModule(node);
     case IrOpcode::kJSStoreModule:

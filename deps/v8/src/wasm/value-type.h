@@ -13,14 +13,12 @@
 
 #include "src/base/bit-field.h"
 #include "src/codegen/machine-type.h"
+#include "src/codegen/signature.h"
 #include "src/wasm/wasm-constants.h"
 #include "src/wasm/wasm-limits.h"
 
 namespace v8 {
 namespace internal {
-
-template <typename T>
-class Signature;
 
 // Type for holding simd values, defined in simd128.h.
 class Simd128;
@@ -29,10 +27,6 @@ class Zone;
 namespace wasm {
 
 // Format: kind, log2Size, code, machineType, shortName, typeName
-//
-// Some of these types are from proposals that are not standardized yet:
-// - "ref"/"ref null" https://github.com/WebAssembly/function-references
-// - "rtt", "i8" and "i16" per https://github.com/WebAssembly/gc
 #define FOREACH_NUMERIC_VALUE_TYPE(V)    \
   V(I32, 2, I32, Int32, 'i', "i32")      \
   V(I64, 3, I64, Int64, 'l', "i64")      \
@@ -49,9 +43,56 @@ namespace wasm {
   V(Rtt, kTaggedSizeLog2, Rtt, TaggedPointer, 't', "rtt")          \
   V(Ref, kTaggedSizeLog2, Ref, AnyTagged, 'r', "ref")              \
   V(RefNull, kTaggedSizeLog2, RefNull, AnyTagged, 'n', "ref null") \
+  V(Top, -1, Void, None, '\\', "<top>")                            \
   V(Bottom, -1, Void, None, '*', "<bot>")
 
 constexpr int kMaxValueTypeSize = 16;  // bytes
+
+struct TypeIndex {
+  uint32_t index;
+
+  // We intentionally don't define comparison operators here, because
+  // different subclasses must not be compared to each other.
+
+  static constexpr uint32_t kInvalid = ~0u;
+  constexpr bool valid() const { return index != kInvalid; }
+
+  size_t hash_value() const { return index; }
+};
+
+struct ModuleTypeIndex : public TypeIndex {
+  inline static constexpr ModuleTypeIndex Invalid();
+  // Can't use "=default" because the base class doesn't have operator<=>.
+  bool operator==(ModuleTypeIndex other) const { return index == other.index; }
+  auto operator<=>(ModuleTypeIndex other) const {
+    return index <=> other.index;
+  }
+};
+ASSERT_TRIVIALLY_COPYABLE(ModuleTypeIndex);
+
+constexpr ModuleTypeIndex ModuleTypeIndex::Invalid() {
+  return ModuleTypeIndex{ModuleTypeIndex::kInvalid};
+}
+
+struct CanonicalTypeIndex : public TypeIndex {
+  inline static constexpr CanonicalTypeIndex Invalid();
+
+  bool operator==(CanonicalTypeIndex other) const {
+    return index == other.index;
+  }
+  auto operator<=>(CanonicalTypeIndex other) const {
+    return index <=> other.index;
+  }
+};
+ASSERT_TRIVIALLY_COPYABLE(CanonicalTypeIndex);
+
+constexpr CanonicalTypeIndex CanonicalTypeIndex::Invalid() {
+  return CanonicalTypeIndex{CanonicalTypeIndex::kInvalid};
+}
+
+inline std::ostream& operator<<(std::ostream& oss, TypeIndex index) {
+  return oss << index.index;
+}
 
 // Represents a WebAssembly heap type, as per the typed-funcref and gc
 // proposals.
@@ -59,7 +100,7 @@ constexpr int kMaxValueTypeSize = 16;  // bytes
 // a number t < kV8MaxWasmTypes represents the type defined in the module at
 // index t. Numbers directly beyond that represent the generic heap types. The
 // next number represents the bottom heap type (internal use).
-class HeapType {
+class HeapTypeBase {
  public:
   enum Representation : uint32_t {
     kFunc = kV8MaxWasmTypes,  // shorthand: c
@@ -98,76 +139,21 @@ class HeapType {
     kNoFuncShared,
     kNoExternShared,
     kNoExnShared,
+    // This value is an internal type (not part of the Wasm spec) that
+    // is the common supertype across all type hierarchies.  It should never
+    // appear in validated Wasm programs, but is used to signify that we don't
+    // have any information about a particular value and to prevent bugs in our
+    // typed optimizations, see crbug.com/361652141. Note: kTop is the neutral
+    // element wrt. to intersection (whereas kBottom is for union), and kBottom
+    // is indicating unreachable code, which might be used for subsequent
+    // optimizations, e.g., DCE.
+    kTop,
     // This value is used to represent failures in the parsing of heap types and
-    // does not correspond to a wasm heap type. It has to be last in this list.
+    // does not correspond to a Wasm heap type. It has to be last in this list.
     kBottom
   };
 
-  static constexpr HeapType from_code(uint8_t code, bool is_shared) {
-    switch (code) {
-      case ValueTypeCode::kFuncRefCode:
-        return HeapType(is_shared ? kFuncShared : kFunc);
-      case ValueTypeCode::kEqRefCode:
-        return HeapType(is_shared ? kEqShared : kEq);
-      case ValueTypeCode::kI31RefCode:
-        return HeapType(is_shared ? kI31Shared : kI31);
-      case ValueTypeCode::kAnyRefCode:
-        return HeapType(is_shared ? kAnyShared : kAny);
-      case ValueTypeCode::kExternRefCode:
-        return HeapType(is_shared ? kExternShared : kExtern);
-      case ValueTypeCode::kExnRefCode:
-        return HeapType(is_shared ? kExnShared : kExn);
-      case ValueTypeCode::kStructRefCode:
-        return HeapType(is_shared ? kStructShared : kStruct);
-      case ValueTypeCode::kArrayRefCode:
-        return HeapType(is_shared ? kArrayShared : kArray);
-      case ValueTypeCode::kStringRefCode:
-        return HeapType(is_shared ? kStringShared : kString);
-      case ValueTypeCode::kStringViewWtf8Code:
-        return HeapType(is_shared ? kStringViewWtf8Shared : kStringViewWtf8);
-      case ValueTypeCode::kStringViewWtf16Code:
-        return HeapType(is_shared ? kStringViewWtf16Shared : kStringViewWtf16);
-      case ValueTypeCode::kStringViewIterCode:
-        return HeapType(is_shared ? kStringViewIterShared : kStringViewIter);
-      case ValueTypeCode::kNoneCode:
-        return HeapType(is_shared ? kNoneShared : kNone);
-      case ValueTypeCode::kNoExternCode:
-        return HeapType(is_shared ? kNoExternShared : kNoExtern);
-      case ValueTypeCode::kNoFuncCode:
-        return HeapType(is_shared ? kNoFuncShared : kNoFunc);
-      case ValueTypeCode::kNoExnCode:
-        return HeapType(is_shared ? kNoExnShared : kNoExn);
-      default:
-        return HeapType(kBottom);
-    }
-  }
-
-  explicit constexpr HeapType(Representation repr) : representation_(repr) {
-    DCHECK(is_bottom() || is_valid());
-  }
-  explicit constexpr HeapType(uint32_t repr)
-      : HeapType(static_cast<Representation>(repr)) {}
-
-  constexpr bool operator==(HeapType other) const {
-    return representation_ == other.representation_;
-  }
-  constexpr bool operator!=(HeapType other) const {
-    return representation_ != other.representation_;
-  }
-
-  constexpr bool operator==(Representation other) const {
-    return representation_ == other;
-  }
-
-  constexpr bool operator!=(Representation other) const {
-    return representation_ != other;
-  }
-
   constexpr Representation representation() const { return representation_; }
-  constexpr uint32_t ref_index() const {
-    DCHECK(is_index());
-    return representation_;
-  }
 
   constexpr bool is_abstract() const {
     return !is_bottom() && representation_ >= kFirstSentinel;
@@ -176,6 +162,7 @@ class HeapType {
   constexpr bool is_index() const { return representation_ < kFirstSentinel; }
 
   constexpr bool is_bottom() const { return representation_ == kBottom; }
+  constexpr bool is_top() const { return representation_ == kTop; }
 
   constexpr bool is_string_view() const {
     return representation_ == kStringViewWtf8 ||
@@ -255,69 +242,11 @@ class HeapType {
         return std::string("shared exn");
       case kBottom:
         return std::string("<bot>");
+      case kTop:
+        return std::string("<top>");
       default:
         DCHECK(is_index());
         return std::to_string(representation_);
-    }
-  }
-
-  // Returns the code that represents this heap type in the wasm binary format.
-  constexpr int32_t code() const {
-    // Type codes represent the first byte of the LEB128 encoding. To get the
-    // int32 represented by a code, we need to sign-extend it from 7 to 32 bits.
-    int32_t mask = 0xFFFFFF80;
-    switch (representation_) {
-      case kFunc:
-      case kFuncShared:
-        return mask | kFuncRefCode;
-      case kEq:
-      case kEqShared:
-        return mask | kEqRefCode;
-      case kI31:
-      case kI31Shared:
-        return mask | kI31RefCode;
-      case kStruct:
-      case kStructShared:
-        return mask | kStructRefCode;
-      case kArray:
-      case kArrayShared:
-        return mask | kArrayRefCode;
-      case kExtern:
-      case kExternShared:
-        return mask | kExternRefCode;
-      case kAny:
-      case kAnyShared:
-        return mask | kAnyRefCode;
-      case kExn:
-      case kExnShared:
-        return mask | kExnRefCode;
-      case kString:
-      case kStringShared:
-        return mask | kStringRefCode;
-      case kStringViewWtf8:
-      case kStringViewWtf8Shared:
-        return mask | kStringViewWtf8Code;
-      case kStringViewWtf16:
-      case kStringViewWtf16Shared:
-        return mask | kStringViewWtf16Code;
-      case kStringViewIter:
-      case kStringViewIterShared:
-        return mask | kStringViewIterCode;
-      case kNone:
-      case kNoneShared:
-        return mask | kNoneCode;
-      case kNoExtern:
-      case kNoExternShared:
-        return mask | kNoExternCode;
-      case kNoFunc:
-      case kNoFuncShared:
-        return mask | kNoFuncCode;
-      case kNoExn:
-      case kNoExnShared:
-        return mask | kNoExnCode;
-      default:
-        DCHECK(is_index());
-        return static_cast<int32_t>(representation_);
     }
   }
 
@@ -414,8 +343,13 @@ class HeapType {
     }
   }
 
+ protected:
+  explicit constexpr HeapTypeBase(Representation repr) : representation_(repr) {
+    DCHECK(is_bottom() || is_valid());
+  }
+
  private:
-  friend class ValueType;
+  friend class ValueTypeBase;
 
   constexpr bool is_valid() const { return representation_ <= kLastSentinel; }
 
@@ -424,6 +358,133 @@ class HeapType {
   static constexpr Representation kLastSentinel =
       static_cast<Representation>(kBottom - 1);
   Representation representation_;
+};
+
+// Module-specific type indices.
+// This is currently the only subclass of {HeapTypeBase}, but we don't want to
+// merge them because otherwise the return value of {ValueTypeBase::heap_type()}
+// would incorrectly claim that any type indices in it are module-specific.
+class HeapType : public HeapTypeBase {
+ public:
+  explicit constexpr HeapType(HeapTypeBase base)
+      : HeapTypeBase(base.representation()) {}
+
+  explicit constexpr HeapType(HeapType::Representation representation)
+      : HeapTypeBase(representation) {}
+
+  explicit constexpr HeapType(ModuleTypeIndex index)
+      : HeapTypeBase(static_cast<HeapType::Representation>(index.index)) {}
+
+  static constexpr HeapType from_code(uint8_t code, bool is_shared) {
+    switch (code) {
+      case ValueTypeCode::kFuncRefCode:
+        return HeapType(is_shared ? kFuncShared : kFunc);
+      case ValueTypeCode::kEqRefCode:
+        return HeapType(is_shared ? kEqShared : kEq);
+      case ValueTypeCode::kI31RefCode:
+        return HeapType(is_shared ? kI31Shared : kI31);
+      case ValueTypeCode::kAnyRefCode:
+        return HeapType(is_shared ? kAnyShared : kAny);
+      case ValueTypeCode::kExternRefCode:
+        return HeapType(is_shared ? kExternShared : kExtern);
+      case ValueTypeCode::kExnRefCode:
+        return HeapType(is_shared ? kExnShared : kExn);
+      case ValueTypeCode::kStructRefCode:
+        return HeapType(is_shared ? kStructShared : kStruct);
+      case ValueTypeCode::kArrayRefCode:
+        return HeapType(is_shared ? kArrayShared : kArray);
+      case ValueTypeCode::kStringRefCode:
+        return HeapType(is_shared ? kStringShared : kString);
+      case ValueTypeCode::kStringViewWtf8Code:
+        return HeapType(is_shared ? kStringViewWtf8Shared : kStringViewWtf8);
+      case ValueTypeCode::kStringViewWtf16Code:
+        return HeapType(is_shared ? kStringViewWtf16Shared : kStringViewWtf16);
+      case ValueTypeCode::kStringViewIterCode:
+        return HeapType(is_shared ? kStringViewIterShared : kStringViewIter);
+      case ValueTypeCode::kNoneCode:
+        return HeapType(is_shared ? kNoneShared : kNone);
+      case ValueTypeCode::kNoExternCode:
+        return HeapType(is_shared ? kNoExternShared : kNoExtern);
+      case ValueTypeCode::kNoFuncCode:
+        return HeapType(is_shared ? kNoFuncShared : kNoFunc);
+      case ValueTypeCode::kNoExnCode:
+        return HeapType(is_shared ? kNoExnShared : kNoExn);
+      default:
+        return HeapType(kBottom);
+    }
+  }
+
+  // Returns the code that represents this heap type in the wasm binary format.
+  constexpr int32_t code() const {
+    // Type codes represent the first byte of the LEB128 encoding. To get the
+    // int32 represented by a code, we need to sign-extend it from 7 to 32 bits.
+    int32_t mask = 0xFFFFFF80;
+    switch (representation()) {
+      case kFunc:
+      case kFuncShared:
+        return mask | kFuncRefCode;
+      case kEq:
+      case kEqShared:
+        return mask | kEqRefCode;
+      case kI31:
+      case kI31Shared:
+        return mask | kI31RefCode;
+      case kStruct:
+      case kStructShared:
+        return mask | kStructRefCode;
+      case kArray:
+      case kArrayShared:
+        return mask | kArrayRefCode;
+      case kExtern:
+      case kExternShared:
+        return mask | kExternRefCode;
+      case kAny:
+      case kAnyShared:
+        return mask | kAnyRefCode;
+      case kExn:
+      case kExnShared:
+        return mask | kExnRefCode;
+      case kString:
+      case kStringShared:
+        return mask | kStringRefCode;
+      case kStringViewWtf8:
+      case kStringViewWtf8Shared:
+        return mask | kStringViewWtf8Code;
+      case kStringViewWtf16:
+      case kStringViewWtf16Shared:
+        return mask | kStringViewWtf16Code;
+      case kStringViewIter:
+      case kStringViewIterShared:
+        return mask | kStringViewIterCode;
+      case kNone:
+      case kNoneShared:
+        return mask | kNoneCode;
+      case kNoExtern:
+      case kNoExternShared:
+        return mask | kNoExternCode;
+      case kNoFunc:
+      case kNoFuncShared:
+        return mask | kNoFuncCode;
+      case kNoExn:
+      case kNoExnShared:
+        return mask | kNoExnCode;
+      default:
+        DCHECK(is_index());
+        return static_cast<int32_t>(representation());
+    }
+  }
+
+  constexpr bool operator==(HeapType other) const {
+    return representation() == other.representation();
+  }
+  constexpr bool operator!=(HeapType other) const {
+    return representation() != other.representation();
+  }
+
+  constexpr ModuleTypeIndex ref_index() const {
+    DCHECK(is_index());
+    return ModuleTypeIndex{representation()};
+  }
 };
 
 enum Nullability : bool { kNonNullable, kNullable };
@@ -446,7 +507,11 @@ constexpr bool is_numeric(ValueKind kind) {
   }
 }
 
-constexpr bool is_valid(ValueKind kind) { return kind <= kBottom; }
+constexpr bool is_valid(ValueKind kind) {
+  // Note that this function is used as additional validation for preventing V8
+  // heap sandbox escapes.
+  return kind <= kBottom;
+}
 
 constexpr bool is_reference(ValueKind kind) {
   return kind == kRef || kind == kRefNull || kind == kRtt;
@@ -544,64 +609,13 @@ constexpr bool is_defaultable(ValueKind kind) {
 
 // A ValueType is encoded by two components: a ValueKind and a heap
 // representation (for reference types/rtts). Those are encoded into 32 bits
-// using base::BitField. The underlying ValueKind enumeration includes four
-// elements which do not strictly correspond to value types: the two packed
-// types i8 and i16, the void type (for control structures), and a bottom value
-// (for internal use).
-// ValueType encoding includes an additional bit marking the index of a type as
-// relative. This should only be used during type canonicalization.
-class ValueType {
+// using base::BitField.
+// {ValueTypeBase} shouldn't be used directly; code should be using one of
+// the subclasses. To enforce this, the public interface is limited to
+// type index agnostic getters.
+class ValueTypeBase {
  public:
-  /******************************* Constructors *******************************/
-  constexpr ValueType() : bit_field_(KindField::encode(kVoid)) {}
-  static constexpr ValueType Primitive(ValueKind kind) {
-    DCHECK(kind == kBottom || kind <= kF16);
-    return ValueType(KindField::encode(kind));
-  }
-  static constexpr ValueType Ref(uint32_t heap_type) {
-    DCHECK(HeapType(heap_type).is_valid());
-    return ValueType(KindField::encode(kRef) |
-                     HeapTypeField::encode(heap_type));
-  }
-  static constexpr ValueType Ref(HeapType heap_type) {
-    return Ref(heap_type.representation());
-  }
-  static constexpr ValueType RefNull(uint32_t heap_type) {
-    DCHECK(HeapType(heap_type).is_valid());
-    return ValueType(KindField::encode(kRefNull) |
-                     HeapTypeField::encode(heap_type));
-  }
-  static constexpr ValueType RefNull(HeapType heap_type) {
-    return RefNull(heap_type.representation());
-  }
-  static constexpr ValueType RefMaybeNull(uint32_t heap_type,
-                                          Nullability nullability) {
-    DCHECK(HeapType(heap_type).is_valid());
-    return ValueType(
-        KindField::encode(nullability == kNullable ? kRefNull : kRef) |
-        HeapTypeField::encode(heap_type));
-  }
-  static constexpr ValueType RefMaybeNull(HeapType heap_type,
-                                          Nullability nullability) {
-    return RefMaybeNull(heap_type.representation(), nullability);
-  }
-
-  static constexpr ValueType Rtt(uint32_t type_index) {
-    DCHECK(HeapType(type_index).is_index());
-    return ValueType(KindField::encode(kRtt) |
-                     HeapTypeField::encode(type_index));
-  }
-
-  static constexpr ValueType FromIndex(ValueKind kind, uint32_t index) {
-    DCHECK(kind == kRefNull || kind == kRef || kind == kRtt);
-    CHECK_LT(index, kV8MaxWasmTypes);
-    return ValueType(KindField::encode(kind) | HeapTypeField::encode(index));
-  }
-
-  // Useful when deserializing a type stored in a runtime object.
-  static constexpr ValueType FromRawBitField(uint32_t bit_field) {
-    return ValueType(bit_field);
-  }
+  constexpr ValueTypeBase() : bit_field_(KindField::encode(kVoid)) {}
 
   /******************************** Type checks *******************************/
   // Includes s128.
@@ -616,7 +630,7 @@ class ValueType {
   constexpr bool is_nullable() const { return kind() == kRefNull; }
   constexpr bool is_non_nullable() const { return kind() == kRef; }
 
-  constexpr bool is_reference_to(uint32_t htype) const {
+  constexpr bool is_reference_to(HeapType::Representation htype) const {
     return (kind() == kRef || kind() == kRefNull) &&
            heap_representation() == htype;
   }
@@ -630,6 +644,7 @@ class ValueType {
   constexpr bool is_defaultable() const { return wasm::is_defaultable(kind()); }
 
   constexpr bool is_bottom() const { return kind() == kBottom; }
+  constexpr bool is_top() const { return kind() == kTop; }
 
   constexpr bool is_string_view() const {
     return is_object_reference() && heap_type().is_string_view();
@@ -641,28 +656,16 @@ class ValueType {
   constexpr bool is_uninhabited() const {
     return is_bottom() ||
            (is_non_nullable() && (is_reference_to(HeapType::kNone) ||
+                                  is_reference_to(HeapType::kNoExn) ||
                                   is_reference_to(HeapType::kNoExtern) ||
                                   is_reference_to(HeapType::kNoFunc) ||
                                   is_reference_to(HeapType::kNoneShared) ||
+                                  is_reference_to(HeapType::kNoExnShared) ||
                                   is_reference_to(HeapType::kNoExternShared) ||
                                   is_reference_to(HeapType::kNoFuncShared)));
   }
 
   constexpr bool is_packed() const { return wasm::is_packed(kind()); }
-
-  constexpr ValueType Unpacked() const {
-    return is_packed() ? Primitive(kI32) : *this;
-  }
-
-  // If {this} is (ref null $t), returns (ref $t). Otherwise, returns {this}.
-  constexpr ValueType AsNonNull() const {
-    return is_nullable() ? Ref(heap_type()) : *this;
-  }
-
-  // If {this} is (ref $t), returns (ref null $t). Otherwise, returns {this}.
-  constexpr ValueType AsNullable() const {
-    return is_non_nullable() ? RefNull(heap_type()) : *this;
-  }
 
   /***************************** Field Accessors ******************************/
   constexpr ValueKind kind() const { return KindField::decode(bit_field_); }
@@ -673,34 +676,16 @@ class ValueType {
   }
   constexpr HeapType::Representation heap_representation_non_shared() const {
     DCHECK(is_object_reference());
-    return HeapType(heap_representation()).representation_non_shared();
+    return HeapTypeBase(heap_representation()).representation_non_shared();
   }
-  constexpr HeapType heap_type() const {
-    DCHECK(is_object_reference());
-    return HeapType(heap_representation());
-  }
-  constexpr uint32_t ref_index() const {
-    DCHECK(has_index());
-    return HeapTypeField::decode(bit_field_);
-  }
+
   constexpr Nullability nullability() const {
     DCHECK(is_object_reference());
     return kind() == kRefNull ? kNullable : kNonNullable;
   }
 
-  // Useful when serializing this type to store it into a runtime object.
-  constexpr uint32_t raw_bit_field() const { return bit_field_; }
-
-  /*************************** Other utility methods **************************/
-  constexpr bool operator==(ValueType other) const {
-    return bit_field_ == other.bit_field_;
-  }
-  constexpr bool operator!=(ValueType other) const {
-    return bit_field_ != other.bit_field_;
-  }
-
   static constexpr size_t bit_field_offset() {
-    return offsetof(ValueType, bit_field_);
+    return offsetof(ValueTypeBase, bit_field_);
   }
 
   constexpr int value_kind_size_log2() const {
@@ -724,25 +709,18 @@ class ValueType {
     return machine_type().representation();
   }
 
-  static ValueType For(MachineType type) {
-    switch (type.representation()) {
-      case MachineRepresentation::kWord8:
-      case MachineRepresentation::kWord16:
-      case MachineRepresentation::kWord32:
-        return Primitive(kI32);
-      case MachineRepresentation::kWord64:
-        return Primitive(kI64);
-      case MachineRepresentation::kFloat32:
-        return Primitive(kF32);
-      case MachineRepresentation::kFloat64:
-        return Primitive(kF64);
-      case MachineRepresentation::kTaggedPointer:
-        return RefNull(HeapType::kAny);
-      case MachineRepresentation::kSimd128:
-        return Primitive(kS128);
-      default:
-        UNREACHABLE();
-    }
+  constexpr bool use_wasm_null() const {
+    DCHECK(is_object_reference());
+    // Most nullable types use the "WasmNull" sentinel, but some reuse the
+    // external "NullValue" sentinel.
+    // TODO(jkummerow): Consider calling {wasm::IsSubtypeOf}; but then we'd
+    // need a module.
+    // TODO(14616): Extend this for shared types.
+    HeapType::Representation repr = heap_representation_non_shared();
+    if (repr == HeapType::kExtern) return false;
+    if (repr == HeapType::kExternString) return false;
+    if (repr == HeapType::kNoExtern) return false;
+    return true;
   }
 
   /********************************* Encoding *********************************/
@@ -754,7 +732,6 @@ class ValueType {
   // (e.g., {Ref(HeapType::kFunc, kNullable).value_type_code()} will return
   // kFuncrefCode and not kRefNullCode).
   constexpr ValueTypeCode value_type_code() const {
-    DCHECK_NE(kBottom, kind());
     switch (kind()) {
       case kRefNull:
         switch (heap_representation()) {
@@ -803,13 +780,14 @@ class ValueType {
     return k##kind##Code;
         FOREACH_NUMERIC_VALUE_TYPE(NUMERIC_TYPE_CASE)
 #undef NUMERIC_TYPE_CASE
+      case kVoid:
+        return kVoidCode;
       // The RTT value type can not be used in WebAssembly and is a
       // compiler-internal type only.
       case kRtt:
-      case kVoid:
+      case kTop:
       case kBottom:
-        // Unreachable code
-        return kVoidCode;
+        UNREACHABLE();
     }
   }
 
@@ -863,63 +841,269 @@ class ValueType {
     return buf.str();
   }
 
-  /********************** Type canonicalization utilities *********************/
-  static constexpr ValueType CanonicalWithRelativeIndex(ValueKind kind,
-                                                        uint32_t index) {
-    return ValueType(KindField::encode(kind) | HeapTypeField::encode(index) |
-                     CanonicalRelativeField::encode(true));
-  }
-
-  constexpr bool is_canonical_relative() const {
-    return has_index() && CanonicalRelativeField::decode(bit_field_);
-  }
+  // Useful when serializing this type to store it into a runtime object.
+  constexpr uint32_t raw_bit_field() const { return bit_field_; }
 
   /**************************** Static constants ******************************/
-  static constexpr int kLastUsedBit = 25;
   static constexpr int kKindBits = 5;
   static constexpr int kHeapTypeBits = 20;
+  static constexpr int kLastUsedBit = 24;
 
   static const intptr_t kBitFieldOffset;
 
- private:
+  size_t hash_value() const {
+    // Just use the whole encoded bit field, similar to {operator==}.
+    return bit_field_;
+  }
+
+ protected:
   // {hash_value} directly reads {bit_field_}.
-  friend size_t hash_value(ValueType type);
+  friend size_t hash_value(ValueTypeBase type);
+  friend class ValueType;
+  friend class CanonicalValueType;
+
+  static constexpr ValueTypeBase Primitive(ValueKind kind) {
+    DCHECK(kind == kTop || kind == kBottom || kind <= kF16);
+    return ValueTypeBase(KindField::encode(kind));
+  }
+
+  static constexpr ValueTypeBase Ref(HeapType::Representation heap_type) {
+    DCHECK(HeapTypeBase(heap_type).is_valid());
+    return ValueTypeBase(KindField::encode(kRef) |
+                         HeapTypeField::encode(heap_type));
+  }
+  static constexpr ValueTypeBase Ref(HeapTypeBase heap_type) {
+    return Ref(heap_type.representation());
+  }
+  static constexpr ValueTypeBase RefNull(HeapType::Representation heap_type) {
+    DCHECK(HeapTypeBase(heap_type).is_valid());
+    return ValueTypeBase(KindField::encode(kRefNull) |
+                         HeapTypeField::encode(heap_type));
+  }
+  static constexpr ValueTypeBase RefNull(HeapTypeBase heap_type) {
+    return RefNull(heap_type.representation());
+  }
+  static constexpr ValueTypeBase RefMaybeNull(
+      HeapType::Representation heap_type, Nullability nullability) {
+    DCHECK(HeapTypeBase(heap_type).is_valid());
+    return ValueTypeBase(
+        KindField::encode(nullability == kNullable ? kRefNull : kRef) |
+        HeapTypeField::encode(heap_type));
+  }
+  static constexpr ValueTypeBase RefMaybeNull(HeapTypeBase heap_type,
+                                              Nullability nullability) {
+    return RefMaybeNull(heap_type.representation(), nullability);
+  }
+
+  // Useful when deserializing a type stored in a runtime object.
+  static constexpr ValueTypeBase FromRawBitField(uint32_t bit_field) {
+    return ValueTypeBase(bit_field);
+  }
+
+  constexpr HeapTypeBase heap_type() const {
+    DCHECK(is_object_reference());
+    return HeapTypeBase(heap_representation());
+  }
+  constexpr uint32_t ref_index() const {
+    DCHECK(has_index());
+    return HeapTypeField::decode(bit_field_);
+  }
 
   using KindField = base::BitField<ValueKind, 0, kKindBits>;
   using HeapTypeField = KindField::Next<uint32_t, kHeapTypeBits>;
-  // Marks a type as a canonical type which uses an index relative to its
-  // recursive group start. Used only during type canonicalization.
-  using CanonicalRelativeField = HeapTypeField::Next<bool, 1>;
 
   static_assert(kV8MaxWasmTypes < (1u << kHeapTypeBits),
                 "Type indices fit in kHeapTypeBits");
   // This is implemented defensively against field order changes.
-  static_assert(kLastUsedBit ==
-                    std::max(KindField::kLastUsedBit,
-                             std::max(HeapTypeField::kLastUsedBit,
-                                      CanonicalRelativeField::kLastUsedBit)),
+  static_assert(kLastUsedBit == std::max(KindField::kLastUsedBit,
+                                         HeapTypeField::kLastUsedBit),
                 "kLastUsedBit is consistent");
 
-  constexpr explicit ValueType(uint32_t bit_field) : bit_field_(bit_field) {}
+  constexpr explicit ValueTypeBase(uint32_t bit_field)
+      : bit_field_(bit_field) {}
 
   constexpr const char* kind_name() const { return wasm::name(kind()); }
 
   uint32_t bit_field_;
 };
+ASSERT_TRIVIALLY_COPYABLE(ValueTypeBase);
+
+// Module-specific type indices.
+class ValueType : public ValueTypeBase {
+ public:
+  static constexpr ValueType Primitive(ValueKind kind) {
+    return ValueType{ValueTypeBase::Primitive(kind)};
+  }
+
+  static constexpr ValueType Ref(HeapType::Representation heap_type) {
+    return ValueType{ValueTypeBase::Ref(heap_type)};
+  }
+
+  static constexpr ValueType Ref(HeapType heap_type) {
+    return ValueType{ValueTypeBase::Ref(heap_type)};
+  }
+
+  static constexpr ValueType Ref(ModuleTypeIndex type) {
+    return ValueType{ValueTypeBase::Ref(HeapType(type))};
+  }
+
+  static constexpr ValueType RefNull(HeapType::Representation heap_type) {
+    return ValueType{ValueTypeBase::RefNull(heap_type)};
+  }
+
+  static constexpr ValueType RefNull(HeapType heap_type) {
+    return ValueType{ValueTypeBase::RefNull(heap_type)};
+  }
+
+  static constexpr ValueType RefNull(ModuleTypeIndex type) {
+    return ValueType{ValueTypeBase::RefNull(HeapType(type))};
+  }
+
+  static constexpr ValueType RefMaybeNull(HeapType::Representation heap_type,
+                                          Nullability nullability) {
+    return ValueType{ValueTypeBase::RefMaybeNull(heap_type, nullability)};
+  }
+
+  static constexpr ValueType RefMaybeNull(ModuleTypeIndex type,
+                                          Nullability nullability) {
+    return ValueType::RefMaybeNull(HeapType(type), nullability);
+  }
+
+  static constexpr ValueType RefMaybeNull(HeapType heap_type,
+                                          Nullability nullability) {
+    return ValueType{ValueTypeBase::RefMaybeNull(heap_type, nullability)};
+  }
+
+  static constexpr ValueType Rtt(ModuleTypeIndex type) {
+    DCHECK(HeapType(type).is_index());
+    return ValueType{ValueTypeBase{KindField::encode(kRtt) |
+                                   HeapTypeField::encode(type.index)}};
+  }
+
+  static constexpr ValueType FromRawBitField(uint32_t bit_field) {
+    return ValueType{ValueTypeBase::FromRawBitField(bit_field)};
+  }
+
+  constexpr ValueType Unpacked() const {
+    return is_packed() ? Primitive(kI32) : *this;
+  }
+
+  // If {this} is (ref null $t), returns (ref $t). Otherwise, returns {this}.
+  constexpr ValueType AsNonNull() const {
+    return is_nullable() ? Ref(heap_type()) : *this;
+  }
+
+  // If {this} is (ref $t), returns (ref null $t). Otherwise, returns {this}.
+  constexpr ValueType AsNullable() const {
+    return is_non_nullable() ? RefNull(heap_type()) : *this;
+  }
+
+  static ValueType For(MachineType type) {
+    switch (type.representation()) {
+      case MachineRepresentation::kWord8:
+      case MachineRepresentation::kWord16:
+      case MachineRepresentation::kWord32:
+        return Primitive(kI32);
+      case MachineRepresentation::kWord64:
+        return Primitive(kI64);
+      case MachineRepresentation::kFloat32:
+        return Primitive(kF32);
+      case MachineRepresentation::kFloat64:
+        return Primitive(kF64);
+      case MachineRepresentation::kTaggedPointer:
+        return RefNull(HeapType::kAny);
+      case MachineRepresentation::kSimd128:
+        return Primitive(kS128);
+      default:
+        UNREACHABLE();
+    }
+  }
+
+  constexpr bool operator==(ValueType other) const {
+    return bit_field_ == other.bit_field_;
+  }
+  constexpr bool operator!=(ValueType other) const {
+    return bit_field_ != other.bit_field_;
+  }
+
+  constexpr HeapType heap_type() const {
+    return HeapType{ValueTypeBase::heap_type()};
+  }
+
+  constexpr ModuleTypeIndex ref_index() const {
+    return ModuleTypeIndex{ValueTypeBase::ref_index()};
+  }
+};
 ASSERT_TRIVIALLY_COPYABLE(ValueType);
 
-inline constexpr intptr_t ValueType::kBitFieldOffset =
-    offsetof(ValueType, bit_field_);
+// Canonicalized type indices.
+class CanonicalValueType : public ValueTypeBase {
+ public:
+  static constexpr CanonicalValueType Primitive(ValueKind kind) {
+    return CanonicalValueType{ValueTypeBase::Primitive(kind)};
+  }
 
-static_assert(sizeof(ValueType) <= kUInt32Size,
+  static constexpr CanonicalValueType Ref(HeapType::Representation heap_type) {
+    return CanonicalValueType{ValueTypeBase::Ref(heap_type)};
+  }
+
+  static constexpr CanonicalValueType RefNull(
+      HeapType::Representation heap_type) {
+    return CanonicalValueType{ValueTypeBase::RefNull(heap_type)};
+  }
+
+  static constexpr CanonicalValueType RefMaybeNull(
+      HeapType::Representation heap_type, Nullability nullability) {
+    return CanonicalValueType{
+        ValueTypeBase::RefMaybeNull(heap_type, nullability)};
+  }
+
+  static constexpr CanonicalValueType FromIndex(ValueKind kind,
+                                                CanonicalTypeIndex index) {
+    DCHECK(kind == kRefNull || kind == kRef);
+    CHECK_LT(index.index, kV8MaxWasmTypes);
+    return CanonicalValueType{ValueTypeBase(
+        KindField::encode(kind) | HeapTypeField::encode(index.index))};
+  }
+
+  static constexpr CanonicalValueType FromRawBitField(uint32_t bit_field) {
+    return CanonicalValueType{ValueTypeBase::FromRawBitField(bit_field)};
+  }
+
+  constexpr bool operator==(CanonicalValueType other) const {
+    return bit_field_ == other.bit_field_;
+  }
+  constexpr bool operator!=(CanonicalValueType other) const {
+    return bit_field_ != other.bit_field_;
+  }
+
+  constexpr CanonicalTypeIndex ref_index() const {
+    return CanonicalTypeIndex{ValueTypeBase::ref_index()};
+  }
+
+  bool IsFunctionType() const {
+    if (!is_object_reference()) return false;
+    wasm::HeapType::Representation rep = heap_representation();
+    if (rep == wasm::HeapType::kFunc) return true;
+    if (rep == wasm::HeapType::kFuncShared) return true;
+    if (rep == wasm::HeapType::kNoFunc) return true;
+    if (rep == wasm::HeapType::kNoFuncShared) return true;
+    if (!has_index()) return false;
+    return IsFunctionType_Slow();
+  }
+
+ private:
+  bool IsFunctionType_Slow() const;
+};
+ASSERT_TRIVIALLY_COPYABLE(CanonicalValueType);
+
+inline constexpr intptr_t ValueTypeBase::kBitFieldOffset =
+    offsetof(ValueTypeBase, bit_field_);
+
+static_assert(sizeof(ValueTypeBase) <= kUInt32Size,
               "ValueType is small and can be passed by value");
-static_assert(ValueType::kLastUsedBit < 8 * sizeof(ValueType) - kSmiTagSize,
+static_assert(ValueTypeBase::kLastUsedBit < kSmiValueSize,
               "ValueType has space to be encoded in a Smi");
-
-inline size_t hash_value(ValueType type) {
-  // Just use the whole encoded bit field, similar to {operator==}.
-  return static_cast<size_t>(type.bit_field_);
-}
 
 // Output operator, useful for DCHECKS and others.
 inline std::ostream& operator<<(std::ostream& oss, ValueType type) {
@@ -936,6 +1120,8 @@ constexpr ValueType kWasmI8 = ValueType::Primitive(kI8);
 constexpr ValueType kWasmI16 = ValueType::Primitive(kI16);
 constexpr ValueType kWasmF16 = ValueType::Primitive(kF16);
 constexpr ValueType kWasmVoid = ValueType::Primitive(kVoid);
+// The abstract top type (super type of all other types).
+constexpr ValueType kWasmTop = ValueType::Primitive(kTop);
 constexpr ValueType kWasmBottom = ValueType::Primitive(kBottom);
 // Established reference-type and wasm-gc proposal shorthands.
 constexpr ValueType kWasmFuncRef = ValueType::RefNull(HeapType::kFunc);
@@ -964,6 +1150,28 @@ constexpr ValueType kWasmNullExternRef =
 constexpr ValueType kWasmNullExnRef = ValueType::RefNull(HeapType::kNoExn);
 constexpr ValueType kWasmNullFuncRef = ValueType::RefNull(HeapType::kNoFunc);
 
+constexpr CanonicalValueType kCanonicalI8 = CanonicalValueType::Primitive(kI8);
+constexpr CanonicalValueType kCanonicalI16 =
+    CanonicalValueType::Primitive(kI16);
+constexpr CanonicalValueType kCanonicalI32 =
+    CanonicalValueType::Primitive(kI32);
+constexpr CanonicalValueType kCanonicalI64 =
+    CanonicalValueType::Primitive(kI64);
+constexpr CanonicalValueType kCanonicalF16 =
+    CanonicalValueType::Primitive(kF16);
+constexpr CanonicalValueType kCanonicalF32 =
+    CanonicalValueType::Primitive(kF32);
+constexpr CanonicalValueType kCanonicalF64 =
+    CanonicalValueType::Primitive(kF64);
+constexpr CanonicalValueType kCanonicalS128 =
+    CanonicalValueType::Primitive(kS128);
+constexpr CanonicalValueType kCanonicalExternRef =
+    CanonicalValueType::RefNull(HeapType::kExtern);
+constexpr CanonicalValueType kCanonicalAnyRef =
+    CanonicalValueType::RefNull(HeapType::kAny);
+constexpr CanonicalValueType kCanonicalFuncRef =
+    CanonicalValueType::RefNull(HeapType::kFunc);
+
 // Constants used by the generic js-to-wasm wrapper.
 constexpr int kWasmValueKindBitsMask = (1u << ValueType::kKindBits) - 1;
 constexpr int kWasmHeapTypeBitsMask = (1u << ValueType::kHeapTypeBits) - 1;
@@ -976,6 +1184,31 @@ constexpr int kWasmHeapTypeBitsMask = (1u << ValueType::kHeapTypeBits) - 1;
   V(kS128, Simd128)
 
 using FunctionSig = Signature<ValueType>;
+
+class CanonicalSig : public Signature<CanonicalValueType> {
+ public:
+  CanonicalSig(size_t return_count, size_t parameter_count,
+               const CanonicalValueType* reps)
+      : Signature<CanonicalValueType>(return_count, parameter_count, reps) {}
+
+  class Builder : public SignatureBuilder<CanonicalSig, CanonicalValueType> {
+   public:
+    Builder(Zone* zone, size_t return_count, size_t parameter_count)
+        : SignatureBuilder<CanonicalSig, CanonicalValueType>(zone, return_count,
+                                                             parameter_count) {}
+    CanonicalSig* Get() const;
+  };
+
+  uint64_t signature_hash() const { return signature_hash_; }
+
+ private:
+  uint64_t signature_hash_;
+};
+
+// This is the special case where comparing module-specific to canonical
+// signatures is safe: when they only contain numerical types.
+V8_EXPORT_PRIVATE bool EquivalentNumericSig(const CanonicalSig* a,
+                                            const FunctionSig* b);
 
 #define FOREACH_LOAD_TYPE(V) \
   V(I32, , Int32)            \
@@ -1091,7 +1324,7 @@ class StoreType {
 #undef DEF_ENUM
   };
 
-  // Allow implicit convertion of the enum value to this wrapper.
+  // Allow implicit conversion of the enum value to this wrapper.
   constexpr StoreType(StoreTypeValue val)  // NOLINT(runtime/explicit)
       : val_(val) {}
 
@@ -1149,7 +1382,7 @@ class StoreType {
 };
 
 std::optional<wasm::ValueKind> WasmReturnTypeFromSignature(
-    const FunctionSig* wasm_signature);
+    const CanonicalSig* wasm_signature);
 
 // Lowers a signature for 32 bit platforms by replacing i64 parameters and
 // returns with two i32s each.

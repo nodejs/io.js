@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --wasm-inlining-call-indirect --allow-natives-syntax
-// Flags: --trace-wasm-inlining --turboshaft-wasm --wasm-dynamic-tiering
+// Flags: --trace-wasm-inlining --wasm-dynamic-tiering
 // Explicitly set Turboshaft since the tracing output is slightly different in
 // TurboFan (which is also on its way out anyway).
 // Explicitly enable dynamic tiering, since we need Liftoff to collect feedback

@@ -8,7 +8,6 @@
   # This test can only be executed in the browser
   'wpt/idlharness': [SKIP],
   # Failing WPT tests
-  'wpt/exception/type.tentative': [FAIL],
   'wpt/function/constructor.tentative': [FAIL],
 
   # TODO(v8): Should work after
@@ -19,35 +18,9 @@
   # Failing spec tests after test update
   'proposals/js-types/function/constructor.tentative': [FAIL],
 
-  'proposals/memory64/table/constructor': [FAIL],
-  'wpt/module/moduleSource': [FAIL],
-
   # This is a spec test of the https://github.com/WebAssembly/esm-integration
   # proposal which V8 does not implement yet.
   'wpt/module/moduleSource.tentative': [FAIL],
-
-  # Outdated proposal tests.
-  'proposals/js-types/table/get-set': [FAIL],
-  'proposals/memory64/table/get-set': [FAIL],
-  'proposals/tail-call/table/get-set': [FAIL],
-  'proposals/js-types/memory/constructor': [FAIL],
-  'proposals/tail-call/memory/constructor': [FAIL],
-  'proposals/js-types/interface': [FAIL],
-  'proposals/memory64/interface': [FAIL],
-  'proposals/simd/interface': [FAIL],
-  'proposals/tail-call/interface': [FAIL],
-
-  # TODO(v8:10556): Remove sub-typing in the reference-types implementation
-  'proposals/js-types/constructor/instantiate': [FAIL],
-  'proposals/js-types/global/value-get-set': [FAIL],
-  'proposals/js-types/instance/constructor': [FAIL],
-
-  # Limits tests are slow, and not useful to run for the proposals:
-  'proposals/extended-const/limits': [SKIP],
-  'proposals/js-types/limits': [SKIP],
-  'proposals/memory64/limits': [SKIP],
-  'proposals/multi-memory/limits': [SKIP],
-  'proposals/tail-call/limits': [SKIP],
 
   # Tests that need to run sequentially (e.g. due to memory consumption).
   # TODO(14258): Switch back to [PASS, HEAVY] once wasm-js tests allow more
@@ -60,20 +33,11 @@
   # still use the old API (which works but is deprecated).
   'proposals/js-promise-integration/js-promise-integration/js-promise-integration': [FAIL],
 
-  # TODO(https://crbug.com/364913810): Investigate failing exception handling tests.
-  'proposals/exception-handling/exception/identity.tentative': [FAIL],
-  'proposals/exception-handling/exception/jsTag.tentative': [FAIL],
-  'proposals/memory64/exception/identity.tentative': [FAIL],
-  'proposals/memory64/exception/jsTag.tentative': [FAIL],
-  'proposals/exception-handling/exception/basic.tentative': [FAIL],
-
-  # TODO(clemensb): Fix upstream; use kWasmVoid instead of kWasmStmt.
-  # (https://github.com/WebAssembly/memory64/pull/83)
-  'proposals/memory64/module/exports': [FAIL],
-
-  # Already fixed upstream in WPT, waiting on merge to spec repo:
-  # https://github.com/WebAssembly/js-string-builtins/pull/43
-  'wpt/js-string/basic.tentative': [FAIL],
+  # TODO(https://crbug.com/42202693): RAB / GSAB integration.
+  'wpt/memory/to-fixed-length-buffer': [FAIL],
+  'wpt/memory/to-resizable-buffer': [FAIL],
+  'wpt/memory/to-resizable-buffer-shared': [FAIL],
+  'wpt/memory/to-fixed-length-buffer-shared': [FAIL],
 }], # ALWAYS
 
 ['system == android', {
@@ -82,11 +46,11 @@
   'limits': [SKIP],
 }],  # 'system == android'
 
-['arch == s390 or arch == s390x or system == aix', {
+['arch == s390x or system == aix', {
   # https://bugs.chromium.org/p/v8/issues/detail?id=8402
   'instance/constructor': [SKIP],
   'constructor/instantiate': [SKIP],
-}],  # 'arch == s390 or arch == s390x or system == aix'
+}],  # 'arch == s390x or system == aix'
 
 ['arch == ppc64', {
   # Test needs larger than supported single code space.
@@ -105,9 +69,22 @@
   '*': [SKIP],
 }],  # not has_webassembly or variant == jitless
 
-################################################################################
+##############################################################################
 ['variant == stress_snapshot', {
   '*': [SKIP],  # only relevant for mjsunit tests.
 }],
 
+##############################################################################
+['arch != x64 and arch != arm64 and arch != ia32 and arch != arm and arch != riscv64 and arch != loong64 and arch != ppc64', {
+  # Stack switching is not supported on all platforms.
+  'proposals/js-promise-integration/js-promise-integration/js-promise-integration': [SKIP],
+  'wpt/jspi/*': [SKIP]
+}],  # (arch != x64 and arch != arm64 and arch != ia32 and arch != arm and arch != riscv64 and arch != loong64 and arch != ppc64)
+
+##############################################################################
+['cet_shadow_stack', {
+  # It does not support multiple stacks yet.
+  'proposals/js-promise-integration/js-promise-integration/js-promise-integration': [SKIP],
+  'wpt/jspi/*': [SKIP]
+}]  # cet_shadow_stack
 ]

@@ -6,6 +6,7 @@
 
 #include <memory>
 
+#include "include/cppgc/heap-consistency.h"
 #include "include/cppgc/internal/name-trait.h"
 #include "include/cppgc/trace-trait.h"
 #include "include/cppgc/visitor.h"
@@ -365,11 +366,9 @@ class StateStorage final {
   }
 
   template <typename Callback>
-  void ForAllVisibleStates(Callback callback) {
+  void ForAllStates(Callback callback) {
     for (auto& state : states_) {
-      if (state.second->IsVisibleNotDependent()) {
-        callback(state.second.get());
-      }
+      callback(state.second.get());
     }
   }
 
@@ -466,9 +465,15 @@ class CppGraphBuilderImpl final {
   }
 
   EmbedderNode* AddNode(const HeapObjectHeader& header) {
-    return static_cast<EmbedderNode*>(graph_.AddNode(
-        std::unique_ptr<v8::EmbedderGraph::Node>{new EmbedderNode(
-            &header, header.GetName(), header.AllocatedSize())}));
+    size_t size = header.AllocatedSize();
+    EmbedderNode* node = static_cast<EmbedderNode*>(
+        graph_.AddNode(std::unique_ptr<v8::EmbedderGraph::Node>{
+            new EmbedderNode(&header, header.GetName(), size)}));
+    size_t node_size = node->SizeInBytes();
+    if (size > node_size) {
+      graph_.AddNativeSize(size - node_size);
+    }
+    return node;
   }
 
   void AddEdge(State& parent, const HeapObjectHeader& header,
@@ -538,8 +543,9 @@ class CppGraphBuilderImpl final {
     }
     back_state.get_node()->SetWrapperNode(v8_node);
 
-    auto* profiler =
-        reinterpret_cast<Isolate*>(cpp_heap_.isolate())->heap_profiler();
+    auto* profiler = reinterpret_cast<Isolate*>(cpp_heap_.isolate())
+                         ->heap()
+                         ->heap_profiler();
     if (profiler->HasGetDetachednessCallback()) {
       back_state.get_node()->SetDetachedness(
           profiler->GetDetachedness(v8_data.As<v8::Value>(), 0));
@@ -972,7 +978,7 @@ class GraphBuildingStackVisitor
   }
 
  private:
-  void VisitConservatively(HeapObjectHeader& header) {
+  void VisitConservatively(const HeapObjectHeader& header) {
     root_visitor_.VisitRoot(header.ObjectStart(),
                             {header.ObjectStart(), nullptr},
                             cppgc::SourceLocation());
@@ -989,14 +995,21 @@ void CppGraphBuilderImpl::Run() {
   // Sweeping from a previous GC might still be running, in which case not all
   // pages have been returned to spaces yet.
   cpp_heap_.sweeper().FinishIfRunning();
+  cppgc::subtle::DisallowGarbageCollectionScope no_gc(
+      cpp_heap_.GetHeapHandle());
   // First pass: Figure out which objects should be included in the graph -- see
   // class-level comment on CppGraphBuilder.
   LiveObjectsForVisibilityIterator visitor(*this);
   visitor.Traverse(cpp_heap_.raw_heap());
   // Second pass: Add graph nodes for objects that must be shown.
-  states_.ForAllVisibleStates([this](StateBase* state_base) {
+  states_.ForAllStates([this](StateBase* state_base) {
     // No roots have been created so far, so all StateBase objects are State.
     State& state = *static_cast<State*>(state_base);
+
+    if (!state.IsVisibleNotDependent()) {
+      graph_.AddNativeSize(state.header()->AllocatedSize());
+      return;
+    }
 
     // Emit no edges for the contents of the weak containers. For both, fully
     // weak and ephemeron containers, the contents should be retained from

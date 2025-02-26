@@ -4,7 +4,7 @@ Running test: test
 Calling instantiate function.
 Waiting for wasm scripts to be parsed.
 Ignoring script with url v8://test/instantiate
-Got wasm script: wasm://wasm/242f4a16
+Got wasm script: wasm://wasm/8f673656
 Setting breakpoint at start of wasm function
 {
     columnNumber : 33
@@ -19,7 +19,7 @@ function test() {
 
 Debugger.resume
 paused
-Script wasm://wasm/242f4a16 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/8f673656 byte offset 33: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOut
 paused
   instance.exports.main();
@@ -38,10 +38,10 @@ function test() {
 
 Debugger.resume
 paused
-Script wasm://wasm/242f4a16 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/8f673656 byte offset 33: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOver
 paused
-Script wasm://wasm/242f4a16 byte offset 34: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8f673656 byte offset 34: Wasm opcode 0x0b (kExprEnd)
 Debugger.resume
 exports.main returned!
 Finished run 2!
@@ -54,10 +54,10 @@ function test() {
 
 Debugger.resume
 paused
-Script wasm://wasm/242f4a16 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/8f673656 byte offset 33: Wasm opcode 0x01 (kExprNop)
 Debugger.stepInto
 paused
-Script wasm://wasm/242f4a16 byte offset 34: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/8f673656 byte offset 34: Wasm opcode 0x0b (kExprEnd)
 Debugger.resume
 exports.main returned!
 Finished run 3!

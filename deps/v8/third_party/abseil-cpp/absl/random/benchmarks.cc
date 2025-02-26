@@ -359,7 +359,7 @@ void BM_Thread(benchmark::State& state) {
 
 // ABSL Recommended interfaces.
 BM_BASIC(absl::InsecureBitGen);  // === pcg64_2018_engine
-BM_BASIC(absl::BitGen);    // === randen_engine<uint64_t>.
+BM_BASIC(absl::BitGen);          // === randen_engine<uint64_t>.
 BM_THREAD(absl::BitGen);
 BM_EXTENDED(absl::BitGen);
 

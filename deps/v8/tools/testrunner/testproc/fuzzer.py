@@ -14,14 +14,16 @@ EXTRA_FLAGS = [
     (0.1, '--cache=code'),
     (0.1, '--force-slow-path'),
     (0.2, '--future'),
+    (0.5, '--harmony'),
     # TODO(v8:13524): Enable when issue is fixed
     # TODO(v8:13528): Enable when issue is fixed
     # (0.1, '--harmony-struct'),
     (0.1, '--jit-fuzzing'),
+    (0.5, '--js-staging'),
     (0.1, '--liftoff'),
     (0.1, '--maglev'),
     (0.1, '--maglev-future'),
-    (0.25, '--minor-ms'),
+    (0.1, '--minor-ms'),
     (0.2, '--no-analyze-environment-liveness'),
     # TODO(machenbach): Enable when it doesn't collide with crashing on missing
     # simd features.
@@ -40,22 +42,25 @@ EXTRA_FLAGS = [
     (0.1, '--no-liftoff'),
     (0.1, '--no-turbofan'),
     (0.1, '--no-wasm-tier-up'),
-    (0.1, '--optimize-on-next-call-optimizes-to-maglev'),
+    (0.5, '--optimize-on-next-call-optimizes-to-maglev'),
     (0.1, '--regexp-interpret-all'),
     (0.1, '--regexp-tier-up-ticks=0'),
     (0.1, '--regexp-tier-up-ticks=10'),
     (0.1, '--regexp-tier-up-ticks=100'),
     (0.1, '--shared-string-table'),
+    (0.1, '--shared-heap'),
     (0.1, '--stress-background-compile'),
     (0.1, '--stress-flush-code'),
     (0.1, '--stress-lazy-source-positions'),
     (0.1, '--stress-maglev'),
     (0.1, '--stress-wasm-code-gc'),
     (0.2, '--turboshaft'),
-    (0.1, '--turboshaft-from-maglev'),
+    (0.1, '--turbolev'),
     (0.1, '--turbo-instruction-scheduling'),
     (0.1, '--turbo-stress-instruction-scheduling'),
     (0.1, '--stress-wasm-memory-moving'),
+    (0.1, '--stress-scavenger-pinning-objects-random'),
+    (0.25, '--wasm-staging'),
 ]
 
 MIN_DEOPT = 1

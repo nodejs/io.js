@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm
-
 (function TestCopyBug() {
   // This was tickling a register allocation issue with
   // idiv in embenchen/copy.

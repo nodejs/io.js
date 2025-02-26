@@ -6,8 +6,19 @@
 
 #include "src/codegen/ppc/constants-ppc.h"
 
+#include "src/common/code-memory-access-inl.h"
+
 namespace v8 {
 namespace internal {
+
+void Instruction::SetInstructionBits(Instr value,
+                                     WritableJitAllocation* jit_allocation) {
+  if (jit_allocation) {
+    jit_allocation->WriteUnalignedValue(reinterpret_cast<Address>(this), value);
+  } else {
+    *reinterpret_cast<Instr*>(this) = value;
+  }
+}
 
 // These register names are defined in a way to match the native disassembler
 // formatting. See for example the command "objdump -d <binary file>".

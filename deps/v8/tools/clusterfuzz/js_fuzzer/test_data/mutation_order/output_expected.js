@@ -9,28 +9,18 @@
 // Script mutator: extra ArrayMutator
 
 // Original: mutation_order/input.js
-try {
-  var __v_0 =
-  /* NumberMutator: Replaced 1 with -10 */
-  -10;
-} catch (e) {}
+var __v_0 =
+/* NumberMutator: Replaced 1 with -10 */
+-10;
+var __v_1 = 'str';
+var __v_2 = undefined;
 
-try {
-  var __v_1 = 'str';
-} catch (e) {}
-
-try {
-  var __v_2 = undefined;
-} catch (e) {}
-
-try {
-  var __v_3 = {
-    /* NumberMutator: Replaced 0 with 8 */
-    8:
-    /* NumberMutator: Replaced 1 with 3 */
-    3
-  };
-} catch (e) {}
+var __v_3 = __wrapTC(() => ({
+  /* NumberMutator: Replaced 0 with 8 */
+  8:
+  /* NumberMutator: Replaced 1 with 3 */
+  3
+}));
 
 function __f_0(__v_4, __v_5) {
   return __v_4 + __v_5;

@@ -275,7 +275,7 @@ TEST_F(ConstantArrayBuilderTest, GapNotFilledWhenLowReservationDiscarded) {
     DirectHandle<Object> original =
         builder.At(k8BitCapacity + i, isolate()).ToHandleChecked();
     CHECK(Object::SameValue(*original, *reference));
-    MaybeHandle<Object> duplicate = builder.At(i, isolate());
+    MaybeDirectHandle<Object> duplicate = builder.At(i, isolate());
     CHECK(duplicate.is_null());
   }
 }
@@ -375,7 +375,7 @@ TEST_F(ConstantArrayBuilderTest, AllocateEntriesWithFixedReservations) {
   for (size_t i = 0; i < k16BitCapacity; i++) {
     if ((i % 2) == 0) {
       // Check reserved values are null.
-      MaybeHandle<Object> empty = builder.At(i, isolate());
+      MaybeDirectHandle<Object> empty = builder.At(i, isolate());
       CHECK(empty.is_null());
     } else {
       CHECK_EQ(Cast<Smi>(*builder.At(i, isolate()).ToHandleChecked()).value(),

@@ -20,9 +20,6 @@ uint32_t CodePointerTable::Sweep(Space* space, Counters* counters) {
   return num_live_entries;
 }
 
-DEFINE_LAZY_LEAKY_OBJECT_GETTER(CodePointerTable,
-                                GetProcessWideCodePointerTable)
-
 }  // namespace internal
 }  // namespace v8
 

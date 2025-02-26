@@ -1,0 +1,191 @@
+Checks if catch prediction works on new `using` and `await using` syntax.
+
+Running test: testPauseOnInitialState
+
+evaluate 'disposalUncaughtUsingSyntax()'..
+
+evaluate 'disposalUncaughtAwaitUsingSyntax()'..
+
+evaluate 'disposalUncaughtSuppressedError()'..
+
+evaluate 'disposalCaughtUsingSyntax()'..
+
+evaluate 'disposalCaughtAwaitUsingSyntax()'..
+
+evaluate 'disposalCaughtSuppressedError()'..
+
+Running test: testPauseOnExceptionOff
+
+evaluate 'disposalUncaughtUsingSyntax()'..
+
+evaluate 'disposalUncaughtAwaitUsingSyntax()'..
+
+evaluate 'disposalUncaughtSuppressedError()'..
+
+evaluate 'disposalCaughtUsingSyntax()'..
+
+evaluate 'disposalCaughtAwaitUsingSyntax()'..
+
+evaluate 'disposalCaughtSuppressedError()'..
+
+Running test: testBreakOnCaughtException
+
+evaluate 'disposalUncaughtUsingSyntax()'..
+
+evaluate 'disposalUncaughtAwaitUsingSyntax()'..
+
+evaluate 'disposalUncaughtSuppressedError()'..
+
+evaluate 'disposalCaughtUsingSyntax()'..
+paused on exception:
+{
+    description : 5
+    type : number
+    uncaught : false
+    value : 5
+}
+
+evaluate 'disposalCaughtAwaitUsingSyntax()'..
+paused on exception:
+{
+    description : 6
+    type : number
+    uncaught : false
+    value : 6
+}
+
+evaluate 'disposalCaughtSuppressedError()'..
+paused on exception:
+{
+    description : 8
+    type : number
+    uncaught : false
+    value : 8
+}
+paused on exception:
+{
+    description : 7
+    type : number
+    uncaught : false
+    value : 7
+}
+
+Running test: testBreakOnUncaughtException
+
+evaluate 'disposalUncaughtUsingSyntax()'..
+paused on exception:
+{
+    description : 1
+    type : number
+    uncaught : true
+    value : 1
+}
+
+evaluate 'disposalUncaughtAwaitUsingSyntax()'..
+paused on exception:
+{
+    description : 2
+    type : number
+    uncaught : true
+    value : 2
+}
+
+evaluate 'disposalUncaughtSuppressedError()'..
+paused on exception:
+{
+    description : 4
+    type : number
+    uncaught : true
+    value : 4
+}
+paused on exception:
+{
+    description : 3
+    type : number
+    uncaught : true
+    value : 3
+}
+
+evaluate 'disposalCaughtUsingSyntax()'..
+
+evaluate 'disposalCaughtAwaitUsingSyntax()'..
+
+evaluate 'disposalCaughtSuppressedError()'..
+
+Running test: testBreakOnAll
+
+evaluate 'disposalUncaughtUsingSyntax()'..
+paused on exception:
+{
+    description : 1
+    type : number
+    uncaught : true
+    value : 1
+}
+
+evaluate 'disposalUncaughtAwaitUsingSyntax()'..
+paused on exception:
+{
+    description : 2
+    type : number
+    uncaught : true
+    value : 2
+}
+
+evaluate 'disposalUncaughtSuppressedError()'..
+paused on exception:
+{
+    description : 4
+    type : number
+    uncaught : true
+    value : 4
+}
+paused on exception:
+{
+    description : 3
+    type : number
+    uncaught : true
+    value : 3
+}
+
+evaluate 'disposalCaughtUsingSyntax()'..
+paused on exception:
+{
+    description : 5
+    type : number
+    uncaught : false
+    value : 5
+}
+
+evaluate 'disposalCaughtAwaitUsingSyntax()'..
+paused on exception:
+{
+    description : 6
+    type : number
+    uncaught : false
+    value : 6
+}
+
+evaluate 'disposalCaughtSuppressedError()'..
+paused on exception:
+{
+    description : 8
+    type : number
+    uncaught : false
+    value : 8
+}
+paused on exception:
+{
+    description : 7
+    type : number
+    uncaught : false
+    value : 7
+}
+
+Running test: testBreakOnExceptionInSilentMode
+evaluate 'disposalUncaughtUsingSyntax()'
+evaluate 'disposalUncaughtAwaitUsingSyntax()'
+evaluate 'disposalUncaughtSuppressedError()'
+evaluate 'disposalCaughtUsingSyntax()'
+evaluate 'disposalCaughtAwaitUsingSyntax()'
+evaluate 'disposalCaughtSuppressedError()'

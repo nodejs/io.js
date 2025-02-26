@@ -418,6 +418,7 @@ TEST_F(DisasmX64Test, DisasmX64CheckOutput) {
           addq(Operand(rbp, rcx, times_4, 12), Immediate(12)));
 
   COMPARE("0fc8                 bswapl rax", bswapl(rax));
+  COMPARE("410fc8               bswapl r8", bswapl(r8));
   COMPARE("480fcf               REX.W bswapq rdi", bswapq(rdi));
   COMPARE("410fbdc7             bsrl rax,r15", bsrl(rax, r15));
   COMPARE("440fbd0ccd0f670100   bsrl r9,[rcx*8+0x1670f]",
@@ -818,7 +819,9 @@ TEST_F(DisasmX64Test, DisasmX64CheckOutputSSE) {
           movhps(xmm8, Operand(rbx, rcx, times_4, 10000)));
   COMPARE("440f178c8b10270000   movhps [rbx+rcx*4+0x2710],xmm9",
           movhps(Operand(rbx, rcx, times_4, 10000), xmm9));
-  COMPARE("410fc6c100           shufps xmm0, xmm9, 0", shufps(xmm0, xmm9, 0x0));
+  COMPARE("410fc6c100           shufps xmm0,xmm9,0", shufps(xmm0, xmm9, 0x0));
+  COMPARE("410fc6faff           shufps xmm7,xmm10,255",
+          shufps(xmm7, xmm10, 0xff));
   COMPARE("f30fc2c100           cmpeqss xmm0,xmm1", cmpeqss(xmm0, xmm1));
   COMPARE("f20fc2c100           cmpeqsd xmm0,xmm1", cmpeqsd(xmm0, xmm1));
   COMPARE("0f2ec1               ucomiss xmm0,xmm1", ucomiss(xmm0, xmm1));
@@ -896,7 +899,12 @@ TEST_F(DisasmX64Test, DisasmX64CheckOutputSSE2) {
           punpckldq(xmm5, Operand(rdx, 4)));
   COMPARE("66450f6ac7           punpckhdq xmm8,xmm15", punpckhdq(xmm8, xmm15));
   COMPARE("f20f70d403           pshuflw xmm2,xmm4,3", pshuflw(xmm2, xmm4, 3));
-  COMPARE("f3410f70c906         pshufhw xmm1,xmm9, 6", pshufhw(xmm1, xmm9, 6));
+  COMPARE("f20f70948b10270000ff pshuflw xmm2,[rbx+rcx*4+0x2710],255",
+          pshuflw(xmm2, Operand(rbx, rcx, times_4, 10000), 0xff));
+  COMPARE("f3410f70c906         pshufhw xmm1,xmm9,6", pshufhw(xmm1, xmm9, 6));
+  COMPARE("f30f708c8b10270000ff pshufhw xmm1,[rbx+rcx*4+0x2710],255",
+          pshufhw(xmm1, Operand(rbx, rcx, times_4, 10000), 0xff));
+  COMPARE("660fc4d101           pinsrw xmm2,rcx,0x1", pinsrw(xmm2, rcx, 1));
 
 #define COMPARE_SSE2_INSTR(instruction, _, __, ___) \
   exp = #instruction " xmm1,xmm0";                  \
@@ -968,8 +976,10 @@ TEST_F(DisasmX64Test, DisasmX64CheckOutputSSE4_1) {
 
   COMPARE("660f3a21e97b         insertps xmm5,xmm1,0x7b",
           insertps(xmm5, xmm1, 123));
-  COMPARE("660fc4d101           pinsrw xmm2,rcx,0x1", pinsrw(xmm2, rcx, 1));
   COMPARE("66490f3a16c401       REX.W pextrq r12,xmm0,1", pextrq(r12, xmm0, 1));
+  COMPARE("66450f3a20c90f       pinsrb xmm9,r9,15", pinsrb(xmm9, r9, 0xf));
+  COMPARE("66440f3a208c8b102700000f pinsrb xmm9,[rbx+rcx*4+0x2710],15",
+          pinsrb(xmm9, Operand(rbx, rcx, times_4, 10000), 0xf));
   COMPARE("66450f3a22c900       pinsrd xmm9,r9,0", pinsrd(xmm9, r9, 0));
   COMPARE("660f3a22680401       pinsrd xmm5,[rax+0x4],1",
           pinsrd(xmm5, Operand(rax, 4), 1));

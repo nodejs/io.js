@@ -199,23 +199,33 @@ constexpr uint64_t MaxVarintForSize(size_t size) {
   return size >= 10 ? (std::numeric_limits<uint64_t>::max)()
                     : (static_cast<uint64_t>(1) << size * 7) - 1;
 }
+constexpr uint64_t MakeTagType(uint64_t tag, WireType type) {
+  return tag << 3 | static_cast<uint64_t>(type);
+}
 
 // `BufferSizeFor` returns a number of bytes guaranteed to be sufficient to
-// store encoded fields of the specified WireTypes regardless of tag numbers and
-// data values.  This only makes sense for `WireType::kLengthDelimited` if you
-// add in the length of the contents yourself, e.g. for string and bytes fields
-// by adding the lengths of any encoded strings to the return value or for
-// submessage fields by enumerating the fields you may encode into their
-// contents.
-constexpr size_t BufferSizeFor() { return 0; }
-template <typename... T>
-constexpr size_t BufferSizeFor(WireType type, T... tail) {
-  // tag_type + data + ...
-  return MaxVarintSize() +
-         (type == WireType::kVarint ? MaxVarintSize() :              //
-              type == WireType::k64Bit ? 8 :                         //
-                  type == WireType::k32Bit ? 4 : MaxVarintSize()) +  //
-         BufferSizeFor(tail...);
+// store encoded fields as `(tag, WireType)`, regardless of data values.  This
+// only makes sense for `WireType::kLengthDelimited` if you add in the length of
+// the contents yourself, e.g. for string and bytes fields by adding the lengths
+// of any encoded strings to the return value or for submessage fields by
+// enumerating the fields you may encode into their contents.
+constexpr size_t BufferSizeFor(uint64_t tag, WireType type) {
+  size_t buffer_size = VarintSize(MakeTagType(tag, type));
+  switch (type) {
+    case WireType::kVarint:
+      buffer_size += MaxVarintSize();
+      break;
+    case WireType::k64Bit:
+      buffer_size += size_t{8};
+      break;
+    case WireType::kLengthDelimited:
+      buffer_size += MaxVarintSize();
+      break;
+    case WireType::k32Bit:
+      buffer_size += size_t{4};
+      break;
+  }
+  return buffer_size;
 }
 
 // absl::Span<const char> represents a view into the un-processed space in a

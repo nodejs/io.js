@@ -24,12 +24,14 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <list>
 #include <map>
 #include <memory>
 #include <numeric>
 #include <ostream>
 #include <random>
+#include <set>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -2434,8 +2436,9 @@ TYPED_TEST(SooTest, HintInsert) {
 }
 
 template <typename T>
-T MakeSimpleTable(size_t size) {
+T MakeSimpleTable(size_t size, bool do_reserve) {
   T t;
+  if (do_reserve) t.reserve(size);
   while (t.size() < size) t.insert(t.size());
   return t;
 }
@@ -2454,51 +2457,62 @@ std::vector<int> OrderOfIteration(const T& t) {
 // We also need to keep the old tables around to avoid getting the same memory
 // blocks over and over.
 TYPED_TEST(SooTest, IterationOrderChangesByInstance) {
-  for (size_t size : {2, 6, 12, 20}) {
-    const auto reference_table = MakeSimpleTable<TypeParam>(size);
-    const auto reference = OrderOfIteration(reference_table);
+  for (bool do_reserve : {false, true}) {
+    for (size_t size : {2u, 6u, 12u, 20u}) {
+      SCOPED_TRACE(absl::StrCat("size: ", size, " do_reserve: ", do_reserve));
+      const auto reference_table = MakeSimpleTable<TypeParam>(size, do_reserve);
+      const auto reference = OrderOfIteration(reference_table);
 
-    std::vector<TypeParam> tables;
-    bool found_difference = false;
-    for (int i = 0; !found_difference && i < 5000; ++i) {
-      tables.push_back(MakeSimpleTable<TypeParam>(size));
-      found_difference = OrderOfIteration(tables.back()) != reference;
-    }
-    if (!found_difference) {
-      FAIL()
-          << "Iteration order remained the same across many attempts with size "
-          << size;
+      std::vector<TypeParam> tables;
+      bool found_difference = false;
+      for (int i = 0; !found_difference && i < 5000; ++i) {
+        tables.push_back(MakeSimpleTable<TypeParam>(size, do_reserve));
+        found_difference = OrderOfIteration(tables.back()) != reference;
+      }
+      if (!found_difference) {
+        FAIL() << "Iteration order remained the same across many attempts with "
+                  "size "
+               << size;
+      }
     }
   }
 }
 
 TYPED_TEST(SooTest, IterationOrderChangesOnRehash) {
+#ifdef ABSL_HAVE_ADDRESS_SANITIZER
+  GTEST_SKIP() << "Hash quality is lower in asan mode, causing flakiness.";
+#endif
+
   // We test different sizes with many small numbers, because small table
   // resize has a different codepath.
   // Note: iteration order for size() <= 1 is always the same.
-  for (size_t size : std::vector<size_t>{2, 3, 6, 7, 12, 15, 20, 50}) {
-    for (size_t rehash_size : {
-             size_t{0},  // Force rehash is guaranteed.
-             size * 10   // Rehash to the larger capacity is guaranteed.
-         }) {
-      std::vector<TypeParam> garbage;
-      bool ok = false;
-      for (int i = 0; i < 5000; ++i) {
-        auto t = MakeSimpleTable<TypeParam>(size);
-        const auto reference = OrderOfIteration(t);
-        // Force rehash.
-        t.rehash(rehash_size);
-        auto trial = OrderOfIteration(t);
-        if (trial != reference) {
-          // We are done.
-          ok = true;
-          break;
+  for (bool do_reserve : {false, true}) {
+    for (size_t size : {2u, 3u, 6u, 7u, 12u, 15u, 20u, 50u}) {
+      for (size_t rehash_size : {
+               size_t{0},        // Force rehash is guaranteed.
+               size * 10  // Rehash to the larger capacity is guaranteed.
+           }) {
+        SCOPED_TRACE(absl::StrCat("size: ", size, " rehash_size: ", rehash_size,
+                                  " do_reserve: ", do_reserve));
+        std::vector<TypeParam> garbage;
+        bool ok = false;
+        for (int i = 0; i < 5000; ++i) {
+          auto t = MakeSimpleTable<TypeParam>(size, do_reserve);
+          const auto reference = OrderOfIteration(t);
+          // Force rehash.
+          t.rehash(rehash_size);
+          auto trial = OrderOfIteration(t);
+          if (trial != reference) {
+            // We are done.
+            ok = true;
+            break;
+          }
+          garbage.push_back(std::move(t));
         }
-        garbage.push_back(std::move(t));
+        EXPECT_TRUE(ok)
+            << "Iteration order remained the same across many attempts " << size
+            << "->" << rehash_size << ".";
       }
-      EXPECT_TRUE(ok)
-          << "Iteration order remained the same across many attempts " << size
-          << "->" << rehash_size << ".";
     }
   }
 }
@@ -3685,11 +3699,23 @@ TEST(Table, MovedFromCallsFail) {
   }
 
   {
-    ABSL_ATTRIBUTE_UNUSED IntTable t1, t2;
+    ABSL_ATTRIBUTE_UNUSED IntTable t1, t2, t3;
     t1.insert(1);
     t2 = std::move(t1);
     // NOLINTNEXTLINE(bugprone-use-after-move)
     EXPECT_DEATH_IF_SUPPORTED(t1.contains(1), "moved-from");
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    EXPECT_DEATH_IF_SUPPORTED(t1.swap(t3), "moved-from");
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    EXPECT_DEATH_IF_SUPPORTED(t1.merge(t3), "moved-from");
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    EXPECT_DEATH_IF_SUPPORTED(IntTable{t1}, "moved-from");
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    EXPECT_DEATH_IF_SUPPORTED(t1.begin(), "moved-from");
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    EXPECT_DEATH_IF_SUPPORTED(t1.end(), "moved-from");
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    EXPECT_DEATH_IF_SUPPORTED(t1.size(), "moved-from");
   }
   {
     ABSL_ATTRIBUTE_UNUSED IntTable t1;
@@ -3699,6 +3725,24 @@ TEST(Table, MovedFromCallsFail) {
     EXPECT_DEATH_IF_SUPPORTED(t1.contains(1), "moved-from");
     t1.clear();  // Clearing a moved-from table is allowed.
   }
+  {
+    // Test that using a table (t3) that was moved-to from a moved-from table
+    // (t1) fails.
+    ABSL_ATTRIBUTE_UNUSED IntTable t1, t2, t3;
+    t1.insert(1);
+    t2 = std::move(t1);
+    // NOLINTNEXTLINE(bugprone-use-after-move)
+    t3 = std::move(t1);
+    EXPECT_DEATH_IF_SUPPORTED(t3.contains(1), "moved-from");
+  }
+}
+
+TEST(Table, MaxSizeOverflow) {
+  size_t overflow = (std::numeric_limits<size_t>::max)();
+  EXPECT_DEATH_IF_SUPPORTED(IntTable t(overflow), "Hash table size overflow");
+  IntTable t;
+  EXPECT_DEATH_IF_SUPPORTED(t.reserve(overflow), "Hash table size overflow");
+  EXPECT_DEATH_IF_SUPPORTED(t.rehash(overflow), "Hash table size overflow");
 }
 
 }  // namespace

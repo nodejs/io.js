@@ -100,6 +100,15 @@ TEST(TestGlobals, SetVLogLevel) {
   EXPECT_EQ(absl::SetVLogLevel("setvloglevel", 42), 0);
   EXPECT_EQ(absl::SetVLogLevel("setvloglevel", 1337), 42);
   EXPECT_EQ(absl::SetVLogLevel("othersetvloglevel", 50), 0);
+
+  EXPECT_EQ(absl::SetVLogLevel("*pattern*", 1), 0);
+  EXPECT_EQ(absl::SetVLogLevel("*less_generic_pattern*", 2), 1);
+  // "pattern_match" matches the pattern "*pattern*". Therefore, the previous
+  // level must be 1.
+  EXPECT_EQ(absl::SetVLogLevel("pattern_match", 3), 1);
+  // "less_generic_pattern_match" matches the pattern "*pattern*". Therefore,
+  // the previous level must be 2.
+  EXPECT_EQ(absl::SetVLogLevel("less_generic_pattern_match", 4), 2);
 }
 
 TEST(TestGlobals, AndroidLogTag) {

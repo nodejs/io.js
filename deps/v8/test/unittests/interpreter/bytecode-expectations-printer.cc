@@ -98,7 +98,7 @@ BytecodeExpectationsPrinter::GetBytecodeArrayForGlobal(
 i::Handle<i::BytecodeArray>
 BytecodeExpectationsPrinter::GetBytecodeArrayForModule(
     v8::Local<v8::Module> module) const {
-  i::Handle<i::Module> i_module = v8::Utils::OpenHandle(*module);
+  i::DirectHandle<i::Module> i_module = v8::Utils::OpenDirectHandle(*module);
   return i::handle(
       Cast<SharedFunctionInfo>(Cast<i::SourceTextModule>(i_module)->code())
           ->GetBytecodeArray(i_isolate()),
@@ -123,8 +123,8 @@ BytecodeExpectationsPrinter::GetBytecodeArrayOfCallee(
           context,
           v8::String::NewFromUtf8(isolate_, source_code).ToLocalChecked())
           .ToLocalChecked();
-  i::Handle<i::Object> i_object =
-      v8::Utils::OpenHandle(*script->Run(context).ToLocalChecked());
+  i::DirectHandle<i::Object> i_object =
+      v8::Utils::OpenDirectHandle(*script->Run(context).ToLocalChecked());
   i::DirectHandle<i::JSFunction> js_function = i::Cast<i::JSFunction>(i_object);
   CHECK(js_function->shared()->HasBytecodeArray());
   return i::handle(js_function->shared()->GetBytecodeArray(i_isolate()),
@@ -344,7 +344,7 @@ void BytecodeExpectationsPrinter::PrintConstantPool(
   if (num_constants > 0) {
     for (int i = 0; i < num_constants; ++i) {
       *stream << kIndent;
-      PrintConstant(stream, handle(constant_pool->get(i), i_isolate()));
+      PrintConstant(stream, direct_handle(constant_pool->get(i), i_isolate()));
       *stream << ",\n";
     }
   }

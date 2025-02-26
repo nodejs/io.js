@@ -237,9 +237,9 @@ class Simulator : public SimulatorBase {
   // margin to prevent overflows (kAdditionalStackMargin).
   uintptr_t StackLimit(uintptr_t c_limit) const;
 
-  // Return current stack view, without additional safety margins.
+  // Return central stack view, without additional safety margins.
   // Users, for example wasm::StackMemory, can add their own.
-  base::Vector<uint8_t> GetCurrentStackView() const;
+  base::Vector<uint8_t> GetCentralStackView() const;
 
   // Executes ARM instructions until the PC reaches end_sim_pc.
   void Execute();
@@ -256,10 +256,10 @@ class Simulator : public SimulatorBase {
   }
 
   // Push an address onto the JS stack.
-  uintptr_t PushAddress(uintptr_t address);
+  V8_EXPORT_PRIVATE uintptr_t PushAddress(uintptr_t address);
 
   // Pop an address from the JS stack.
-  uintptr_t PopAddress();
+  V8_EXPORT_PRIVATE uintptr_t PopAddress();
 
   // Debugger input.
   void set_last_debugger_input(ArrayUniquePtr<char> input) {
@@ -559,6 +559,18 @@ class Simulator : public SimulatorBase {
 
   class GlobalMonitor {
    public:
+    class SimulatorMutex final {
+     public:
+      explicit SimulatorMutex(GlobalMonitor* global_monitor) {
+        if (!global_monitor->IsSingleThreaded()) {
+          guard.emplace(global_monitor->mutex_);
+        }
+      }
+
+     private:
+      std::optional<base::MutexGuard> guard;
+    };
+
     class Processor {
      public:
       Processor();
@@ -584,31 +596,32 @@ class Simulator : public SimulatorBase {
       int failure_counter_;
     };
 
-    // Exposed so it can be accessed by Simulator::{Read,Write}Ex*.
-    base::Mutex mutex;
-
     void NotifyLoadExcl_Locked(int32_t addr, Processor* processor);
     void NotifyStore_Locked(int32_t addr, Processor* processor);
     bool NotifyStoreExcl_Locked(int32_t addr, Processor* processor);
 
+    // Called when the simulator is constructed.
+    void PrependProcessor(Processor* processor);
     // Called when the simulator is destroyed.
     void RemoveProcessor(Processor* processor);
 
     static GlobalMonitor* Get();
 
    private:
+    bool IsSingleThreaded() const { return num_processors_ == 1; }
+
     // Private constructor. Call {GlobalMonitor::Get()} to get the singleton.
     GlobalMonitor() = default;
     friend class base::LeakyObject<GlobalMonitor>;
 
-    bool IsProcessorInLinkedList_Locked(Processor* processor) const;
-    void PrependProcessor_Locked(Processor* processor);
-
     Processor* head_ = nullptr;
+    std::atomic<uint32_t> num_processors_ = 0;
+    base::Mutex mutex_;
   };
 
   LocalMonitor local_monitor_;
   GlobalMonitor::Processor global_monitor_processor_;
+  GlobalMonitor* global_monitor_;
 };
 
 }  // namespace internal

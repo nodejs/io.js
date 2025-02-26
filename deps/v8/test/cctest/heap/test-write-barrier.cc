@@ -24,7 +24,7 @@ HEAP_TEST(WriteBarrier_Marking) {
   Factory* factory = isolate->factory();
   Heap* heap = isolate->heap();
   HandleScope outer(isolate);
-  Handle<FixedArray> objects = factory->NewFixedArray(3);
+  DirectHandle<FixedArray> objects = factory->NewFixedArray(3);
   v8::Global<Value> global_objects(CcTest::isolate(), Utils::ToLocal(objects));
   {
     // Make sure that these objects are not immediately reachable from
@@ -82,8 +82,8 @@ HEAP_TEST(WriteBarrier_MarkingExtension) {
   // Concurrent marking barrier should mark the value now.
   CHECK(extension->IsMarked());
   // Keep object alive using the global handle.
-  v8::Global<ArrayBuffer> global_host(CcTest::isolate(),
-                                      Utils::ToLocal(handle(host, isolate)));
+  v8::Global<ArrayBuffer> global_host(
+      CcTest::isolate(), Utils::ToLocal(direct_handle(host, isolate)));
   heap::SimulateIncrementalMarking(CcTest::heap(), true);
   CHECK(heap->marking_state()->IsMarked(host));
   CHECK(extension->IsMarked());

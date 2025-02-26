@@ -43,8 +43,8 @@ class DateCacheMock : public DateCache {
     return rule == nullptr ? 0 : rule->offset_sec * 1000;
   }
 
-  int GetLocalOffsetFromOS(int64_t time_sec, bool is_utc) override {
-    return local_offset_ + GetDaylightSavingsOffsetFromOS(time_sec);
+  int GetLocalOffsetFromOS(int64_t time_ms, bool is_utc) override {
+    return local_offset_ + GetDaylightSavingsOffsetFromOS(time_ms / 1000);
   }
 
  private:

@@ -37,31 +37,40 @@ V8_OBJECT class HeapObjectLayout {
   inline Tagged<Map> map() const;
   inline Tagged<Map> map(AcquireLoadTag) const;
 
-  inline void set_map(Tagged<Map> value);
-  inline void set_map(Tagged<Map> value, ReleaseStoreTag);
+  inline void set_map(Isolate* isolate, Tagged<Map> value);
+  template <typename IsolateT>
+  inline void set_map(IsolateT* isolate, Tagged<Map> value, ReleaseStoreTag);
 
   // This method behaves the same as `set_map` but marks the map transition as
   // safe for the concurrent marker (object layout doesn't change) during
   // verification.
-  inline void set_map_safe_transition(Tagged<Map> value, ReleaseStoreTag);
+  template <typename IsolateT>
+  inline void set_map_safe_transition(IsolateT* isolate, Tagged<Map> value,
+                                      ReleaseStoreTag);
 
   inline void set_map_safe_transition_no_write_barrier(
-      Tagged<Map> value, RelaxedStoreTag = kRelaxedStore);
+      Isolate* isolate, Tagged<Map> value, RelaxedStoreTag = kRelaxedStore);
 
   // Initialize the map immediately after the object is allocated.
   // Do not use this outside Heap.
+  template <typename IsolateT>
   inline void set_map_after_allocation(
-      Tagged<Map> value, WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+      IsolateT* isolate, Tagged<Map> value,
+      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   // The no-write-barrier version.  This is OK if the object is white and in
   // new space, or if the value is an immortal immutable object, like the maps
   // of primitive (non-JS) objects like strings, heap numbers etc.
-  inline void set_map_no_write_barrier(Tagged<Map> value,
+  inline void set_map_no_write_barrier(Isolate* isolate, Tagged<Map> value,
                                        RelaxedStoreTag = kRelaxedStore);
 
   // Access the map word using acquire load and release store.
   inline void set_map_word_forwarded(Tagged<HeapObject> target_object,
                                      ReleaseStoreTag);
+
+  // Set the map word using relaxed store.
+  inline void set_map_word_forwarded(Tagged<HeapObject> target_object,
+                                     RelaxedStoreTag);
 
   // Returns the tagged pointer to this HeapObject.
   // TODO(leszeks): Consider bottlenecking this through Tagged<>.
@@ -70,11 +79,8 @@ V8_OBJECT class HeapObjectLayout {
   // Returns the address of this HeapObject.
   inline Address address() const { return reinterpret_cast<Address>(this); }
 
-  // This method exists to help remove GetIsolate/GetHeap from HeapObject, in a
-  // way that doesn't require passing Isolate/Heap down huge call chains or to
-  // places where it might not be safe to access it.
-  inline ReadOnlyRoots GetReadOnlyRoots() const;
-  // This is slower, but safe to call during bootstrapping.
+  // This is slower that GetReadOnlyRoots, but safe to call during
+  // bootstrapping.
   inline ReadOnlyRoots EarlyGetReadOnlyRoots() const;
 
   // Returns the heap object's size in bytes
@@ -99,6 +105,16 @@ V8_OBJECT class HeapObjectLayout {
 
  private:
   friend class HeapObject;
+  friend class Heap;
+  friend class CodeStubAssembler;
+
+  // HeapObjects shouldn't be copied or moved by C++ code, only by the GC.
+  // TODO(leszeks): Consider making these non-deleted if the GC starts using
+  // HeapObjectLayout rather than manual per-byte access.
+  HeapObjectLayout(HeapObjectLayout&&) V8_NOEXCEPT = delete;
+  HeapObjectLayout(const HeapObjectLayout&) V8_NOEXCEPT = delete;
+  HeapObjectLayout& operator=(HeapObjectLayout&&) V8_NOEXCEPT = delete;
+  HeapObjectLayout& operator=(const HeapObjectLayout&) V8_NOEXCEPT = delete;
 
   TaggedMember<Map> map_;
 } V8_OBJECT_END;
@@ -132,40 +148,53 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // [map]: Contains a map which contains the object's reflective
   // information.
   DECL_GETTER(map, Tagged<Map>)
-  inline void set_map(Tagged<Map> value);
+  inline void set_map(Isolate* isolate, Tagged<Map> value);
 
   // This method behaves the same as `set_map` but marks the map transition as
   // safe for the concurrent marker (object layout doesn't change) during
   // verification.
-  inline void set_map_safe_transition(Tagged<Map> value);
+  template <typename IsolateT>
+  inline void set_map_safe_transition(IsolateT* isolate, Tagged<Map> value);
 
   inline ObjectSlot map_slot() const;
 
   // The no-write-barrier version.  This is OK if the object is white and in
   // new space, or if the value is an immortal immutable object, like the maps
   // of primitive (non-JS) objects like strings, heap numbers etc.
-  inline void set_map_no_write_barrier(Tagged<Map> value,
+  inline void set_map_no_write_barrier(Isolate* isolate, Tagged<Map> value,
                                        RelaxedStoreTag = kRelaxedStore);
-  inline void set_map_no_write_barrier(Tagged<Map> value, ReleaseStoreTag);
+  inline void set_map_no_write_barrier(Isolate* isolate, Tagged<Map> value,
+                                       ReleaseStoreTag);
   inline void set_map_safe_transition_no_write_barrier(
-      Tagged<Map> value, RelaxedStoreTag = kRelaxedStore);
-  inline void set_map_safe_transition_no_write_barrier(Tagged<Map> value,
+      Isolate* isolate, Tagged<Map> value, RelaxedStoreTag = kRelaxedStore);
+  inline void set_map_safe_transition_no_write_barrier(Isolate* isolate,
+                                                       Tagged<Map> value,
                                                        ReleaseStoreTag);
 
   // Access the map using acquire load and release store.
   DECL_ACQUIRE_GETTER(map, Tagged<Map>)
-  inline void set_map(Tagged<Map> value, ReleaseStoreTag);
-  inline void set_map_safe_transition(Tagged<Map> value, ReleaseStoreTag);
+  template <typename IsolateT>
+  inline void set_map(IsolateT* isolate, Tagged<Map> value, ReleaseStoreTag);
+  template <typename IsolateT>
+  inline void set_map_safe_transition(IsolateT* isolate, Tagged<Map> value,
+                                      ReleaseStoreTag);
 
   // Compare-and-swaps map word using release store, returns true if the map
   // word was actually swapped.
   inline bool release_compare_and_swap_map_word_forwarded(
       MapWord old_map_word, Tagged<HeapObject> new_target_object);
 
+  // Compare-and-swaps map word using relaxed store, returns true if the map
+  // word was actually swapped.
+  inline bool relaxed_compare_and_swap_map_word_forwarded(
+      MapWord old_map_word, Tagged<HeapObject> new_target_object);
+
   // Initialize the map immediately after the object is allocated.
   // Do not use this outside Heap.
+  template <typename IsolateT>
   inline void set_map_after_allocation(
-      Tagged<Map> value, WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+      IsolateT* isolate, Tagged<Map> value,
+      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
   static inline void SetFillerMap(const WritableFreeSpace& writable_page,
                                   Tagged<Map> value);
@@ -183,14 +212,8 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   inline void set_map_word_forwarded(Tagged<HeapObject> target_object,
                                      ReleaseStoreTag);
 
-  // This method exists to help remove GetIsolate/GetHeap from HeapObject, in a
-  // way that doesn't require passing Isolate/Heap down huge call chains or to
-  // places where it might not be safe to access it.
-  inline ReadOnlyRoots GetReadOnlyRoots() const;
-  // This version is intended to be used for the isolate values produced by
-  // i::GetPtrComprCageBase(HeapObject) function which may return nullptr.
-  inline ReadOnlyRoots GetReadOnlyRoots(PtrComprCageBase cage_base) const;
-  // This is slower, but safe to call during bootstrapping.
+  // This is slower than GetReadOnlyRoots, but safe to call during
+  // bootstrapping.
   inline ReadOnlyRoots EarlyGetReadOnlyRoots() const;
 
   // Converts an address to a HeapObject pointer.
@@ -202,36 +225,6 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // Returns the address of this HeapObject.
   inline Address address() const { return ptr() - kHeapObjectTag; }
 
-  // Iterates over pointers contained in the object (including the Map).
-  // If it's not performance critical iteration use the non-templatized
-  // version.
-  void Iterate(PtrComprCageBase cage_base, ObjectVisitor* v);
-
-  template <typename ObjectVisitor>
-  inline void IterateFast(PtrComprCageBase cage_base, ObjectVisitor* v);
-
-  template <typename ObjectVisitor>
-  inline void IterateFast(Tagged<Map> map, ObjectVisitor* v);
-
-  template <typename ObjectVisitor>
-  inline void IterateFast(Tagged<Map> map, int object_size, ObjectVisitor* v);
-
-  // Iterates over all pointers contained in the object except the
-  // first map pointer.  The object type is given in the first
-  // parameter. This function does not access the map pointer in the
-  // object, and so is safe to call while the map pointer is modified.
-  // If it's not performance critical iteration use the non-templatized
-  // version.
-  void IterateBody(PtrComprCageBase cage_base, ObjectVisitor* v);
-  void IterateBody(Tagged<Map> map, int object_size, ObjectVisitor* v);
-
-  template <typename ObjectVisitor>
-  inline void IterateBodyFast(PtrComprCageBase cage_base, ObjectVisitor* v);
-
-  template <typename ObjectVisitor>
-  inline void IterateBodyFast(Tagged<Map> map, int object_size,
-                              ObjectVisitor* v);
-
   // Returns the heap object's size in bytes
   DECL_GETTER(Size, int)
 
@@ -240,45 +233,42 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // GC internal.
   V8_EXPORT_PRIVATE int SizeFromMap(Tagged<Map> map) const;
 
-  template <class T, typename std::enable_if_t<std::is_arithmetic_v<T> ||
-                                                   std::is_enum_v<T> ||
-                                                   std::is_pointer_v<T>,
-                                               int> = 0>
-  inline T ReadField(size_t offset) const {
+  template <class T>
+  inline T ReadField(size_t offset) const
+    requires(std::is_arithmetic_v<T> || std::is_enum_v<T> ||
+             std::is_pointer_v<T>)
+  {
     return ReadMaybeUnalignedValue<T>(field_address(offset));
   }
 
-  template <class T, typename std::enable_if_t<std::is_arithmetic_v<T> ||
-                                                   std::is_enum_v<T> ||
-                                                   std::is_pointer_v<T>,
-                                               int> = 0>
-  inline void WriteField(size_t offset, T value) const {
+  template <class T>
+  inline void WriteField(size_t offset, T value) const
+    requires(std::is_arithmetic_v<T> || std::is_enum_v<T> ||
+             std::is_pointer_v<T>)
+  {
     return WriteMaybeUnalignedValue<T>(field_address(offset), value);
   }
 
   // Atomically reads a field using relaxed memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T, typename std::enable_if_t<
-                         (std::is_arithmetic_v<T> ||
-                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
-                         int> = 0>
-  inline T Relaxed_ReadField(size_t offset) const;
+  template <class T>
+  inline T Relaxed_ReadField(size_t offset) const
+    requires((std::is_arithmetic_v<T> || std::is_enum_v<T>) &&
+             !std::is_floating_point_v<T>);
 
   // Atomically writes a field using relaxed memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T, typename std::enable_if_t<
-                         (std::is_arithmetic_v<T> ||
-                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
-                         int> = 0>
-  inline void Relaxed_WriteField(size_t offset, T value);
+  template <class T>
+  inline void Relaxed_WriteField(size_t offset, T value)
+    requires((std::is_arithmetic_v<T> || std::is_enum_v<T>) &&
+             !std::is_floating_point_v<T>);
 
   // Atomically reads a field using acquire memory ordering. Can only be used
   // with integral types whose size is <= kTaggedSize (to guarantee alignment).
-  template <class T, typename std::enable_if_t<
-                         (std::is_arithmetic_v<T> ||
-                          std::is_enum_v<T>)&&!std::is_floating_point_v<T>,
-                         int> = 0>
-  inline T Acquire_ReadField(size_t offset) const;
+  template <class T>
+  inline T Acquire_ReadField(size_t offset) const
+    requires((std::is_arithmetic_v<T> || std::is_enum_v<T>) &&
+             !std::is_floating_point_v<T>);
 
   // Atomically compares and swaps a field using seq cst memory ordering.
   // Contains the required logic to properly handle number comparison.
@@ -308,9 +298,10 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // ExternalPointer_t field accessors.
   //
   template <ExternalPointerTag tag>
-  inline void InitExternalPointerField(size_t offset, IsolateForSandbox isolate,
-                                       Address value);
-  template <ExternalPointerTag tag>
+  inline void InitExternalPointerField(
+      size_t offset, IsolateForSandbox isolate, Address value,
+      WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
+  template <ExternalPointerTagRange tag_range>
   inline Address ReadExternalPointerField(size_t offset,
                                           IsolateForSandbox isolate) const;
   // Similar to `ReadExternalPointerField()` but uses the CppHeapPointerTable.
@@ -325,13 +316,25 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
                                         IsolateForSandbox isolate,
                                         Address value);
 
+  // Set up a lazily-initialized external pointer field. If the sandbox is
+  // enabled, this will set the field to the kNullExternalPointerHandle. It will
+  // *not* allocate an entry in the external pointer table. That will only
+  // happen on the first call to WriteLazilyInitializedExternalPointerField. If
+  // the sandbox is disabled, this is equivalent to InitExternalPointerField
+  // with a nullptr value.
+  inline void SetupLazilyInitializedExternalPointerField(size_t offset);
+
+  // Writes and possibly initializes a lazily-initialized external pointer
+  // field. When the sandbox is enabled, a lazily initialized external pointer
+  // field initially contains the kNullExternalPointerHandle and will only be
+  // properly initialized (i.e. allocate an entry in the external pointer table)
+  // once a value is written into it for the first time. If the sandbox is
+  // disabled, this is equivalent to WriteExternalPointerField.
   template <ExternalPointerTag tag>
   inline void WriteLazilyInitializedExternalPointerField(
       size_t offset, IsolateForSandbox isolate, Address value);
 
-  inline void SetupLazilyInitializedExternalPointerField(size_t offset);
   inline void SetupLazilyInitializedCppHeapPointerField(size_t offset);
-
   template <CppHeapPointerTag tag>
   inline void WriteLazilyInitializedCppHeapPointerField(
       size_t offset, IsolateForPointerCompression isolate, Address value);
@@ -403,7 +406,7 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   // These are references to entries in the JSDispatchTable, which contain the
   // current code for a function.
   inline void AllocateAndInstallJSDispatchHandle(
-      size_t offset, IsolateForSandbox isolate, uint16_t parameter_count,
+      size_t offset, Isolate* isolate, uint16_t parameter_count,
       Tagged<Code> code,
       WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 
@@ -415,7 +418,7 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
   inline MaybeObjectSlot RawMaybeWeakField(int byte_offset) const;
   inline InstructionStreamSlot RawInstructionStreamField(int byte_offset) const;
   inline ExternalPointerSlot RawExternalPointerField(
-      int byte_offset, ExternalPointerTag tag) const;
+      int byte_offset, ExternalPointerTagRange tag_range) const;
   inline CppHeapPointerSlot RawCppHeapPointerField(int byte_offset) const;
   inline IndirectPointerSlot RawIndirectPointerField(
       int byte_offset, IndirectPointerTag tag) const;
@@ -510,9 +513,10 @@ class HeapObject : public TaggedImpl<HeapObjectReferenceType::STRONG, Address> {
     kNo,
   };
 
-  template <EmitWriteBarrier emit_write_barrier, typename MemoryOrder>
-  V8_INLINE void set_map(Tagged<Map> value, MemoryOrder order,
-                         VerificationMode mode);
+  template <EmitWriteBarrier emit_write_barrier, typename MemoryOrder,
+            typename IsolateT>
+  V8_INLINE void set_map(IsolateT* isolate, Tagged<Map> value,
+                         MemoryOrder order, VerificationMode mode);
 };
 
 inline HeapObject::HeapObject(Address ptr) : TaggedImpl(ptr) {
@@ -580,11 +584,6 @@ IS_TYPE_FUNCTION_DECL(NullOrUndefined, , /* unused */)
 STRUCT_LIST(DECL_STRUCT_PREDICATE)
 #undef DECL_STRUCT_PREDICATE
 
-// Whether the object is in the RO heap and the RO heap is shared, or in the
-// writable shared heap.
-V8_INLINE bool InAnySharedSpace(Tagged<HeapObject> obj);
-V8_INLINE bool InWritableSharedSpace(Tagged<HeapObject> obj);
-V8_INLINE bool InReadOnlySpace(Tagged<HeapObject> obj);
 // Whether the object is located outside of the sandbox or in read-only
 // space. Currently only needed due to Code objects. Once they are fully
 // migrated into trusted space, this can be replaced by !InsideSandbox().

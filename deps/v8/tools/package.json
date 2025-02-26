@@ -1,7 +1,13 @@
 {
   "name": "v8-tools",
   "version": "1.0.0",
+  "scripts": {
+    "start-webserver": "ws"
+  },
   "dependencies": {
-    "local-web-server": "^5.3.1"
+    "local-web-server": "^5.4.0"
+  },
+  "overrides": {
+    "path-to-regexp": "6.3.0"
   }
 }

@@ -650,9 +650,14 @@ export class TurboshaftGraphView extends MovableView<TurboshaftGraph> {
         .append("title")
         .text(`${node.getTitle()}${customData.getTitle(node.id, DataTarget.Nodes)}`);
 
+      // node.getHeight() == 0 iff node is fully inlined in compact view, so we
+      // don't want this to be visible.
+      const isVisible = !node.block.collapsed && showCustomData &&
+        node.getHeight(showCustomData, state.compactView) > 0;
       nodeSvg
         .select(".inline-node-custom-data")
-        .attr("visibility", !node.block.collapsed && showCustomData ? "visible" : "hidden");
+        .attr("dy", nodeY + node.labelBox.height)
+        .attr("visibility", isVisible ? "visible" : "hidden");
     });
   }
 

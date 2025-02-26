@@ -201,12 +201,11 @@ class ObjectPostProcessor final {
 
   void Finalize() {
 #ifdef V8_ENABLE_SANDBOX
-    DCHECK(ReadOnlyHeap::IsReadOnlySpaceShared());
     std::vector<ReadOnlyArtifacts::ExternalPointerRegistryEntry> registry;
     registry.reserve(external_pointer_slots_.size());
     for (auto& slot : external_pointer_slots_) {
       registry.emplace_back(slot.Relaxed_LoadHandle(), slot.load(isolate_),
-                            slot.tag());
+                            slot.exact_tag());
     }
 
     isolate_->read_only_artifacts()->set_external_pointer_registry(
@@ -259,7 +258,8 @@ class ObjectPostProcessor final {
         slot.GetContentAsIndexAfterDeserialization(no_gc));
     Address slot_value =
         GetAnyExternalReferenceAt(encoded.index, encoded.is_api_reference);
-    slot.init(isolate_, host, slot_value);
+    DCHECK(slot.ExactTagIsKnown());
+    slot.init(isolate_, host, slot_value, slot.exact_tag());
 #ifdef V8_ENABLE_SANDBOX
     // Register these slots during deserialization s.t. later isolates (which
     // share the RO space we are currently deserializing) can properly
@@ -327,9 +327,9 @@ void ReadOnlyDeserializer::PostProcessNewObjects() {
       if (InstanceTypeChecker::IsString(instance_type)) {
         Tagged<String> str = Cast<String>(o);
         str->set_raw_hash_field(Name::kEmptyHashField);
-        PushObjectToRehash(handle(str, isolate()));
+        PushObjectToRehash(direct_handle(str, isolate()));
       } else if (o->NeedsRehashing(instance_type)) {
-        PushObjectToRehash(handle(o, isolate()));
+        PushObjectToRehash(direct_handle(o, isolate()));
       }
     }
 

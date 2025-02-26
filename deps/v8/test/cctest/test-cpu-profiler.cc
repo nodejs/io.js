@@ -4039,7 +4039,7 @@ void ValidateEmbedderState(v8::CpuProfile* profile,
 TEST(EmbedderContextIsolation) {
   i::v8_flags.allow_natives_syntax = true;
   LocalContext execution_env;
-  i::HandleScope scope(CcTest::i_isolate());
+  i::HandleScope handle_scope(CcTest::i_isolate());
 
   v8::Isolate* isolate = execution_env.local()->GetIsolate();
 
@@ -4735,7 +4735,7 @@ TEST(BytecodeFlushEventsEagerLogging) {
         "  var z = x + y;"
         "};"
         "foo()";
-    Handle<String> foo_name = factory->InternalizeUtf8String("foo");
+    DirectHandle<String> foo_name = factory->InternalizeUtf8String("foo");
 
     // This compile will add the code to the compilation cache.
     {
@@ -4744,7 +4744,7 @@ TEST(BytecodeFlushEventsEagerLogging) {
     }
 
     // Check function is compiled.
-    Handle<Object> func_value =
+    DirectHandle<Object> func_value =
         Object::GetProperty(i_isolate, i_isolate->global_object(), foo_name)
             .ToHandleChecked();
     CHECK(IsJSFunction(*func_value));

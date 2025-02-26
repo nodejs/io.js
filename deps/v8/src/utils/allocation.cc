@@ -80,8 +80,8 @@ v8::VirtualAddressSpace* GetPlatformVirtualAddressSpace() {
 
 #ifdef V8_ENABLE_SANDBOX
 v8::PageAllocator* GetSandboxPageAllocator() {
-  CHECK(GetProcessWideSandbox()->is_initialized());
-  return GetProcessWideSandbox()->page_allocator();
+  CHECK(Sandbox::current()->is_initialized());
+  return Sandbox::current()->page_allocator();
 }
 #endif
 
@@ -280,19 +280,6 @@ void VirtualMemory::Free() {
   v8::PageAllocator* page_allocator = page_allocator_;
   base::AddressRegion region = region_;
   Reset();
-  // FreePages expects size to be aligned to allocation granularity however
-  // ReleasePages may leave size at only commit granularity. Align it here.
-  FreePages(page_allocator, reinterpret_cast<void*>(region.begin()),
-            RoundUp(region.size(), page_allocator->AllocatePageSize()));
-}
-
-void VirtualMemory::FreeReadOnly() {
-  DCHECK(IsReserved());
-  // The only difference to Free is that it doesn't call Reset which would write
-  // to the VirtualMemory object.
-  v8::PageAllocator* page_allocator = page_allocator_;
-  base::AddressRegion region = region_;
-
   // FreePages expects size to be aligned to allocation granularity however
   // ReleasePages may leave size at only commit granularity. Align it here.
   FreePages(page_allocator, reinterpret_cast<void*>(region.begin()),

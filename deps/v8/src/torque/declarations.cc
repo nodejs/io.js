@@ -252,22 +252,14 @@ Intrinsic* Declarations::DeclareIntrinsic(const std::string& name,
   return result;
 }
 
-Builtin* Declarations::CreateBuiltin(std::string external_name,
-                                     std::string readable_name,
-                                     Builtin::Kind kind, Builtin::Flags flags,
-                                     Signature signature,
-                                     std::optional<Statement*> body) {
-  return RegisterDeclarable(std::unique_ptr<Builtin>(
-      new Builtin(std::move(external_name), std::move(readable_name), kind,
-                  flags, std::move(signature), body)));
-}
-
-Builtin* Declarations::DeclareBuiltin(const std::string& name,
-                                      Builtin::Kind kind, Builtin::Flags flags,
-                                      const Signature& signature,
-                                      std::optional<Statement*> body) {
-  CheckAlreadyDeclared<Builtin>(name, "builtin");
-  return Declare(name, CreateBuiltin(name, name, kind, flags, signature, body));
+Builtin* Declarations::CreateBuiltin(
+    std::string external_name, std::string readable_name, Builtin::Kind kind,
+    Builtin::Flags flags, Signature signature,
+    std::optional<std::string> use_counter_name,
+    std::optional<Statement*> body) {
+  return RegisterDeclarable(std::unique_ptr<Builtin>(new Builtin(
+      std::move(external_name), std::move(readable_name), kind, flags,
+      std::move(signature), std::move(use_counter_name), body)));
 }
 
 RuntimeFunction* Declarations::DeclareRuntimeFunction(

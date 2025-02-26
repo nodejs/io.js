@@ -69,7 +69,7 @@ cc_library(
         "//absl/meta:type_traits",
         "//absl/strings",
         "//absl/types:variant",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -86,21 +86,16 @@ cc_test(
         ":hash_testing",
         ":spy_hash_state",
         "//absl/base:config",
-        "//absl/base:core_headers",
-        "//absl/container:btree",
-        "//absl/container:flat_hash_map",
         "//absl/container:flat_hash_set",
-        "//absl/container:node_hash_map",
-        "//absl/container:node_hash_set",
         "//absl/memory",
         "//absl/meta:type_traits",
-        "//absl/numeric:int128",
+        "//absl/numeric:bits",
         "//absl/strings:cord_test_helpers",
         "//absl/strings:string_view",
         "//absl/types:optional",
         "//absl/types:variant",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -121,8 +116,8 @@ cc_test(
         "//absl/container:flat_hash_set",
         "//absl/container:node_hash_map",
         "//absl/container:node_hash_set",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -142,7 +137,7 @@ cc_binary(
         "//absl/strings",
         "//absl/strings:cord",
         "//absl/strings:cord_test_helpers",
-        "@com_github_google_benchmark//:benchmark_main",
+        "@google_benchmark//:benchmark_main",
     ],
 )
 
@@ -182,8 +177,8 @@ cc_test(
     linkopts = ABSL_DEFAULT_LINKOPTS,
     deps = [
         ":city",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -211,7 +206,7 @@ cc_test(
     deps = [
         ":low_level_hash",
         "//absl/strings",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )

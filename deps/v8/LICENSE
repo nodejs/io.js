@@ -19,7 +19,7 @@ are:
     This code is copyrighted by Sun Microsystems Inc. and released
     under a 3-clause BSD license.
 
-  - Valgrind client API header, located at src/third_party/valgrind/valgrind.h
+  - Valgrind client API header, located at third_party/valgrind/valgrind.h
     This is released under the BSD license.
 
   - The Wasm C/C++ API headers, located at third_party/wasm-api/wasm.{h,hh}
@@ -30,7 +30,7 @@ are:
 These libraries have their own licenses; we recommend you read them,
 as their terms may differ from the terms below.
 
-Further license information can be found in LICENSE files located in 
+Further license information can be found in LICENSE files located in
 sub-directories.
 
 Copyright 2014, the V8 project authors. All rights reserved.

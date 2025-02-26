@@ -10,11 +10,11 @@
 #define __STDC_FORMAT_MACROS
 #endif
 #include <inttypes.h>
-
 #include <stdint.h>
 
 #include "src/base/logging.h"
 #include "src/base/macros.h"
+#include "src/common/code-memory-access.h"
 #include "src/common/globals.h"
 
 // UNIMPLEMENTED_ macro for S390.
@@ -40,19 +40,12 @@
 #define ABI_PASSES_HANDLES_IN_REGS 1
 
 // ObjectPair is defined under runtime/runtime-util.h.
-// On 31-bit, ObjectPair == uint64_t.  ABI dictates long long
-//            be returned with the lower addressed half in r2
-//            and the higher addressed half in r3. (Returns in Regs)
 // On 64-bit, ObjectPair is a Struct.  ABI dictaes Structs be
 //            returned in a storage buffer allocated by the caller,
 //            with the address of this buffer passed as a hidden
 //            argument in r2. (Does NOT return in Regs)
 // For x86 linux, ObjectPair is returned in registers.
-#if V8_TARGET_ARCH_S390X
 #define ABI_RETURNS_OBJECTPAIR_IN_REGS 0
-#else
-#define ABI_RETURNS_OBJECTPAIR_IN_REGS 1
-#endif
 #endif
 
 #define ABI_CALL_VIA_IP 1
@@ -1964,13 +1957,13 @@ class Instruction {
 
   // Set the raw instruction bits to value.
   template <typename T>
-  inline void SetInstructionBits(T value) const {
+  inline void SetInstructionBits(
+      T value, WritableJitAllocation* jit_allocation = nullptr) const {
     Instruction::SetInstructionBits<T>(reinterpret_cast<const uint8_t*>(this),
-                                       value);
+                                       value, jit_allocation);
   }
-  inline void SetInstructionBits(Instr value) {
-    *reinterpret_cast<Instr*>(this) = value;
-  }
+  V8_EXPORT_PRIVATE void SetInstructionBits(
+      Instr value, WritableJitAllocation* jit_allocation = nullptr);
 
   // Read one particular bit out of the instruction bits.
   inline int Bit(int nr) const { return (InstructionBits() >> nr) & 1; }
@@ -2074,7 +2067,9 @@ class Instruction {
 
   // Set the Instruction Bits to value
   template <typename T>
-  static inline void SetInstructionBits(uint8_t* instr, T value) {
+  static inline void SetInstructionBits(
+      uint8_t* instr, T value,
+      WritableJitAllocation* jit_allocation = nullptr) {
 #if V8_TARGET_LITTLE_ENDIAN
     // The instruction bits are stored in big endian format even on little
     // endian hosts, in order to decode instruction length and opcode.
@@ -2100,17 +2095,39 @@ class Instruction {
     }
 #endif
     if (sizeof(T) <= 4) {
-      *reinterpret_cast<T*>(instr) = value;
+      if (jit_allocation) {
+        jit_allocation->WriteUnalignedValue(reinterpret_cast<Address>(instr),
+                                            value);
+      } else {
+        *reinterpret_cast<T*>(instr) = value;
+      }
     } else {
 #if V8_TARGET_LITTLE_ENDIAN
       uint64_t orig_value = static_cast<uint64_t>(value);
-      *reinterpret_cast<uint32_t*>(instr) = static_cast<uint32_t>(value);
-      *reinterpret_cast<uint16_t*>(instr + 4) =
-          static_cast<uint16_t>((orig_value >> 32) & 0xFFFF);
+      if (jit_allocation) {
+        jit_allocation->WriteUnalignedValue(reinterpret_cast<Address>(instr),
+                                            static_cast<uint32_t>(value));
+        jit_allocation->WriteUnalignedValue(
+            reinterpret_cast<Address>(instr + 4),
+            static_cast<uint16_t>((orig_value >> 32) & 0xFFFF));
+      } else {
+        *reinterpret_cast<uint32_t*>(instr) = static_cast<uint32_t>(value);
+        *reinterpret_cast<uint16_t*>(instr + 4) =
+            static_cast<uint16_t>((orig_value >> 32) & 0xFFFF);
+      }
 #else
-      *reinterpret_cast<uint32_t*>(instr) = static_cast<uint32_t>(value >> 16);
-      *reinterpret_cast<uint16_t*>(instr + 4) =
-          static_cast<uint16_t>(value & 0xFFFF);
+      if (jit_allocation) {
+        jit_allocation->WriteUnalignedValue(reinterpret_cast<Address>(instr),
+                                            static_cast<uint32_t>(value >> 16));
+        jit_allocation->WriteUnalignedValue(
+            reinterpret_cast<Address>(instr + 4),
+            static_cast<uint16_t>(value & 0xFFFF));
+      } else {
+        *reinterpret_cast<uint32_t*>(instr) =
+            static_cast<uint32_t>(value >> 16);
+        *reinterpret_cast<uint16_t*>(instr + 4) =
+            static_cast<uint16_t>(value & 0xFFFF);
+      }
 #endif
     }
   }

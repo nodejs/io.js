@@ -5,6 +5,8 @@
 #ifndef V8_OBJECTS_TYPE_HINTS_H_
 #define V8_OBJECTS_TYPE_HINTS_H_
 
+#include <stdint.h>
+
 #include <iosfwd>
 
 #include "src/base/flags.h"

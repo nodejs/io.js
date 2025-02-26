@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-inlining --no-liftoff --no-wasm-lazy-compilation
+// Flags: --wasm-inlining --no-liftoff --no-wasm-lazy-compilation
 
 // When inlining a tail call with multi-return inside a call with exceptions,
 // we need to set the control input of the projections to the IfSuccess node.

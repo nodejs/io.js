@@ -48,12 +48,12 @@ void DateCache::ResetDateCache(
     stamp_ = Smi::FromInt(stamp_.value() + 1);
   }
   DCHECK(stamp_ != Smi::FromInt(kInvalidStamp));
-  for (int i = 0; i < kDSTSize; ++i) {
-    ClearSegment(&dst_[i]);
+  for (int i = 0; i < kCacheSize; ++i) {
+    ClearSegment(&cache_[i]);
   }
-  dst_usage_counter_ = 0;
-  before_ = &dst_[0];
-  after_ = &dst_[1];
+  cache_usage_counter_ = 0;
+  before_ = &cache_[0];
+  after_ = &cache_[1];
   ymd_valid_ = false;
 #ifdef V8_INTL_SUPPORT
   if (!v8_flags.icu_timezone_data) {
@@ -67,9 +67,9 @@ void DateCache::ResetDateCache(
   dst_tz_name_ = nullptr;
 }
 
-void DateCache::ClearSegment(DST* segment) {
-  segment->start_sec = kMaxEpochTimeInSec;
-  segment->end_sec = -kMaxEpochTimeInSec;
+void DateCache::ClearSegment(CacheItem* segment) {
+  segment->start_ms = 0;
+  segment->end_ms = -1;
   segment->offset_ms = 0;
   segment->last_used = 0;
 }
@@ -270,148 +270,168 @@ int DateCache::GetLocalOffsetFromOS(int64_t time_ms, bool is_utc) {
   return static_cast<int>(offset);
 }
 
-void DateCache::ExtendTheAfterSegment(int time_sec, int offset_ms) {
-  if (after_->offset_ms == offset_ms &&
-      after_->start_sec - kDefaultDSTDeltaInSec <= time_sec &&
-      time_sec <= after_->end_sec) {
+void DateCache::ExtendTheAfterSegment(int64_t time_ms, int offset_ms) {
+  if (!InvalidSegment(after_) && after_->offset_ms == offset_ms &&
+      after_->start_ms - kDefaultTimeZoneOffsetDeltaInMs <= time_ms &&
+      time_ms <= after_->end_ms) {
     // Extend the after_ segment.
-    after_->start_sec = time_sec;
+    after_->start_ms = time_ms;
   } else {
     // The after_ segment is either invalid or starts too late.
     if (!InvalidSegment(after_)) {
       // If the after_ segment is valid, replace it with a new segment.
-      after_ = LeastRecentlyUsedDST(before_);
+      after_ = LeastRecentlyUsedCacheItem(before_);
     }
-    after_->start_sec = time_sec;
-    after_->end_sec = time_sec;
+    after_->start_ms = time_ms;
+    after_->end_ms = time_ms;
     after_->offset_ms = offset_ms;
-    after_->last_used = ++dst_usage_counter_;
+    after_->last_used = ++cache_usage_counter_;
   }
 }
 
-int DateCache::DaylightSavingsOffsetInMs(int64_t time_ms) {
-  int time_sec = (time_ms >= 0 && time_ms <= kMaxEpochTimeInMs)
-                     ? static_cast<int>(time_ms / 1000)
-                     : static_cast<int>(EquivalentTime(time_ms) / 1000);
-
+int DateCache::LocalOffsetInMs(int64_t time_ms, bool is_utc) {
+  if (!is_utc) {
+    return GetLocalOffsetFromOS(time_ms, is_utc);
+  }
+#ifdef ENABLE_SLOW_DCHECKS
+  int known_correct_result = 0;
+  if (v8_flags.enable_slow_asserts) {
+    // When slow DCHECKs are enabled, we always retrieve the known good result
+    // (slow) and check that the result produced by the cache matches it.
+    known_correct_result = GetLocalOffsetFromOS(time_ms, is_utc);
+  }
+#endif  // ENABLE_SLOW_DCHECKS
   // Invalidate cache if the usage counter is close to overflow.
-  // Note that dst_usage_counter is incremented less than ten times
+  // Note that cache_usage_counter is incremented less than ten times
   // in this function.
-  if (dst_usage_counter_ >= kMaxInt - 10) {
-    dst_usage_counter_ = 0;
-    for (int i = 0; i < kDSTSize; ++i) {
-      ClearSegment(&dst_[i]);
+  if (cache_usage_counter_ >= kMaxInt - 10) {
+    cache_usage_counter_ = 0;
+    for (int i = 0; i < kCacheSize; ++i) {
+      ClearSegment(&cache_[i]);
     }
   }
 
   // Optimistic fast check.
-  if (before_->start_sec <= time_sec && time_sec <= before_->end_sec) {
+  if (before_->start_ms <= time_ms && time_ms <= before_->end_ms) {
     // Cache hit.
-    before_->last_used = ++dst_usage_counter_;
+    before_->last_used = ++cache_usage_counter_;
+    SLOW_DCHECK(before_->offset_ms == known_correct_result);
     return before_->offset_ms;
   }
 
-  ProbeDST(time_sec);
+  ProbeCache(time_ms);
 
-  DCHECK(InvalidSegment(before_) || before_->start_sec <= time_sec);
-  DCHECK(InvalidSegment(after_) || time_sec < after_->start_sec);
+  DCHECK(InvalidSegment(before_) || before_->start_ms <= time_ms);
+  DCHECK(InvalidSegment(after_) || time_ms < after_->start_ms);
 
   if (InvalidSegment(before_)) {
     // Cache miss.
-    before_->start_sec = time_sec;
-    before_->end_sec = time_sec;
-    before_->offset_ms = GetDaylightSavingsOffsetFromOS(time_sec);
-    before_->last_used = ++dst_usage_counter_;
+    before_->start_ms = time_ms;
+    before_->end_ms = time_ms;
+    before_->offset_ms = GetLocalOffsetFromOS(time_ms, is_utc);
+    before_->last_used = ++cache_usage_counter_;
+    SLOW_DCHECK(before_->offset_ms == known_correct_result);
     return before_->offset_ms;
   }
 
-  if (time_sec <= before_->end_sec) {
+  if (time_ms <= before_->end_ms) {
     // Cache hit.
-    before_->last_used = ++dst_usage_counter_;
+    before_->last_used = ++cache_usage_counter_;
+    SLOW_DCHECK(before_->offset_ms == known_correct_result);
     return before_->offset_ms;
   }
 
-  if (time_sec - kDefaultDSTDeltaInSec > before_->end_sec) {
+  if (time_ms - kDefaultTimeZoneOffsetDeltaInMs > before_->end_ms) {
     // If the before_ segment ends too early, then just
-    // query for the offset of the time_sec
-    int offset_ms = GetDaylightSavingsOffsetFromOS(time_sec);
-    ExtendTheAfterSegment(time_sec, offset_ms);
+    // query for the offset of the time_ms
+    int offset_ms = GetLocalOffsetFromOS(time_ms, is_utc);
+    ExtendTheAfterSegment(time_ms, offset_ms);
     // This swap helps the optimistic fast check in subsequent invocations.
-    DST* temp = before_;
+    CacheItem* temp = before_;
     before_ = after_;
     after_ = temp;
+    SLOW_DCHECK(offset_ms == known_correct_result);
     return offset_ms;
   }
 
-  // Now the time_sec is between
-  // before_->end_sec and before_->end_sec + default DST delta.
+  // Now the time_ms is between
+  // before_->end_ms and before_->end_ms + default time zone offset delta.
   // Update the usage counter of before_ since it is going to be used.
-  before_->last_used = ++dst_usage_counter_;
+  before_->last_used = ++cache_usage_counter_;
 
   // Check if after_ segment is invalid or starts too late.
-  // Note that start_sec of invalid segments is kMaxEpochTimeInSec.
-  int new_after_start_sec =
-      before_->end_sec < kMaxEpochTimeInSec - kDefaultDSTDeltaInSec
-          ? before_->end_sec + kDefaultDSTDeltaInSec
-          : kMaxEpochTimeInSec;
-  if (new_after_start_sec <= after_->start_sec) {
-    int new_offset_ms = GetDaylightSavingsOffsetFromOS(new_after_start_sec);
-    ExtendTheAfterSegment(new_after_start_sec, new_offset_ms);
+  int64_t new_after_start_ms =
+      before_->end_ms + kDefaultTimeZoneOffsetDeltaInMs;
+  if (InvalidSegment(after_) || new_after_start_ms <= after_->start_ms) {
+    int new_offset_ms = GetLocalOffsetFromOS(new_after_start_ms, is_utc);
+    ExtendTheAfterSegment(new_after_start_ms, new_offset_ms);
   } else {
     DCHECK(!InvalidSegment(after_));
     // Update the usage counter of after_ since it is going to be used.
-    after_->last_used = ++dst_usage_counter_;
+    after_->last_used = ++cache_usage_counter_;
   }
 
-  // Now the time_sec is between before_->end_sec and after_->start_sec.
+  // Now the time_ms is between before_->end_ms and after_->start_ms.
   // Only one daylight savings offset change can occur in this interval.
 
   if (before_->offset_ms == after_->offset_ms) {
     // Merge two segments if they have the same offset.
-    before_->end_sec = after_->end_sec;
+    before_->end_ms = after_->end_ms;
     ClearSegment(after_);
+    SLOW_DCHECK(before_->offset_ms == known_correct_result);
     return before_->offset_ms;
   }
 
-  // Binary search for daylight savings offset change point,
+  // Binary search for time zone offset change point,
   // but give up if we don't find it in five iterations.
   for (int i = 4; i >= 0; --i) {
-    int delta = after_->start_sec - before_->end_sec;
-    int middle_sec = (i == 0) ? time_sec : before_->end_sec + delta / 2;
-    int offset_ms = GetDaylightSavingsOffsetFromOS(middle_sec);
+    int64_t delta = after_->start_ms - before_->end_ms;
+    int64_t middle_sec = (i == 0) ? time_ms : before_->end_ms + delta / 2;
+    int offset_ms = GetLocalOffsetFromOS(middle_sec, is_utc);
     if (before_->offset_ms == offset_ms) {
-      before_->end_sec = middle_sec;
-      if (time_sec <= before_->end_sec) {
+      before_->end_ms = middle_sec;
+      if (time_ms <= before_->end_ms) {
+        SLOW_DCHECK(offset_ms == known_correct_result);
         return offset_ms;
       }
+      // If we didn't return, we can't be in the last iteration.
+      DCHECK_GT(i, 0);
     } else {
       DCHECK(after_->offset_ms == offset_ms);
-      after_->start_sec = middle_sec;
-      if (time_sec >= after_->start_sec) {
+      after_->start_ms = middle_sec;
+      if (time_ms >= after_->start_ms) {
         // This swap helps the optimistic fast check in subsequent invocations.
-        DST* temp = before_;
+        CacheItem* temp = before_;
         before_ = after_;
         after_ = temp;
+        SLOW_DCHECK(offset_ms == known_correct_result);
         return offset_ms;
       }
+      // If we didn't return, we can't be in the last iteration.
+      DCHECK_GT(i, 0);
     }
   }
-  return 0;
+  // During the last iteration, we set middle_sec = time_ms and return via one
+  // of the two return statements above. Thus, we never end up here.
+  UNREACHABLE();
 }
 
-void DateCache::ProbeDST(int time_sec) {
-  DST* before = nullptr;
-  DST* after = nullptr;
+void DateCache::ProbeCache(int64_t time_ms) {
+  CacheItem* before = nullptr;
+  CacheItem* after = nullptr;
   DCHECK(before_ != after_);
 
-  for (int i = 0; i < kDSTSize; ++i) {
-    if (dst_[i].start_sec <= time_sec) {
-      if (before == nullptr || before->start_sec < dst_[i].start_sec) {
-        before = &dst_[i];
+  for (int i = 0; i < kCacheSize; ++i) {
+    if (InvalidSegment(&cache_[i])) {
+      continue;
+    }
+    if (cache_[i].start_ms <= time_ms) {
+      if (before == nullptr || before->start_ms < cache_[i].start_ms) {
+        before = &cache_[i];
       }
-    } else if (time_sec < dst_[i].end_sec) {
-      if (after == nullptr || after->end_sec > dst_[i].end_sec) {
-        after = &dst_[i];
+    } else if (time_ms < cache_[i].end_ms) {
+      if (after == nullptr || after->end_ms > cache_[i].end_ms) {
+        after = &cache_[i];
       }
     }
   }
@@ -419,32 +439,33 @@ void DateCache::ProbeDST(int time_sec) {
   // If before or after segments were not found,
   // then set them to any invalid segment.
   if (before == nullptr) {
-    before = InvalidSegment(before_) ? before_ : LeastRecentlyUsedDST(after);
+    before =
+        InvalidSegment(before_) ? before_ : LeastRecentlyUsedCacheItem(after);
   }
   if (after == nullptr) {
     after = InvalidSegment(after_) && before != after_
                 ? after_
-                : LeastRecentlyUsedDST(before);
+                : LeastRecentlyUsedCacheItem(before);
   }
 
   DCHECK_NOT_NULL(before);
   DCHECK_NOT_NULL(after);
   DCHECK(before != after);
-  DCHECK(InvalidSegment(before) || before->start_sec <= time_sec);
-  DCHECK(InvalidSegment(after) || time_sec < after->start_sec);
+  DCHECK(InvalidSegment(before) || before->start_ms <= time_ms);
+  DCHECK(InvalidSegment(after) || time_ms < after->start_ms);
   DCHECK(InvalidSegment(before) || InvalidSegment(after) ||
-         before->end_sec < after->start_sec);
+         before->end_ms < after->start_ms);
 
   before_ = before;
   after_ = after;
 }
 
-DateCache::DST* DateCache::LeastRecentlyUsedDST(DST* skip) {
-  DST* result = nullptr;
-  for (int i = 0; i < kDSTSize; ++i) {
-    if (&dst_[i] == skip) continue;
-    if (result == nullptr || result->last_used > dst_[i].last_used) {
-      result = &dst_[i];
+DateCache::CacheItem* DateCache::LeastRecentlyUsedCacheItem(CacheItem* skip) {
+  CacheItem* result = nullptr;
+  for (int i = 0; i < kCacheSize; ++i) {
+    if (&cache_[i] == skip) continue;
+    if (result == nullptr || result->last_used > cache_[i].last_used) {
+      result = &cache_[i];
     }
   }
   ClearSegment(result);
@@ -602,7 +623,7 @@ DateBuffer ToDateString(double time_val, DateCache* date_cache,
 }
 
 // ES6 section 20.3.1.16 Date Time String Format
-double ParseDateTimeString(Isolate* isolate, Handle<String> str) {
+double ParseDateTimeString(Isolate* isolate, DirectHandle<String> str) {
   str = String::Flatten(isolate, str);
   double out[DateParser::OUTPUT_SIZE];
   DisallowGarbageCollection no_gc;

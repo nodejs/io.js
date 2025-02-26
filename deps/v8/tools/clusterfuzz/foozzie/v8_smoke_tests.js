@@ -43,3 +43,6 @@ print("Sensitive runtime functions are neutered");
   const fun = new Function("f", "return %GetOptimizationStatus(f);");
   print(fun(foo));
 })();
+
+// Don't change this line, it's used to separate smoketest output.
+print("___foozzie___smoke_test_end___");

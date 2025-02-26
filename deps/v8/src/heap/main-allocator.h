@@ -132,7 +132,7 @@ class LinearAreaOriginalData {
     original_limit_.store(limit, std::memory_order_relaxed);
   }
 
-  base::SharedMutex* linear_area_lock() { return &linear_area_lock_; }
+  base::SpinningMutex* linear_area_lock() { return &linear_area_lock_; }
 
  private:
   // The top and the limit at the time of setting the linear allocation area.
@@ -142,7 +142,7 @@ class LinearAreaOriginalData {
   std::atomic<Address> original_limit_ = 0;
 
   // Protects original_top_ and original_limit_.
-  base::SharedMutex linear_area_lock_;
+  base::SpinningMutex linear_area_lock_;
 };
 
 class MainAllocator {
@@ -228,8 +228,9 @@ class MainAllocator {
 
   V8_EXPORT_PRIVATE void MakeLinearAllocationAreaIterable();
 
-  void MarkLinearAllocationAreaBlack();
-  void UnmarkLinearAllocationArea();
+  V8_EXPORT_PRIVATE void MarkLinearAllocationAreaBlack();
+  V8_EXPORT_PRIVATE void UnmarkLinearAllocationArea();
+  V8_EXPORT_PRIVATE void FreeLinearAllocationAreaAndResetFreeList();
 
   V8_EXPORT_PRIVATE Address AlignTopForTesting(AllocationAlignment alignment,
                                                int offset);

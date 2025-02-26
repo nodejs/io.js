@@ -200,6 +200,13 @@ class CommandLineFlag {
   // Checks that flags default value can be converted to string and back to the
   // flag's value type.
   virtual void CheckDefaultValueParsingRoundtrip() const = 0;
+
+  // absl::CommandLineFlag::TypeName()
+  //
+  // Returns string representation of the type of this flag
+  // (the way it is spelled in the ABSL_FLAG macro).
+  // The default implementation returns the empty string.
+  virtual absl::string_view TypeName() const;
 };
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic pop

@@ -33,8 +33,8 @@ class JSFunctionOrBoundFunctionOrWrappedFunction
   // https://tc39.es/proposal-shadowrealm/#sec-copynameandlength
   static Maybe<bool> CopyNameAndLength(
       Isolate* isolate,
-      Handle<JSFunctionOrBoundFunctionOrWrappedFunction> function,
-      Handle<JSReceiver> target, Handle<String> prefix, int arg_count);
+      DirectHandle<JSFunctionOrBoundFunctionOrWrappedFunction> function,
+      DirectHandle<JSReceiver> target, Handle<String> prefix, int arg_count);
 
   static_assert(kHeaderSize == JSObject::kHeaderSize);
   TQ_OBJECT_CONSTRUCTORS(JSFunctionOrBoundFunctionOrWrappedFunction)
@@ -56,7 +56,7 @@ class JSBoundFunction
 
   // The bound function's string representation implemented according
   // to ES6 section 19.2.3.5 Function.prototype.toString ( ).
-  static Handle<String> ToString(DirectHandle<JSBoundFunction> function);
+  static DirectHandle<String> ToString(DirectHandle<JSBoundFunction> function);
 
   TQ_OBJECT_CONSTRUCTORS(JSBoundFunction)
 };
@@ -71,9 +71,9 @@ class JSWrappedFunction
   static Maybe<int> GetLength(Isolate* isolate,
                               DirectHandle<JSWrappedFunction> function);
   // https://tc39.es/proposal-shadowrealm/#sec-wrappedfunctioncreate
-  static MaybeHandle<Object> Create(
+  static MaybeDirectHandle<Object> Create(
       Isolate* isolate, DirectHandle<NativeContext> creation_context,
-      Handle<JSReceiver> value);
+      DirectHandle<JSReceiver> value);
 
   // Dispatched behavior.
   DECL_PRINTER(JSWrappedFunction)
@@ -81,17 +81,21 @@ class JSWrappedFunction
 
   // The wrapped function's string representation implemented according
   // to ES6 section 19.2.3.5 Function.prototype.toString ( ).
-  static Handle<String> ToString(DirectHandle<JSWrappedFunction> function);
+  static DirectHandle<String> ToString(
+      DirectHandle<JSWrappedFunction> function);
 
   TQ_OBJECT_CONSTRUCTORS(JSWrappedFunction)
 };
+
+enum class BudgetModification { kReduce, kRaise, kReset };
 
 // JSFunction describes JavaScript functions.
 class JSFunction : public TorqueGeneratedJSFunction<
                        JSFunction, JSFunctionOrBoundFunctionOrWrappedFunction> {
  public:
   // [prototype_or_initial_map]:
-  DECL_RELEASE_ACQUIRE_ACCESSORS(prototype_or_initial_map, Tagged<HeapObject>)
+  DECL_RELEASE_ACQUIRE_ACCESSORS(prototype_or_initial_map,
+                                 Tagged<UnionOf<JSPrototype, Map, Hole>>)
 
   // [shared]: The information about the function that can be shared by
   // instances.
@@ -125,13 +129,13 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // are fully initialized.
   DECL_TRUSTED_POINTER_GETTERS(code, Code)
 
-  inline void UpdateContextSpecializedCode(
-      Isolate* isolate, Tagged<Code> code,
-      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
-  inline void UpdateMaybeContextSpecializedCode(
+  inline void UpdateOptimizedCode(
       Isolate* isolate, Tagged<Code> code,
       WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
   inline void UpdateCode(
+      Tagged<Code> code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
+  inline void UpdateCodeKeepTieringRequests(
       Tagged<Code> code,
       WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 
@@ -151,19 +155,14 @@ class JSFunction : public TorqueGeneratedJSFunction<
   inline Tagged<AbstractCode> abstract_code(IsolateT* isolate);
 
 #ifdef V8_ENABLE_LEAPTIERING
-  // TODO(olivf): This ShouldBeCamelCase.
-  inline void allocate_dispatch_handle(
-      IsolateForSandbox isolate, uint16_t parameter_count, Tagged<Code> code,
+  inline void AllocateDispatchHandle(
+      Isolate* isolate, uint16_t parameter_count, Tagged<Code> code,
       WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
   inline void clear_dispatch_handle();
   inline JSDispatchHandle dispatch_handle() const;
   inline JSDispatchHandle dispatch_handle(AcquireLoadTag) const;
   inline void set_dispatch_handle(
       JSDispatchHandle handle,
-      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
-  // Updates the Code in this function's dispatch table entry.
-  inline void set_code(
-      Tagged<Code> new_code,
       WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 #endif  // V8_ENABLE_LEAPTIERING
 
@@ -214,21 +213,48 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // kinds, e.g. TURBOFAN, ignore the tiering state).
   inline bool ChecksTieringState(IsolateForSandbox isolate);
 
+#ifndef V8_ENABLE_LEAPTIERING
   inline TieringState tiering_state() const;
-  inline void set_tiering_state(IsolateForSandbox isolate, TieringState state);
-  inline void reset_tiering_state();
+#endif  // !V8_ENABLE_LEAPTIERING
 
-  // Mark this function for lazy recompilation. The function will be recompiled
+  // Tiering up a function happens as follows:
+  // 1. RequestOptimization is called
+  //    -> From now on `IsOptimizationRequested` and also
+  //    `IsTieringRequestedOrInProgress` return true.
+  // 2. On the next function invocation the optimization is triggered. While the
+  //    optimization progresses in the background both
+  //    `IsTieringRequestedOrInProgress` and `tiering_in_progress` return
+  //    true. It also means the optimization is no longer requested (i.e.,
+  //    `IsOptimizationRequested` returns false).
+  // 3. Once the compilation job is finalized the functions code is installed
+  //    via `UpdateCode` and any remaining flags cleared by
+  //    `ResetTieringRequests`.
+  // NB: Osr tiering state is tracked separately from these.
+
+  // Mark this function for optimization. The function will be recompiled
   // the next time it is executed.
-  void MarkForOptimization(Isolate* isolate, CodeKind target_kind,
-                           ConcurrencyMode mode);
+  void RequestOptimization(Isolate* isolate, CodeKind target_kind,
+                           ConcurrencyMode mode = ConcurrencyMode::kConcurrent);
+
+  inline bool IsLoggingRequested(Isolate* isolate) const;
+  inline bool IsOptimizationRequested(Isolate* isolate) const;
+  V8_INLINE std::optional<CodeKind> GetRequestedOptimizationIfAny(
+      Isolate* isolate,
+      ConcurrencyMode mode = ConcurrencyMode::kConcurrent) const;
+
+  inline bool tiering_in_progress() const;
+  // NB: Tiering includes Optimization and Logging requests.
+  inline bool IsTieringRequestedOrInProgress(Isolate* isolate) const;
+
+  inline void SetTieringInProgress(
+      bool in_progress, BytecodeOffset osr_offset = BytecodeOffset::None());
+  inline void ResetTieringRequests(Isolate* isolate);
 
   inline bool osr_tiering_in_progress();
-  inline void set_osr_tiering_in_progress(bool osr_in_progress);
 
   // Sets the interrupt budget based on whether the function has a feedback
   // vector and any optimized code.
-  void SetInterruptBudget(Isolate* isolate,
+  void SetInterruptBudget(Isolate* isolate, BudgetModification kind,
                           std::optional<CodeKind> override_active_tier = {});
 
   // If slack tracking is active, it computes instance size of the initial map
@@ -268,9 +294,7 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // lazily.
   inline bool has_closure_feedback_cell_array() const;
   inline Tagged<ClosureFeedbackCellArray> closure_feedback_cell_array() const;
-  static void EnsureClosureFeedbackCellArray(
-      DirectHandle<JSFunction> function,
-      bool reset_budget_for_feedback_allocation);
+  static void EnsureClosureFeedbackCellArray(DirectHandle<JSFunction> function);
 
   // Initializes the feedback cell of |function|. In lite mode, this would be
   // initialized to the closure feedback cell array that holds the feedback
@@ -308,31 +332,35 @@ class JSFunction : public TorqueGeneratedJSFunction<
   DECL_GETTER(initial_map, Tagged<Map>)
 
   static void SetInitialMap(Isolate* isolate, DirectHandle<JSFunction> function,
-                            Handle<Map> map, Handle<HeapObject> prototype);
+                            DirectHandle<Map> map,
+                            DirectHandle<JSPrototype> prototype);
   static void SetInitialMap(Isolate* isolate, DirectHandle<JSFunction> function,
-                            Handle<Map> map, Handle<HeapObject> prototype,
+                            DirectHandle<Map> map,
+                            DirectHandle<JSPrototype> prototype,
                             DirectHandle<JSFunction> constructor);
 
   DECL_GETTER(has_initial_map, bool)
   V8_EXPORT_PRIVATE static void EnsureHasInitialMap(
-      Handle<JSFunction> function);
+      DirectHandle<JSFunction> function);
 
   // Creates a map that matches the constructor's initial map, but with
   // [[prototype]] being new.target.prototype. Because new.target can be a
   // JSProxy, this can call back into JavaScript.
   V8_EXPORT_PRIVATE static V8_WARN_UNUSED_RESULT MaybeHandle<Map> GetDerivedMap(
-      Isolate* isolate, Handle<JSFunction> constructor,
-      Handle<JSReceiver> new_target);
+      Isolate* isolate, DirectHandle<JSFunction> constructor,
+      DirectHandle<JSReceiver> new_target);
 
   // Like GetDerivedMap, but returns a map with a RAB / GSAB ElementsKind.
-  static V8_WARN_UNUSED_RESULT MaybeHandle<Map> GetDerivedRabGsabTypedArrayMap(
-      Isolate* isolate, Handle<JSFunction> constructor,
-      Handle<JSReceiver> new_target);
+  static V8_WARN_UNUSED_RESULT MaybeDirectHandle<Map>
+  GetDerivedRabGsabTypedArrayMap(Isolate* isolate,
+                                 DirectHandle<JSFunction> constructor,
+                                 DirectHandle<JSReceiver> new_target);
 
   // Like GetDerivedMap, but can be used for DataViews for retrieving / creating
   // a map with a JS_RAB_GSAB_DATA_VIEW instance type.
-  static V8_WARN_UNUSED_RESULT MaybeHandle<Map> GetDerivedRabGsabDataViewMap(
-      Isolate* isolate, Handle<JSReceiver> new_target);
+  static V8_WARN_UNUSED_RESULT MaybeDirectHandle<Map>
+  GetDerivedRabGsabDataViewMap(Isolate* isolate,
+                               DirectHandle<JSReceiver> new_target);
 
   // Get and set the prototype property on a JSFunction. If the
   // function has an initial map the prototype is set on the initial
@@ -341,11 +369,11 @@ class JSFunction : public TorqueGeneratedJSFunction<
   DECL_GETTER(has_prototype, bool)
   DECL_GETTER(has_instance_prototype, bool)
   DECL_GETTER(prototype, Tagged<Object>)
-  DECL_GETTER(instance_prototype, Tagged<HeapObject>)
+  DECL_GETTER(instance_prototype, Tagged<JSPrototype>)
   DECL_GETTER(has_prototype_property, bool)
   DECL_GETTER(PrototypeRequiresRuntimeLookup, bool)
   static void SetPrototype(DirectHandle<JSFunction> function,
-                           Handle<Object> value);
+                           DirectHandle<Object> value);
 
   // Returns if this function has been compiled to native code yet.
   inline bool is_compiled(IsolateForSandbox isolate) const;
@@ -361,7 +389,7 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // Calculate the instance size and in-object properties count.
   // {CalculateExpectedNofProperties} can trigger compilation.
   static V8_WARN_UNUSED_RESULT int CalculateExpectedNofProperties(
-      Isolate* isolate, Handle<JSFunction> function);
+      Isolate* isolate, DirectHandle<JSFunction> function);
   static void CalculateInstanceSizeHelper(InstanceType instance_type,
                                           bool has_prototype_slot,
                                           int requested_embedder_fields,
@@ -373,30 +401,54 @@ class JSFunction : public TorqueGeneratedJSFunction<
   DECL_PRINTER(JSFunction)
   DECL_VERIFIER(JSFunction)
 
-  static Handle<String> GetName(Handle<JSFunction> function);
+  static DirectHandle<String> GetName(DirectHandle<JSFunction> function);
 
   // ES6 section 9.2.11 SetFunctionName
   // Because of the way this abstract operation is used in the spec,
   // it should never fail, but in practice it will fail if the generated
   // function name's length exceeds String::kMaxLength.
-  static V8_WARN_UNUSED_RESULT bool SetName(Handle<JSFunction> function,
+  static V8_WARN_UNUSED_RESULT bool SetName(DirectHandle<JSFunction> function,
                                             Handle<Name> name,
                                             DirectHandle<String> prefix);
 
   // The function's name if it is configured, otherwise shared function info
   // debug name.
-  static Handle<String> GetDebugName(Handle<JSFunction> function);
+  static Handle<String> GetDebugName(DirectHandle<JSFunction> function);
 
   // The function's string representation implemented according to
   // ES6 section 19.2.3.5 Function.prototype.toString ( ).
-  static Handle<String> ToString(DirectHandle<JSFunction> function);
+  static DirectHandle<String> ToString(DirectHandle<JSFunction> function);
 
   class BodyDescriptor;
+
+  // Returns the set of code kinds of compilation artifacts (bytecode,
+  // generated code) attached to this JSFunction.
+  // Note that attached code objects that are marked_for_deoptimization are not
+  // included in this set.
+  // Also considers locations outside of this JSFunction. For example the
+  // optimized code cache slot in the feedback vector, and the shared function
+  // info.
+  CodeKinds GetAvailableCodeKinds(IsolateForSandbox isolate) const;
 
  private:
   // JSFunction doesn't have a fixed header size:
   // Hide TorqueGeneratedClass::kHeaderSize to avoid confusion.
   static const int kHeaderSize;
+
+#ifndef V8_ENABLE_LEAPTIERING
+  inline void set_tiering_state(IsolateForSandbox isolate, TieringState state);
+#endif  // !V8_ENABLE_LEAPTIERING
+
+  inline void UpdateCodeImpl(Tagged<Code> code, WriteBarrierMode mode,
+                             bool keep_tiering_request);
+
+  // Updates the Code in this function's dispatch table entry.
+  inline void UpdateDispatchEntry(
+      Tagged<Code> new_code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
+  inline void UpdateDispatchEntryKeepTieringRequest(
+      Tagged<Code> new_code,
+      WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
 
   // Hide generated accessors; custom accessors are called "shared".
   DECL_ACCESSORS(shared_function_info, Tagged<SharedFunctionInfo>)
@@ -412,11 +464,6 @@ class JSFunction : public TorqueGeneratedJSFunction<
   // adding a NOT_COMPILED kind and changing this function to simply return the
   // kind if this becomes more convenient in the future.
   CodeKinds GetAttachedCodeKinds(IsolateForSandbox isolate) const;
-
-  // As above, but also considers locations outside of this JSFunction. For
-  // example the optimized code cache slot in the feedback vector, and the
-  // shared function info.
-  CodeKinds GetAvailableCodeKinds(IsolateForSandbox isolate) const;
 
  public:
   static constexpr int kSizeWithoutPrototype = kPrototypeOrInitialMapOffset;

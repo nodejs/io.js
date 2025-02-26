@@ -651,6 +651,13 @@ static const intptr_t kMuSpin = 0x0040L;  // spinlock protects wait list
 static const intptr_t kMuLow = 0x00ffL;   // mask all mutex bits
 static const intptr_t kMuHigh = ~kMuLow;  // mask pointer/reader count
 
+static_assert((0xab & (kMuWriter | kMuReader)) == (kMuWriter | kMuReader),
+              "The debug allocator's uninitialized pattern (0xab) must be an "
+              "invalid mutex state");
+static_assert((0xcd & (kMuWriter | kMuReader)) == (kMuWriter | kMuReader),
+              "The debug allocator's freed pattern (0xcd) must be an invalid "
+              "mutex state");
+
 // Hack to make constant values available to gdb pretty printer
 enum {
   kGdbMuSpin = kMuSpin,
@@ -1713,25 +1720,44 @@ void Mutex::Unlock() {
   // NOTE: optimized out when kDebugMode is false.
   bool should_try_cas = ((v & (kMuEvent | kMuWriter)) == kMuWriter &&
                          (v & (kMuWait | kMuDesig)) != kMuWait);
+
   // But, we can use an alternate computation of it, that compilers
   // currently don't find on their own.  When that changes, this function
   // can be simplified.
-  intptr_t x = (v ^ (kMuWriter | kMuWait)) & (kMuWriter | kMuEvent);
-  intptr_t y = (v ^ (kMuWriter | kMuWait)) & (kMuWait | kMuDesig);
-  // Claim: "x == 0 && y > 0" is equal to should_try_cas.
-  // Also, because kMuWriter and kMuEvent exceed kMuDesig and kMuWait,
-  // all possible non-zero values for x exceed all possible values for y.
-  // Therefore, (x == 0 && y > 0) == (x < y).
-  if (kDebugMode && should_try_cas != (x < y)) {
+  //
+  // should_try_cas is true iff the bits satisfy the following conditions:
+  //
+  //                   Ev Wr Wa De
+  // equal to           0  1
+  // and not equal to         1  0
+  //
+  // after xoring by    0  1  0  1,  this is equivalent to:
+  //
+  // equal to           0  0
+  // and not equal to         1  1,  which is the same as:
+  //
+  // smaller than       0  0  1  1
+  static_assert(kMuEvent > kMuWait, "Needed for should_try_cas_fast");
+  static_assert(kMuEvent > kMuDesig, "Needed for should_try_cas_fast");
+  static_assert(kMuWriter > kMuWait, "Needed for should_try_cas_fast");
+  static_assert(kMuWriter > kMuDesig, "Needed for should_try_cas_fast");
+
+  bool should_try_cas_fast =
+      ((v ^ (kMuWriter | kMuDesig)) &
+       (kMuEvent | kMuWriter | kMuWait | kMuDesig)) < (kMuWait | kMuDesig);
+
+  if (kDebugMode && should_try_cas != should_try_cas_fast) {
     // We would usually use PRIdPTR here, but is not correctly implemented
     // within the android toolchain.
     ABSL_RAW_LOG(FATAL, "internal logic error %llx %llx %llx\n",
-                 static_cast<long long>(v), static_cast<long long>(x),
-                 static_cast<long long>(y));
+                 static_cast<long long>(v),
+                 static_cast<long long>(should_try_cas),
+                 static_cast<long long>(should_try_cas_fast));
   }
-  if (x < y && mu_.compare_exchange_strong(v, v & ~(kMuWrWait | kMuWriter),
-                                           std::memory_order_release,
-                                           std::memory_order_relaxed)) {
+  if (should_try_cas_fast &&
+      mu_.compare_exchange_strong(v, v & ~(kMuWrWait | kMuWriter),
+                                  std::memory_order_release,
+                                  std::memory_order_relaxed)) {
     // fast writer release (writer with no waiters or with designated waker)
   } else {
     this->UnlockSlow(nullptr /*no waitp*/);  // take slow path

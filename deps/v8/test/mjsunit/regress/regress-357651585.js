@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 //
 // Flags: --allow-natives-syntax --nolazy-feedback-allocation
-// Flags: --move-prototype-transitions-first
 
 const v1 = new Set();
 for (let v2 = 0; v2 < 5; v2++) {

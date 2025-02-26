@@ -549,50 +549,6 @@ Duration DurationFromTimeval(timeval tv) {
 //
 // Conversion to other duration types.
 //
-
-int64_t ToInt64Nanoseconds(Duration d) {
-  if (time_internal::GetRepHi(d) >= 0 &&
-      time_internal::GetRepHi(d) >> 33 == 0) {
-    return (time_internal::GetRepHi(d) * 1000 * 1000 * 1000) +
-           (time_internal::GetRepLo(d) / kTicksPerNanosecond);
-  }
-  return d / Nanoseconds(1);
-}
-int64_t ToInt64Microseconds(Duration d) {
-  if (time_internal::GetRepHi(d) >= 0 &&
-      time_internal::GetRepHi(d) >> 43 == 0) {
-    return (time_internal::GetRepHi(d) * 1000 * 1000) +
-           (time_internal::GetRepLo(d) / (kTicksPerNanosecond * 1000));
-  }
-  return d / Microseconds(1);
-}
-int64_t ToInt64Milliseconds(Duration d) {
-  if (time_internal::GetRepHi(d) >= 0 &&
-      time_internal::GetRepHi(d) >> 53 == 0) {
-    return (time_internal::GetRepHi(d) * 1000) +
-           (time_internal::GetRepLo(d) / (kTicksPerNanosecond * 1000 * 1000));
-  }
-  return d / Milliseconds(1);
-}
-int64_t ToInt64Seconds(Duration d) {
-  int64_t hi = time_internal::GetRepHi(d);
-  if (time_internal::IsInfiniteDuration(d)) return hi;
-  if (hi < 0 && time_internal::GetRepLo(d) != 0) ++hi;
-  return hi;
-}
-int64_t ToInt64Minutes(Duration d) {
-  int64_t hi = time_internal::GetRepHi(d);
-  if (time_internal::IsInfiniteDuration(d)) return hi;
-  if (hi < 0 && time_internal::GetRepLo(d) != 0) ++hi;
-  return hi / 60;
-}
-int64_t ToInt64Hours(Duration d) {
-  int64_t hi = time_internal::GetRepHi(d);
-  if (time_internal::IsInfiniteDuration(d)) return hi;
-  if (hi < 0 && time_internal::GetRepLo(d) != 0) ++hi;
-  return hi / (60 * 60);
-}
-
 double ToDoubleNanoseconds(Duration d) {
   return FDivDuration(d, Nanoseconds(1));
 }
@@ -718,13 +674,12 @@ struct DisplayUnit {
   int prec;
   double pow10;
 };
-ABSL_CONST_INIT const DisplayUnit kDisplayNano = {"ns", 2, 1e2};
-ABSL_CONST_INIT const DisplayUnit kDisplayMicro = {"us", 5, 1e5};
-ABSL_CONST_INIT const DisplayUnit kDisplayMilli = {"ms", 8, 1e8};
-ABSL_CONST_INIT const DisplayUnit kDisplaySec = {"s", 11, 1e11};
-ABSL_CONST_INIT const DisplayUnit kDisplayMin = {"m", -1, 0.0};  // prec ignored
-ABSL_CONST_INIT const DisplayUnit kDisplayHour = {"h", -1,
-                                                  0.0};  // prec ignored
+constexpr DisplayUnit kDisplayNano = {"ns", 2, 1e2};
+constexpr DisplayUnit kDisplayMicro = {"us", 5, 1e5};
+constexpr DisplayUnit kDisplayMilli = {"ms", 8, 1e8};
+constexpr DisplayUnit kDisplaySec = {"s", 11, 1e11};
+constexpr DisplayUnit kDisplayMin = {"m", -1, 0.0};   // prec ignored
+constexpr DisplayUnit kDisplayHour = {"h", -1, 0.0};  // prec ignored
 
 void AppendNumberUnit(std::string* out, int64_t n, DisplayUnit unit) {
   char buf[sizeof("2562047788015216")];  // hours in max duration

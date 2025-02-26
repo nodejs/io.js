@@ -37,12 +37,12 @@ class FeedbackCell : public TorqueGeneratedFeedbackCell<FeedbackCell, Struct> {
   DECL_RELEASE_ACQUIRE_ACCESSORS(value, Tagged<HeapObject>)
 
   inline void clear_interrupt_budget();
+  inline void clear_dispatch_handle();
 
 #ifdef V8_ENABLE_LEAPTIERING
   inline void allocate_dispatch_handle(
-      IsolateForSandbox isolate, uint16_t parameter_count, Tagged<Code> code,
+      Isolate* isolate, uint16_t parameter_count, Tagged<Code> code,
       WriteBarrierMode mode = WriteBarrierMode::UPDATE_WRITE_BARRIER);
-  inline void clear_dispatch_handle();
   inline JSDispatchHandle dispatch_handle() const;
   inline void set_dispatch_handle(JSDispatchHandle new_handle);
 #endif  // V8_ENABLE_LEAPTIERING
@@ -54,10 +54,11 @@ class FeedbackCell : public TorqueGeneratedFeedbackCell<FeedbackCell, Struct> {
                              Tagged<HeapObject> target)>>
           gc_notify_updated_slot = std::nullopt);
 
+  enum ClosureCountTransition { kNoneToOne, kOneToMany, kMany };
   // The closure count is encoded in the cell's map, which distinguishes
   // between zero, one, or many closures. This function records a new closure
   // creation by updating the map.
-  inline void IncrementClosureCount(Isolate* isolate);
+  inline ClosureCountTransition IncrementClosureCount(Isolate* isolate);
 
   DECL_VERIFIER(FeedbackCell)
 

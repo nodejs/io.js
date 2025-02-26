@@ -10,8 +10,8 @@
 
 namespace node {
 
+using v8::CFunction;
 using v8::FastApiCallbackOptions;
-using v8::FastApiTypedArray;
 using v8::FunctionCallbackInfo;
 using v8::HandleScope;
 using v8::Local;
@@ -51,25 +51,24 @@ void TimingSafeEqual(const FunctionCallbackInfo<Value>& args) {
 }
 
 bool FastTimingSafeEqual(Local<Value> receiver,
-                         const FastApiTypedArray<uint8_t>& a,
-                         const FastApiTypedArray<uint8_t>& b,
+                         Local<Value> a_obj,
+                         Local<Value> b_obj,
                          // NOLINTNEXTLINE(runtime/references)
                          FastApiCallbackOptions& options) {
-  uint8_t* data_a;
-  uint8_t* data_b;
-  if (a.length() != b.length() || !a.getStorageIfAligned(&data_a) ||
-      !b.getStorageIfAligned(&data_b)) {
+  HandleScope scope(options.isolate);
+  ArrayBufferViewContents<uint8_t> a(a_obj);
+  ArrayBufferViewContents<uint8_t> b(b_obj);
+  if (a.length() != b.length()) {
     TRACK_V8_FAST_API_CALL("crypto.timingSafeEqual.error");
-    HandleScope scope(options.isolate);
     THROW_ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH(options.isolate);
     return false;
   }
 
   TRACK_V8_FAST_API_CALL("crypto.timingSafeEqual.ok");
-  return CRYPTO_memcmp(data_a, data_b, a.length()) == 0;
+  return CRYPTO_memcmp(a.data(), b.data(), a.length()) == 0;
 }
 
-static v8::CFunction fast_equal(v8::CFunction::Make(FastTimingSafeEqual));
+static CFunction fast_equal(CFunction::Make(FastTimingSafeEqual));
 
 void Initialize(Environment* env, Local<Object> target) {
   SetFastMethodNoSideEffect(

@@ -80,8 +80,7 @@ using SeedSeq = random_internal::SaltedSeedSeq<std::seed_seq>;
 //
 template <typename URBG>
 SeedSeq CreateSeedSeqFrom(URBG* urbg) {
-  SeedSeq::result_type
-      seed_material[random_internal::kEntropyBlocksNeeded];
+  SeedSeq::result_type seed_material[random_internal::kEntropyBlocksNeeded];
 
   if (!random_internal::ReadSeedMaterialFromURBG(
           urbg, absl::MakeSpan(seed_material))) {

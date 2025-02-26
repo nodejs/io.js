@@ -30,7 +30,6 @@ FILES_TO_SYNC = [
     'crdtp/find_by_first.h',
     'crdtp/find_by_first_test.cc',
     'crdtp/frontend_channel.h',
-    'crdtp/maybe.h',
     'crdtp/maybe_test.cc',
     'crdtp/json.cc',
     'crdtp/json.h',

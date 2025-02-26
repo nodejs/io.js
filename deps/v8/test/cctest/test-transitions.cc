@@ -25,11 +25,11 @@ TEST(TransitionArray_SimpleFieldTransitions) {
   Isolate* isolate = CcTest::i_isolate();
   Factory* factory = isolate->factory();
 
-  Handle<String> name1 = factory->InternalizeUtf8String("foo");
-  Handle<String> name2 = factory->InternalizeUtf8String("bar");
+  DirectHandle<String> name1 = factory->InternalizeUtf8String("foo");
+  DirectHandle<String> name2 = factory->InternalizeUtf8String("bar");
   PropertyAttributes attributes = NONE;
 
-  Handle<Map> map0 = Map::Create(isolate, 0);
+  DirectHandle<Map> map0 = Map::Create(isolate, 0);
   DirectHandle<Map> map1 =
       Map::CopyWithField(isolate, map0, name1, FieldType::Any(isolate),
                          attributes, PropertyConstness::kMutable,
@@ -88,11 +88,11 @@ TEST(TransitionArray_FullFieldTransitions) {
   Isolate* isolate = CcTest::i_isolate();
   Factory* factory = isolate->factory();
 
-  Handle<String> name1 = factory->InternalizeUtf8String("foo");
-  Handle<String> name2 = factory->InternalizeUtf8String("bar");
+  DirectHandle<String> name1 = factory->InternalizeUtf8String("foo");
+  DirectHandle<String> name2 = factory->InternalizeUtf8String("bar");
   PropertyAttributes attributes = NONE;
 
-  Handle<Map> map0 = Map::Create(isolate, 0);
+  DirectHandle<Map> map0 = Map::Create(isolate, 0);
   DirectHandle<Map> map1 =
       Map::CopyWithField(isolate, map0, name1, FieldType::Any(isolate),
                          attributes, PropertyConstness::kMutable,
@@ -156,7 +156,7 @@ TEST(TransitionArray_DifferentFieldNames) {
   Handle<Map> maps[PROPS_COUNT];
   PropertyAttributes attributes = NONE;
 
-  Handle<Map> map0 = Map::Create(isolate, 0);
+  DirectHandle<Map> map0 = Map::Create(isolate, 0);
   CHECK(IsSmi(map0->raw_transitions()));
 
   for (int i = 0; i < PROPS_COUNT; i++) {
@@ -200,13 +200,13 @@ TEST(TransitionArray_SameFieldNamesDifferentAttributesSimple) {
   Isolate* isolate = CcTest::i_isolate();
   Factory* factory = isolate->factory();
 
-  Handle<Map> map0 = Map::Create(isolate, 0);
+  DirectHandle<Map> map0 = Map::Create(isolate, 0);
   CHECK(IsSmi(map0->raw_transitions()));
 
   const int ATTRS_COUNT = (READ_ONLY | DONT_ENUM | DONT_DELETE) + 1;
   static_assert(ATTRS_COUNT == 8);
   Handle<Map> attr_maps[ATTRS_COUNT];
-  Handle<String> name = factory->InternalizeUtf8String("foo");
+  DirectHandle<String> name = factory->InternalizeUtf8String("foo");
 
   // Add transitions for same field name but different attributes.
   for (int i = 0; i < ATTRS_COUNT; i++) {
@@ -247,7 +247,7 @@ TEST(TransitionArray_SameFieldNamesDifferentAttributes) {
   Handle<String> names[PROPS_COUNT];
   Handle<Map> maps[PROPS_COUNT];
 
-  Handle<Map> map0 = Map::Create(isolate, 0);
+  DirectHandle<Map> map0 = Map::Create(isolate, 0);
   CHECK(IsSmi(map0->raw_transitions()));
 
   // Some number of fields.
@@ -269,7 +269,7 @@ TEST(TransitionArray_SameFieldNamesDifferentAttributes) {
   const int ATTRS_COUNT = (READ_ONLY | DONT_ENUM | DONT_DELETE) + 1;
   static_assert(ATTRS_COUNT == 8);
   Handle<Map> attr_maps[ATTRS_COUNT];
-  Handle<String> name = factory->InternalizeUtf8String("foo");
+  DirectHandle<String> name = factory->InternalizeUtf8String("foo");
 
   // Add transitions for same field name but different attributes.
   for (int i = 0; i < ATTRS_COUNT; i++) {

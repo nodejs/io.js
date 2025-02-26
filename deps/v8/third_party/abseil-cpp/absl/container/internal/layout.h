@@ -306,7 +306,7 @@ constexpr size_t Max(size_t a, size_t b, Ts... rest) {
 template <class T>
 std::string TypeName() {
   std::string out;
-#if ABSL_INTERNAL_HAS_RTTI
+#ifdef ABSL_INTERNAL_HAS_RTTI
   absl::StrAppend(&out, "<",
                   absl::debugging_internal::DemangleString(typeid(T).name()),
                   ">");

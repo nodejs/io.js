@@ -73,9 +73,9 @@ extern macro RegExpBuiltinsAssembler::ConstructNewResultFromMatchInfo(
 const kGlobalOrSticky: constexpr int31
     generates 'JSRegExp::kGlobal | JSRegExp::kSticky';
 
-extern macro RegExpBuiltinsAssembler::RegExpExecInternal(
-    implicit context: Context)(JSRegExp, String, Number,
-    RegExpMatchInfo): HeapObject;
+extern macro RegExpBuiltinsAssembler::RegExpExecInternal_Single(
+    implicit context: Context)(JSRegExp, String,
+    Number): RegExpMatchInfo labels IfDidNotMatch;
 
 // ES#sec-regexp.prototype.exec
 // RegExp.prototype.exec ( string )
@@ -93,8 +93,6 @@ transitioning macro RegExpPrototypeExecBodyWithoutResult(
     IncrementUseCounter(context, SmiConstant(kRegExpExecCalledOnSlowRegExp));
   }
 
-  let lastIndex = regexpLastIndex;
-
   // Check whether the regexp is global or sticky, which determines whether we
   // update last index later on.
   const flags = UnsafeCast<Smi>(regexp.flags);
@@ -102,37 +100,23 @@ transitioning macro RegExpPrototypeExecBodyWithoutResult(
       SmiUntag(flags) & IntPtrConstant(kGlobalOrSticky);
   const shouldUpdateLastIndex: bool = isGlobalOrSticky != 0;
 
-  // Grab and possibly update last index.
   if (shouldUpdateLastIndex) {
-    if (!TaggedIsSmi(lastIndex) || (lastIndex > string.length_smi)) {
+    try {
+      const lastIndex = regexpLastIndex;
+      const matchIndices = RegExpExecInternal_Single(regexp, string, lastIndex)
+          otherwise DidNotMatch;
+      const newLastIndex: Smi = matchIndices.GetEndOfCapture(0);
+      StoreLastIndex(regexp, newLastIndex, isFastPath);
+      return matchIndices;
+    } label DidNotMatch {
       StoreLastIndex(regexp, SmiConstant(0), isFastPath);
       goto IfDidNotMatch;
     }
   } else {
-    lastIndex = SmiConstant(0);
+    const lastIndex = SmiConstant(0);
+    return RegExpExecInternal_Single(regexp, string, lastIndex)
+        otherwise IfDidNotMatch;
   }
-
-  const lastMatchInfo: RegExpMatchInfo = GetRegExpLastMatchInfo();
-
-  const matchIndices =
-      RegExpExecInternal(regexp, string, lastIndex, lastMatchInfo);
-
-  // {match_indices} is either null or the RegExpMatchInfo array.
-  // Return early if exec failed, possibly updating last index.
-  if (matchIndices != Null) {
-    const matchIndicesRegExpMatchInfo =
-        UnsafeCast<RegExpMatchInfo>(matchIndices);
-    if (shouldUpdateLastIndex) {
-      // Update the new last index from {match_indices}.
-      const newLastIndex: Smi = matchIndicesRegExpMatchInfo.GetEndOfCapture(0);
-      StoreLastIndex(regexp, newLastIndex, isFastPath);
-    }
-    return matchIndicesRegExpMatchInfo;
-  }
-  if (shouldUpdateLastIndex) {
-    StoreLastIndex(regexp, SmiConstant(0), isFastPath);
-  }
-  goto IfDidNotMatch;
 }
 
 @export
@@ -214,7 +198,6 @@ const kRegExpPrototypeUnicodeGetter: constexpr int31
 
 extern macro RegExpBuiltinsAssembler::FastFlagGetter(JSRegExp, constexpr Flag):
     bool;
-extern runtime IncrementUseCounter(Context, Smi): void;
 
 macro FlagGetter(
     implicit context: Context)(receiver: Object, flag: constexpr Flag,
@@ -391,8 +374,6 @@ extern macro RegExpBuiltinsAssembler::AdvanceStringIndexFast(
 extern macro RegExpBuiltinsAssembler::AdvanceStringIndexSlow(
     String, Number, bool): Smi;
 
-type UseCounterFeature extends int31
-    constexpr 'v8::Isolate::UseCounterFeature';
 const kRegExpMatchIsTrueishOnNonJSRegExp: constexpr UseCounterFeature
     generates 'v8::Isolate::kRegExpMatchIsTrueishOnNonJSRegExp';
 const kRegExpMatchIsFalseishOnJSRegExp: constexpr UseCounterFeature

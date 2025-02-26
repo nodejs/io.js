@@ -24,8 +24,8 @@ struct WasmCompilationData;
 namespace turboshaft {
 
 wasm::WasmCompilationResult ExecuteTurboshaftWasmCompilation(
-    wasm::CompilationEnv* env, WasmCompilationData& data,
-    wasm::WasmDetectedFeatures* detected);
+    wasm::CompilationEnv*, WasmCompilationData&, wasm::WasmDetectedFeatures*,
+    Counters*);
 
 class TurboshaftCompilationJob : public OptimizedCompilationJob {
  public:

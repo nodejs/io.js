@@ -8,7 +8,7 @@
 #include <atomic>
 
 #include "include/cppgc/internal/base-page-handle.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/iterator.h"
 #include "src/base/macros.h"
 #include "src/heap/base/basic-slot-set.h"
@@ -35,7 +35,7 @@ class V8_EXPORT_PRIVATE BasePage : public BasePageHandle {
   static BasePage* FromInnerAddress(const HeapBase*, void*);
   static const BasePage* FromInnerAddress(const HeapBase*, const void*);
 
-  static void Destroy(BasePage*, FreeMemoryHandling);
+  static void Destroy(BasePage*);
 
   BasePage(const BasePage&) = delete;
   BasePage& operator=(const BasePage&) = delete;
@@ -200,7 +200,7 @@ class V8_EXPORT_PRIVATE NormalPage final : public BasePage {
   static NormalPage* TryCreate(PageBackend&, NormalPageSpace&);
   // Destroys and frees the page. The page must be detached from the
   // corresponding space (i.e. be swept when called).
-  static void Destroy(NormalPage*, FreeMemoryHandling);
+  static void Destroy(NormalPage*);
 
   static NormalPage* From(BasePage* page) {
     DCHECK(!page->is_large());
@@ -226,7 +226,7 @@ class V8_EXPORT_PRIVATE NormalPage final : public BasePage {
   Address PayloadEnd();
   ConstAddress PayloadEnd() const;
 
-  static size_t PayloadSize();
+  static constexpr size_t PayloadSize();
 
   bool PayloadContains(ConstAddress address) const {
     return (PayloadStart() <= address) && (address < PayloadEnd());
@@ -363,6 +363,11 @@ SlotSet& BasePage::GetOrAllocateSlotSet() {
   return *slot_set_;
 }
 #endif  // defined(CPPGC_YOUNG_GENERATION)
+
+// static
+constexpr inline size_t NormalPage::PayloadSize() {
+  return kPageSize - RoundUp(sizeof(NormalPage), kAllocationGranularity);
+}
 
 }  // namespace internal
 }  // namespace cppgc

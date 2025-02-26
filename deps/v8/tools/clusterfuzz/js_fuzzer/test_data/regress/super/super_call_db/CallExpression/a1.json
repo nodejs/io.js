@@ -1,0 +1,7 @@
+{
+  "type":"CallExpression",
+  "source":"super()",
+  "isStatement":true,
+  "originalPath":"foo",
+  "needsSuper":true
+}

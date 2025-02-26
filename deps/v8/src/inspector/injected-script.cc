@@ -65,7 +65,6 @@ bool isResolvableNumberLike(String16 query) {
 }  // namespace
 
 using protocol::Array;
-using protocol::Maybe;
 using protocol::Runtime::InternalPropertyDescriptor;
 using protocol::Runtime::PrivatePropertyDescriptor;
 using protocol::Runtime::PropertyDescriptor;
@@ -75,7 +74,7 @@ using protocol::Runtime::RemoteObject;
 void EvaluateCallback::sendSuccess(
     std::weak_ptr<EvaluateCallback> callback, InjectedScript* injectedScript,
     std::unique_ptr<protocol::Runtime::RemoteObject> result,
-    protocol::Maybe<protocol::Runtime::ExceptionDetails> exceptionDetails) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails> exceptionDetails) {
   std::shared_ptr<EvaluateCallback> cb = callback.lock();
   if (!cb) return;
   injectedScript->deleteEvaluateCallback(cb);
@@ -146,8 +145,8 @@ class InjectedScript::ProtocolPromiseHandler {
     if (promise->Then(context, thenCallbackFunction, catchCallbackFunction)
             .IsEmpty()) {
       // Re-initialize after returning from JS.
-      Response response = scope.initialize();
-      if (!response.IsSuccess()) return;
+      Response new_response = scope.initialize();
+      if (!new_response.IsSuccess()) return;
       EvaluateCallback::sendFailure(callback, scope.injectedScript(),
                                     Response::InternalError());
     }
@@ -282,8 +281,7 @@ class InjectedScript::ProtocolPromiseHandler {
       return;
     }
     EvaluateCallback::sendSuccess(m_callback, scope.injectedScript(),
-                                  std::move(wrappedValue),
-                                  Maybe<protocol::Runtime::ExceptionDetails>());
+                                  std::move(wrappedValue), nullptr);
   }
 
   void catchCallback(v8::Local<v8::Value> result) {
@@ -320,7 +318,7 @@ class InjectedScript::ProtocolPromiseHandler {
         session->inspector()->client()->dispatchError(scope.context(), message,
                                                       exception);
       }
-      protocol::PtrMaybe<protocol::Runtime::ExceptionDetails> exceptionDetails;
+      std::unique_ptr<protocol::Runtime::ExceptionDetails> exceptionDetails;
       response = scope.injectedScript()->createExceptionDetails(
           message, exception, m_objectGroup, &exceptionDetails);
       if (!response.IsSuccess()) {
@@ -424,7 +422,7 @@ Response InjectedScript::getProperties(
     bool accessorPropertiesOnly, bool nonIndexedPropertiesOnly,
     const WrapOptions& wrapOptions,
     std::unique_ptr<Array<PropertyDescriptor>>* properties,
-    Maybe<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
   v8::HandleScope handles(m_context->isolate());
   v8::Local<v8::Context> context = m_context->context();
   v8::Isolate* isolate = m_context->isolate();
@@ -639,9 +637,9 @@ Response InjectedScript::wrapObjectMirror(
   if (!response.IsSuccess()) return response;
   if (customPreviewEnabled && value->IsObject()) {
     std::unique_ptr<protocol::Runtime::CustomPreview> customPreview;
-    generateCustomPreview(sessionId, groupName, value.As<v8::Object>(),
-                          customPreviewConfig, maxCustomPreviewDepth,
-                          &customPreview);
+    generateCustomPreview(m_context->isolate(), sessionId, groupName,
+                          value.As<v8::Object>(), customPreviewConfig,
+                          maxCustomPreviewDepth, &customPreview);
     if (customPreview) (*result)->setCustomPreview(std::move(customPreview));
   }
   if (wrapOptions.mode == WrapMode::kDeep) {
@@ -896,7 +894,7 @@ Response InjectedScript::addExceptionToDetails(
 
 Response InjectedScript::createExceptionDetails(
     const v8::TryCatch& tryCatch, const String16& objectGroup,
-    Maybe<protocol::Runtime::ExceptionDetails>* result) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>* result) {
   if (!tryCatch.HasCaught()) return Response::InternalError();
   v8::Local<v8::Message> message = tryCatch.Message();
   v8::Local<v8::Value> exception = tryCatch.Exception();
@@ -906,7 +904,7 @@ Response InjectedScript::createExceptionDetails(
 Response InjectedScript::createExceptionDetails(
     v8::Local<v8::Message> message, v8::Local<v8::Value> exception,
     const String16& objectGroup,
-    Maybe<protocol::Runtime::ExceptionDetails>* result) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>* result) {
   String16 messageText =
       message.IsEmpty()
           ? String16()
@@ -950,7 +948,7 @@ Response InjectedScript::wrapEvaluateResult(
     const String16& objectGroup, const WrapOptions& wrapOptions,
     bool throwOnSideEffect,
     std::unique_ptr<protocol::Runtime::RemoteObject>* result,
-    Maybe<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
   v8::Local<v8::Value> resultValue;
   if (!tryCatch.HasCaught()) {
     if (!maybeResultValue.ToLocal(&resultValue)) {

@@ -106,7 +106,7 @@ void LocalHandles::RemoveUnusedBlocks() {
 
     blocks_.pop_back();
 
-#ifdef ENABLE_HANDLE_ZAPPING
+#ifdef ENABLE_LOCAL_HANDLE_ZAPPING
     ZapRange(block_start, block_limit);
 #endif
 
@@ -114,7 +114,7 @@ void LocalHandles::RemoveUnusedBlocks() {
   }
 }
 
-#ifdef ENABLE_HANDLE_ZAPPING
+#ifdef ENABLE_LOCAL_HANDLE_ZAPPING
 void LocalHandles::ZapRange(Address* start, Address* end) {
   HandleScope::ZapRange(start, end);
 }

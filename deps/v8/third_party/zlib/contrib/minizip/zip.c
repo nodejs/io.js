@@ -25,8 +25,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
 #include <time.h>
+#ifndef ZLIB_CONST
+#  define ZLIB_CONST
+#endif
 #include "zlib.h"
 #include "zip.h"
 
@@ -123,6 +125,19 @@ typedef struct linkedlist_data_s
 } linkedlist_data;
 
 
+// zipAlreadyThere() set functions for a set of zero-terminated strings, and
+// a block_t type for reading the central directory datablocks.
+typedef char *set_key_t;
+#define set_cmp(a, b) strcmp(a, b)
+#define set_drop(s, k) set_free(s, k)
+#include "skipset.h"
+typedef struct {
+    unsigned char *next;        // next byte in datablock data
+    size_t left;                // number of bytes left in data (at least)
+    linkedlist_datablock_internal *node;    // current datablock
+} block_t;
+
+
 typedef struct
 {
     z_stream stream;            /* zLib stream structure for inflate */
@@ -173,6 +188,10 @@ typedef struct
 #ifndef NO_ADDFILEINEXISTINGZIP
     char *globalcomment;
 #endif
+
+    // Support for zipAlreadyThere().
+    set_t set;              // set for detecting name collisions
+    block_t block;          // block for reading the central directory
 
 } zip64_internal;
 
@@ -264,6 +283,228 @@ local int add_data_in_datablock(linkedlist_data* ll, const void* buf, uLong len)
     return ZIP_OK;
 }
 
+// zipAlreadyThere() operations. "set" in the zip internal structure keeps the
+// set of names that are in the under-construction central directory so far. A
+// skipset provides ~O(log n) time insertion and searching. Central directory
+// records, stored in a linked list of allocated memory datablocks, is read
+// through "block" in the zip internal structure.
+
+// The block_*() functions support extracting the central directory file names
+// from the datablocks. They are designed to support a growing directory by
+// automatically continuing once more data has been appended to the linked
+// datablocks.
+
+// Initialize *block to the head of list. This should only be called once the
+// list has at least some data in it, i.e. list->first_block is not NULL.
+local void block_init(block_t *block, linkedlist_data *list) {
+    block->node = list->first_block;
+    block->next = block->node->data;
+    block->left = block->node->filled_in_this_block;
+}
+
+// Mark *block as bad, with all subsequent reads returning end, even if more
+// data is added to the datablocks. This is invoked if the central directory is
+// invalid, so there is no longer any point in attempting to interpret it.
+local void block_stop(block_t *block) {
+    block->left = 0;
+    block->next = NULL;
+}
+
+// Return true if *block has reached the end of the data in the datablocks.
+local int block_end(block_t *block) {
+    linkedlist_datablock_internal *node = block->node;
+    if (node == NULL)
+        // This block was previously terminated with extreme prejudice.
+        return 1;
+    if (block->next < node->data + node->filled_in_this_block)
+        // There are more bytes to read in the current datablock.
+        return 0;
+    while (node->next_datablock != NULL) {
+        if (node->filled_in_this_block != 0)
+            // There are some bytes in a later datablock.
+            return 0;
+        node = node->next_datablock;
+    }
+    // Reached the end of the list of datablocks. There's nothing.
+    return 1;
+}
+
+// Return one byte from *block, or -1 if the end is reached.
+local int block_get(block_t *block) {
+    while (block->left == 0) {
+        if (block->node == NULL)
+            // We've been marked bad. Return end.
+            return -1;
+        // Update left in case more was filled in since we were last here.
+        block->left = block->node->filled_in_this_block -
+                      (block->next - block->node->data);
+        if (block->left != 0)
+            // There was indeed more data appended in the current datablock.
+            break;
+        if (block->node->next_datablock == NULL)
+            // No more data here, and there is no next datablock. At the end.
+            return -1;
+        // Try the next datablock for more data.
+        block->node = block->node->next_datablock;
+        block->next = block->node->data;
+        block->left = block->node->filled_in_this_block;
+    }
+    // We have a byte to return.
+    block->left--;
+    return *block->next++;
+}
+
+// Return a 16-bit unsigned little-endian value from block, or a negative value
+// if the end is reached.
+local long block_get2(block_t *block) {
+    long got = block_get(block);
+    return got | ((unsigned long)block_get(block) << 8);
+}
+
+// Read up to len bytes from block into buf. Return the number of bytes read.
+local size_t block_read(block_t *block, unsigned char *buf, size_t len) {
+    size_t need = len;
+    while (need) {
+        if (block->left == 0) {
+            // Get a byte to update and step through the linked list as needed.
+            int got = block_get(block);
+            if (got == -1)
+                // Reached the end.
+                break;
+            *buf++ = (unsigned char)got;
+            need--;
+            continue;
+        }
+        size_t take = need > block->left ? block->left : need;
+        memcpy(buf, block->next, take);
+        block->next += take;
+        block->left -= take;
+        buf += take;
+        need -= take;
+    }
+    return len - need;      // return the number of bytes copied
+}
+
+// Skip n bytes in block. Return 0 on success or -1 if there are less than n
+// bytes to the end.
+local int block_skip(block_t *block, size_t n) {
+    while (n > block->left) {
+        n -= block->left;
+        block->next += block->left;
+        block->left = 0;
+        if (block_get(block) == -1)
+            return -1;
+        n--;
+    }
+    block->next += n;
+    block->left -= n;
+    return 0;
+}
+
+// Process the next central directory record at *block. Return the allocated,
+// zero-terminated file name, or NULL for end of input or invalid data. If
+// invalid, *block is marked bad. This uses *set for the allocation of memory.
+local char *block_central_name(block_t *block, set_t *set) {
+    char *name = NULL;
+    for (;;) {
+        if (block_end(block))
+            // At the end of the central directory (so far).
+            return NULL;
+
+        // Check for a central directory record signature.
+        if (block_get2(block) != (CENTRALHEADERMAGIC & 0xffff) ||
+            block_get2(block) != (CENTRALHEADERMAGIC >> 16))
+            // Incorrect signature.
+            break;
+
+        // Go through the remaining fixed-length portion of the record,
+        // extracting the lengths of the three variable-length fields.
+        block_skip(block, 24);
+        unsigned flen = block_get2(block);      // file name length
+        unsigned xlen = block_get2(block);      // extra field length
+        unsigned clen = block_get2(block);      // comment field length
+        if (block_skip(block, 12) == -1)
+            // Premature end of the record.
+            break;
+
+        // Extract the name and skip over the extra and comment fields.
+        name = set_alloc(set, NULL, flen + 1);
+        if (block_read(block, (unsigned char *)name, flen) < flen ||
+            block_skip(block, xlen + clen) == -1)
+            // Premature end of the record.
+            break;
+
+        // Check for embedded nuls in the name.
+        if (memchr(name, 0, flen) != NULL) {
+            // This name can never match the zero-terminated name provided to
+            // zipAlreadyThere(), so we discard it and go back to get another
+            // name. (Who the heck is putting nuls inside their zip file entry
+            // names anyway?)
+            set_free(set, name);
+            continue;
+        }
+
+        // All good. Return the zero-terminated file name.
+        name[flen] = 0;
+        return name;
+    }
+
+    // Invalid signature or premature end of the central directory record.
+    // Abandon trying to process the central directory.
+    set_free(set, name);
+    block_stop(block);
+    return NULL;
+}
+
+// Return 0 if name is not in the central directory so far, 1 if it is, -1 if
+// the central directory is invalid, -2 if out of memory, or ZIP_PARAMERROR if
+// file is NULL.
+extern int ZEXPORT zipAlreadyThere(zipFile file, char const *name) {
+    zip64_internal *zip = file;
+    if (zip == NULL)
+        return ZIP_PARAMERROR;
+    if (zip->central_dir.first_block == NULL)
+        // No central directory yet, so no, name isn't there.
+        return 0;
+    if (setjmp(zip->set.env)) {
+        // Memory allocation failure.
+        set_end(&zip->set);
+        return -2;
+    }
+    if (!set_ok(&zip->set)) {
+        // This is the first time here with some central directory content. We
+        // construct this set of names only on demand. Prepare set and block.
+        set_start(&zip->set);
+        block_init(&zip->block, &zip->central_dir);
+    }
+
+    // Update the set of names from the current central directory contents.
+    // This reads any new central directory records since the last time we were
+    // here.
+    for (;;) {
+        char *there = block_central_name(&zip->block, &zip->set);
+        if (there == NULL) {
+            if (zip->block.next == NULL)
+                // The central directory is invalid.
+                return -1;
+            break;
+        }
+
+        // Add there to the set.
+        if (set_insert(&zip->set, there))
+            // There's already a duplicate in the central directory! We'll just
+            // let this be and carry on.
+            set_free(&zip->set, there);
+    }
+
+    // Return true if name is in the central directory.
+    size_t len = strlen(name);
+    char *copy = set_alloc(&zip->set, NULL, len + 1);
+    strcpy(copy, name);
+    int found = set_found(&zip->set, copy);
+    set_free(&zip->set, copy);
+    return found;
+}
 
 
 /****************************************************************************/
@@ -551,7 +792,7 @@ local ZPOS64_T zip64local_SearchCentralDir64(const zlib_filefunc64_32_def* pzlib
 
     for (i=(int)uReadSize-3; (i--)>0;)
     {
-      // Signature "0x07064b50" Zip64 end of central directory locater
+      // Signature "0x07064b50" Zip64 end of central directory locator
       if (((*(buf+i))==0x50) && ((*(buf+i+1))==0x4b) && ((*(buf+i+2))==0x06) && ((*(buf+i+3))==0x07))
       {
         uPosFound = uReadPos+(unsigned)i;
@@ -575,7 +816,7 @@ local ZPOS64_T zip64local_SearchCentralDir64(const zlib_filefunc64_32_def* pzlib
   if (zip64local_getLong(pzlib_filefunc_def,filestream,&uL)!=ZIP_OK)
     return 0;
 
-  /* number of the disk with the start of the zip64 end of  central directory */
+  /* number of the disk with the start of the zip64 end of central directory */
   if (zip64local_getLong(pzlib_filefunc_def,filestream,&uL)!=ZIP_OK)
     return 0;
   if (uL != 0)
@@ -843,6 +1084,7 @@ extern zipFile ZEXPORT zipOpen3(const void *pathname, int append, zipcharpc* glo
     ziinit.number_entry = 0;
     ziinit.add_position_when_writing_offset = 0;
     init_linkedlist(&(ziinit.central_dir));
+    memset(&ziinit.set, 0, sizeof(set_t));  // make sure set appears dormant
 
 
 
@@ -1027,7 +1269,6 @@ extern int ZEXPORT zipOpenNewFileInZip4_64(zipFile file, const char* filename, c
     int err = ZIP_OK;
 
 #    ifdef NOCRYPT
-    (crcForCrypting);
     if (password != NULL)
         return ZIP_PARAMERROR;
 #    endif
@@ -1412,7 +1653,7 @@ extern int ZEXPORT zipWriteInFileInZip(zipFile file, const void* buf, unsigned i
     else
 #endif
     {
-      zi->ci.stream.next_in = (Bytef*)(uintptr_t)buf;
+      zi->ci.stream.next_in = buf;
       zi->ci.stream.avail_in = len;
 
       while ((err==ZIP_OK) && (zi->ci.stream.avail_in>0))
@@ -1608,7 +1849,7 @@ extern int ZEXPORT zipCloseFileInZipRaw64(zipFile file, ZPOS64_T uncompressed_si
 
       if((uLong)(datasize + 4) > zi->ci.size_centralExtraFree)
       {
-        // we can not write more data to the buffer that we have room for.
+        // we cannot write more data to the buffer that we have room for.
         return ZIP_BADZIPFILE;
       }
 
@@ -1870,6 +2111,8 @@ extern int ZEXPORT zipClose(zipFile file, const char* global_comment) {
         }
     }
     free_linkedlist(&(zi->central_dir));
+
+    set_end(&zi->set);          // set was zeroed, so this is safe
 
     pos = centraldir_pos_inzip - zi->add_position_when_writing_offset;
     if(pos >= 0xffffffff || zi->number_entry >= 0xFFFF)

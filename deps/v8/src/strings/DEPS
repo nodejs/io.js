@@ -1,0 +1,5 @@
+specific_include_rules = {
+  "unicode.*": [
+    "+third_party/utf8-decoder",
+  ],
+}

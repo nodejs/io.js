@@ -15,6 +15,7 @@ const common = require('./mutators/common.js');
 const db = require('./db.js');
 const exceptions = require('./exceptions.js');
 const random = require('./random.js');
+const runner = require('./runner.js');
 const sourceHelpers = require('./source_helpers.js');
 
 const { AddTryCatchMutator } = require('./mutators/try_catch.js');
@@ -72,6 +73,16 @@ class ScriptMutator {
     this.settings = settings;
   }
 
+  /**
+   * Returns a runner class that decides the composition of tests from
+   * different corpora.
+   */
+  get runnerClass() {
+    // Choose a setup with the Fuzzilli corpus with a 50% chance.
+    return random.single(
+        [runner.RandomCorpusRunner, runner.RandomCorpusRunnerWithFuzzilli]);
+  }
+
   _addMjsunitIfNeeded(dependencies, input) {
     if (dependencies.has('mjsunit')) {
       return;
@@ -91,7 +102,7 @@ class ScriptMutator {
     if (path.basename(mjsunitPath) == 'mjsunit') {
       mjsunitPath = path.join(mjsunitPath, 'mjsunit.js');
       dependencies.set('mjsunit', sourceHelpers.loadDependencyAbs(
-          input.baseDir, mjsunitPath));
+          input.corpus, mjsunitPath));
       return;
     }
 
@@ -120,7 +131,7 @@ class ScriptMutator {
     for (let i = shellJsPaths.length - 1; i >= 0; i--) {
       if (!dependencies.has(shellJsPaths[i])) {
         const dependency = sourceHelpers.loadDependencyAbs(
-            input.baseDir, shellJsPaths[i]);
+            input.corpus, shellJsPaths[i]);
         dependencies.set(shellJsPaths[i], dependency);
       }
     }
@@ -133,6 +144,15 @@ class ScriptMutator {
     }
     dependencies.set(
         'jstest_stubs', sourceHelpers.loadResource('jstest_stubs.js'));
+  }
+
+  _addChakraStubsIfNeeded(dependencies, input) {
+    if (dependencies.has('chakra_stubs') ||
+        !input.absPath.includes('chakra')) {
+      return;
+    }
+    dependencies.set(
+        'chakra_stubs', sourceHelpers.loadResource('chakra_stubs.js'));
   }
 
   mutate(source) {
@@ -174,6 +194,7 @@ class ScriptMutator {
         // that are not recursively resolved. We already remove them, but we
         // also need to load the dependencies they point to.
         this._addJSTestStubsIfNeeded(dependencies, input);
+        this._addChakraStubsIfNeeded(dependencies, input);
         this._addMjsunitIfNeeded(dependencies, input)
         this._addSpiderMonkeyShellIfNeeded(dependencies, input);
       } catch (e) {
@@ -240,12 +261,14 @@ class ScriptMutator {
     // 1) Compute dependencies from inputs.
     // 2) Normalize, combine and mutate inputs.
     // 3) Generate code with dependency code prepended.
+    // 4) Combine and filter flags from inputs.
     const dependencies = this.resolveDependencies(inputs);
     const combinedSource = this.mutateInputs(inputs);
     const code = sourceHelpers.generateCode(combinedSource, dependencies);
-    const flags = exceptions.resolveContradictoryFlags(
-        common.concatFlags(dependencies.concat([combinedSource])));
-    return new Result(code, flags);
+    const allFlags = common.concatFlags(dependencies.concat([combinedSource]));
+    const filteredFlags = exceptions.resolveContradictoryFlags(
+        exceptions.filterFlags(allFlags));
+    return new Result(code, filteredFlags);
   }
 }
 

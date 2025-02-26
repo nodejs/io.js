@@ -11,50 +11,9 @@ extern runtime JSFinalizationRegistryRegisterWeakCellWithUnregisterToken(
 }
 
 namespace weakref {
-extern transitioning macro RemoveFinalizationRegistryCellFromUnregisterTokenMap(
-    JSFinalizationRegistry, WeakCell): void;
 
 extern macro WeakCollectionsBuiltinsAssembler::GotoIfCannotBeHeldWeakly(JSAny):
     void labels NotWeakKey;
-
-macro SplitOffTail(weakCell: WeakCell): WeakCell|Undefined {
-  const weakCellTail = weakCell.next;
-  weakCell.next = Undefined;
-  typeswitch (weakCellTail) {
-    case (Undefined): {
-    }
-    case (tailIsNowAHead: WeakCell): {
-      dcheck(tailIsNowAHead.prev == weakCell);
-      tailIsNowAHead.prev = Undefined;
-    }
-  }
-  return weakCellTail;
-}
-
-transitioning macro PopClearedCell(finalizationRegistry:
-                                       JSFinalizationRegistry): WeakCell
-    |Undefined {
-  typeswitch (finalizationRegistry.cleared_cells) {
-    case (Undefined): {
-      return Undefined;
-    }
-    case (weakCell: WeakCell): {
-      dcheck(weakCell.prev == Undefined);
-      finalizationRegistry.cleared_cells = SplitOffTail(weakCell);
-
-      // If the WeakCell has an unregister token, remove the cell from the
-      // unregister token linked lists and and the unregister token from
-      // key_map. This doesn't shrink key_map, which is done manually after
-      // the cleanup loop to avoid a runtime call.
-      if (weakCell.unregister_token != Undefined) {
-        RemoveFinalizationRegistryCellFromUnregisterTokenMap(
-            finalizationRegistry, weakCell);
-      }
-
-      return weakCell;
-    }
-  }
-}
 
 transitioning macro PushCell(
     finalizationRegistry: JSFinalizationRegistry, cell: WeakCell): void {
@@ -69,31 +28,7 @@ transitioning macro PushCell(
   finalizationRegistry.active_cells = cell;
 }
 
-transitioning macro FinalizationRegistryCleanupLoop(
-    implicit context: Context)(finalizationRegistry: JSFinalizationRegistry,
-    callback: Callable): void {
-  while (true) {
-    const weakCellHead = PopClearedCell(finalizationRegistry);
-    typeswitch (weakCellHead) {
-      case (Undefined): {
-        break;
-      }
-      case (weakCell: WeakCell): {
-        try {
-          Call(context, callback, Undefined, weakCell.holdings);
-        } catch (e, message) {
-          runtime::ShrinkFinalizationRegistryUnregisterTokenMap(
-              context, finalizationRegistry);
-          ReThrowWithMessage(context, e, message);
-        }
-      }
-    }
-  }
-
-  runtime::ShrinkFinalizationRegistryUnregisterTokenMap(
-      context, finalizationRegistry);
-}
-
+@incrementUseCounter('v8::Isolate::kWeakReferences')
 transitioning javascript builtin FinalizationRegistryConstructor(
     js-implicit context: NativeContext, receiver: JSAny, newTarget: JSAny,
     target: JSFunction)(...arguments): JSFinalizationRegistry {
@@ -190,31 +125,6 @@ transitioning javascript builtin FinalizationRegistryRegister(
         finalizationRegistry, cell);
   }
   // 8. Return undefined.
-  return Undefined;
-}
-
-transitioning javascript builtin FinalizationRegistryPrototypeCleanupSome(
-    js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
-  // 1. Let finalizationRegistry be the this value.
-  //
-  // 2. Perform ? RequireInternalSlot(finalizationRegistry, [[Cells]]).
-  const methodName: constexpr string =
-      'FinalizationRegistry.prototype.cleanupSome';
-  const finalizationRegistry =
-      Cast<JSFinalizationRegistry>(receiver) otherwise ThrowTypeError(
-          MessageTemplate::kIncompatibleMethodReceiver, methodName, receiver);
-
-  let callback: Callable;
-  if (arguments[0] != Undefined) {
-    // 4. If callback is not undefined and IsCallable(callback) is
-    //    false, throw a TypeError exception.
-    callback = Cast<Callable>(arguments[0]) otherwise ThrowTypeError(
-        MessageTemplate::kWeakRefsCleanupMustBeCallable, arguments[0]);
-  } else {
-    callback = finalizationRegistry.cleanup;
-  }
-
-  FinalizationRegistryCleanupLoop(finalizationRegistry, callback);
   return Undefined;
 }
 }

@@ -3,5 +3,6 @@ include_rules = [
   "+perfetto",
   "+protos/perfetto",
   "+src",
-  "+testing"
+  "+testing",
+  "+third_party/siphash",
 ]

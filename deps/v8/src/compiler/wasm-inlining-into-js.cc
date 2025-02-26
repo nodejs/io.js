@@ -211,7 +211,7 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
   }
 
   Value ParseStructGet(Value struct_val, WasmOpcode opcode) {
-    uint32_t struct_index = consume_u32v();
+    wasm::ModuleTypeIndex struct_index{consume_u32v()};
     DCHECK(module_->has_struct(struct_index));
     const wasm::StructType* struct_type = module_->struct_type(struct_index);
     uint32_t field_index = consume_u32v();
@@ -226,7 +226,7 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
   }
 
   void ParseStructSet(Value wasm_struct, Value value) {
-    uint32_t struct_index = consume_u32v();
+    wasm::ModuleTypeIndex struct_index{consume_u32v()};
     DCHECK(module_->has_struct(struct_index));
     const wasm::StructType* struct_type = module_->struct_type(struct_index);
     uint32_t field_index = consume_u32v();
@@ -270,12 +270,13 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
       gasm_.InitializeEffectControl(type_guard, gasm_.control());
       return TypeNode(type_guard, result_type);
     }
-    if (module_->has_signature(static_cast<uint32_t>(heap_index))) {
+    if (module_->has_signature(
+            wasm::ModuleTypeIndex{static_cast<uint32_t>(heap_index)})) {
       is_inlineable_ = false;
       return {};
     }
     wasm::ValueType target_type = wasm::ValueType::RefMaybeNull(
-        static_cast<uint32_t>(heap_index),
+        wasm::ModuleTypeIndex{static_cast<uint32_t>(heap_index)},
         null_succeeds ? wasm::kNullable : wasm::kNonNullable);
     Node* rtt = mcgraph_->graph()->NewNode(
         gasm_.simplified()->RttCanon(target_type.ref_index()),
@@ -298,7 +299,7 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
   }
 
   Value ParseArrayGet(Value array, Value index, WasmOpcode opcode) {
-    uint32_t array_index = consume_u32v();
+    wasm::ModuleTypeIndex array_index{consume_u32v()};
     DCHECK(module_->has_array(array_index));
     const wasm::ArrayType* array_type = module_->array_type(array_index);
     const bool is_signed = opcode == WasmOpcode::kExprArrayGetS;
@@ -317,7 +318,7 @@ class WasmIntoJSInlinerImpl : private wasm::Decoder {
   }
 
   void ParseArraySet(Value array, Value index, Value value) {
-    uint32_t array_index = consume_u32v();
+    wasm::ModuleTypeIndex array_index{consume_u32v()};
     DCHECK(module_->has_array(array_index));
     const wasm::ArrayType* array_type = module_->array_type(array_index);
     const CheckForNull null_check =

@@ -41,7 +41,7 @@ class MarkingWorklists {
     void operator delete(void*) = delete;
     void operator delete[](void*) = delete;
 
-    v8::base::Mutex lock_;
+    v8::base::SpinningMutex lock_;
     std::unordered_set<HeapObjectHeader*> objects_;
   };
 
@@ -154,16 +154,17 @@ class MarkingWorklists {
 template <>
 struct MarkingWorklists::ExternalMarkingWorklist::ConditionalMutexGuard<
     AccessMode::kNonAtomic> {
-  explicit ConditionalMutexGuard(v8::base::Mutex*) {}
+  explicit ConditionalMutexGuard(v8::base::SpinningMutex*) {}
 };
 
 template <>
 struct MarkingWorklists::ExternalMarkingWorklist::ConditionalMutexGuard<
     AccessMode::kAtomic> {
-  explicit ConditionalMutexGuard(v8::base::Mutex* lock) : guard_(lock) {}
+  explicit ConditionalMutexGuard(v8::base::SpinningMutex* lock)
+      : guard_(lock) {}
 
  private:
-  v8::base::MutexGuard guard_;
+  v8::base::SpinningMutexGuard guard_;
 };
 
 template <AccessMode mode>

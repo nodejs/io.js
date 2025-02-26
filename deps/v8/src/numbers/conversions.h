@@ -6,6 +6,7 @@
 #define V8_NUMBERS_CONVERSIONS_H_
 
 #include <optional>
+#include <string_view>
 
 #include "src/base/export-template.h"
 #include "src/base/logging.h"
@@ -66,8 +67,23 @@ constexpr uint32_t kFP32SubnormalThresholdOfFP16 = 0x38800000;
 
 // The limit for the the fractionDigits/precision for toFixed, toPrecision
 // and toExponential.
-const int kMaxFractionDigits = 100;
-
+constexpr int kMaxFractionDigits = 100;
+constexpr int kDoubleToFixedMaxDigitsBeforePoint = 21;
+// Leave room in the result for appending a minus and a period.
+constexpr int kDoubleToFixedMaxChars =
+    kDoubleToFixedMaxDigitsBeforePoint + kMaxFractionDigits + 2;
+// Leave room in the result for appending a minus, for a period, up to 5 zeros
+// padding after the period and a zero in front of the period.
+constexpr int kDoubleToPrecisionMaxChars = kMaxFractionDigits + 8;
+// Leave room in the result for one digit before the period, a minus, a period,
+// the letter 'e', a minus or a plus depending on the exponent, and a three
+// digit exponent.
+constexpr int kDoubleToExponentialMaxChars = kMaxFractionDigits + 8;
+// The algorithm starts with the decimal point in the middle and writes to the
+// left for the integer part and to the right for the fractional part.
+// 1024 characters for the exponent and 52 for the mantissa either way, with
+// additional space for sign and decimal point.
+constexpr int kDoubleToRadixMaxChars = 2200;
 // The fast double-to-(unsigned-)int conversion routine does not guarantee
 // rounding towards zero.
 // If x is NaN, the result is INT_MIN.  Otherwise the result is the argument x,
@@ -162,11 +178,12 @@ double V8_EXPORT_PRIVATE HexStringToDouble(base::Vector<const uint8_t> str);
 double V8_EXPORT_PRIVATE
 ImplicitOctalStringToDouble(base::Vector<const uint8_t> str);
 
-double StringToInt(Isolate* isolate, Handle<String> string, int radix);
+double StringToInt(Isolate* isolate, DirectHandle<String> string, int radix);
 
 // This follows https://tc39.github.io/proposal-bigint/#sec-string-to-bigint
 // semantics: "" => 0n.
-MaybeHandle<BigInt> StringToBigInt(Isolate* isolate, Handle<String> string);
+MaybeHandle<BigInt> StringToBigInt(Isolate* isolate,
+                                   DirectHandle<String> string);
 
 // This version expects a zero-terminated character array. Radix will
 // be inferred from string prefix (case-insensitive):
@@ -177,26 +194,32 @@ template <typename IsolateT>
 EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
 MaybeHandle<BigInt> BigIntLiteral(IsolateT* isolate, const char* string);
 
-const int kDoubleToCStringMinBufferSize = 100;
+constexpr int kDoubleToStringMinBufferSize = 100;
 
 // Converts a double to a string value according to ECMA-262 9.8.1.
 // The buffer should be large enough for any floating point number.
 // 100 characters is enough.
-V8_EXPORT_PRIVATE const char* DoubleToCString(double value,
-                                              base::Vector<char> buffer);
+// Note: The returned string_view is not necessarily pointing inside the
+// provided buffer.
+V8_EXPORT_PRIVATE std::string_view DoubleToStringView(
+    double value, base::Vector<char> buffer);
 
 V8_EXPORT_PRIVATE std::unique_ptr<char[]> BigIntLiteralToDecimal(
     LocalIsolate* isolate, base::Vector<const uint8_t> literal);
-// Convert an int to a null-terminated string. The returned string is
-// located inside the buffer, but not necessarily at the start.
-V8_EXPORT_PRIVATE const char* IntToCString(int n, base::Vector<char> buffer);
+// Convert an int to string value. The returned string is located inside the
+// buffer, but not necessarily at the start.
+V8_EXPORT_PRIVATE std::string_view IntToStringView(int n,
+                                                   base::Vector<char> buffer);
 
 // Additional number to string conversions for the number type.
-// The caller is responsible for calling free on the returned pointer.
-char* DoubleToFixedCString(double value, int f);
-char* DoubleToExponentialCString(double value, int f);
-char* DoubleToPrecisionCString(double value, int f);
-char* DoubleToRadixCString(double value, int radix);
+std::string_view DoubleToFixedStringView(double value, int f,
+                                         base::Vector<char> buffer);
+std::string_view DoubleToExponentialStringView(double value, int f,
+                                               base::Vector<char> buffer);
+std::string_view DoubleToPrecisionStringView(double value, int f,
+                                             base::Vector<char> buffer);
+std::string_view DoubleToRadixStringView(double value, int radix,
+                                         base::Vector<char> buffer);
 
 static inline bool IsMinusZero(double value) {
   return base::bit_cast<int64_t>(value) == base::bit_cast<int64_t>(-0.0);
@@ -232,7 +255,7 @@ inline uint32_t NumberToUint32(Tagged<Object> number);
 inline int64_t NumberToInt64(Tagged<Object> number);
 inline uint64_t PositiveNumberToUint64(Tagged<Object> number);
 
-double StringToDouble(Isolate* isolate, Handle<String> string,
+double StringToDouble(Isolate* isolate, DirectHandle<String> string,
                       ConversionFlag flags, double empty_string_val = 0.0);
 double FlatStringToDouble(Tagged<String> string, ConversionFlag flags,
                           double empty_string_val);
@@ -243,7 +266,7 @@ double FlatStringToDouble(Tagged<String> string, ConversionFlag flags,
 // can be represented using a string of length 23.
 V8_EXPORT_PRIVATE std::optional<double> TryStringToDouble(
     LocalIsolate* isolate, DirectHandle<String> object,
-    int max_length_for_conversion = 23);
+    uint32_t max_length_for_conversion = 23);
 
 // Return std::nullopt if the string is longer than 20.
 V8_EXPORT_PRIVATE std::optional<double> TryStringToInt(

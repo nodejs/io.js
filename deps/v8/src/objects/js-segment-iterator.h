@@ -33,13 +33,13 @@ class JSSegmentIterator
     : public TorqueGeneratedJSSegmentIterator<JSSegmentIterator, JSObject> {
  public:
   // ecma402 #sec-CreateSegmentIterator
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSSegmentIterator> Create(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSSegmentIterator> Create(
       Isolate* isolate, DirectHandle<String> input_string,
       icu::BreakIterator* icu_break_iterator,
       JSSegmenter::Granularity granularity);
 
   // ecma402 #sec-segment-iterator-prototype-next
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> Next(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSReceiver> Next(
       Isolate* isolate,
       DirectHandle<JSSegmentIterator> segment_iterator_holder);
 

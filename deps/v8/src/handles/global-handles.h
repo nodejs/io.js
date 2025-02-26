@@ -41,7 +41,7 @@ class V8_EXPORT_PRIVATE GlobalHandles final {
 
   static void MoveGlobal(Address** from, Address** to);
 
-  static Handle<Object> CopyGlobal(Address* location);
+  static IndirectHandle<Object> CopyGlobal(Address* location);
 
   static void Destroy(Address* location);
 
@@ -71,11 +71,11 @@ class V8_EXPORT_PRIVATE GlobalHandles final {
   ~GlobalHandles();
 
   // Creates a new global handle that is alive until Destroy is called.
-  Handle<Object> Create(Tagged<Object> value);
-  Handle<Object> Create(Address value);
+  IndirectHandle<Object> Create(Tagged<Object> value);
+  IndirectHandle<Object> Create(Address value);
 
   template <typename T>
-  inline Handle<T> Create(Tagged<T> value);
+  inline IndirectHandle<T> Create(Tagged<T> value);
 
   void RecordStats(HeapStats* stats);
 
@@ -201,8 +201,8 @@ class EternalHandles final {
                                 int* index);
 
   // Grab the handle for an existing EternalHandle.
-  inline Handle<Object> Get(int index) {
-    return Handle<Object>(GetLocation(index));
+  inline IndirectHandle<Object> Get(int index) {
+    return IndirectHandle<Object>(GetLocation(index));
   }
 
   // Iterates over all handles.
@@ -247,7 +247,7 @@ class GlobalHandleVector {
       ++it_;
       return *this;
     }
-    Handle<T> operator*() { return Handle<T>(&*it_); }
+    IndirectHandle<T> operator*() { return IndirectHandle<T>(&*it_); }
     bool operator==(const Iterator& that) const { return it_ == that.it_; }
     bool operator!=(const Iterator& that) const { return it_ != that.it_; }
 
@@ -261,7 +261,9 @@ class GlobalHandleVector {
   // Usage with LocalHeap is safe.
   explicit inline GlobalHandleVector(LocalHeap* local_heap);
 
-  Handle<T> operator[](size_t i) { return Handle<T>(&locations_[i]); }
+  IndirectHandle<T> operator[](size_t i) {
+    return IndirectHandle<T>(&locations_[i]);
+  }
 
   size_t size() const { return locations_.size(); }
   bool empty() const { return locations_.empty(); }

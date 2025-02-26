@@ -51,7 +51,7 @@
     'baseline': {
       'filepath': 'src/baseline/',
     },
-    'feature_shipping_status': {
+    'flags': {
       'filepath': 'src/flags/flag-definitions.h',
     },
     'heap_changes': {
@@ -128,8 +128,8 @@
       'leszeks+watch@chromium.org',
       'verwaest+watch@chromium.org',
     ],
-    'feature_shipping_status': [
-      'saelo+watch@chromium.org',
+    'flags': [
+      'v8-flag-updates@chromium.org',
     ],
     'heap_changes': [
       'hpayer@chromium.org',

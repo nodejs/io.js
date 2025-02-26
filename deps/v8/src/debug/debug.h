@@ -254,13 +254,15 @@ class V8_EXPORT_PRIVATE Debug {
   Debug& operator=(const Debug&) = delete;
 
   // Debug event triggers.
-  void OnDebugBreak(Handle<FixedArray> break_points_hit, StepAction stepAction,
+  void OnDebugBreak(DirectHandle<FixedArray> break_points_hit,
+                    StepAction stepAction,
                     debug::BreakReasons break_reasons = {});
   debug::DebugDelegate::ActionAfterInstrumentation OnInstrumentationBreak();
 
-  std::optional<Tagged<Object>> OnThrow(Handle<Object> exception)
+  std::optional<Tagged<Object>> OnThrow(DirectHandle<Object> exception)
       V8_WARN_UNUSED_RESULT;
-  void OnPromiseReject(Handle<Object> promise, Handle<Object> value);
+  void OnPromiseReject(DirectHandle<Object> promise,
+                       DirectHandle<Object> value);
   void OnCompileError(DirectHandle<Script> script);
   void OnAfterCompile(DirectHandle<Script> script);
 
@@ -272,7 +274,7 @@ class V8_EXPORT_PRIVATE Debug {
   void Break(JavaScriptFrame* frame, DirectHandle<JSFunction> break_target);
 
   // Scripts handling.
-  Handle<FixedArray> GetLoadedScripts();
+  DirectHandle<FixedArray> GetLoadedScripts();
 
   // DebugInfo accessors.
   std::optional<Tagged<DebugInfo>> TryGetDebugInfo(
@@ -301,11 +303,11 @@ class V8_EXPORT_PRIVATE Debug {
                                 BreakPointKind kind = kRegular);
   void RemoveBreakpoint(int id);
 #if V8_ENABLE_WEBASSEMBLY
-  void SetInstrumentationBreakpointForWasmScript(Handle<Script> script,
+  void SetInstrumentationBreakpointForWasmScript(DirectHandle<Script> script,
                                                  int* id);
   void RemoveBreakpointForWasmScript(DirectHandle<Script> script, int id);
 
-  void RecordWasmScriptWithBreakpoints(Handle<Script> script);
+  void RecordWasmScriptWithBreakpoints(DirectHandle<Script> script);
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   // Find breakpoints from the debug info and the break location and check
@@ -349,12 +351,12 @@ class V8_EXPORT_PRIVATE Debug {
 
   // Returns whether the operation succeeded.
   bool EnsureBreakInfo(Handle<SharedFunctionInfo> shared);
-  void CreateBreakInfo(Handle<SharedFunctionInfo> shared);
+  void CreateBreakInfo(DirectHandle<SharedFunctionInfo> shared);
   Handle<DebugInfo> GetOrCreateDebugInfo(
       DirectHandle<SharedFunctionInfo> shared);
 
   void InstallCoverageInfo(DirectHandle<SharedFunctionInfo> shared,
-                           Handle<CoverageInfo> coverage_info);
+                           DirectHandle<CoverageInfo> coverage_info);
   void RemoveAllCoverageInfos();
 
   // This function is used in FunctionNameUsing* tests.
@@ -369,10 +371,10 @@ class V8_EXPORT_PRIVATE Debug {
       Handle<Script> script, int start_position, int end_position,
       std::vector<Handle<SharedFunctionInfo>>* candidates);
 
-  MaybeHandle<SharedFunctionInfo> GetTopLevelWithRecompile(
+  MaybeDirectHandle<SharedFunctionInfo> GetTopLevelWithRecompile(
       Handle<Script> script, bool* did_compile = nullptr);
 
-  static Handle<Object> GetSourceBreakLocations(
+  static DirectHandle<Object> GetSourceBreakLocations(
       Isolate* isolate, DirectHandle<SharedFunctionInfo> shared);
 
   // Check whether this frame is just about to return.
@@ -411,20 +413,20 @@ class V8_EXPORT_PRIVATE Debug {
   // function.
   void IgnoreSideEffectsOnNextCallTo(Handle<FunctionTemplateInfo> function);
 
-  bool PerformSideEffectCheck(Handle<JSFunction> function,
-                              Handle<Object> receiver);
+  bool PerformSideEffectCheck(DirectHandle<JSFunction> function,
+                              DirectHandle<Object> receiver);
 
   void PrepareBuiltinForSideEffectCheck(Isolate* isolate, Builtin id);
 
   bool PerformSideEffectCheckForAccessor(
-      DirectHandle<AccessorInfo> accessor_info, Handle<Object> receiver,
+      DirectHandle<AccessorInfo> accessor_info, DirectHandle<Object> receiver,
       AccessorComponent component);
   bool PerformSideEffectCheckForCallback(Handle<FunctionTemplateInfo> function);
   bool PerformSideEffectCheckForInterceptor(
-      Handle<InterceptorInfo> interceptor_info);
+      DirectHandle<InterceptorInfo> interceptor_info);
 
   bool PerformSideEffectCheckAtBytecode(InterpretedFrame* frame);
-  bool PerformSideEffectCheckForObject(Handle<Object> object);
+  bool PerformSideEffectCheckForObject(DirectHandle<Object> object);
 
   // Flags and states.
   inline bool is_active() const { return is_active_; }
@@ -528,7 +530,8 @@ class V8_EXPORT_PRIVATE Debug {
     return thread_local_.suspended_generator_ != Smi::zero();
   }
 
-  void OnException(Handle<Object> exception, MaybeHandle<JSPromise> promise,
+  void OnException(DirectHandle<Object> exception,
+                   MaybeDirectHandle<JSPromise> promise,
                    v8::debug::ExceptionType exception_type);
 
   void ProcessCompileEvent(bool has_compile_error, DirectHandle<Script> script);
@@ -561,7 +564,7 @@ class V8_EXPORT_PRIVATE Debug {
   MaybeHandle<FixedArray> CheckBreakPoints(Handle<DebugInfo> debug_info,
                                            BreakLocation* location,
                                            bool* has_break_points);
-  MaybeHandle<FixedArray> CheckBreakPointsForLocations(
+  MaybeDirectHandle<FixedArray> CheckBreakPointsForLocations(
       Handle<DebugInfo> debug_info, std::vector<BreakLocation>& break_locations,
       bool* has_break_points);
 
@@ -621,7 +624,7 @@ class V8_EXPORT_PRIVATE Debug {
   class TemporaryObjectsTracker;
   std::unique_ptr<TemporaryObjectsTracker> temporary_objects_;
 
-  Handle<RegExpMatchInfo> regexp_match_info_;
+  IndirectHandle<RegExpMatchInfo> regexp_match_info_;
 
   // Per-thread data.
   class ThreadLocal {
@@ -702,14 +705,15 @@ class V8_EXPORT_PRIVATE Debug {
 
 #if V8_ENABLE_WEBASSEMBLY
   // This is a global handle, lazily initialized.
-  Handle<WeakArrayList> wasm_scripts_with_break_points_;
+  IndirectHandle<WeakArrayList> wasm_scripts_with_break_points_;
 #endif  // V8_ENABLE_WEBASSEMBLY
 
   // This is a part of machinery for allowing to ignore side effects for one
   // call to this API function. See Function::NewInstanceWithSideEffectType().
   // Since the FunctionTemplateInfo is allowlisted right before the call to
   // constructor there must be never more than one such object at a time.
-  Handle<FunctionTemplateInfo> ignore_side_effects_for_function_template_info_;
+  IndirectHandle<FunctionTemplateInfo>
+      ignore_side_effects_for_function_template_info_;
 
   Isolate* isolate_;
 
@@ -720,7 +724,7 @@ class V8_EXPORT_PRIVATE Debug {
   friend class LiveEdit;
   friend class SuppressDebug;
 
-  friend Handle<FixedArray> GetDebuggedFunctions();  // In test-debug.cc
+  friend DirectHandle<FixedArray> GetDebuggedFunctions();  // In test-debug.cc
   friend void CheckDebuggerUnloaded();               // In test-debug.cc
 };
 

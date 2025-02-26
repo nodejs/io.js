@@ -75,10 +75,10 @@
   # Doesn't work with gcc 4.6 on arm or arm64 for some reason.
   'reentrant-caching': [SKIP],
 }],  # 'dcheck_always_on == True and (arch == arm or arch == arm64)'
-['arch == s390 or arch == s390x', {
+['arch == s390x', {
   # Too slow.
   'dfg-int-overflow-in-loop': [SKIP],
-}],  # 'arch == s390 or arch == s390x'
+}],  # 'arch == s390x'
 
 ##############################################################################
 ['asan == True', {

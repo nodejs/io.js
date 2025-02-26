@@ -356,6 +356,15 @@ TEST(LoggingDeathTest, CheckChars) {
       FailureMessage("Check failed: 'a' == 'b'", "'97'", "'98'"));
 }
 
+TEST(LoggingDeathTest, Collections) {
+  std::vector<int> listA{1};
+  std::vector<int> listB{1, 2};
+
+  ASSERT_DEATH_IF_SUPPORTED(
+      ([&] { CHECK_EQ(listA, listB); })(),
+      FailureMessage("Check failed: listA == listB", "{1}", "{1,2}"));
+}
+
 }  // namespace logging_unittest
 }  // namespace base
 }  // namespace v8

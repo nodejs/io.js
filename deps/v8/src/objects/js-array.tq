@@ -167,8 +167,14 @@ LoadElementNoHole<FixedDoubleArray>(
     labels IfHole {
   const elements: FixedDoubleArray =
       Cast<FixedDoubleArray>(a.elements) otherwise unreachable;
-  const e: float64 = elements.floats[index].Value() otherwise IfHole;
-  return AllocateHeapNumberWithValue(e);
+  try {
+    const e: float64 = elements.values[index].Value() otherwise IfUndefined,
+             IfHole;
+    return AllocateHeapNumberWithValue(e);
+  } label IfUndefined {
+    dcheck(kEnableExperimentalUndefinedDouble);
+    return Undefined;
+  }
 }
 
 extern builtin ExtractFastJSArray(Context, JSArray, Smi, Smi): JSArray;
@@ -246,7 +252,7 @@ struct FastJSArrayWitness {
     if (this.hasDoubles) {
       const elements = Cast<FixedDoubleArray>(this.unstable.elements)
           otherwise unreachable;
-      elements.floats[k] = kDoubleHole;
+      elements.values[k] = kDoubleHole;
     } else {
       const elements = Cast<FixedArray>(this.unstable.elements)
           otherwise unreachable;

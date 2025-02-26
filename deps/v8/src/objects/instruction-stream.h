@@ -75,7 +75,6 @@ class InstructionStream : public TrustedObject {
   // Set to Smi::zero() during initialization. Heap iterators may see
   // InstructionStream objects in this state.
   inline Tagged<Code> code(AcquireLoadTag tag) const;
-  inline void set_code(Tagged<Code> value, ReleaseStoreTag tag);
   inline Tagged<Object> raw_code(AcquireLoadTag tag) const;
   // Use when the InstructionStream may be uninitialized:
   inline bool TryGetCode(Tagged<Code>* code_out, AcquireLoadTag tag) const;

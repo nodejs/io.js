@@ -323,16 +323,53 @@ InitializeFieldsFromIterator<char16, UninitializedIterator>(
     _originIterator: UninitializedIterator): void {}
 
 extern macro IsDoubleHole(HeapObject, intptr): bool;
+@if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+extern macro IsDoubleUndefined(HeapObject, intptr): bool;
 extern macro StoreDoubleHole(HeapObject, intptr): void;
+@if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+extern macro StoreDoubleUndefined(HeapObject, intptr): void;
 
-macro LoadFloat64OrHole(r:&float64_or_hole): float64_or_hole {
-  return float64_or_hole{
+@if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+macro LoadFloat64OrUndefinedOrHole(r:&float64_or_undefined_or_hole):
+    float64_or_undefined_or_hole {
+  return float64_or_undefined_or_hole{
+    is_undefined: IsDoubleUndefined(
+        %RawDownCast<HeapObject>(r.object), r.offset - kHeapObjectTag),
     is_hole: IsDoubleHole(
         %RawDownCast<HeapObject>(r.object), r.offset - kHeapObjectTag),
     value: *unsafe::NewReference<float64>(r.object, r.offset)
   };
 }
-macro StoreFloat64OrHole(r:&float64_or_hole, value: float64_or_hole): void {
+
+@ifnot(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+macro LoadFloat64OrHole(r:&float64_or_undefined_or_hole):
+    float64_or_undefined_or_hole {
+  return float64_or_undefined_or_hole{
+    is_hole: IsDoubleHole(
+        %RawDownCast<HeapObject>(r.object), r.offset - kHeapObjectTag),
+    value: *unsafe::NewReference<float64>(r.object, r.offset)
+  };
+}
+
+@if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+macro StoreFloat64OrUndefinedOrHole(
+    r:&float64_or_undefined_or_hole,
+    value: float64_or_undefined_or_hole): void {
+  if (value.is_undefined) {
+    StoreDoubleUndefined(
+        %RawDownCast<HeapObject>(r.object), r.offset - kHeapObjectTag);
+  } else if (value.is_hole) {
+    StoreDoubleHole(
+        %RawDownCast<HeapObject>(r.object), r.offset - kHeapObjectTag);
+  } else {
+    *unsafe::NewReference<float64>(r.object, r.offset) = value.value;
+  }
+}
+
+@ifnot(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+macro StoreFloat64OrHole(
+    r:&float64_or_undefined_or_hole,
+    value: float64_or_undefined_or_hole): void {
   if (value.is_hole) {
     StoreDoubleHole(
         %RawDownCast<HeapObject>(r.object), r.offset - kHeapObjectTag);

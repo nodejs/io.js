@@ -16,18 +16,15 @@ namespace heap {
 template <class T>
 class List {
  public:
-  List() : front_(nullptr), back_(nullptr) {}
+  List() = default;
   List(List&& other) V8_NOEXCEPT : front_(std::exchange(other.front_, nullptr)),
-                                   back_(std::exchange(other.back_, nullptr)) {}
+                                   back_(std::exchange(other.back_, nullptr)),
+                                   size_(std::exchange(other.size_, 0)) {}
   List& operator=(List&& other) V8_NOEXCEPT {
     front_ = std::exchange(other.front_, nullptr);
     back_ = std::exchange(other.back_, nullptr);
+    size_ = std::exchange(other.size_, 0);
     return *this;
-  }
-
-  void ShallowCopyTo(List* other) const {
-    other->front_ = front_;
-    other->back_ = back_;
   }
 
   void PushBack(T* element) {
@@ -39,6 +36,7 @@ class List {
     } else {
       AddFirstElement(element);
     }
+    size_++;
   }
 
   void PushFront(T* element) {
@@ -50,6 +48,7 @@ class List {
     } else {
       AddFirstElement(element);
     }
+    size_++;
   }
 
   void Remove(T* element) {
@@ -66,9 +65,10 @@ class List {
     if (prev) prev->list_node().set_next(next);
     element->list_node().set_prev(nullptr);
     element->list_node().set_next(nullptr);
+    size_--;
   }
 
-  bool Contains(T* element) const {
+  bool Contains(const T* element) const {
     const T* it = front_;
     while (it) {
       if (it == element) return true;
@@ -77,13 +77,19 @@ class List {
     return false;
   }
 
-  bool Empty() const { return !front_ && !back_; }
+  bool Empty() const {
+    DCHECK_EQ(size_ == 0, !front_);
+    DCHECK_EQ(size_ == 0, !back_);
+    return size_ == 0;
+  }
 
   T* front() { return front_; }
   T* back() { return back_; }
 
   const T* front() const { return front_; }
   const T* back() const { return back_; }
+
+  size_t size() const { return size_; }
 
  private:
   void AddFirstElement(T* element) {
@@ -120,8 +126,9 @@ class List {
     }
   }
 
-  T* front_;
-  T* back_;
+  T* front_{nullptr};
+  T* back_{nullptr};
+  size_t size_{0};
 };
 
 template <class T>

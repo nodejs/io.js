@@ -76,9 +76,7 @@ class AgeTableTest : public testing::TestSupportingAllocationOnly {
   }
 
  private:
-  static void DestroyPage(BasePage* page) {
-    BasePage::Destroy(page, FreeMemoryHandling::kDoNotDiscard);
-  }
+  static void DestroyPage(BasePage* page) { BasePage::Destroy(page); }
 
   std::vector<std::unique_ptr<BasePage, void (*)(BasePage*)>> allocated_pages_;
   AgeTable& age_table_;

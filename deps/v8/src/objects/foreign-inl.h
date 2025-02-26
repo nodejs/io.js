@@ -6,10 +6,12 @@
 #define V8_OBJECTS_FOREIGN_INL_H_
 
 #include "src/common/globals.h"
+#include "src/execution/isolate-utils-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/objects/foreign.h"
 #include "src/objects/objects-inl.h"
 #include "src/sandbox/external-pointer-inl.h"
+#include "src/sandbox/isolate.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -45,21 +47,22 @@ void Foreign::init_foreign_address(IsolateForSandbox isolate,
 }
 
 Address Foreign::foreign_address_unchecked() const {
-  Isolate* isolate = GetIsolateForSandbox(*this);
-  return ReadExternalPointerField<kAnyForeignTag>(kForeignAddressOffset,
-                                                  isolate);
+  IsolateForSandbox isolate = GetIsolateForSandbox(*this);
+  return ReadExternalPointerField<kAnyForeignExternalPointerTagRange>(
+      kForeignAddressOffset, isolate);
 }
 
 ExternalPointerTag Foreign::GetTag() const {
 #ifdef V8_ENABLE_SANDBOX
   ExternalPointerHandle handle =
-      RawExternalPointerField(kForeignAddressOffset, kAnyExternalPointerTag)
+      RawExternalPointerField(kForeignAddressOffset,
+                              kAnyForeignExternalPointerTagRange)
           .Relaxed_LoadHandle();
-  return GetIsolateForSandbox(*this)->external_pointer_table().GetTag(handle);
+  IsolateForSandbox isolate = GetIsolateForSandbox(*this);
+  return isolate.GetExternalPointerTableTagFor(*this, handle);
 #endif  // V8_ENABLE_SANDBOX
-  // Without the sandbox the address is stored untagged; just return
-  // kAnyExternalPointerTag.
-  return kAnyExternalPointerTag;
+  // Without the sandbox the address is stored untagged.
+  return kExternalPointerNullTag;
 }
 
 }  // namespace v8::internal

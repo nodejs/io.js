@@ -31,7 +31,7 @@ using BytesAndDurationBuffer = v8::base::RingBuffer<BytesAndDuration>;
 // events considered (which uses the order of events in
 // `BytesAndDurationBuffer`). The bounds are in Bytes/ms and can be used to
 // bound non-zero speeds.
-inline double AverageSpeed(
+inline std::optional<double> AverageSpeed(
     const BytesAndDurationBuffer& buffer, const BytesAndDuration& initial,
     std::optional<v8::base::TimeDelta> selected_duration,
     size_t min_non_empty_speed = 0,
@@ -47,16 +47,46 @@ inline double AverageSpeed(
       },
       initial);
   const auto duration = sum.duration;
-  // TODO(v8:14140): The return value should really be an optional double to
-  // indicate no speed.
   if (duration.IsZero()) {
-    return 0.0;
+    return std::nullopt;
   }
   return std::max(
       std::min(static_cast<double>(sum.bytes) / duration.InMillisecondsF(),
                static_cast<double>(max_speed)),
       static_cast<double>(min_non_empty_speed));
 }
+
+class SmoothedBytesAndDuration {
+ public:
+  explicit SmoothedBytesAndDuration(v8::base::TimeDelta decay)
+      : decay_(decay) {}
+
+  void Update(BytesAndDuration bytes_and_duration) {
+    if (bytes_and_duration.duration.IsZero()) {
+      return;
+    }
+    const double new_throughput = bytes_and_duration.bytes /
+                                  bytes_and_duration.duration.InMillisecondsF();
+    throughput_ = new_throughput + Decay(throughput_ - new_throughput,
+                                         bytes_and_duration.duration);
+  }
+  // Return throughput of memory (in bytes) over time (in millis).
+  double GetThroughput() const { return throughput_; }
+
+  // Returns throughput decayed as if `delay` passed.
+  double GetThroughput(v8::base::TimeDelta delay) const {
+    return Decay(throughput_, delay);
+  }
+
+ private:
+  double Decay(double throughput, v8::base::TimeDelta delay) const {
+    return throughput *
+           exp2(-delay.InMillisecondsF() / decay_.InMillisecondsF());
+  }
+
+  double throughput_ = 0.0;
+  const v8::base::TimeDelta decay_;
+};
 
 }  // namespace heap::base
 

@@ -56,6 +56,8 @@ class TrustedObject : public HeapObject {
   inline void ClearProtectedPointerField(int offset, ReleaseStoreTag);
 
   inline ProtectedPointerSlot RawProtectedPointerField(int byte_offset) const;
+  inline ProtectedMaybeObjectSlot RawProtectedMaybeObjectField(
+      int byte_offset) const;
 
 #ifdef VERIFY_HEAP
   inline void VerifyProtectedPointerField(Isolate* isolate, int offset);
@@ -65,6 +67,11 @@ class TrustedObject : public HeapObject {
 
   OBJECT_CONSTRUCTORS(TrustedObject, HeapObject);
 };
+
+V8_OBJECT class TrustedObjectLayout : public HeapObjectLayout {
+ public:
+  DECL_VERIFIER(TrustedObject)
+} V8_OBJECT_END;
 
 // A trusted object that can safely be referenced from untrusted objects.
 //

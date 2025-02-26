@@ -30,7 +30,7 @@ void CheckInvariantsOfAbortedPage(PageMetadata* page) {
   CHECK(!page->Chunk()->IsFlagSet(MemoryChunk::COMPACTION_WAS_ABORTED));
 }
 
-void CheckAllObjectsOnPage(const std::vector<Handle<FixedArray>>& handles,
+void CheckAllObjectsOnPage(const DirectHandleVector<FixedArray>& handles,
                            PageMetadata* page) {
   for (DirectHandle<FixedArray> fixed_array : handles) {
     CHECK(PageMetadata::FromHeapObject(*fixed_array) == page);
@@ -66,10 +66,11 @@ HEAP_TEST(CompactionFullAbortedPage) {
       HandleScope scope2(isolate);
       CHECK(heap->old_space()->TryExpand(heap->main_thread_local_heap(),
                                          AllocationOrigin::kRuntime));
-      auto compaction_page_handles = heap::CreatePadding(
+      DirectHandleVector<FixedArray> compaction_page_handles(isolate);
+      heap::CreatePadding(
           heap,
           static_cast<int>(MemoryChunkLayout::AllocatableMemoryInDataPage()),
-          AllocationType::kOld);
+          AllocationType::kOld, &compaction_page_handles);
       PageMetadata* to_be_aborted_page =
           PageMetadata::FromHeapObject(*compaction_page_handles.front());
       to_be_aborted_page->Chunk()->SetFlagNonExecutable(
@@ -138,10 +139,11 @@ HEAP_TEST(CompactionPartiallyAbortedPage) {
       // properly adjusted).
       CHECK(heap->old_space()->TryExpand(heap->main_thread_local_heap(),
                                          AllocationOrigin::kRuntime));
-      auto compaction_page_handles = heap::CreatePadding(
+      DirectHandleVector<FixedArray> compaction_page_handles(isolate);
+      heap::CreatePadding(
           heap,
           static_cast<int>(MemoryChunkLayout::AllocatableMemoryInDataPage()),
-          AllocationType::kOld, object_size);
+          AllocationType::kOld, &compaction_page_handles, object_size);
       PageMetadata* to_be_aborted_page =
           PageMetadata::FromHeapObject(*compaction_page_handles.front());
       to_be_aborted_page->Chunk()->SetFlagNonExecutable(
@@ -155,9 +157,10 @@ HEAP_TEST(CompactionPartiallyAbortedPage) {
         CHECK(heap->old_space()->TryExpand(heap->main_thread_local_heap(),
                                            AllocationOrigin::kRuntime));
         const int num_objects = 3;
-        std::vector<Handle<FixedArray>> page_to_fill_handles =
-            heap::CreatePadding(heap, object_size * num_objects,
-                                AllocationType::kOld, object_size);
+        DirectHandleVector<FixedArray> page_to_fill_handles(isolate);
+        heap::CreatePadding(heap, object_size * num_objects,
+                            AllocationType::kOld, &page_to_fill_handles,
+                            object_size);
         PageMetadata* page_to_fill =
             PageMetadata::FromAddress(page_to_fill_handles.front()->address());
 
@@ -227,12 +230,11 @@ HEAP_TEST(CompactionPartiallyAbortedPageIntraAbortedPointers) {
       // properly adjusted).
       CHECK(heap->old_space()->TryExpand(heap->main_thread_local_heap(),
                                          AllocationOrigin::kRuntime));
-      std::vector<Handle<FixedArray>> compaction_page_handles =
-          heap::CreatePadding(
-              heap,
-              static_cast<int>(
-                  MemoryChunkLayout::AllocatableMemoryInDataPage()),
-              AllocationType::kOld, object_size);
+      DirectHandleVector<FixedArray> compaction_page_handles(isolate);
+      heap::CreatePadding(
+          heap,
+          static_cast<int>(MemoryChunkLayout::AllocatableMemoryInDataPage()),
+          AllocationType::kOld, &compaction_page_handles, object_size);
       to_be_aborted_page =
           PageMetadata::FromHeapObject(*compaction_page_handles.front());
       to_be_aborted_page->Chunk()->SetFlagNonExecutable(
@@ -251,9 +253,9 @@ HEAP_TEST(CompactionPartiallyAbortedPageIntraAbortedPointers) {
                                          AllocationOrigin::kRuntime));
       const int num_objects = 2;
       int used_memory = object_size * num_objects;
-      std::vector<Handle<FixedArray>> page_to_fill_handles =
-          heap::CreatePadding(heap, used_memory, AllocationType::kOld,
-                              object_size);
+      DirectHandleVector<FixedArray> page_to_fill_handles(isolate);
+      heap::CreatePadding(heap, used_memory, AllocationType::kOld,
+                          &page_to_fill_handles, object_size);
       PageMetadata* page_to_fill =
           PageMetadata::FromHeapObject(*page_to_fill_handles.front());
 
@@ -332,10 +334,11 @@ HEAP_TEST(CompactionPartiallyAbortedPageWithRememberedSetEntries) {
       // properly adjusted).
       CHECK(heap->old_space()->TryExpand(heap->main_thread_local_heap(),
                                          AllocationOrigin::kRuntime));
-      auto compaction_page_handles = heap::CreatePadding(
+      DirectHandleVector<FixedArray> compaction_page_handles(isolate);
+      heap::CreatePadding(
           heap,
           static_cast<int>(MemoryChunkLayout::AllocatableMemoryInDataPage()),
-          AllocationType::kOld, object_size);
+          AllocationType::kOld, &compaction_page_handles, object_size);
       // Sanity check that we have enough space for linking up arrays.
       CHECK_GE(compaction_page_handles.front()->length(), 2);
       to_be_aborted_page =
@@ -349,7 +352,7 @@ HEAP_TEST(CompactionPartiallyAbortedPageWithRememberedSetEntries) {
       root_array->set(0, *compaction_page_handles.back());
       DirectHandle<FixedArray> new_space_array =
           isolate->factory()->NewFixedArray(1, AllocationType::kYoung);
-      CHECK(Heap::InYoungGeneration(*new_space_array));
+      CHECK(HeapLayout::InYoungGeneration(*new_space_array));
       compaction_page_handles.front()->set(1, *new_space_array);
       CheckAllObjectsOnPage(compaction_page_handles, to_be_aborted_page);
     }
@@ -362,9 +365,9 @@ HEAP_TEST(CompactionPartiallyAbortedPageWithRememberedSetEntries) {
                                          AllocationOrigin::kRuntime));
       const int num_objects = 2;
       int used_memory = object_size * num_objects;
-      std::vector<Handle<FixedArray>> page_to_fill_handles =
-          heap::CreatePadding(heap, used_memory, AllocationType::kOld,
-                              object_size);
+      DirectHandleVector<FixedArray> page_to_fill_handles(isolate);
+      heap::CreatePadding(heap, used_memory, AllocationType::kOld,
+                          &page_to_fill_handles, object_size);
       PageMetadata* page_to_fill =
           PageMetadata::FromHeapObject(*page_to_fill_handles.front());
 
@@ -384,7 +387,7 @@ HEAP_TEST(CompactionPartiallyAbortedPageWithRememberedSetEntries) {
       while (current->get(0) != ReadOnlyRoots(heap).undefined_value()) {
         current = IndirectHandle<FixedArray>(Cast<FixedArray>(current->get(0)),
                                              isolate);
-        CHECK(!Heap::InYoungGeneration(*current));
+        CHECK(!HeapLayout::InYoungGeneration(*current));
         CHECK(IsFixedArray(*current));
         if (PageMetadata::FromHeapObject(*current) != to_be_aborted_page) {
           in_place = false;

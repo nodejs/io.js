@@ -12,6 +12,11 @@
 namespace v8 {
 namespace internal {
 
+// Both Turbofan and Malgev safepoint tables store the stack slots as the first
+// data entry in the header.
+constexpr int kSafepointTableStackSlotsOffset = 0;
+using SafepointTableStackSlotsField_t = uint32_t;
+
 class SafepointEntryBase {
  public:
   static constexpr int kNoDeoptIndex = -1;

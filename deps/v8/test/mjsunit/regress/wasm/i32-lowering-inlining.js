@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --no-liftoff --experimental-wasm-inlining
+// Flags: --no-liftoff --wasm-inlining
 
 // This tests that inlining tolerates multi-return call uses that are not
 // projections after Int64Lowering.

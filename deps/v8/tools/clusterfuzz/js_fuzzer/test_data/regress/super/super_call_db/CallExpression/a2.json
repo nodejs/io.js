@@ -1,0 +1,7 @@
+{
+  "type":"CallExpression",
+  "source":"foo()",
+  "isStatement":true,
+  "originalPath":"bar",
+  "needsSuper":false
+}

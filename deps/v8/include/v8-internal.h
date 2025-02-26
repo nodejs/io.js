@@ -44,7 +44,10 @@ class Isolate;
 namespace internal {
 
 class Heap;
+class LocalHeap;
 class Isolate;
+class IsolateGroup;
+class LocalIsolate;
 
 typedef uintptr_t Address;
 static constexpr Address kNullAddress = 0;
@@ -160,15 +163,15 @@ struct SmiTagging<8> {
                                                std::is_signed_v<T>>* = nullptr>
   V8_INLINE static constexpr bool IsValidSmi(T value) {
     // To be representable as a long smi, the value must be a 32-bit integer.
-    return (value == static_cast<int32_t>(value));
+    return std::numeric_limits<int32_t>::min() <= value &&
+           value <= std::numeric_limits<int32_t>::max();
   }
 
   template <class T,
             typename std::enable_if_t<std::is_integral_v<T> &&
                                       std::is_unsigned_v<T>>* = nullptr>
   V8_INLINE static constexpr bool IsValidSmi(T value) {
-    return (static_cast<uintptr_t>(value) ==
-            static_cast<uintptr_t>(static_cast<int32_t>(value)));
+    return value <= std::numeric_limits<int32_t>::max();
   }
 };
 
@@ -234,10 +237,6 @@ using SandboxedPointer_t = Address;
 // virtual address space for userspace. As such, limit the sandbox to 128GB (a
 // quarter of the total available address space).
 constexpr size_t kSandboxSizeLog2 = 37;  // 128 GB
-#elif defined(V8_TARGET_ARCH_LOONG64)
-// Some Linux distros on LoongArch64 configured with only 40 bits of virtual
-// address space for userspace. Limit the sandbox to 256GB here.
-constexpr size_t kSandboxSizeLog2 = 38;  // 256 GB
 #else
 // Everywhere else use a 1TB sandbox.
 constexpr size_t kSandboxSizeLog2 = 40;  // 1 TB
@@ -258,9 +257,12 @@ constexpr size_t kSandboxAlignment = kPtrComprCageBaseAlignment;
 constexpr uint64_t kSandboxedPointerShift = 64 - kSandboxSizeLog2;
 
 // Size of the guard regions surrounding the sandbox. This assumes a worst-case
-// scenario of a 32-bit unsigned index used to access an array of 64-bit
-// values.
-constexpr size_t kSandboxGuardRegionSize = 32ULL * GB;
+// scenario of a 32-bit unsigned index used to access an array of 64-bit values
+// with an additional 4GB (compressed pointer) offset. In particular, accesses
+// to TypedArrays are effectively computed as
+// `entry_pointer = array->base + array->offset + index * array->element_size`.
+// See also https://crbug.com/40070746 for more details.
+constexpr size_t kSandboxGuardRegionSize = 32ULL * GB + 4ULL * GB;
 
 static_assert((kSandboxGuardRegionSize % kSandboxAlignment) == 0,
               "The size of the guard regions around the sandbox must be a "
@@ -335,6 +337,16 @@ constexpr size_t kMaxExternalPointers = 0;
 
 #endif  // V8_COMPRESS_POINTERS
 
+constexpr uint64_t kExternalPointerMarkBit = 1ULL << 48;
+constexpr uint64_t kExternalPointerTagShift = 49;
+constexpr uint64_t kExternalPointerTagMask = 0x00fe000000000000ULL;
+constexpr uint64_t kExternalPointerShiftedTagMask =
+    kExternalPointerTagMask >> kExternalPointerTagShift;
+static_assert(kExternalPointerShiftedTagMask << kExternalPointerTagShift ==
+              kExternalPointerTagMask);
+constexpr uint64_t kExternalPointerTagAndMarkbitMask = 0x00ff000000000000ULL;
+constexpr uint64_t kExternalPointerPayloadMask = 0xff00ffffffffffffULL;
+
 // A ExternalPointerHandle represents a (opaque) reference to an external
 // pointer that can be stored inside the sandbox. A ExternalPointerHandle has
 // meaning only in combination with an (active) Isolate as it references an
@@ -403,47 +415,89 @@ constexpr size_t kMaxCppHeapPointers = 0;
 
 #endif  // V8_COMPRESS_POINTERS
 
-// See `ExternalPointerHandle` for the main documentation. The difference to
-// `ExternalPointerHandle` is that the handle always refers to a
-// (external pointer, size) tuple. The handles are used in combination with a
-// dedicated external buffer table (EBT).
-using ExternalBufferHandle = uint32_t;
+// Generic tag range struct to represent ranges of type tags.
+//
+// When referencing external objects via pointer tables, type tags are
+// frequently necessary to guarantee type safety for the external objects. When
+// support for subtyping is necessary, range-based type checks are used in
+// which all subtypes of a given supertype use contiguous tags. This struct can
+// then be used to represent such a type range.
+//
+// As an example, consider the following type hierarchy:
+//
+//          A     F
+//         / \
+//        B   E
+//       / \
+//      C   D
+//
+// A potential type id assignment for range-based type checks is
+// {A: 0, B: 1, C: 2, D: 3, E: 4, F: 5}. With that, the type check for type A
+// would check for the range [A, E], while the check for B would check range
+// [B, D], and for F it would simply check [F, F].
+//
+// In addition, there is an option for performance tweaks: if the size of the
+// type range corresponding to a supertype is a power of two and starts at a
+// power of two (e.g. [0x100, 0x13f]), then the compiler can often optimize
+// the type check to use even fewer instructions (essentially replace a AND +
+// SUB with a single AND).
+//
+template <typename Tag>
+struct TagRange {
+  static_assert(std::is_enum_v<Tag> &&
+                    std::is_same_v<std::underlying_type_t<Tag>, uint16_t>,
+                "Tag parameter must be an enum with base type uint16_t");
 
-// ExternalBuffer point to buffer located outside the sandbox. When the V8
-// sandbox is enabled, these are stored on heap as ExternalBufferHandles,
-// otherwise they are simply raw pointers.
-#ifdef V8_ENABLE_SANDBOX
-using ExternalBuffer_t = ExternalBufferHandle;
-#else
-using ExternalBuffer_t = Address;
-#endif
+  // Construct the inclusive tag range [first, last].
+  constexpr TagRange(Tag first, Tag last) : first(first), last(last) {}
 
-#ifdef V8_TARGET_OS_ANDROID
-// The size of the virtual memory reservation for the external buffer table.
-// As with the external pointer table, a maximum table size in combination with
-// shifted indices allows omitting bounds checks.
-constexpr size_t kExternalBufferTableReservationSize = 64 * MB;
+  // Construct a tag range consisting of a single tag.
+  //
+  // A single tag is always implicitly convertible to a tag range. This greatly
+  // increases readability as most of the time, the exact tag of a field is
+  // known and so no tag range needs to explicitly be created for it.
+  constexpr TagRange(Tag tag)  // NOLINT(runtime/explicit)
+      : first(tag), last(tag) {}
 
-// The external buffer handles are stores shifted to the left by this amount
-// to guarantee that they are smaller than the maximum table size.
-constexpr uint32_t kExternalBufferHandleShift = 10;
-#else
-constexpr size_t kExternalBufferTableReservationSize = 128 * MB;
-constexpr uint32_t kExternalBufferHandleShift = 9;
-#endif  // V8_TARGET_OS_ANDROID
+  // Construct an empty tag range.
+  constexpr TagRange() : TagRange(static_cast<Tag>(0)) {}
 
-// A null handle always references an entry that contains nullptr.
-constexpr ExternalBufferHandle kNullExternalBufferHandle = 0;
+  // A tag range is considered empty if it only contains the null tag.
+  constexpr bool IsEmpty() const { return first == 0 && last == 0; }
 
-// The maximum number of entries in an external buffer table.
-constexpr int kExternalBufferTableEntrySize = 16;
-constexpr int kExternalBufferTableEntrySizeLog2 = 4;
-constexpr size_t kMaxExternalBufferPointers =
-    kExternalBufferTableReservationSize / kExternalBufferTableEntrySize;
-static_assert((1 << (32 - kExternalBufferHandleShift)) ==
-                  kMaxExternalBufferPointers,
-              "kExternalBufferTableReservationSize and "
-              "kExternalBufferHandleShift don't match");
+  constexpr size_t Size() const {
+    if (IsEmpty()) {
+      return 0;
+    } else {
+      return last - first + 1;
+    }
+  }
+
+  constexpr bool Contains(Tag tag) const {
+    // Need to perform the math with uint32_t. Otherwise, the uint16_ts would
+    // be promoted to (signed) int, allowing the compiler to (wrongly) assume
+    // that an underflow cannot happen as that would be undefined behavior.
+    return static_cast<uint32_t>(tag) - first <=
+           static_cast<uint32_t>(last) - first;
+  }
+
+  constexpr bool Contains(TagRange tag_range) const {
+    return tag_range.first >= first && tag_range.last <= last;
+  }
+
+  constexpr bool operator==(const TagRange other) const {
+    return first == other.first && last == other.last;
+  }
+
+  constexpr size_t hash_value() const {
+    static_assert(std::is_same_v<std::underlying_type_t<Tag>, uint16_t>);
+    return (static_cast<size_t>(first) << 16) | last;
+  }
+
+  // Internally we represent tag ranges as half-open ranges [first, last).
+  const Tag first;
+  const Tag last;
+};
 
 //
 // External Pointers.
@@ -452,41 +506,12 @@ static_assert((1 << (32 - kExternalBufferHandleShift)) ==
 // pointer table and are referenced from HeapObjects through an index (a
 // "handle"). When stored in the table, the pointers are tagged with per-type
 // tags to prevent type confusion attacks between different external objects.
-// Besides type information bits, these tags also contain the GC marking bit
-// which indicates whether the pointer table entry is currently alive. When a
-// pointer is written into the table, the tag is ORed into the top bits. When
-// that pointer is later loaded from the table, it is ANDed with the inverse of
-// the expected tag. If the expected and actual type differ, this will leave
-// some of the top bits of the pointer set, rendering the pointer inaccessible.
-// The AND operation also removes the GC marking bit from the pointer.
 //
-// The tags are constructed such that UNTAG(TAG(0, T1), T2) != 0 for any two
-// (distinct) tags T1 and T2. In practice, this is achieved by generating tags
-// that all have the same number of zeroes and ones but different bit patterns.
-// With N type tag bits, this allows for (N choose N/2) possible type tags.
-// Besides the type tag bits, the tags also have the GC marking bit set so that
-// the marking bit is automatically set when a pointer is written into the
-// external pointer table (in which case it is clearly alive) and is cleared
-// when the pointer is loaded. The exception to this is the free entry tag,
-// which doesn't have the mark bit set, as the entry is not alive. This
-// construction allows performing the type check and removing GC marking bits
-// from the pointer in one efficient operation (bitwise AND). The number of
-// available bits is limited in the following way: on x64, bits [47, 64) are
-// generally available for tagging (userspace has 47 address bits available).
-// On Arm64, userspace typically has a 40 or 48 bit address space. However, due
-// to top-byte ignore (TBI) and memory tagging (MTE), the top byte is unusable
-// for type checks as type-check failures would go unnoticed or collide with
-// MTE bits. Some bits of the top byte can, however, still be used for the GC
-// marking bit. The bits available for the type tags are therefore limited to
-// [48, 56), i.e. (8 choose 4) = 70 different types.
-// The following options exist to increase the number of possible types:
-// - Using multiple ExternalPointerTables since tags can safely be reused
-//   across different tables
-// - Using "extended" type checks, where additional type information is stored
-//   either in an adjacent pointer table entry or at the pointed-to location
-// - Using a different tagging scheme, for example based on XOR which would
-//   allow for 2**8 different tags but require a separate operation to remove
-//   the marking bit
+// When loading an external pointer, a range of allowed tags can be specified.
+// This way, type hierarchies can be supported. The main requirement for that
+// is that all (transitive) child classes of a given parent class have type ids
+// in the same range, and that there are no unrelated types in that range. For
+// more details about how to assign type tags to types, see the TagRange class.
 //
 // The external pointer sandboxing mechanism ensures that every access to an
 // external pointer field will result in a valid pointer of the expected type
@@ -515,167 +540,137 @@ static_assert((1 << (32 - kExternalBufferHandleShift)) ==
 // for this purpose, instead of using the ExternalPointer accessors one needs to
 // use ExternalPointerHandles directly and use them to access the pointers in an
 // ExternalPointerTable.
-constexpr uint64_t kExternalPointerMarkBit = 1ULL << 62;
-constexpr uint64_t kExternalPointerTagMask = 0x40ff000000000000;
-constexpr uint64_t kExternalPointerTagMaskWithoutMarkBit = 0xff000000000000;
-constexpr uint64_t kExternalPointerTagShift = 48;
+//
+// The tag is currently in practice limited to 15 bits since it needs to fit
+// together with a marking bit into the unused parts of a pointer.
+enum ExternalPointerTag : uint16_t {
+  kFirstExternalPointerTag = 0,
+  kExternalPointerNullTag = 0,
 
-// All possible 8-bit type tags.
-// These are sorted so that tags can be grouped together and it can efficiently
-// be checked if a tag belongs to a given group. See for example the
-// IsSharedExternalPointerType routine.
-constexpr uint64_t kAllTagsForAndBasedTypeChecking[] = {
-    0b00001111, 0b00010111, 0b00011011, 0b00011101, 0b00011110, 0b00100111,
-    0b00101011, 0b00101101, 0b00101110, 0b00110011, 0b00110101, 0b00110110,
-    0b00111001, 0b00111010, 0b00111100, 0b01000111, 0b01001011, 0b01001101,
-    0b01001110, 0b01010011, 0b01010101, 0b01010110, 0b01011001, 0b01011010,
-    0b01011100, 0b01100011, 0b01100101, 0b01100110, 0b01101001, 0b01101010,
-    0b01101100, 0b01110001, 0b01110010, 0b01110100, 0b01111000, 0b10000111,
-    0b10001011, 0b10001101, 0b10001110, 0b10010011, 0b10010101, 0b10010110,
-    0b10011001, 0b10011010, 0b10011100, 0b10100011, 0b10100101, 0b10100110,
-    0b10101001, 0b10101010, 0b10101100, 0b10110001, 0b10110010, 0b10110100,
-    0b10111000, 0b11000011, 0b11000101, 0b11000110, 0b11001001, 0b11001010,
-    0b11001100, 0b11010001, 0b11010010, 0b11010100, 0b11011000, 0b11100001,
-    0b11100010, 0b11100100, 0b11101000, 0b11110000};
+  // When adding new tags, please ensure that the code using these tags is
+  // "substitution-safe", i.e. still operate safely if external pointers of the
+  // same type are swapped by an attacker. See comment above for more details.
 
-#define TAG(i)                                                        \
-  ((kAllTagsForAndBasedTypeChecking[i] << kExternalPointerTagShift) | \
-   kExternalPointerMarkBit)
+  // Shared external pointers are owned by the shared Isolate and stored in the
+  // shared external pointer table associated with that Isolate, where they can
+  // be accessed from multiple threads at the same time. The objects referenced
+  // in this way must therefore always be thread-safe.
+  kFirstSharedExternalPointerTag,
+  kWaiterQueueNodeTag = kFirstSharedExternalPointerTag,
+  kExternalStringResourceTag,
+  kExternalStringResourceDataTag,
+  kLastSharedExternalPointerTag = kExternalStringResourceDataTag,
 
-// clang-format off
+  // External pointers using these tags are kept in a per-Isolate external
+  // pointer table and can only be accessed when this Isolate is active.
+  kNativeContextMicrotaskQueueTag,
+  kEmbedderDataSlotPayloadTag,
+  // This tag essentially stands for a `void*` pointer in the V8 API, and it is
+  // the Embedder's responsibility to ensure type safety (against substitution)
+  // and lifetime validity of these objects.
+  kExternalObjectValueTag,
+  kFirstMaybeReadOnlyExternalPointerTag,
+  kFunctionTemplateInfoCallbackTag = kFirstMaybeReadOnlyExternalPointerTag,
+  kAccessorInfoGetterTag,
+  kAccessorInfoSetterTag,
+  kLastMaybeReadOnlyExternalPointerTag = kAccessorInfoSetterTag,
+  kWasmInternalFunctionCallTargetTag,
+  kWasmTypeInfoNativeTypeTag,
+  kWasmExportedFunctionDataSignatureTag,
+  kWasmContinuationJmpbufTag,
+  kWasmStackMemoryTag,
+  kWasmIndirectFunctionTargetTag,
 
-// When adding new tags, please ensure that the code using these tags is
-// "substitution-safe", i.e. still operate safely if external pointers of the
-// same type are swapped by an attacker. See comment above for more details.
+  // Foreigns
+  kFirstForeignExternalPointerTag,
+  kGenericForeignTag = kFirstForeignExternalPointerTag,
+  kApiNamedPropertyQueryCallbackTag,
+  kApiNamedPropertyGetterCallbackTag,
+  kApiNamedPropertySetterCallbackTag,
+  kApiNamedPropertyDescriptorCallbackTag,
+  kApiNamedPropertyDefinerCallbackTag,
+  kApiNamedPropertyDeleterCallbackTag,
+  kApiIndexedPropertyQueryCallbackTag,
+  kApiIndexedPropertyGetterCallbackTag,
+  kApiIndexedPropertySetterCallbackTag,
+  kApiIndexedPropertyDescriptorCallbackTag,
+  kApiIndexedPropertyDefinerCallbackTag,
+  kApiIndexedPropertyDeleterCallbackTag,
+  kApiIndexedPropertyEnumeratorCallbackTag,
+  kApiAccessCheckCallbackTag,
+  kApiAbortScriptExecutionCallbackTag,
+  kSyntheticModuleTag,
+  kMicrotaskCallbackTag,
+  kMicrotaskCallbackDataTag,
+  kCFunctionTag,
+  kCFunctionInfoTag,
+  kMessageListenerTag,
+  kWaiterQueueForeignTag,
 
-// Shared external pointers are owned by the shared Isolate and stored in the
-// shared external pointer table associated with that Isolate, where they can
-// be accessed from multiple threads at the same time. The objects referenced
-// in this way must therefore always be thread-safe.
-#define SHARED_EXTERNAL_POINTER_TAGS(V)                 \
-  V(kFirstSharedTag,                            TAG(0)) \
-  V(kWaiterQueueNodeTag,                        TAG(0)) \
-  V(kExternalStringResourceTag,                 TAG(1)) \
-  V(kExternalStringResourceDataTag,             TAG(2)) \
-  V(kLastSharedTag,                             TAG(2))
-  // Leave some space in the tag range here for future shared tags.
+  // Managed
+  kFirstManagedResourceTag,
+  kFirstManagedExternalPointerTag = kFirstManagedResourceTag,
+  kGenericManagedTag = kFirstManagedExternalPointerTag,
+  kWasmWasmStreamingTag,
+  kWasmFuncDataTag,
+  kWasmManagedDataTag,
+  kWasmNativeModuleTag,
+  kIcuBreakIteratorTag,
+  kIcuUnicodeStringTag,
+  kIcuListFormatterTag,
+  kIcuLocaleTag,
+  kIcuSimpleDateFormatTag,
+  kIcuDateIntervalFormatTag,
+  kIcuRelativeDateTimeFormatterTag,
+  kIcuLocalizedNumberFormatterTag,
+  kIcuPluralRulesTag,
+  kIcuCollatorTag,
+  kDisplayNamesInternalTag,
+  kD8WorkerTag,
+  kD8ModuleEmbedderDataTag,
+  kLastForeignExternalPointerTag = kD8ModuleEmbedderDataTag,
+  kLastManagedExternalPointerTag = kLastForeignExternalPointerTag,
+  // External resources whose lifetime is tied to their entry in the external
+  // pointer table but which are not referenced via a Managed
+  kArrayBufferExtensionTag,
+  kLastManagedResourceTag = kArrayBufferExtensionTag,
 
-// External pointers using these tags are kept in a per-Isolate external
-// pointer table and can only be accessed when this Isolate is active.
-#define PER_ISOLATE_EXTERNAL_POINTER_TAGS(V)             \
-  V(kNativeContextMicrotaskQueueTag,            TAG(5)) \
-  V(kEmbedderDataSlotPayloadTag,                TAG(6)) \
-/* This tag essentially stands for a `void*` pointer in the V8 API, and */ \
-/* it is the Embedder's responsibility to ensure type safety (against */   \
-/* substitution) and lifetime validity of these objects. */                \
-  V(kExternalObjectValueTag,                    TAG(7)) \
-  V(kFunctionTemplateInfoCallbackTag,           TAG(8)) \
-  V(kAccessorInfoGetterTag,                     TAG(9)) \
-  V(kAccessorInfoSetterTag,                     TAG(10)) \
-  V(kWasmInternalFunctionCallTargetTag,         TAG(11)) \
-  V(kWasmTypeInfoNativeTypeTag,                 TAG(12)) \
-  V(kWasmExportedFunctionDataSignatureTag,      TAG(13)) \
-  V(kWasmContinuationJmpbufTag,                 TAG(14)) \
-  V(kWasmStackMemoryTag,                        TAG(15)) \
-  V(kWasmIndirectFunctionTargetTag,             TAG(16)) \
-  /* Foreigns */ \
-  V(kGenericForeignTag,                         TAG(20)) \
-  V(kApiNamedPropertyQueryCallbackTag,          TAG(21)) \
-  V(kApiNamedPropertyGetterCallbackTag,         TAG(22)) \
-  V(kApiNamedPropertySetterCallbackTag,         TAG(23)) \
-  V(kApiNamedPropertyDescriptorCallbackTag,     TAG(24)) \
-  V(kApiNamedPropertyDefinerCallbackTag,        TAG(25)) \
-  V(kApiNamedPropertyDeleterCallbackTag,        TAG(26)) \
-  V(kApiIndexedPropertyQueryCallbackTag,        TAG(27)) \
-  V(kApiIndexedPropertyGetterCallbackTag,       TAG(28)) \
-  V(kApiIndexedPropertySetterCallbackTag,       TAG(29)) \
-  V(kApiIndexedPropertyDescriptorCallbackTag,   TAG(30)) \
-  V(kApiIndexedPropertyDefinerCallbackTag,      TAG(31)) \
-  V(kApiIndexedPropertyDeleterCallbackTag,      TAG(32)) \
-  V(kApiIndexedPropertyEnumeratorCallbackTag,   TAG(33)) \
-  V(kApiAccessCheckCallbackTag,                 TAG(34)) \
-  V(kApiAbortScriptExecutionCallbackTag,        TAG(35)) \
-  V(kSyntheticModuleTag,                        TAG(36)) \
-  V(kMicrotaskCallbackTag,                      TAG(37)) \
-  V(kMicrotaskCallbackDataTag,                  TAG(38)) \
-  V(kCFunctionTag,                              TAG(39)) \
-  V(kCFunctionInfoTag,                          TAG(40)) \
-  V(kMessageListenerTag,                        TAG(41)) \
-  V(kWaiterQueueForeignTag,                     TAG(42)) \
-  /* Managed */ \
-  V(kFirstManagedResourceTag,                   TAG(50)) \
-  V(kGenericManagedTag,                         TAG(50)) \
-  V(kWasmWasmStreamingTag,                      TAG(51)) \
-  V(kWasmFuncDataTag,                           TAG(52)) \
-  V(kWasmManagedDataTag,                        TAG(53)) \
-  V(kWasmNativeModuleTag,                       TAG(54)) \
-  V(kIcuBreakIteratorTag,                       TAG(55)) \
-  V(kIcuUnicodeStringTag,                       TAG(56)) \
-  V(kIcuListFormatterTag,                       TAG(57)) \
-  V(kIcuLocaleTag,                              TAG(58)) \
-  V(kIcuSimpleDateFormatTag,                    TAG(59)) \
-  V(kIcuDateIntervalFormatTag,                  TAG(60)) \
-  V(kIcuRelativeDateTimeFormatterTag,           TAG(61)) \
-  V(kIcuLocalizedNumberFormatterTag,            TAG(62)) \
-  V(kIcuPluralRulesTag,                         TAG(63)) \
-  V(kIcuCollatorTag,                            TAG(64)) \
-  V(kDisplayNamesInternalTag,                   TAG(65)) \
-  /* External resources whose lifetime is tied to */     \
-  /* their entry in the external pointer table but */    \
-  /* which are not referenced via a Managed */           \
-  V(kArrayBufferExtensionTag,                   TAG(66)) \
-  V(kLastManagedResourceTag,                    TAG(66)) \
-
-// All external pointer tags.
-#define ALL_EXTERNAL_POINTER_TAGS(V) \
-  SHARED_EXTERNAL_POINTER_TAGS(V)    \
-  PER_ISOLATE_EXTERNAL_POINTER_TAGS(V)
-
-#define EXTERNAL_POINTER_TAG_ENUM(Name, Tag) Name = Tag,
-#define MAKE_TAG(HasMarkBit, TypeTag)                             \
-  ((static_cast<uint64_t>(TypeTag) << kExternalPointerTagShift) | \
-  (HasMarkBit ? kExternalPointerMarkBit : 0))
-enum ExternalPointerTag : uint64_t {
-  // Empty tag value. Mostly used as placeholder.
-  kExternalPointerNullTag =            MAKE_TAG(1, 0b00000000),
-  // External pointer tag that will match any external pointer. Use with care!
-  kAnyExternalPointerTag =             MAKE_TAG(1, 0b11111111),
-  // External pointer tag that will match any external pointer in a Foreign.
-  // Use with care! If desired, this could be made more fine-granular.
-  kAnyForeignTag =                     kAnyExternalPointerTag,
-  // The free entry tag has all type bits set so every type check with a
-  // different type fails. It also doesn't have the mark bit set as free
-  // entries are (by definition) not alive.
-  kExternalPointerFreeEntryTag =       MAKE_TAG(0, 0b11111111),
-  // Evacuation entries are used during external pointer table compaction.
-  kExternalPointerEvacuationEntryTag = MAKE_TAG(1, 0b11111110),
-  // Tag for zapped/invalidated entries. Those are considered to no longer be
-  // in use and so have the marking bit cleared.
-  kExternalPointerZappedEntryTag =     MAKE_TAG(0, 0b11111101),
-
-  ALL_EXTERNAL_POINTER_TAGS(EXTERNAL_POINTER_TAG_ENUM)
+  kExternalPointerZappedEntryTag = 0x7d,
+  kExternalPointerEvacuationEntryTag = 0x7e,
+  kExternalPointerFreeEntryTag = 0x7f,
+  // The tags are limited to 7 bits, so the last tag is 0x7f.
+  kLastExternalPointerTag = 0x7f,
 };
 
-#undef MAKE_TAG
-#undef TAG
-#undef EXTERNAL_POINTER_TAG_ENUM
+using ExternalPointerTagRange = TagRange<ExternalPointerTag>;
 
-// clang-format on
+constexpr ExternalPointerTagRange kAnyExternalPointerTagRange(
+    kFirstExternalPointerTag, kLastExternalPointerTag);
+constexpr ExternalPointerTagRange kAnySharedExternalPointerTagRange(
+    kFirstSharedExternalPointerTag, kLastSharedExternalPointerTag);
+constexpr ExternalPointerTagRange kAnyForeignExternalPointerTagRange(
+    kFirstForeignExternalPointerTag, kLastForeignExternalPointerTag);
+constexpr ExternalPointerTagRange kAnyManagedExternalPointerTagRange(
+    kFirstManagedExternalPointerTag, kLastManagedExternalPointerTag);
+constexpr ExternalPointerTagRange kAnyMaybeReadOnlyExternalPointerTagRange(
+    kFirstMaybeReadOnlyExternalPointerTag,
+    kLastMaybeReadOnlyExternalPointerTag);
+constexpr ExternalPointerTagRange kAnyManagedResourceExternalPointerTag(
+    kFirstManagedResourceTag, kLastManagedResourceTag);
 
 // True if the external pointer must be accessed from the shared isolate's
 // external pointer table.
 V8_INLINE static constexpr bool IsSharedExternalPointerType(
-    ExternalPointerTag tag) {
-  return tag >= kFirstSharedTag && tag <= kLastSharedTag;
+    ExternalPointerTagRange tag_range) {
+  return kAnySharedExternalPointerTagRange.Contains(tag_range);
 }
 
 // True if the external pointer may live in a read-only object, in which case
 // the table entry will be in the shared read-only segment of the external
 // pointer table.
 V8_INLINE static constexpr bool IsMaybeReadOnlyExternalPointerType(
-    ExternalPointerTag tag) {
-  return tag == kAccessorInfoGetterTag || tag == kAccessorInfoSetterTag ||
-         tag == kFunctionTemplateInfoCallbackTag;
+    ExternalPointerTagRange tag_range) {
+  return kAnyMaybeReadOnlyExternalPointerTagRange.Contains(tag_range);
 }
 
 // True if the external pointer references an external object whose lifetime is
@@ -683,26 +678,23 @@ V8_INLINE static constexpr bool IsMaybeReadOnlyExternalPointerType(
 // In this case, the entry in the ExternalPointerTable always points to an
 // object derived from ExternalPointerTable::ManagedResource.
 V8_INLINE static constexpr bool IsManagedExternalPointerType(
-    ExternalPointerTag tag) {
-  return tag >= kFirstManagedResourceTag && tag <= kLastManagedResourceTag;
+    ExternalPointerTagRange tag_range) {
+  return kAnyManagedResourceExternalPointerTag.Contains(tag_range);
 }
 
-// Sanity checks.
-#define CHECK_SHARED_EXTERNAL_POINTER_TAGS(Tag, ...) \
-  static_assert(IsSharedExternalPointerType(Tag));
-#define CHECK_NON_SHARED_EXTERNAL_POINTER_TAGS(Tag, ...) \
-  static_assert(!IsSharedExternalPointerType(Tag));
+// When an external poiner field can contain the null external pointer handle,
+// the type checking mechanism needs to also check for null.
+// TODO(saelo): this is mostly a temporary workaround to introduce range-based
+// type checks. In the future, we should either (a) change the type tagging
+// scheme so that null always passes or (b) (more likely) introduce dedicated
+// null entries for those tags that need them (similar to other well-known
+// empty value constants such as the empty fixed array).
+V8_INLINE static constexpr bool ExternalPointerCanBeEmpty(
+    ExternalPointerTagRange tag_range) {
+  return tag_range.Contains(kArrayBufferExtensionTag) ||
+         tag_range.Contains(kEmbedderDataSlotPayloadTag);
+}
 
-SHARED_EXTERNAL_POINTER_TAGS(CHECK_SHARED_EXTERNAL_POINTER_TAGS)
-PER_ISOLATE_EXTERNAL_POINTER_TAGS(CHECK_NON_SHARED_EXTERNAL_POINTER_TAGS)
-
-#undef CHECK_NON_SHARED_EXTERNAL_POINTER_TAGS
-#undef CHECK_SHARED_EXTERNAL_POINTER_TAGS
-
-#undef SHARED_EXTERNAL_POINTER_TAGS
-#undef EXTERNAL_POINTER_TAGS
-
-//
 // Indirect Pointers.
 //
 // When the sandbox is enabled, indirect pointers are used to reference
@@ -746,7 +738,7 @@ using TrustedPointerHandle = IndirectPointerHandle;
 // shifted indices allows omitting bounds checks.
 constexpr size_t kTrustedPointerTableReservationSize = 64 * MB;
 
-// The trusted pointer handles are stores shifted to the left by this amount
+// The trusted pointer handles are stored shifted to the left by this amount
 // to guarantee that they are smaller than the maximum table size.
 constexpr uint32_t kTrustedPointerHandleShift = 9;
 
@@ -822,29 +814,6 @@ constexpr bool kAllCodeObjectsLiveInTrustedSpace =
     kRuntimeGeneratedCodeObjectsLiveInTrustedSpace &&
     kBuiltinCodeObjectsLiveInTrustedSpace;
 
-//
-// JavaScript Dispatch Table
-//
-// A JSDispatchHandle represents a 32-bit index into a JSDispatchTable.
-using JSDispatchHandle = uint32_t;
-
-constexpr JSDispatchHandle kNullJSDispatchHandle = 0;
-
-// The size of the virtual memory reservation for the JSDispatchTable.
-// As with the other tables, a maximum table size in combination with shifted
-// indices allows omitting bounds checks.
-constexpr size_t kJSDispatchTableReservationSize = 128 * MB;
-constexpr uint32_t kJSDispatchHandleShift = 9;
-
-// The maximum number of entries in a JSDispatchTable.
-constexpr int kJSDispatchTableEntrySize = 16;
-constexpr int kJSDispatchTableEntrySizeLog2 = 4;
-constexpr size_t kMaxJSDispatchEntries =
-    kJSDispatchTableReservationSize / kJSDispatchTableEntrySize;
-static_assert((1 << (32 - kJSDispatchHandleShift)) == kMaxJSDispatchEntries,
-              "kJSDispatchTableReservationSize and kJSDispatchEntryHandleShift "
-              "don't match");
-
 // {obj} must be the raw tagged pointer representation of a HeapObject
 // that's guaranteed to never be in ReadOnlySpace.
 V8_EXPORT internal::Isolate* IsolateFromNeverReadOnlySpaceObject(Address obj);
@@ -902,6 +871,7 @@ class Internals {
   static const int kNumberOfBooleanFlags = 6;
   static const int kErrorMessageParamSize = 1;
   static const int kTablesAlignmentPaddingSize = 1;
+  static const int kRegExpStaticResultOffsetsVectorSize = kApiSystemPointerSize;
   static const int kBuiltinTier0EntryTableSize = 7 * kApiSystemPointerSize;
   static const int kBuiltinTier0TableSize = 7 * kApiSystemPointerSize;
   static const int kLinearAllocationAreaSize = 3 * kApiSystemPointerSize;
@@ -912,7 +882,6 @@ class Internals {
   // ExternalPointerTable and TrustedPointerTable layout guarantees.
   static const int kExternalPointerTableBasePointerOffset = 0;
   static const int kExternalPointerTableSize = 2 * kApiSystemPointerSize;
-  static const int kExternalBufferTableSize = 2 * kApiSystemPointerSize;
   static const int kTrustedPointerTableSize = 2 * kApiSystemPointerSize;
   static const int kTrustedPointerTableBasePointerOffset = 0;
 
@@ -924,9 +893,9 @@ class Internals {
       kIsolateStackGuardOffset + kStackGuardSize;
   static const int kErrorMessageParamOffset =
       kVariousBooleanFlagsOffset + kNumberOfBooleanFlags;
-  static const int kBuiltinTier0EntryTableOffset = kErrorMessageParamOffset +
-                                                   kErrorMessageParamSize +
-                                                   kTablesAlignmentPaddingSize;
+  static const int kBuiltinTier0EntryTableOffset =
+      kErrorMessageParamOffset + kErrorMessageParamSize +
+      kTablesAlignmentPaddingSize + kRegExpStaticResultOffsetsVectorSize;
   static const int kBuiltinTier0TableOffset =
       kBuiltinTier0EntryTableOffset + kBuiltinTier0EntryTableSize;
   static const int kNewAllocationInfoOffset =
@@ -935,7 +904,8 @@ class Internals {
       kNewAllocationInfoOffset + kLinearAllocationAreaSize;
 
   static const int kFastCCallAlignmentPaddingSize =
-      kApiSystemPointerSize == 8 ? 0 : kApiSystemPointerSize;
+      kApiSystemPointerSize == 8 ? 5 * kApiSystemPointerSize
+                                 : 1 * kApiSystemPointerSize;
   static const int kIsolateFastCCallCallerFpOffset =
       kOldAllocationInfoOffset + kLinearAllocationAreaSize +
       kFastCCallAlignmentPaddingSize;
@@ -963,8 +933,12 @@ class Internals {
       kIsolateCppHeapPointerTableOffset + kExternalPointerTableSize;
   static const int kIsolateTrustedPointerTableOffset =
       kIsolateTrustedCageBaseOffset + kApiSystemPointerSize;
-  static const int kIsolateApiCallbackThunkArgumentOffset =
+  static const int kIsolateSharedTrustedPointerTableAddressOffset =
       kIsolateTrustedPointerTableOffset + kTrustedPointerTableSize;
+  static const int kIsolateTrustedPointerPublishingScopeOffset =
+      kIsolateSharedTrustedPointerTableAddressOffset + kApiSystemPointerSize;
+  static const int kIsolateApiCallbackThunkArgumentOffset =
+      kIsolateTrustedPointerPublishingScopeOffset + kApiSystemPointerSize;
 #else
   static const int kIsolateApiCallbackThunkArgumentOffset =
       kIsolateCppHeapPointerTableOffset + kExternalPointerTableSize;
@@ -973,8 +947,10 @@ class Internals {
   static const int kIsolateApiCallbackThunkArgumentOffset =
       kIsolateEmbedderDataOffset + kNumIsolateDataSlots * kApiSystemPointerSize;
 #endif  // V8_COMPRESS_POINTERS
-  static const int kContinuationPreservedEmbedderDataOffset =
+  static const int kIsolateRegexpExecVectorArgumentOffset =
       kIsolateApiCallbackThunkArgumentOffset + kApiSystemPointerSize;
+  static const int kContinuationPreservedEmbedderDataOffset =
+      kIsolateRegexpExecVectorArgumentOffset + kApiSystemPointerSize;
   static const int kIsolateRootsOffset =
       kContinuationPreservedEmbedderDataOffset + kApiSystemPointerSize;
 
@@ -986,12 +962,12 @@ class Internals {
 
 // These constants are copied from static-roots.h and guarded by static asserts.
 #define EXPORTED_STATIC_ROOTS_PTR_LIST(V) \
-  V(UndefinedValue, 0x69)                 \
-  V(NullValue, 0x85)                      \
-  V(TrueValue, 0xc9)                      \
-  V(FalseValue, 0xad)                     \
-  V(EmptyString, 0xa1)                    \
-  V(TheHoleValue, 0x791)
+  V(UndefinedValue, 0x11)                 \
+  V(NullValue, 0x2d)                      \
+  V(TrueValue, 0x71)                      \
+  V(FalseValue, 0x55)                     \
+  V(EmptyString, 0x49)                    \
+  V(TheHoleValue, 0x761)
 
   using Tagged_t = uint32_t;
   struct StaticReadOnlyRoot {
@@ -1001,7 +977,7 @@ class Internals {
 
     // Use 0 for kStringMapLowerBound since string maps are the first maps.
     static constexpr Tagged_t kStringMapLowerBound = 0;
-    static constexpr Tagged_t kStringMapUpperBound = 0x47d;
+    static constexpr Tagged_t kStringMapUpperBound = 0x425;
 
 #define PLUSONE(...) +1
     static constexpr size_t kNumberOfExportedStaticRoots =
@@ -1047,7 +1023,7 @@ class Internals {
 
   // Soft limit for AdjustAmountofExternalAllocatedMemory. Trigger an
   // incremental GC once the external memory reaches this limit.
-  static constexpr int kExternalAllocationSoftLimit = 64 * 1024 * 1024;
+  static constexpr size_t kExternalAllocationSoftLimit = 64 * 1024 * 1024;
 
 #ifdef V8_MAP_PACKING
   static const uintptr_t kMapWordMetadataMask = 0xffffULL << 48;
@@ -1289,15 +1265,15 @@ class Internals {
 #endif
   }
 
-  template <ExternalPointerTag tag>
+  template <ExternalPointerTagRange tag_range>
   V8_INLINE static Address ReadExternalPointerField(v8::Isolate* isolate,
                                                     Address heap_object_ptr,
                                                     int offset) {
 #ifdef V8_ENABLE_SANDBOX
-    static_assert(tag != kExternalPointerNullTag);
-    // See src/sandbox/external-pointer-table-inl.h. Logic duplicated here so
+    static_assert(!tag_range.IsEmpty());
+    // See src/sandbox/external-pointer-table.h. Logic duplicated here so
     // it can be inlined and doesn't require an additional call.
-    Address* table = IsSharedExternalPointerType(tag)
+    Address* table = IsSharedExternalPointerType(tag_range)
                          ? GetSharedExternalPointerTableBase(isolate)
                          : GetExternalPointerTableBase(isolate);
     internal::ExternalPointerHandle handle =
@@ -1306,7 +1282,14 @@ class Internals {
     std::atomic<Address>* ptr =
         reinterpret_cast<std::atomic<Address>*>(&table[index]);
     Address entry = std::atomic_load_explicit(ptr, std::memory_order_relaxed);
-    return entry & ~tag;
+    ExternalPointerTag actual_tag = static_cast<ExternalPointerTag>(
+        (entry & kExternalPointerTagMask) >> kExternalPointerTagShift);
+    if (V8_LIKELY(tag_range.Contains(actual_tag))) {
+      return entry & kExternalPointerPayloadMask;
+    } else {
+      return 0;
+    }
+    return entry;
 #else
     return ReadRawField<Address>(heap_object_ptr, offset);
 #endif  // V8_ENABLE_SANDBOX
@@ -1360,7 +1343,7 @@ class BackingStoreBase {};
 
 // The maximum value in enum GarbageCollectionReason, defined in heap.h.
 // This is needed for histograms sampling garbage collection reasons.
-constexpr int kGarbageCollectionReasonMaxValue = 27;
+constexpr int kGarbageCollectionReasonMaxValue = 28;
 
 // Base class for the address block allocator compatible with standard
 // containers, which registers its allocated range as strong roots.
@@ -1377,7 +1360,10 @@ class V8_EXPORT StrongRootAllocatorBase {
 
  protected:
   explicit StrongRootAllocatorBase(Heap* heap) : heap_(heap) {}
+  explicit StrongRootAllocatorBase(LocalHeap* heap);
   explicit StrongRootAllocatorBase(Isolate* isolate);
+  explicit StrongRootAllocatorBase(v8::Isolate* isolate);
+  explicit StrongRootAllocatorBase(LocalIsolate* isolate);
 
   // Allocate/deallocate a range of n elements of type internal::Address.
   Address* allocate_impl(size_t n);
@@ -1397,9 +1383,8 @@ class StrongRootAllocator : private std::allocator<T> {
  public:
   using value_type = T;
 
-  explicit StrongRootAllocator(Heap* heap) {}
-  explicit StrongRootAllocator(Isolate* isolate) {}
-  explicit StrongRootAllocator(v8::Isolate* isolate) {}
+  template <typename HeapOrIsolateT>
+  explicit StrongRootAllocator(HeapOrIsolateT*) {}
   template <typename U>
   StrongRootAllocator(const StrongRootAllocator<U>& other) noexcept {}
 
@@ -1430,7 +1415,7 @@ struct MaybeDefineIteratorConcept {};
 template <typename Iterator>
 struct MaybeDefineIteratorConcept<
     Iterator, std::enable_if_t<kHaveIteratorConcept<Iterator>>> {
-  using iterator_concept = Iterator::iterator_concept;
+  using iterator_concept = typename Iterator::iterator_concept;
 };
 // Otherwise fall back to `std::iterator_traits<Iterator>` if possible.
 template <typename Iterator>
@@ -1443,7 +1428,8 @@ struct MaybeDefineIteratorConcept<
   // TODO(pkasting): Add this unconditionally after dropping support for old
   // libstdc++ versions.
 #if __has_include(<ranges>)
-  using iterator_concept = std::iterator_traits<Iterator>::iterator_concept;
+  using iterator_concept =
+      typename std::iterator_traits<Iterator>::iterator_concept;
 #endif
 };
 
@@ -1623,16 +1609,25 @@ class WrappedIterator : public MaybeDefineIteratorConcept<Iterator> {
 // whether direct local support is enabled.
 class ValueHelper final {
  public:
+  // ValueHelper::InternalRepresentationType is an abstract type that
+  // corresponds to the internal representation of v8::Local and essentially
+  // to what T* really is (these two are always in sync). This type is used in
+  // methods like GetDataFromSnapshotOnce that need access to a handle's
+  // internal representation. In particular, if `x` is a `v8::Local<T>`, then
+  // `v8::Local<T>::FromRepr(x.repr())` gives exactly the same handle as `x`.
 #ifdef V8_ENABLE_DIRECT_HANDLE
   static constexpr Address kTaggedNullAddress = 1;
-  static constexpr Address kEmpty = kTaggedNullAddress;
+
+  using InternalRepresentationType = internal::Address;
+  static constexpr InternalRepresentationType kEmpty = kTaggedNullAddress;
 #else
-  static constexpr Address kEmpty = kNullAddress;
+  using InternalRepresentationType = internal::Address*;
+  static constexpr InternalRepresentationType kEmpty = nullptr;
 #endif  // V8_ENABLE_DIRECT_HANDLE
 
   template <typename T>
   V8_INLINE static bool IsEmpty(T* value) {
-    return reinterpret_cast<Address>(value) == kEmpty;
+    return ValueAsRepr(value) == kEmpty;
   }
 
   // Returns a handle's "value" for all kinds of abstract handles. For Local,
@@ -1659,6 +1654,16 @@ class ValueHelper final {
     return *reinterpret_cast<T**>(slot);
   }
 
+  template <typename T>
+  V8_INLINE static InternalRepresentationType ValueAsRepr(const T* value) {
+    return reinterpret_cast<InternalRepresentationType>(value);
+  }
+
+  template <typename T>
+  V8_INLINE static T* ReprAsValue(InternalRepresentationType repr) {
+    return reinterpret_cast<T*>(repr);
+  }
+
 #else  // !V8_ENABLE_DIRECT_HANDLE
 
   template <typename T>
@@ -1669,6 +1674,17 @@ class ValueHelper final {
   template <typename T, bool check_null = true, typename S>
   V8_INLINE static T* SlotAsValue(S* slot) {
     return reinterpret_cast<T*>(slot);
+  }
+
+  template <typename T>
+  V8_INLINE static InternalRepresentationType ValueAsRepr(const T* value) {
+    return const_cast<InternalRepresentationType>(
+        reinterpret_cast<const Address*>(value));
+  }
+
+  template <typename T>
+  V8_INLINE static T* ReprAsValue(InternalRepresentationType repr) {
+    return reinterpret_cast<T*>(repr);
   }
 
 #endif  // V8_ENABLE_DIRECT_HANDLE

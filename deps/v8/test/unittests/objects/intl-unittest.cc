@@ -143,7 +143,8 @@ TEST_F(IntlTest, FlattenRegionsToParts) {
 }
 
 TEST_F(IntlTest, GetStringOption) {
-  Handle<JSObject> options = i_isolate()->factory()->NewJSObjectWithNullProto();
+  DirectHandle<JSObject> options =
+      i_isolate()->factory()->NewJSObjectWithNullProto();
   {
     // No value found
     std::unique_ptr<char[]> result = nullptr;
@@ -154,11 +155,12 @@ TEST_F(IntlTest, GetStringOption) {
     CHECK_NULL(result);
   }
 
-  Handle<String> key = i_isolate()->factory()->NewStringFromAsciiChecked("foo");
+  DirectHandle<String> key =
+      i_isolate()->factory()->NewStringFromAsciiChecked("foo");
   LookupIterator it(i_isolate(), options, key);
-  CHECK(Object::SetProperty(&it, Handle<Smi>(Smi::FromInt(42), i_isolate()),
-                            StoreOrigin::kMaybeKeyed,
-                            Just(ShouldThrow::kThrowOnError))
+  CHECK(Object::SetProperty(
+            &it, DirectHandle<Smi>(Smi::FromInt(42), i_isolate()),
+            StoreOrigin::kMaybeKeyed, Just(ShouldThrow::kThrowOnError))
             .FromJust());
 
   {
@@ -197,7 +199,8 @@ TEST_F(IntlTest, GetStringOption) {
 }
 
 TEST_F(IntlTest, GetBoolOption) {
-  Handle<JSObject> options = i_isolate()->factory()->NewJSObjectWithNullProto();
+  DirectHandle<JSObject> options =
+      i_isolate()->factory()->NewJSObjectWithNullProto();
   {
     bool result = false;
     Maybe<bool> found =
@@ -206,11 +209,12 @@ TEST_F(IntlTest, GetBoolOption) {
     CHECK(!result);
   }
 
-  Handle<String> key = i_isolate()->factory()->NewStringFromAsciiChecked("foo");
+  DirectHandle<String> key =
+      i_isolate()->factory()->NewStringFromAsciiChecked("foo");
   {
     LookupIterator it(i_isolate(), options, key);
-    Handle<Object> false_value =
-        handle(i::ReadOnlyRoots(i_isolate()).false_value(), i_isolate());
+    DirectHandle<Object> false_value(
+        i::ReadOnlyRoots(i_isolate()).false_value(), i_isolate());
     Object::SetProperty(i_isolate(), options, key, false_value,
                         StoreOrigin::kMaybeKeyed,
                         Just(ShouldThrow::kThrowOnError))
@@ -224,8 +228,8 @@ TEST_F(IntlTest, GetBoolOption) {
 
   {
     LookupIterator it(i_isolate(), options, key);
-    Handle<Object> true_value =
-        handle(i::ReadOnlyRoots(i_isolate()).true_value(), i_isolate());
+    DirectHandle<Object> true_value(i::ReadOnlyRoots(i_isolate()).true_value(),
+                                    i_isolate());
     Object::SetProperty(i_isolate(), options, key, true_value,
                         StoreOrigin::kMaybeKeyed,
                         Just(ShouldThrow::kThrowOnError))
@@ -279,7 +283,7 @@ TEST_F(IntlTest, StringLocaleCompareFastPath) {
         i_isolate()->factory()->LookupSingleCharacterStringFromCode(c));
   }
 
-  Handle<JSFunction> collator_constructor = Handle<JSFunction>(
+  DirectHandle<JSFunction> collator_constructor(
       Cast<JSFunction>(
           i_isolate()->context()->native_context()->intl_collator_function()),
       i_isolate());
@@ -287,15 +291,15 @@ TEST_F(IntlTest, StringLocaleCompareFastPath) {
       JSFunction::GetDerivedMap(i_isolate(), collator_constructor,
                                 collator_constructor)
           .ToHandleChecked();
-  Handle<Object> options(ReadOnlyRoots(i_isolate()).undefined_value(),
-                         i_isolate());
+  DirectHandle<Object> options(ReadOnlyRoots(i_isolate()).undefined_value(),
+                               i_isolate());
   static const char* const kMethodName = "StringLocaleCompareFastPath";
 
   // For all fast locales, exhaustively compare within the printable ASCII
   // range.
   const std::set<std::string>& locales = JSCollator::GetAvailableLocales();
   for (const std::string& locale : locales) {
-    Handle<String> locale_string =
+    DirectHandle<String> locale_string =
         i_isolate()->factory()->NewStringFromAsciiChecked(locale.c_str());
 
     if (Intl::CompareStringsOptionsFor(i_isolate()->AsLocalIsolate(),
@@ -310,9 +314,9 @@ TEST_F(IntlTest, StringLocaleCompareFastPath) {
             .ToHandleChecked();
 
     for (size_t i = 0; i < ascii_strings.size(); i++) {
-      Handle<String> lhs = ascii_strings[i];
+      DirectHandle<String> lhs = ascii_strings[i];
       for (size_t j = i + 1; j < ascii_strings.size(); j++) {
-        Handle<String> rhs = ascii_strings[j];
+        DirectHandle<String> rhs = ascii_strings[j];
         CHECK_EQ(
             Intl::CompareStrings(i_isolate(), *collator->icu_collator()->raw(),
                                  lhs, rhs, Intl::CompareStringsOptions::kNone),
@@ -434,7 +438,7 @@ TEST_F(IntlTest, IntlMathematicalValueFromBigInt) {
   };
   for (auto& cas : cases) {
     printf("%s\n", cas.bigint_string);
-    Handle<String> str =
+    Handle<Object> str =
         i_isolate()->factory()->NewStringFromAsciiChecked(cas.bigint_string);
     IntlMathematicalValue x =
         IntlMathematicalValue::From(

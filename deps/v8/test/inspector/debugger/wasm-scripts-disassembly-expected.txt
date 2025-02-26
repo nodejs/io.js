@@ -1,6 +1,6 @@
 Tests disassembling wasm scripts
-Session #1: Script parsed. URL: wasm://wasm/moduleName-70e7540a.
-Session #1: Source for wasm://wasm/moduleName-70e7540a:
+Session #1: Script parsed. URL: wasm://wasm/moduleName-32fa2962.
+Session #1: Source for wasm://wasm/moduleName-32fa2962:
 bytecode:
 0x00 0x61 0x73 0x6d 0x01 0x00 0x00 0x00  ;; offset 0..7
 0x01 0x09 0x02 0x60 0x01 0x6f 0x01 0x7f  ;; offset 8..15

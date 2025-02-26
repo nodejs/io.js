@@ -14,7 +14,7 @@ const kMinIntPtr: constexpr IntegerLiteral
 class TurbofanType extends HeapObject {}
 
 // TurbofanBitsetType is 64 bit.
-// We use two separate 32 bit bitsets in Torque, due to limitted support
+// We use two separate 32 bit bitsets in Torque, due to limited support
 // of 64 bit bitsets.
 bitfield struct TurbofanTypeLowBits extends uint32 {
   _unused_padding_field_1: bool: 1 bit;

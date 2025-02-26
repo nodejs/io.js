@@ -1330,35 +1330,24 @@ TEST(TimeZoneEdgeCase, AmericaJamaica) {
   ExpectTime(tp, tz, 1983, 12, 31, 23, 59, 59, -5 * 3600, false, "EST");
 }
 
-TEST(TimeZoneEdgeCase, WET) {
-  // Cover some non-existent times within forward transitions.
-  const time_zone tz = LoadZone("WET");
+TEST(TimeZoneEdgeCase, EuropeLisbon) {
+  // Cover a non-existent time within a forward transition.
+  const time_zone tz = LoadZone("Europe/Lisbon");
 
-  // Before the first transition.
-  auto tp = convert(civil_second(1977, 1, 1, 0, 0, 0), tz);
-  ExpectTime(tp, tz, 1977, 1, 1, 0, 0, 0, 0, false, "WET");
-
-  // Over the first transition.
-  //     228877199 == Sun,  3 Apr 1977 00:59:59 +0000 (WET)
-  //     228877200 == Sun,  3 Apr 1977 02:00:00 +0100 (WEST)
-  tp = convert(civil_second(1977, 4, 3, 0, 59, 59), tz);
-  ExpectTime(tp, tz, 1977, 4, 3, 0, 59, 59, 0, false, "WET");
+  // Over a forward transition.
+  //     354671999 == Sat, 28 Mar 1981 23:59:59 +0000 (WET)
+  //     354672000 == Sun, 29 Mar 1981 01:00:00 +0100 (WEST)
+  auto tp = convert(civil_second(1981, 3, 28, 23, 59, 59), tz);
+  ExpectTime(tp, tz, 1981, 3, 28, 23, 59, 59, 0, false, "WET");
   tp += absl::time_internal::cctz::seconds(1);
-  ExpectTime(tp, tz, 1977, 4, 3, 2, 0, 0, 1 * 3600, true, "WEST");
+  ExpectTime(tp, tz, 1981, 3, 29, 1, 0, 0, 1 * 3600, true, "WEST");
 
-  // A non-existent time within the first transition.
-  time_zone::civil_lookup cl1 = tz.lookup(civil_second(1977, 4, 3, 1, 15, 0));
+  // A non-existent time within the transition.
+  time_zone::civil_lookup cl1 = tz.lookup(civil_second(1981, 3, 29, 0, 15, 0));
   EXPECT_EQ(time_zone::civil_lookup::SKIPPED, cl1.kind);
-  ExpectTime(cl1.pre, tz, 1977, 4, 3, 2, 15, 0, 1 * 3600, true, "WEST");
-  ExpectTime(cl1.trans, tz, 1977, 4, 3, 2, 0, 0, 1 * 3600, true, "WEST");
-  ExpectTime(cl1.post, tz, 1977, 4, 3, 0, 15, 0, 0 * 3600, false, "WET");
-
-  // A non-existent time within the second forward transition.
-  time_zone::civil_lookup cl2 = tz.lookup(civil_second(1978, 4, 2, 1, 15, 0));
-  EXPECT_EQ(time_zone::civil_lookup::SKIPPED, cl2.kind);
-  ExpectTime(cl2.pre, tz, 1978, 4, 2, 2, 15, 0, 1 * 3600, true, "WEST");
-  ExpectTime(cl2.trans, tz, 1978, 4, 2, 2, 0, 0, 1 * 3600, true, "WEST");
-  ExpectTime(cl2.post, tz, 1978, 4, 2, 0, 15, 0, 0 * 3600, false, "WET");
+  ExpectTime(cl1.pre, tz, 1981, 3, 29, 1, 15, 0, 1 * 3600, true, "WEST");
+  ExpectTime(cl1.trans, tz, 1981, 3, 29, 1, 0, 0, 1 * 3600, true, "WEST");
+  ExpectTime(cl1.post, tz, 1981, 3, 28, 23, 15, 0, 0 * 3600, false, "WET");
 }
 
 TEST(TimeZoneEdgeCase, FixedOffsets) {

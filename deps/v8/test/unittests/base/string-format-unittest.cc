@@ -11,7 +11,11 @@ namespace v8::base {
 
 // Some hard-coded assumptions.
 constexpr int kMaxPrintedIntLen = 11;
-constexpr int kMaxPrintedSizetLen = sizeof(size_t) == 4 ? 10 : 20;
+constexpr int kMaxPrintedUint32Len = 10;
+constexpr int kMaxPrintedUint64Len = 20;
+constexpr int kMaxPrintedSizetLen = sizeof(size_t) == sizeof(uint32_t)
+                                        ? kMaxPrintedUint32Len
+                                        : kMaxPrintedUint64Len;
 
 TEST(FormattedStringTest, Empty) {
   auto empty = FormattedString{};
@@ -56,7 +60,8 @@ TEST(FormattedStringTest, MinInt) {
 
 TEST(FormattedStringTest, SizeT) {
   auto message = FormattedString{} << size_t{42};
-  EXPECT_EQ("%zu", decltype(message)::kFormat);
+  EXPECT_EQ(sizeof(size_t) == sizeof(uint32_t) ? "%" PRIu32 : "%" PRIu64,
+            decltype(message)::kFormat);
   // +1 for null-termination.
   EXPECT_EQ(kMaxPrintedSizetLen + 1, decltype(message)::kMaxLen);
 
@@ -76,13 +81,25 @@ TEST(FormattedStringTest, MaxSizeT) {
 TEST(FormattedStringTest, Combination) {
   auto message = FormattedString{} << "Expected " << 11 << " got " << size_t{42}
                                    << "!";
-  EXPECT_EQ("%s%d%s%zu%s", decltype(message)::kFormat);
+  EXPECT_EQ(sizeof(size_t) == sizeof(uint32_t) ? "%s%d%s%" PRIu32 "%s"
+                                               : "%s%d%s%" PRIu64 "%s",
+            decltype(message)::kFormat);
   size_t expected_array_len =
       strlen("Expected  got !") + kMaxPrintedIntLen + kMaxPrintedSizetLen + 1;
   EXPECT_EQ(expected_array_len, size_t{decltype(message)::kMaxLen});
 
   EXPECT_THAT(message.PrintToArray().data(),
               ::testing::StrEq("Expected 11 got 42!"));
+}
+
+TEST(FormattedStringTest, Uint32AndUint64) {
+  auto message = FormattedString{} << uint32_t{1} << " != " << uint64_t{2};
+  EXPECT_EQ("%" PRIu32 "%s%" PRIu64, decltype(message)::kFormat);
+  size_t expected_array_len =
+      kMaxPrintedUint32Len + 4 + kMaxPrintedUint64Len + 1;
+  EXPECT_EQ(expected_array_len, size_t{decltype(message)::kMaxLen});
+
+  EXPECT_THAT(message.PrintToArray().data(), ::testing::StrEq("1 != 2"));
 }
 
 }  // namespace v8::base

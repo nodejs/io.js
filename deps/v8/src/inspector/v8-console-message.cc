@@ -362,7 +362,7 @@ void V8ConsoleMessage::reportToFrontend(protocol::Runtime::Frontend* frontend,
         arguments->emplace_back(std::move(messageArg));
       }
     }
-    Maybe<String16> consoleContext;
+    std::optional<String16> consoleContext;
     if (!m_consoleContext.isEmpty()) consoleContext = m_consoleContext;
     std::unique_ptr<protocol::Runtime::StackTrace> stackTrace;
     if (m_stackTrace) {

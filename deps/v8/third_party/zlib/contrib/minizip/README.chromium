@@ -1,8 +1,8 @@
 Name: ZIP file API for reading file entries in a ZIP archive
 Short Name: minizip
 URL: https://github.com/madler/zlib/tree/master/contrib/minizip
-Version: 1.3.0.1
-Revision: 643e17b7498d12ab8d15565662880579692f769d
+Version: 1.3.1.1
+Revision: ef24c4c7502169f016dcd2a26923dbaf3216748c
 License: Zlib
 License File: //third_party/zlib/LICENSE
 Shipped: yes
@@ -14,6 +14,13 @@ Minizip provides API on top of zlib that can enumerate and extract ZIP archive
 files. See minizip.md for chromium build instructions.
 
 Local Modifications:
+- OS macro tweaks for Android and Fuchsia
+  0000-build.patch (the contrib/minizip/ parts)
+  0008-minizip-zip-unzip-tools.patch (crrev.com/886990)
+
+- Fix build on UWP. (crrev.com/750639)
+  0004-fix-uwp.patch
+
 - Fixed uncompressing files with wrong uncompressed size set
   crrev.com/268940
   0014-minizip-unzip-with-incorrect-size.patch

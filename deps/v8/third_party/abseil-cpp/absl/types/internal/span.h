@@ -22,6 +22,7 @@
 #include <type_traits>
 
 #include "absl/algorithm/algorithm.h"
+#include "absl/base/config.h"
 #include "absl/base/internal/throw_delegate.h"
 #include "absl/meta/type_traits.h"
 
@@ -86,13 +87,13 @@ using EnableIfMutable =
     typename std::enable_if<!std::is_const<T>::value, int>::type;
 
 template <template <typename> class SpanT, typename T>
-bool EqualImpl(SpanT<T> a, SpanT<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool EqualImpl(SpanT<T> a, SpanT<T> b) {
   static_assert(std::is_const<T>::value, "");
   return std::equal(a.begin(), a.end(), b.begin(), b.end());
 }
 
 template <template <typename> class SpanT, typename T>
-bool LessThanImpl(SpanT<T> a, SpanT<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool LessThanImpl(SpanT<T> a, SpanT<T> b) {
   // We can't use value_type since that is remove_cv_t<T>, so we go the long way
   // around.
   static_assert(std::is_const<T>::value, "");

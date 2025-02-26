@@ -31,8 +31,8 @@ function createBenchmarkSuite(name) {
   return new BenchmarkSuite(
     name, [1000],
     benchmarks.map(([bench, setup]) =>
-        new Benchmark(benchName(bench, setup), false, false, 100000, bench,
-                      setup)));
+        new Benchmark(benchName(bench, setup), false, false, 0, bench,
+                      setup, null, null, 2)));
 }
 
 function createSlowBenchmarkSuite(name) {
@@ -40,5 +40,5 @@ function createSlowBenchmarkSuite(name) {
     "Slow" + name, [1000],
     benchmarks.map(([bench, setup]) =>
         new Benchmark(slowBenchName(bench, setup), false, false, 0, bench,
-                      slow(setup))));
+                      slow(setup), null, null, 2)));
 }

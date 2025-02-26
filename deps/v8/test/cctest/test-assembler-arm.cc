@@ -4191,7 +4191,7 @@ TEST(split_add_immediate) {
   {
     Assembler assm(AssemblerOptions{});
     __ mov(r1, r0);
-    // Re-use the destination as a scratch.
+    // Reuse the destination as a scratch.
     __ add(r0, r1, Operand(0x12345678));
     __ blx(lr);
 

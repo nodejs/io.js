@@ -30,11 +30,10 @@ TNode<Object> CodeStubAssembler::Call(TNode<Context> context,
   if (IsUndefinedConstant(receiver) || IsNullConstant(receiver)) {
     DCHECK_NE(mode, ConvertReceiverMode::kNotNullOrUndefined);
     return CallJS(Builtins::Call(ConvertReceiverMode::kNullOrUndefined),
-                  context, callable, /* new_target */ {}, receiver, args...);
+                  context, callable, receiver, args...);
   }
   DCheckReceiver(mode, receiver);
-  return CallJS(Builtins::Call(mode), context, callable,
-                /* new_target */ {}, receiver, args...);
+  return CallJS(Builtins::Call(mode), context, callable, receiver, args...);
 }
 
 template <typename TCallable, class... TArgs>
@@ -62,11 +61,11 @@ TNode<Object> CodeStubAssembler::CallFunction(TNode<Context> context,
   if (IsUndefinedConstant(receiver) || IsNullConstant(receiver)) {
     DCHECK_NE(mode, ConvertReceiverMode::kNotNullOrUndefined);
     return CallJS(Builtins::CallFunction(ConvertReceiverMode::kNullOrUndefined),
-                  context, callable, /* new_target */ {}, receiver, args...);
+                  context, callable, receiver, args...);
   }
   DCheckReceiver(mode, receiver);
-  return CallJS(Builtins::CallFunction(mode), context, callable,
-                /* new_target */ {}, receiver, args...);
+  return CallJS(Builtins::CallFunction(mode), context, callable, receiver,
+                args...);
 }
 
 template <class... TArgs>
@@ -215,9 +214,8 @@ TNode<Object> CodeStubAssembler::FastCloneJSObject(
     Label if_no_write_barrier(this),
         if_needs_write_barrier(this, Label::kDeferred);
 
-    TNode<BoolT> needs_write_barrier = IsPageFlagReset(
-        BitcastTaggedToWord(target), MemoryChunk::kIsInYoungGenerationMask);
-    Branch(needs_write_barrier, &if_needs_write_barrier, &if_no_write_barrier);
+    TrySkipWriteBarrier(target, &if_needs_write_barrier);
+    Goto(&if_no_write_barrier);
 
     BIND(&if_needs_write_barrier);
     EmitCopyLoop(true);

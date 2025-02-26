@@ -58,11 +58,11 @@ void DeclarationVisitor::Visit(Declaration* decl) {
   }
 }
 
-Builtin* DeclarationVisitor::CreateBuiltin(BuiltinDeclaration* decl,
-                                           std::string external_name,
-                                           std::string readable_name,
-                                           Signature signature,
-                                           std::optional<Statement*> body) {
+Builtin* DeclarationVisitor::CreateBuiltin(
+    BuiltinDeclaration* decl, std::string external_name,
+    std::string readable_name, Signature signature,
+    std::optional<std::string> use_counter_name,
+    std::optional<Statement*> body) {
   const bool javascript = decl->javascript_linkage;
   const bool varargs = decl->parameters.has_varargs;
   Builtin::Kind kind = !javascript ? Builtin::kStub
@@ -85,14 +85,29 @@ Builtin* DeclarationVisitor::CreateBuiltin(BuiltinDeclaration* decl,
       Error("Return type of JavaScript-linkage builtins has to be JSAny.")
           .Position(decl->return_type->pos);
     }
-    for (size_t i = signature.implicit_count;
-         i < signature.parameter_types.types.size(); ++i) {
-      const Type* parameter_type = signature.parameter_types.types[i];
-      if (!TypeOracle::GetJSAnyType()->IsSubtypeOf(parameter_type)) {
-        Error(
-            "Parameters of JavaScript-linkage builtins have to be a supertype "
-            "of JSAny.")
-            .Position(decl->parameters.types[i]->pos);
+    // Validate the parameter types. In general, for JS builtins the parameters
+    // must all be tagged values (JSAny). However, we currently allow declaring
+    // "extern javascript" builtins with any parameter types. The reason is
+    // that those are typically used for tailcalls, in which case we typically
+    // need to supply the implicit parameters of the JS calling convention
+    // (target, receiver, argc, etc.). It would probablu be nicer if we could
+    // instead declare these parameters as js-implicit (like we do for
+    // torque-defined javascript builtins) and then allow explicitly supplying
+    // the implicit arguments during tailscalls. It's unclear though if that's
+    // worth the effort. In particular, calls and tailcalls to javascript
+    // builtins will emit CSA::CallJSBuiltin and CSA::TailCallJSBuiltin calls
+    // which will validate the parameter types at C++ compile time.
+    if (decl->kind != AstNode::Kind::kExternalBuiltinDeclaration) {
+      for (size_t i = signature.implicit_count;
+           i < signature.parameter_types.types.size(); ++i) {
+        const Type* parameter_type = signature.parameter_types.types[i];
+        if (!TypeOracle::GetJSAnyType()->IsSubtypeOf(parameter_type)) {
+          Error(
+              "Parameters of JavaScript-linkage builtins have to be a "
+              "supertype "
+              "of JSAny.")
+              .Position(decl->parameters.types[i]->pos);
+        }
       }
     }
   }
@@ -134,16 +149,16 @@ Builtin* DeclarationVisitor::CreateBuiltin(BuiltinDeclaration* decl,
     flags |= Builtin::Flag::kCustomInterfaceDescriptor;
   Builtin* builtin = Declarations::CreateBuiltin(
       std::move(external_name), std::move(readable_name), kind, flags,
-      std::move(signature), body);
+      std::move(signature), std::move(use_counter_name), body);
   // TODO(v8:12261): Recheck this.
   // builtin->SetIdentifierPosition(decl->name->pos);
   return builtin;
 }
 
 void DeclarationVisitor::Visit(ExternalBuiltinDeclaration* decl) {
-  Builtin* builtin =
-      CreateBuiltin(decl, decl->name->value, decl->name->value,
-                    TypeVisitor::MakeSignature(decl), std::nullopt);
+  Builtin* builtin = CreateBuiltin(decl, decl->name->value, decl->name->value,
+                                   TypeVisitor::MakeSignature(decl),
+                                   std::nullopt, std::nullopt);
   builtin->SetIdentifierPosition(decl->name->pos);
   Declarations::Declare(decl->name->value, builtin);
 }
@@ -200,8 +215,18 @@ void DeclarationVisitor::Visit(ExternalMacroDeclaration* decl) {
 }
 
 void DeclarationVisitor::Visit(TorqueBuiltinDeclaration* decl) {
+  Signature signature = TypeVisitor::MakeSignature(decl);
+  if (decl->use_counter_name &&
+      (signature.types().empty() ||
+       (signature.types()[0] != TypeOracle::GetNativeContextType() &&
+        signature.types()[0] != TypeOracle::GetContextType()))) {
+    ReportError(
+        "@incrementUseCounter requires the builtin's first parameter to be of "
+        "type Context or NativeContext, but found type ",
+        *signature.types()[0]);
+  }
   auto builtin = CreateBuiltin(decl, decl->name->value, decl->name->value,
-                               TypeVisitor::MakeSignature(decl), decl->body);
+                               signature, decl->use_counter_name, decl->body);
   builtin->SetIdentifierPosition(decl->name->pos);
   builtin->SetPosition(decl->pos);
   Declarations::Declare(decl->name->value, builtin);
@@ -415,9 +440,16 @@ Callable* DeclarationVisitor::Specialize(
         Declarations::CreateIntrinsic(declaration->name->value, type_signature);
   } else {
     BuiltinDeclaration* builtin = BuiltinDeclaration::cast(declaration);
-    callable =
-        CreateBuiltin(builtin, GlobalContext::MakeUniqueName(generated_name),
-                      readable_name.str(), type_signature, *body);
+    std::optional<std::string> use_counter_name;
+    if (TorqueBuiltinDeclaration* torque_builtin =
+            TorqueBuiltinDeclaration::DynamicCast(builtin)) {
+      use_counter_name = torque_builtin->use_counter_name;
+    } else {
+      use_counter_name = std::nullopt;
+    }
+    callable = CreateBuiltin(
+        builtin, GlobalContext::MakeUniqueName(generated_name),
+        readable_name.str(), type_signature, use_counter_name, *body);
   }
   key.generic->AddSpecialization(key.specialized_types, callable);
   return callable;

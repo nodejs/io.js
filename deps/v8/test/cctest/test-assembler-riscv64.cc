@@ -686,7 +686,19 @@ TEST(RISCV0) {
 }
 
 TEST(RISCVZicond) {
+  if (!CpuFeatures::IsSupported(ZICOND)) return;
   CcTest::InitializeVM();
+  FOR_INT64_INPUTS(i) {
+    FOR_INT64_INPUTS(j) {
+      auto fn = [i, j](MacroAssembler& assm) {
+        __ li(a1, i);
+        __ li(a0, j);
+        __ MoveIfZero(a0, a1, a0);
+      };
+      auto res = GenAndRunTest(fn);
+      CHECK_EQ(j != 0 ? j : i, res);
+    }
+  }
 
   FOR_INT64_INPUTS(i) {
     FOR_INT64_INPUTS(j) {
@@ -1779,7 +1791,7 @@ TEST(TARGET_ADDR) {
   MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
-  Address res = __ target_address_at(static_cast<Address>(addr));
+  Address res = __ target_constant_address_at(static_cast<Address>(addr));
   CHECK_EQ(0x00304abfe961L, res);
 #else
   // This is the series of instructions to load 48 bit address 0x0123456789ab
@@ -1788,7 +1800,7 @@ TEST(TARGET_ADDR) {
   MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
-  Address res = __ target_address_at(static_cast<Address>(addr));
+  Address res = __ target_constant_address_at(static_cast<Address>(addr));
   CHECK_EQ(0x0123456789abL, res);
 #endif
 }
@@ -1805,7 +1817,7 @@ TEST(SET_TARGET_ADDR) {
   MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
-  __ set_target_value_at(static_cast<Address>(addr), 0x00304abfe961L,
+  __ set_target_value_at(static_cast<Address>(addr), 0x00304abfe961L, nullptr,
                          FLUSH_ICACHE_IF_NEEDED);
   Address res = __ target_address_at(static_cast<Address>(addr));
   CHECK_EQ(0x00304abfe961L, res);
@@ -1817,9 +1829,9 @@ TEST(SET_TARGET_ADDR) {
   MacroAssembler assm(isolate, v8::internal::CodeObjectRequired::kYes);
 
   uintptr_t addr = reinterpret_cast<uintptr_t>(&buffer[0]);
-  __ set_target_value_at(static_cast<Address>(addr), 0xba9876543210L,
+  __ set_target_value_at(static_cast<Address>(addr), 0xba9876543210L, nullptr,
                          FLUSH_ICACHE_IF_NEEDED);
-  Address res = __ target_address_at(static_cast<Address>(addr));
+  Address res = __ target_constant_address_at(static_cast<Address>(addr));
   CHECK_EQ(0xba9876543210L, res);
 #endif
 }

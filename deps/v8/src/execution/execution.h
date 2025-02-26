@@ -5,6 +5,7 @@
 #ifndef V8_EXECUTION_EXECUTION_H_
 #define V8_EXECUTION_EXECUTION_H_
 
+#include "src/base/vector.h"
 #include "src/common/globals.h"
 
 namespace v8 {
@@ -23,27 +24,30 @@ class Execution final : public AllStatic {
   // When the function called is not in strict mode, receiver is
   // converted to an object.
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object> Call(
-      Isolate* isolate, Handle<Object> callable, Handle<Object> receiver,
-      int argc, Handle<Object> argv[]);
+      Isolate* isolate, DirectHandle<Object> callable,
+      DirectHandle<Object> receiver,
+      base::Vector<const DirectHandle<Object>> args);
   // Run a script. For JSFunctions that are not scripts, use Execution::Call.
   // Depending on the script, the host_defined_options might not be used but the
   // caller has to provide it at all times.
   V8_EXPORT_PRIVATE V8_WARN_UNUSED_RESULT static MaybeHandle<Object> CallScript(
-      Isolate* isolate, Handle<JSFunction> callable, Handle<Object> receiver,
-      Handle<Object> host_defined_options);
+      Isolate* isolate, DirectHandle<JSFunction> callable,
+      DirectHandle<Object> receiver, DirectHandle<Object> host_defined_options);
 
   V8_WARN_UNUSED_RESULT static MaybeHandle<Object> CallBuiltin(
-      Isolate* isolate, Handle<JSFunction> builtin, Handle<Object> receiver,
-      int argc, Handle<Object> argv[]);
+      Isolate* isolate, DirectHandle<JSFunction> builtin,
+      DirectHandle<Object> receiver,
+      base::Vector<const DirectHandle<Object>> args);
 
   // Construct object from function, the caller supplies an array of
   // arguments.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> New(
-      Isolate* isolate, Handle<Object> constructor, int argc,
-      Handle<Object> argv[]);
-  V8_WARN_UNUSED_RESULT static MaybeHandle<Object> New(
-      Isolate* isolate, Handle<Object> constructor, Handle<Object> new_target,
-      int argc, Handle<Object> argv[]);
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> New(
+      Isolate* isolate, DirectHandle<Object> constructor,
+      base::Vector<const DirectHandle<Object>> args);
+  V8_WARN_UNUSED_RESULT static MaybeHandle<JSReceiver> New(
+      Isolate* isolate, DirectHandle<Object> constructor,
+      DirectHandle<Object> new_target,
+      base::Vector<const DirectHandle<Object>> args);
 
   // Call a function, just like Call(), but handle don't report exceptions
   // externally.
@@ -52,19 +56,22 @@ class Execution final : public AllStatic {
   // If message_handling is MessageHandling::kReport, exceptions (except for
   // termination exceptions) will be stored in exception_out (if not a
   // nullptr).
-  V8_EXPORT_PRIVATE static MaybeHandle<Object> TryCall(
-      Isolate* isolate, Handle<Object> callable, Handle<Object> receiver,
-      int argc, Handle<Object> argv[], MessageHandling message_handling,
-      MaybeHandle<Object>* exception_out);
+  V8_EXPORT_PRIVATE static MaybeDirectHandle<Object> TryCall(
+      Isolate* isolate, DirectHandle<Object> callable,
+      DirectHandle<Object> receiver,
+      base::Vector<const DirectHandle<Object>> args,
+      MessageHandling message_handling,
+      MaybeDirectHandle<Object>* exception_out);
   // Same as Execute::TryCall but for scripts which need an explicit
   // host-defined options object. See Execution:CallScript
-  V8_EXPORT_PRIVATE static MaybeHandle<Object> TryCallScript(
-      Isolate* isolate, Handle<JSFunction> script_function,
-      Handle<Object> receiver, Handle<FixedArray> host_defined_options);
+  V8_EXPORT_PRIVATE static MaybeDirectHandle<Object> TryCallScript(
+      Isolate* isolate, DirectHandle<JSFunction> script_function,
+      DirectHandle<Object> receiver,
+      DirectHandle<FixedArray> host_defined_options);
 
   // Convenience method for performing RunMicrotasks
-  static MaybeHandle<Object> TryRunMicrotasks(Isolate* isolate,
-                                              MicrotaskQueue* microtask_queue);
+  static MaybeDirectHandle<Object> TryRunMicrotasks(
+      Isolate* isolate, MicrotaskQueue* microtask_queue);
 
 #if V8_ENABLE_WEBASSEMBLY
   // Call a Wasm function identified by {wasm_call_target} through the
@@ -73,7 +80,7 @@ class Execution final : public AllStatic {
   // the function's return values are in {packed_args}.
   V8_EXPORT_PRIVATE static void CallWasm(Isolate* isolate,
                                          DirectHandle<Code> wrapper_code,
-                                         Address wasm_call_target,
+                                         WasmCodePointer wasm_call_target,
                                          DirectHandle<Object> object_ref,
                                          Address packed_args);
 #endif  // V8_ENABLE_WEBASSEMBLY

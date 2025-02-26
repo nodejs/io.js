@@ -11,6 +11,7 @@
 #include "include/libplatform/libplatform.h"
 #include "include/v8-array-buffer.h"
 #include "include/v8-context.h"
+#include "include/v8-cppgc.h"
 #include "include/v8-extension.h"
 #include "include/v8-local-handle.h"
 #include "include/v8-object.h"
@@ -75,7 +76,10 @@ enum CountersMode { kNoCounters, kEnableCounters };
 // all client Isolates.
 class IsolateWrapper final {
  public:
-  explicit IsolateWrapper(CountersMode counters_mode);
+  // `use_statically_set_cpp_heap` exists to avoid TSAN issues, see the comment
+  // on `cpp_heap_`.
+  explicit IsolateWrapper(CountersMode counters_mode,
+                          bool use_statically_set_cpp_heap = true);
 
   ~IsolateWrapper();
   IsolateWrapper(const IsolateWrapper&) = delete;
@@ -86,16 +90,29 @@ class IsolateWrapper final {
     return reinterpret_cast<i::Isolate*>(isolate_);
   }
 
+  static void set_cpp_heap_for_next_isolate(std::unique_ptr<CppHeap> cpp_heap) {
+    cpp_heap_ = std::move(cpp_heap);
+  }
+
  private:
   std::unique_ptr<v8::ArrayBuffer::Allocator> array_buffer_allocator_;
   std::unique_ptr<CounterMap> counter_map_;
   v8::Isolate* isolate_;
+
+  // `cpp_heap_` is a side channel to pass a custom CppHeap to isolate creation.
+  // Ideally it could be passes as a parameter to the constructor, but with the
+  // MixIn design pattern, that's not possible. Using a static variable as a
+  // side channel causes problems with TSAN, however, when multiple
+  // IsolateWrapper are used at the same time in different threads. The
+  // parameter `use_statically_set_cpp_heap` of the constructor solves the TSAN
+  // issue by providing a way to avoid using `cpp_heap_`.
+  static std::unique_ptr<CppHeap> cpp_heap_;
 };
 
 class IsolateWithContextWrapper final {
  public:
   IsolateWithContextWrapper()
-      : isolate_wrapper_(kNoCounters),
+      : isolate_wrapper_(kNoCounters, false),
         isolate_scope_(isolate_wrapper_.isolate()),
         handle_scope_(isolate_wrapper_.isolate()),
         context_(v8::Context::New(isolate_wrapper_.isolate())),
@@ -154,7 +171,7 @@ class WithIsolateScopeMixin : public TMixin {
     return reinterpret_cast<v8::internal::Isolate*>(this->v8_isolate());
   }
 
-  i::Handle<i::String> MakeName(const char* str, int suffix) {
+  i::DirectHandle<i::String> MakeName(const char* str, int suffix) {
     v8::base::EmbeddedVector<char, 128> buffer;
     v8::base::SNPrintF(buffer, "%s%d", str, suffix);
     return MakeString(buffer.begin());
@@ -388,7 +405,7 @@ class WithInternalIsolateMixin : public TMixin {
   Factory* factory() const { return isolate()->factory(); }
   Isolate* isolate() const { return TMixin::i_isolate(); }
 
-  Handle<NativeContext> native_context() const {
+  DirectHandle<NativeContext> native_context() const {
     return isolate()->native_context();
   }
 
@@ -402,7 +419,7 @@ class WithInternalIsolateMixin : public TMixin {
   }
 
   template <typename T = Object>
-  Handle<T> RunJS(::v8::String::ExternalOneByteStringResource* source) {
+  DirectHandle<T> RunJS(::v8::String::ExternalOneByteStringResource* source) {
     return Cast<T>(RunJSInternal(source));
   }
 
@@ -568,7 +585,7 @@ class FeedbackVectorHelper {
     }
   }
 
-  Handle<FeedbackVector> vector() { return vector_; }
+  DirectHandle<FeedbackVector> vector() { return vector_; }
 
   // Returns slot identifier by numerical index.
   FeedbackSlot slot(int index) const { return slots_[index]; }
@@ -601,10 +618,10 @@ class FakeCodeEventLogger : public i::CodeEventLogger {
  private:
   void LogRecordedBuffer(i::Tagged<i::AbstractCode> code,
                          i::MaybeHandle<i::SharedFunctionInfo> maybe_shared,
-                         const char* name, int length) override {}
+                         const char* name, size_t length) override {}
 #if V8_ENABLE_WEBASSEMBLY
   void LogRecordedBuffer(const i::wasm::WasmCode* code, const char* name,
-                         int length) override {}
+                         size_t length) override {}
 #endif  // V8_ENABLE_WEBASSEMBLY
 };
 
@@ -634,9 +651,6 @@ class FakeCodeEventLogger : public i::CodeEventLogger {
 #elif defined(__s390x__) || defined(_ARCH_S390X)
 #define GET_STACK_POINTER_TO(sp_addr) \
   __asm__ __volatile__("stg %%r15, %0" : "=m"(sp_addr))
-#elif defined(__s390__) || defined(_ARCH_S390)
-#define GET_STACK_POINTER_TO(sp_addr) \
-  __asm__ __volatile__("st 15, %0" : "=m"(sp_addr))
 #elif defined(__PPC64__) || defined(_ARCH_PPC64)
 #define GET_STACK_POINTER_TO(sp_addr) \
   __asm__ __volatile__("std 1, %0" : "=m"(sp_addr))

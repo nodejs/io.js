@@ -14,7 +14,7 @@ namespace v8 {
 namespace internal {
 
 template <typename T>
-Handle<T> GlobalHandles::Create(Tagged<T> value) {
+IndirectHandle<T> GlobalHandles::Create(Tagged<T> value) {
   static_assert(is_subtype_v<T, Object>, "static type violation");
   // The compiler should only pick this method if T is not Object.
   static_assert(!std::is_same<Object, T>::value, "compiler error");

@@ -26,7 +26,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // Flags: --allow-natives-syntax
-// Flags: --js-float16array
+// Flags: --js-staging
 
 // This is a regression test for overlapping key and value registers.
 

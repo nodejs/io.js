@@ -40,9 +40,6 @@ class EmbeddedFileWriter : public EmbeddedFileWriterInterface {
 
   void PrepareBuiltinSourcePositionMap(Builtins* builtins) override;
 
-  void PrepareBuiltinLabelInfoMap(int create_offset,
-                                  int invoke_create) override;
-
 #if defined(V8_OS_WIN64)
   void SetBuiltinUnwindData(
       Builtin builtin,

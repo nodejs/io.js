@@ -44,13 +44,14 @@ ScopeIterator::ScopeIterator(Isolate* isolate, FrameInspector* frame_inspector,
 
 ScopeIterator::~ScopeIterator() = default;
 
-Handle<Object> ScopeIterator::GetFunctionDebugName() const {
+DirectHandle<Object> ScopeIterator::GetFunctionDebugName() const {
   if (!function_.is_null()) return JSFunction::GetDebugName(function_);
 
   if (!IsNativeContext(*context_)) {
     DisallowGarbageCollection no_gc;
     Tagged<ScopeInfo> closure_info = context_->closure_context()->scope_info();
-    Handle<String> debug_name(closure_info->FunctionDebugName(), isolate_);
+    DirectHandle<String> debug_name(closure_info->FunctionDebugName(),
+                                    isolate_);
     if (debug_name->length() > 0) return debug_name;
   }
   return isolate_->factory()->undefined_value();
@@ -202,8 +203,8 @@ class ScopeChainRetriever {
 };
 
 // Walks a ScopeInfo outwards until it finds a EVAL scope.
-MaybeHandle<ScopeInfo> FindEvalScope(Isolate* isolate,
-                                     Tagged<ScopeInfo> start_scope) {
+MaybeDirectHandle<ScopeInfo> FindEvalScope(Isolate* isolate,
+                                           Tagged<ScopeInfo> start_scope) {
   Tagged<ScopeInfo> scope = start_scope;
   while (scope->scope_type() != ScopeType::EVAL_SCOPE &&
          scope->HasOuterScopeInfo()) {
@@ -219,8 +220,8 @@ MaybeHandle<ScopeInfo> FindEvalScope(Isolate* isolate,
 
 void ScopeIterator::TryParseAndRetrieveScopes(ReparseStrategy strategy) {
   // Catch the case when the debugger stops in an internal function.
-  Handle<SharedFunctionInfo> shared_info(function_->shared(), isolate_);
-  Handle<ScopeInfo> scope_info(shared_info->scope_info(), isolate_);
+  DirectHandle<SharedFunctionInfo> shared_info(function_->shared(), isolate_);
+  DirectHandle<ScopeInfo> scope_info(shared_info->scope_info(), isolate_);
   if (IsUndefined(shared_info->script(), isolate_)) {
     current_scope_ = closure_scope_ = nullptr;
     context_ = handle(function_->context(), isolate_);
@@ -253,7 +254,7 @@ void ScopeIterator::TryParseAndRetrieveScopes(ReparseStrategy strategy) {
   }
 
   // Reparse the code and analyze the scopes.
-  // Depending on the choosen strategy, the whole script or just
+  // Depending on the chosen strategy, the whole script or just
   // the closure is re-parsed for function scopes.
   DirectHandle<Script> script(Cast<Script>(shared_info->script()), isolate_);
 
@@ -267,7 +268,7 @@ void ScopeIterator::TryParseAndRetrieveScopes(ReparseStrategy strategy) {
                 .set_is_eager(true);
   flags.set_is_reparse(true);
 
-  MaybeHandle<ScopeInfo> maybe_outer_scope;
+  MaybeDirectHandle<ScopeInfo> maybe_outer_scope;
   if (flags.is_toplevel() &&
       script->compilation_type() == Script::CompilationType::kEval) {
     // Re-parsing a full eval script requires us to correctly set the outer
@@ -278,11 +279,12 @@ void ScopeIterator::TryParseAndRetrieveScopes(ReparseStrategy strategy) {
 
     DCHECK(flags.is_eval());
 
-    Handle<ScopeInfo> eval_scope;
+    DirectHandle<ScopeInfo> eval_scope;
     if (FindEvalScope(isolate_, *scope_info).ToHandle(&eval_scope)) {
       flags.set_outer_language_mode(eval_scope->language_mode());
       if (eval_scope->HasOuterScopeInfo()) {
-        maybe_outer_scope = handle(eval_scope->OuterScopeInfo(), isolate_);
+        maybe_outer_scope =
+            direct_handle(eval_scope->OuterScopeInfo(), isolate_);
       }
     } else {
       DCHECK_EQ(flags.outer_language_mode(), LanguageMode::kSloppy);
@@ -291,7 +293,7 @@ void ScopeIterator::TryParseAndRetrieveScopes(ReparseStrategy strategy) {
   } else if (scope_info->scope_type() == EVAL_SCOPE || script->is_wrapped()) {
     flags.set_is_eval(true);
     if (!IsNativeContext(*context_)) {
-      maybe_outer_scope = handle(context_->scope_info(), isolate_);
+      maybe_outer_scope = direct_handle(context_->scope_info(), isolate_);
     }
     // Language mode may be inherited from the eval caller.
     // Retrieve it from shared function info.
@@ -373,7 +375,7 @@ void ScopeIterator::UnwrapEvaluationContext() {
   context_ = handle(current, isolate_);
 }
 
-Handle<JSObject> ScopeIterator::MaterializeScopeDetails() {
+DirectHandle<JSObject> ScopeIterator::MaterializeScopeDetails() {
   // Calculate the size of the result.
   DirectHandle<FixedArray> details =
       isolate_->factory()->NewFixedArray(kScopeDetailsSize);
@@ -616,8 +618,8 @@ Handle<JSObject> ScopeIterator::ScopeObject(Mode mode) {
   }
 
   Handle<JSObject> scope = isolate_->factory()->NewSlowJSObjectWithNullProto();
-  auto visitor = [=, this](Handle<String> name, Handle<Object> value,
-                           ScopeType scope_type) {
+  auto visitor = [=, this](DirectHandle<String> name,
+                           DirectHandle<Object> value, ScopeType scope_type) {
     if (IsOptimizedOut(*value, isolate_)) {
       JSObject::SetAccessor(
           scope, name, isolate_->factory()->value_unavailable_accessor(), NONE)
@@ -673,7 +675,7 @@ void ScopeIterator::VisitScope(const Visitor& visitor, Mode mode) const {
 }
 
 bool ScopeIterator::SetVariableValue(Handle<String> name,
-                                     Handle<Object> value) {
+                                     DirectHandle<Object> value) {
   DCHECK(!Done());
   name = isolate_->factory()->InternalizeString(name);
   switch (Type()) {
@@ -793,7 +795,7 @@ int ScopeIterator::GetSourcePosition() const {
   } else {
     DCHECK(!generator_.is_null());
     SharedFunctionInfo::EnsureSourcePositionsAvailable(
-        isolate_, handle(generator_->function()->shared(), isolate_));
+        isolate_, direct_handle(generator_->function()->shared(), isolate_));
     return generator_->source_position();
   }
 }
@@ -805,7 +807,7 @@ void ScopeIterator::VisitScriptScope(const Visitor& visitor) const {
   // Skip the first script since that just declares 'this'.
   for (int i = 1; i < script_contexts->length(kAcquireLoad); i++) {
     DirectHandle<Context> context(script_contexts->get(i), isolate_);
-    Handle<ScopeInfo> scope_info(context->scope_info(), isolate_);
+    DirectHandle<ScopeInfo> scope_info(context->scope_info(), isolate_);
     if (VisitContextLocals(visitor, scope_info, context, ScopeTypeScript)) {
       return;
     }
@@ -815,7 +817,7 @@ void ScopeIterator::VisitScriptScope(const Visitor& visitor) const {
 void ScopeIterator::VisitModuleScope(const Visitor& visitor) const {
   DCHECK(context_->IsModuleContext());
 
-  Handle<ScopeInfo> scope_info(context_->scope_info(), isolate_);
+  DirectHandle<ScopeInfo> scope_info(context_->scope_info(), isolate_);
   if (VisitContextLocals(visitor, scope_info, context_, ScopeTypeModule)) {
     return;
   }
@@ -841,7 +843,7 @@ void ScopeIterator::VisitModuleScope(const Visitor& visitor) const {
 }
 
 bool ScopeIterator::VisitContextLocals(const Visitor& visitor,
-                                       Handle<ScopeInfo> scope_info,
+                                       DirectHandle<ScopeInfo> scope_info,
                                        DirectHandle<Context> context,
                                        ScopeType scope_type) const {
   // Fill all context locals to the context extension.
@@ -1029,7 +1031,7 @@ void ScopeIterator::VisitLocalScope(const Visitor& visitor, Mode mode,
     }
   } else {
     DCHECK_EQ(Mode::ALL, mode);
-    Handle<ScopeInfo> scope_info(context_->scope_info(), isolate_);
+    DirectHandle<ScopeInfo> scope_info(context_->scope_info(), isolate_);
     if (VisitContextLocals(visitor, scope_info, context_, scope_type)) return;
   }
 
@@ -1039,7 +1041,7 @@ void ScopeIterator::VisitLocalScope(const Visitor& visitor, Mode mode,
     DCHECK(!context_->IsWithContext());
     if (!context_->scope_info()->SloppyEvalCanExtendVars()) return;
     if (context_->extension_object().is_null()) return;
-    Handle<JSObject> extension(context_->extension_object(), isolate_);
+    DirectHandle<JSObject> extension(context_->extension_object(), isolate_);
     DirectHandle<FixedArray> keys =
         KeyAccumulator::GetKeys(isolate_, extension,
                                 KeyCollectionMode::kOwnOnly, ENUMERABLE_STRINGS)
@@ -1056,7 +1058,7 @@ void ScopeIterator::VisitLocalScope(const Visitor& visitor, Mode mode,
   }
 }
 
-bool ScopeIterator::SetLocalVariableValue(Handle<String> variable_name,
+bool ScopeIterator::SetLocalVariableValue(DirectHandle<String> variable_name,
                                           DirectHandle<Object> new_value) {
   // TODO(verwaest): Walk parameters backwards, not forwards.
   // TODO(verwaest): Use VariableMap rather than locals() list for lookup.
@@ -1140,12 +1142,12 @@ bool ScopeIterator::SetLocalVariableValue(Handle<String> variable_name,
   return false;
 }
 
-bool ScopeIterator::SetContextExtensionValue(Handle<String> variable_name,
-                                             Handle<Object> new_value) {
+bool ScopeIterator::SetContextExtensionValue(DirectHandle<String> variable_name,
+                                             DirectHandle<Object> new_value) {
   if (!context_->has_extension()) return false;
 
   DCHECK(IsJSContextExtensionObject(context_->extension_object()));
-  Handle<JSObject> ext(context_->extension_object(), isolate_);
+  DirectHandle<JSObject> ext(context_->extension_object(), isolate_);
   LookupIterator it(isolate_, ext, variable_name, LookupIterator::OWN);
   Maybe<bool> maybe = JSReceiver::HasProperty(&it);
   DCHECK(maybe.IsJust());
@@ -1155,7 +1157,7 @@ bool ScopeIterator::SetContextExtensionValue(Handle<String> variable_name,
   return true;
 }
 
-bool ScopeIterator::SetContextVariableValue(Handle<String> variable_name,
+bool ScopeIterator::SetContextVariableValue(DirectHandle<String> variable_name,
                                             DirectHandle<Object> new_value) {
   int slot_index = context_->scope_info()->ContextSlotIndex(variable_name);
   if (slot_index < 0) return false;
@@ -1184,7 +1186,7 @@ bool ScopeIterator::SetModuleVariableValue(DirectHandle<String> variable_name,
   return true;
 }
 
-bool ScopeIterator::SetScriptVariableValue(Handle<String> variable_name,
+bool ScopeIterator::SetScriptVariableValue(DirectHandle<String> variable_name,
                                            DirectHandle<Object> new_value) {
   DirectHandle<ScriptContextTable> script_contexts(
       context_->native_context()->script_context_table(), isolate_);
@@ -1230,8 +1232,8 @@ class LocalBlocklistsCollector {
   void InitializeWithClosureScope();
   void AdvanceToNextNonHiddenScope();
   void CollectCurrentLocalsIntoBlocklists();
-  Handle<ScopeInfo> FindScopeInfoForScope(Scope* scope) const;
-  void StoreFunctionBlocklists(Handle<ScopeInfo> outer_scope_info);
+  DirectHandle<ScopeInfo> FindScopeInfoForScope(Scope* scope) const;
+  void StoreFunctionBlocklists(DirectHandle<ScopeInfo> outer_scope_info);
 
   Isolate* isolate_;
   Handle<Script> script_;
@@ -1240,7 +1242,7 @@ class LocalBlocklistsCollector {
   DeclarationScope* closure_scope_;
 
   Handle<StringSet> context_blocklist_;
-  std::map<Scope*, Handle<StringSet>> function_blocklists_;
+  std::map<Scope*, IndirectHandle<StringSet>> function_blocklists_;
 };
 
 LocalBlocklistsCollector::LocalBlocklistsCollector(
@@ -1281,7 +1283,7 @@ void LocalBlocklistsCollector::CollectCurrentLocalsIntoBlocklists() {
   }
 }
 
-Handle<ScopeInfo> LocalBlocklistsCollector::FindScopeInfoForScope(
+DirectHandle<ScopeInfo> LocalBlocklistsCollector::FindScopeInfoForScope(
     Scope* scope) const {
   DisallowGarbageCollection no_gc;
   SharedFunctionInfo::ScriptIterator iterator(isolate_, *script_);
@@ -1292,16 +1294,16 @@ Handle<ScopeInfo> LocalBlocklistsCollector::FindScopeInfoForScope(
         scope->start_position() == info->StartPosition() &&
         scope->end_position() == info->EndPosition() &&
         scope->scope_type() == scope_info->scope_type()) {
-      return handle(scope_info, isolate_);
+      return direct_handle(scope_info, isolate_);
     }
   }
-  return Handle<ScopeInfo>();
+  return DirectHandle<ScopeInfo>();
 }
 
 void LocalBlocklistsCollector::StoreFunctionBlocklists(
-    Handle<ScopeInfo> outer_scope_info) {
+    DirectHandle<ScopeInfo> outer_scope_info) {
   for (const auto& pair : function_blocklists_) {
-    Handle<ScopeInfo> scope_info = FindScopeInfoForScope(pair.first);
+    DirectHandle<ScopeInfo> scope_info = FindScopeInfoForScope(pair.first);
     // If we don't find a ScopeInfo it's not tragic. It means we'll do
     // a full-reparse in case we pause in that function in the future.
     // The only ScopeInfo that MUST be found is for the closure_scope_.
@@ -1331,13 +1333,13 @@ void LocalBlocklistsCollector::CollectAndStore() {
         // `context_` is already the right context for `scope_` so we don't
         // need to advance `context_`.
         isolate_->LocalsBlockListCacheSet(
-            handle(context_->scope_info(), isolate_),
-            handle(context_->previous()->scope_info(), isolate_),
+            direct_handle(context_->scope_info(), isolate_),
+            direct_handle(context_->previous()->scope_info(), isolate_),
             context_blocklist_);
         context_ = handle(context_->previous(), isolate_);
       }
 
-      StoreFunctionBlocklists(handle(context_->scope_info(), isolate_));
+      StoreFunctionBlocklists(direct_handle(context_->scope_info(), isolate_));
 
       context_blocklist_ = StringSet::New(isolate_);
       function_blocklists_.clear();
@@ -1351,7 +1353,7 @@ void LocalBlocklistsCollector::CollectAndStore() {
 
   // In case we don't have any outer scopes we still need to record the empty
   // block list for the paused function to prevent future re-parses.
-  StoreFunctionBlocklists(handle(context_->scope_info(), isolate_));
+  StoreFunctionBlocklists(direct_handle(context_->scope_info(), isolate_));
 }
 
 }  // namespace
@@ -1363,7 +1365,7 @@ void ScopeIterator::MaybeCollectAndStoreLocalBlocklists() const {
   }
 
   DCHECK(IsTheHole(isolate_->LocalsBlockListCacheGet(
-      handle(function_->shared()->scope_info(), isolate_))));
+      direct_handle(function_->shared()->scope_info(), isolate_))));
   LocalBlocklistsCollector collector(isolate_, script_, context_,
                                      closure_scope_);
   collector.CollectAndStore();

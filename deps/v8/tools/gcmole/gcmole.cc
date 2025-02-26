@@ -47,6 +47,7 @@
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendPluginRegistry.h"
 #include "llvm/Support/Casting.h"
+#include "llvm/Support/LineIterator.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace {
@@ -160,7 +161,7 @@ struct Resolver {
       }
 
       if (llvm::isa<T>(decl)) {
-        return Cast<llvm><T>(decl);
+        return llvm::cast<T>(decl);
       }
 
       llvm::errs() << "Didn't match declaration template for " << n
@@ -793,7 +794,7 @@ class FunctionAnalyzer {
   bool IsRawPointerVar(clang::Expr* expr, std::string* var_name) {
     if (llvm::isa<clang::DeclRefExpr>(expr)) {
       *var_name =
-          Cast<llvm><clang::DeclRefExpr>(expr)->getDecl()->getNameAsString();
+          llvm::cast<clang::DeclRefExpr>(expr)->getDecl()->getNameAsString();
       return true;
     }
 
@@ -1214,7 +1215,8 @@ class FunctionAnalyzer {
   }
 
   DECL_VISIT_STMT(IfStmt) {
-    Environment cond_out = VisitStmt(stmt->getCond(), env);
+    Environment init_out = VisitStmt(stmt->getInit(), env);
+    Environment cond_out = VisitStmt(stmt->getCond(), init_out);
     Environment then_out = VisitStmt(stmt->getThen(), cond_out);
     Environment else_out = VisitStmt(stmt->getElse(), cond_out);
     return Environment::Merge(then_out, else_out);
@@ -1246,9 +1248,9 @@ class FunctionAnalyzer {
     if (t == nullptr) {
       return nullptr;
     } else if (llvm::isa<clang::TagType>(t)) {
-      return Cast<llvm><clang::TagType>(t);
+      return llvm::cast<clang::TagType>(t);
     } else if (llvm::isa<clang::SubstTemplateTypeParmType>(t)) {
-      return ToTagType(Cast<llvm><clang::SubstTemplateTypeParmType>(t)
+      return ToTagType(llvm::cast<clang::SubstTemplateTypeParmType>(t)
                            ->getReplacementType()
                            .getTypePtr());
     } else {
@@ -1518,16 +1520,23 @@ class ProblemsFinder : public clang::ASTConsumer,
 
   bool TranslationUnitIgnored() {
     if (!ignored_files_loaded_) {
-      std::ifstream fin("tools/gcmole/ignored_files");
-      std::string s;
-      while (fin >> s) ignored_files_.insert(s);
+      auto fileOrError =
+          llvm::MemoryBuffer::getFile("tools/gcmole/ignored_files");
+      if (auto error = fileOrError.getError()) {
+        llvm::errs() << "Failed to open ignored_files file\n";
+        std::terminate();
+      }
+      for (llvm::line_iterator it(*fileOrError->get()); !it.is_at_end(); ++it) {
+        ignored_files_.insert(*it);
+      }
       ignored_files_loaded_ = true;
     }
 
     clang::FileID main_file_id = sm_.getMainFileID();
-    std::string filename = sm_.getFileEntryForID(main_file_id)->getName().str();
+    llvm::StringRef filename =
+        sm_.getFileEntryForID(main_file_id)->tryGetRealPathName();
 
-    bool result = ignored_files_.find(filename) != ignored_files_.end();
+    bool result = ignored_files_.contains(filename);
     if (result) {
       llvm::outs() << "Ignoring file " << filename << "\n";
     }
@@ -1616,7 +1625,7 @@ class ProblemsFinder : public clang::ASTConsumer,
   clang::SourceManager& sm_;
 
   bool ignored_files_loaded_ = false;
-  std::set<std::string> ignored_files_;
+  llvm::StringSet<> ignored_files_;
 
   FunctionAnalyzer* function_analyzer_;
 };

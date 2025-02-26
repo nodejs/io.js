@@ -24,10 +24,11 @@ group("v8_fuzzer") {
   if (v8_enable_webassembly) {
     data += [
       "./multi_return/",
-      "./wasm/",
-      "./wasm_async/",
-      "./wasm_code/",
-      "./wasm_compile/",
+      "./wasm/async/",
+      "./wasm/code/",
+      "./wasm/compile/",
+      "./wasm/module/",
+      "./wasm/streaming/",
     ]
   }
 }

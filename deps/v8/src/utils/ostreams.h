@@ -159,6 +159,7 @@ struct AsHexBytes {
 };
 
 template <typename T>
+  requires requires(T t, std::ostream& os) { os << *t; }
 struct PrintIteratorRange {
   T start;
   T end;
@@ -172,8 +173,8 @@ struct PrintIteratorRange {
     endBracket = "";
     return *this;
   }
-  PrintIteratorRange& WithSeparator(const char* separator) {
-    this->separator = separator;
+  PrintIteratorRange& WithSeparator(const char* new_separator) {
+    this->separator = new_separator;
     return *this;
   }
 };

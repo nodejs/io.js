@@ -804,6 +804,7 @@ extern macro ArrayFromAsyncArrayLikeOnRejectedSharedFunConstant():
 // Since we do not have support for `await` in torque, we handled
 // asynchronous execution flow manually in torque. More information
 // is available in go/array-from-async-implementation.
+@incrementUseCounter('v8::Isolate::kArrayFromAsync')
 transitioning javascript builtin ArrayFromAsync(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   // 1. Let C be the this value.

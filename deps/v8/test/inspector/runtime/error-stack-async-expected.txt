@@ -1,0 +1,66 @@
+Checks that Error objects capture the correct async continuation
+
+Running test: testErrorStackWithRuntimeEnabled
+{
+    id : <messageId>
+    result : {
+        exceptionDetails : {
+            columnNumber : 10
+            exception : {
+                className : Error
+                description : Error     at generateError (test.js:4:10)     at async foo (test.js:8:10)     at async bar (test.js:12:17)
+                objectId : <objectId>
+                subtype : error
+                type : object
+            }
+            exceptionId : <exceptionId>
+            lineNumber : 4
+            scriptId : <scriptId>
+            stackTrace : {
+                callFrames : [
+                    [0] : {
+                        columnNumber : 9
+                        functionName : generateError
+                        lineNumber : 3
+                        scriptId : <scriptId>
+                        url : test.js
+                    }
+                ]
+                parent : {
+                    callFrames : [
+                        [0] : {
+                            columnNumber : 15
+                            functionName : foo
+                            lineNumber : 7
+                            scriptId : <scriptId>
+                            url : test.js
+                        }
+                        [1] : {
+                            columnNumber : 22
+                            functionName : bar
+                            lineNumber : 11
+                            scriptId : <scriptId>
+                            url : test.js
+                        }
+                        [2] : {
+                            columnNumber : 0
+                            functionName : 
+                            lineNumber : 0
+                            scriptId : <scriptId>
+                            url : 
+                        }
+                    ]
+                    description : await
+                }
+            }
+            text : Uncaught (in promise) Error
+        }
+        result : {
+            className : Error
+            description : Error     at generateError (test.js:4:10)     at async foo (test.js:8:10)     at async bar (test.js:12:17)
+            objectId : <objectId>
+            subtype : error
+            type : object
+        }
+    }
+}

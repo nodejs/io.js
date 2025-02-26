@@ -17,7 +17,7 @@ TEST_F(EnumIndexOverflowTest, GlobalObject) {
   dictionary->set_next_enumeration_index(
       PropertyDetails::DictionaryStorageField::kMax);
   DirectHandle<Object> value(Smi::FromInt(static_cast<int>(42)), isolate());
-  Handle<Name> name = factory()->InternalizeUtf8String("eeeee");
+  DirectHandle<Name> name = factory()->InternalizeUtf8String("eeeee");
   JSObject::AddProperty(isolate(), isolate()->global_object(), name, value,
                         NONE);
 }

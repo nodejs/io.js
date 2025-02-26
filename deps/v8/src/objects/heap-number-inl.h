@@ -16,11 +16,21 @@ namespace v8 {
 namespace internal {
 
 double HeapNumber::value() const { return value_.value(); }
-void HeapNumber::set_value(double value) { value_.set_value(value); }
+void HeapNumber::set_value(double value) {
+#ifdef V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE
+  // TODO(nicohartmann): Turn into DCHECK.
+  CHECK(!IsUndefinedNan(value));
+#endif  // V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE
+  value_.set_value(value);
+}
 
 uint64_t HeapNumber::value_as_bits() const { return value_.value_as_bits(); }
 
 void HeapNumber::set_value_as_bits(uint64_t bits) {
+#ifdef V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE
+  // TODO(nicohartmann): Turn into DCHECK.
+  CHECK_NE(bits, kUndefinedNanInt64);
+#endif  // V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE
   value_.set_value_as_bits(bits);
 }
 

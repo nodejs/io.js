@@ -182,12 +182,18 @@ class Sweeper {
   bool HasUnsweptPagesForMajorSweeping() const;
 #endif  // DEBUG
 
+  // Computes OS page boundaries for unused memory.
+  V8_EXPORT_PRIVATE static std::optional<base::AddressRegion>
+  ComputeDiscardMemoryArea(Address start, Address end);
+
  private:
   NonAtomicMarkingState* marking_state() const { return marking_state_; }
 
   void RawSweep(PageMetadata* p,
                 FreeSpaceTreatmentMode free_space_treatment_mode,
                 SweepingMode sweeping_mode, bool should_reduce_memory);
+
+  void ZeroOrDiscardUnusedMemory(PageMetadata* page, Address addr, size_t size);
 
   void AddPageImpl(AllocationSpace space, PageMetadata* page);
 

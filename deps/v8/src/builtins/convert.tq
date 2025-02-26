@@ -343,11 +343,22 @@ Convert<float64, int32>(f: int32): float64 {
 Convert<float64, float32>(f: float32): float64 {
   return ChangeFloat32ToFloat64(f);
 }
-Convert<float64_or_hole, float64>(f: float64): float64_or_hole {
-  return float64_or_hole{is_hole: false, value: f};
+Convert<float64_or_undefined_or_hole, float64>(f: float64):
+    float64_or_undefined_or_hole {
+  @if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE) {
+    return float64_or_undefined_or_hole{
+      is_undefined: false,
+      is_hole: false,
+      value: f
+    };
+  }
+  @ifnot(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE) {
+    return float64_or_undefined_or_hole{is_hole: false, value: f};
+  }
 }
-Convert<float64_or_hole, Number>(n: Number): float64_or_hole {
-  return Convert<float64_or_hole>(Convert<float64>(n));
+Convert<float64_or_undefined_or_hole, Number>(n: Number):
+    float64_or_undefined_or_hole {
+  return Convert<float64_or_undefined_or_hole>(Convert<float64>(n));
 }
 Convert<float32, float64>(f: float64): float32 {
   return TruncateFloat64ToFloat32(f);
@@ -355,11 +366,11 @@ Convert<float32, float64>(f: float64): float32 {
 Convert<float32, Number>(n: Number): float32 {
   return Convert<float32>(ChangeNumberToFloat64(n));
 }
-Convert<float16, Number>(n: Number): float16 {
+Convert<float16_raw_bits, Number>(n: Number): float16_raw_bits {
   return TruncateFloat64ToFloat16(ChangeNumberToFloat64(n));
 }
 
-Convert<float64, float16>(n: float16): float64 {
+Convert<float64, float16_raw_bits>(n: float16_raw_bits): float64 {
   return ChangeFloat16ToFloat64(n);
 }
 Convert<float32, int32>(n: int32): float32 {

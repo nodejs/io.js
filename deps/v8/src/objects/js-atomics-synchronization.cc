@@ -24,49 +24,50 @@ namespace {
 // TODO(v8:12547): Move this logic into a static method JSPromise::PerformThen
 // so that other callsites like this one can use it.
 // Set fulfill/reject handlers for a JSPromise object.
-MaybeHandle<JSReceiver> PerformPromiseThen(
-    Isolate* isolate, Handle<JSReceiver> promise,
-    Handle<Object> fulfill_handler,
-    MaybeHandle<JSFunction> maybe_reject_handler = MaybeHandle<JSFunction>()) {
+MaybeDirectHandle<JSReceiver> PerformPromiseThen(
+    Isolate* isolate, DirectHandle<JSReceiver> promise,
+    DirectHandle<Object> fulfill_handler,
+    MaybeDirectHandle<JSFunction> maybe_reject_handler = {}) {
   DCHECK(IsCallable(*fulfill_handler));
-  Handle<Object> reject_handler = isolate->factory()->undefined_value();
+  DirectHandle<Object> reject_handler = isolate->factory()->undefined_value();
   if (!maybe_reject_handler.is_null()) {
     reject_handler = maybe_reject_handler.ToHandleChecked();
   }
-  Handle<Object> argv[] = {fulfill_handler, reject_handler};
+  DirectHandle<Object> args[] = {fulfill_handler, reject_handler};
 
-  Handle<Object> then_result;
+  DirectHandle<Object> then_result;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, then_result,
       Execution::CallBuiltin(isolate, isolate->promise_then(), promise,
-                             arraysize(argv), argv));
+                             base::VectorOf(args)));
 
   return Cast<JSReceiver>(then_result);
 }
 
-MaybeHandle<Context> SetAsyncUnlockHandlers(
+MaybeDirectHandle<Context> SetAsyncUnlockHandlers(
     Isolate* isolate, DirectHandle<JSAtomicsMutex> mutex,
-    Handle<JSReceiver> waiting_for_callback_promise,
+    DirectHandle<JSReceiver> waiting_for_callback_promise,
     DirectHandle<JSPromise> unlocked_promise) {
-  Handle<Context> handlers_context = isolate->factory()->NewBuiltinContext(
-      isolate->native_context(), JSAtomicsMutex::kAsyncContextLength);
+  DirectHandle<Context> handlers_context =
+      isolate->factory()->NewBuiltinContext(
+          isolate->native_context(), JSAtomicsMutex::kAsyncContextLength);
   handlers_context->set(JSAtomicsMutex::kMutexAsyncContextSlot, *mutex);
   handlers_context->set(JSAtomicsMutex::kUnlockedPromiseAsyncContextSlot,
                         *unlocked_promise);
 
-  Handle<SharedFunctionInfo> resolve_info(
+  DirectHandle<SharedFunctionInfo> resolve_info(
       isolate->heap()->atomics_mutex_async_unlock_resolve_handler_sfi(),
       isolate);
-  Handle<JSFunction> resolver_callback =
+  DirectHandle<JSFunction> resolver_callback =
       Factory::JSFunctionBuilder{isolate, resolve_info, handlers_context}
           .set_map(isolate->strict_function_without_prototype_map())
           .set_allocation_type(AllocationType::kYoung)
           .Build();
 
-  Handle<SharedFunctionInfo> reject_info(
+  DirectHandle<SharedFunctionInfo> reject_info(
       isolate->heap()->atomics_mutex_async_unlock_reject_handler_sfi(),
       isolate);
-  Handle<JSFunction> reject_callback =
+  DirectHandle<JSFunction> reject_callback =
       Factory::JSFunctionBuilder{isolate, reject_info, handlers_context}
           .set_map(isolate->strict_function_without_prototype_map())
           .set_allocation_type(AllocationType::kYoung)
@@ -269,9 +270,9 @@ template <typename T>
 class V8_NODISCARD AsyncWaiterQueueNode final : public WaiterQueueNode {
  public:
   static AsyncWaiterQueueNode<T>* NewAsyncWaiterStoredInIsolate(
-      Isolate* requester, Handle<T> synchronization_primitive,
+      Isolate* requester, DirectHandle<T> synchronization_primitive,
       Handle<JSPromise> internal_waiting_promise,
-      MaybeHandle<JSPromise> unlocked_promise = MaybeHandle<JSPromise>()) {
+      MaybeHandle<JSPromise> unlocked_promise = {}) {
     auto waiter =
         std::unique_ptr<AsyncWaiterQueueNode<T>>(new AsyncWaiterQueueNode<T>(
             requester, synchronization_primitive, internal_waiting_promise,
@@ -284,7 +285,7 @@ class V8_NODISCARD AsyncWaiterQueueNode final : public WaiterQueueNode {
   // Creates a minimal LockAsyncWaiterQueueNode so that the isolate can keep
   // track of the locked mutexes and release them in case of isolate deinit.
   static AsyncWaiterQueueNode<T>* NewLockedAsyncWaiterStoredInIsolate(
-      Isolate* requester, Handle<T> synchronization_primitive) {
+      Isolate* requester, DirectHandle<T> synchronization_primitive) {
     DCHECK(IsJSAtomicsMutex(*synchronization_primitive));
     auto waiter = std::unique_ptr<AsyncWaiterQueueNode<T>>(
         new AsyncWaiterQueueNode<T>(requester, synchronization_primitive));
@@ -306,6 +307,8 @@ class V8_NODISCARD AsyncWaiterQueueNode final : public WaiterQueueNode {
         Utils::OpenHandle(*internal_waiting_promise_.Get(v8_isolate));
     return internal_waiting_promise;
   }
+
+  bool IsEmpty() const { return synchronization_primitive_.IsEmpty(); }
 
   Handle<T> GetSynchronizationPrimitive() {
     v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate*>(requester_);
@@ -354,7 +357,7 @@ class V8_NODISCARD AsyncWaiterQueueNode final : public WaiterQueueNode {
   friend AsyncWaiterTimeoutTask<T>;
 
   explicit AsyncWaiterQueueNode(Isolate* requester,
-                                Handle<T> synchronization_primitive)
+                                DirectHandle<T> synchronization_primitive)
       : WaiterQueueNode(requester),
         notify_task_id_(CancelableTaskManager::kInvalidTaskId) {
     native_context_ =
@@ -363,10 +366,10 @@ class V8_NODISCARD AsyncWaiterQueueNode final : public WaiterQueueNode {
         requester, Utils::ToLocal(Cast<JSObject>(synchronization_primitive)));
   }
 
-  explicit AsyncWaiterQueueNode(Isolate* requester,
-                                Handle<T> synchronization_primitive,
-                                Handle<JSPromise> internal_waiting_promise,
-                                MaybeHandle<JSPromise> unlocked_promise)
+  explicit AsyncWaiterQueueNode(
+      Isolate* requester, DirectHandle<T> synchronization_primitive,
+      DirectHandle<JSPromise> internal_waiting_promise,
+      MaybeDirectHandle<JSPromise> unlocked_promise)
       : WaiterQueueNode(requester),
         notify_task_id_(CancelableTaskManager::kInvalidTaskId) {
     v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate*>(requester);
@@ -510,10 +513,9 @@ Tagged<Object> JSSynchronizationPrimitive::NumWaitersForTesting(
 // TODO(lpardosixtos): Consider making and caching a canonical map for this
 // result object, like we do for the iterator result object.
 // static
-Handle<JSObject> JSAtomicsMutex::CreateResultObject(Isolate* isolate,
-                                                    DirectHandle<Object> value,
-                                                    bool success) {
-  Handle<JSObject> result =
+DirectHandle<JSObject> JSAtomicsMutex::CreateResultObject(
+    Isolate* isolate, DirectHandle<Object> value, bool success) {
+  DirectHandle<JSObject> result =
       isolate->factory()->NewJSObject(isolate->object_function());
   DirectHandle<Object> success_value = isolate->factory()->ToBoolean(success);
   JSObject::AddProperty(isolate, result, "value", value,
@@ -533,6 +535,12 @@ void JSAtomicsMutex::CleanupMatchingAsyncWaiters(Isolate* isolate,
     // any other matching nodes and mark them as ready for async cleanup. This
     // way we avoid taking the queue lock multiple times, which could slow down
     // other threads.
+    return;
+  }
+  if (async_node->IsEmpty()) {
+    // The node's underlying synchronization primitive has been collected, so
+    // delete it.
+    async_node->SetNotInListForVerification();
     return;
   }
   DirectHandle<JSAtomicsMutex> mutex =
@@ -810,12 +818,12 @@ void JSAtomicsMutex::UnlockSlowPath(Isolate* requester,
 // 3. `unlocked_promise`, a promise that settles when the mutex is unlocked,
 //    either explicitly or by timeout. Returned by lockAsync.
 // static
-MaybeHandle<JSPromise> JSAtomicsMutex::LockOrEnqueuePromise(
-    Isolate* requester, Handle<JSAtomicsMutex> mutex, Handle<Object> callback,
-    std::optional<base::TimeDelta> timeout) {
+MaybeDirectHandle<JSPromise> JSAtomicsMutex::LockOrEnqueuePromise(
+    Isolate* requester, DirectHandle<JSAtomicsMutex> mutex,
+    DirectHandle<Object> callback, std::optional<base::TimeDelta> timeout) {
   Handle<JSPromise> internal_locked_promise =
       requester->factory()->NewJSPromise();
-  Handle<JSReceiver> waiting_for_callback_promise;
+  DirectHandle<JSReceiver> waiting_for_callback_promise;
   ASSIGN_RETURN_ON_EXCEPTION(
       requester, waiting_for_callback_promise,
       PerformPromiseThen(requester, internal_locked_promise, callback));
@@ -824,7 +832,7 @@ MaybeHandle<JSPromise> JSAtomicsMutex::LockOrEnqueuePromise(
   // cleanup if the inner `promise_then` call fails. Keep a reference to
   // the handlers' synthetic context so we can store the waiter node in it once
   // the node is created.
-  Handle<Context> handlers_context;
+  DirectHandle<Context> handlers_context;
   ASSIGN_RETURN_ON_EXCEPTION(
       requester, handlers_context,
       SetAsyncUnlockHandlers(requester, mutex, waiting_for_callback_promise,
@@ -851,7 +859,8 @@ MaybeHandle<JSPromise> JSAtomicsMutex::LockOrEnqueuePromise(
 }
 
 // static
-bool JSAtomicsMutex::LockAsync(Isolate* requester, Handle<JSAtomicsMutex> mutex,
+bool JSAtomicsMutex::LockAsync(Isolate* requester,
+                               DirectHandle<JSAtomicsMutex> mutex,
                                Handle<JSPromise> internal_locked_promise,
                                MaybeHandle<JSPromise> unlocked_promise,
                                LockAsyncWaiterQueueNode** waiter_node,
@@ -866,7 +875,7 @@ bool JSAtomicsMutex::LockAsync(Isolate* requester, Handle<JSAtomicsMutex> mutex,
     // Resolve `internal_locked_promise` instead of synchronously running the
     // callback. This guarantees that the callback is run in a microtask
     // regardless of the current state of the mutex.
-    MaybeHandle<Object> result = JSPromise::Resolve(
+    MaybeDirectHandle<Object> result = JSPromise::Resolve(
         internal_locked_promise, requester->factory()->undefined_value());
     USE(result);
   } else {
@@ -880,20 +889,19 @@ bool JSAtomicsMutex::LockAsync(Isolate* requester, Handle<JSAtomicsMutex> mutex,
 }
 
 // static
-Handle<JSPromise> JSAtomicsMutex::LockAsyncWrapperForWait(
-    Isolate* requester, Handle<JSAtomicsMutex> mutex) {
+DirectHandle<JSPromise> JSAtomicsMutex::LockAsyncWrapperForWait(
+    Isolate* requester, DirectHandle<JSAtomicsMutex> mutex) {
   Handle<JSPromise> internal_locked_promise =
       requester->factory()->NewJSPromise();
   AsyncWaiterNodeType* waiter_node = nullptr;
-  LockAsync(requester, mutex, internal_locked_promise, MaybeHandle<JSPromise>(),
-            &waiter_node);
+  LockAsync(requester, mutex, internal_locked_promise, {}, &waiter_node);
   return internal_locked_promise;
 }
 
 // static
 bool JSAtomicsMutex::LockAsyncSlowPath(
-    Isolate* isolate, Handle<JSAtomicsMutex> mutex, std::atomic<StateT>* state,
-    Handle<JSPromise> internal_locked_promise,
+    Isolate* isolate, DirectHandle<JSAtomicsMutex> mutex,
+    std::atomic<StateT>* state, Handle<JSPromise> internal_locked_promise,
     MaybeHandle<JSPromise> unlocked_promise,
     LockAsyncWaiterQueueNode** waiter_node,
     std::optional<base::TimeDelta> timeout) {
@@ -947,7 +955,24 @@ void JSAtomicsMutex::UnlockAsyncLockedMutex(
           async_locked_waiter_wrapper->foreign_address<kWaiterQueueForeignTag>(
               IsolateForSandbox(requester)));
   LockAsyncWaiterQueueNode::RemoveFromAsyncWaiterQueueList(waiter_node);
-  Unlock(requester);
+  if (IsCurrentThreadOwner()) {
+    Unlock(requester);
+    return;
+  }
+  // If this is reached, the lock was already released by this thread.
+  // This can happen if waitAsync is called without awaiting or due to
+  // promise prototype tampering. Setting Promise.prototype.then to a
+  // non callable will cause the `waiting_for_callback_promise` (defined in
+  // LockOrEnqueuePromise) reactions to be called even if the async callback
+  // is not resolved; as a consequence, the following code will try to unlock
+  // the mutex twice:
+  //
+  // let mutex = new Atomics.Mutex();
+  // let cv = new Atomics.Condition();
+  // Promise.prototype.then = undefined;
+  // Atomics.Mutex.lockAsync(mutex, async function() {
+  //   await Atomics.Condition.waitAsync(cv, mutex);
+  // }
 }
 
 bool JSAtomicsMutex::DequeueTimedOutAsyncWaiter(
@@ -1019,8 +1044,8 @@ void JSAtomicsMutex::HandleAsyncTimeout(LockAsyncWaiterQueueNode* waiter) {
   }
 
   DirectHandle<JSPromise> lock_promise = waiter->GetInternalWaitingPromise();
-  Handle<JSPromise> lock_async_promise = waiter->GetUnlockedPromise();
-  Handle<JSObject> result = CreateResultObject(
+  DirectHandle<JSPromise> lock_async_promise = waiter->GetUnlockedPromise();
+  DirectHandle<JSObject> result = CreateResultObject(
       requester, requester->factory()->undefined_value(), false);
   auto resolve_result = JSPromise::Resolve(lock_async_promise, result);
   USE(resolve_result);
@@ -1067,7 +1092,7 @@ void JSAtomicsMutex::HandleAsyncNotify(LockAsyncWaiterQueueNode* waiter) {
 
   v8::Context::Scope contextScope(waiter->GetNativeContext());
   DirectHandle<JSAtomicsMutex> js_mutex = waiter->GetSynchronizationPrimitive();
-  Handle<JSPromise> promise = waiter->GetInternalWaitingPromise();
+  DirectHandle<JSPromise> promise = waiter->GetInternalWaitingPromise();
   bool locked = LockOrEnqueueAsyncNode(requester, js_mutex, waiter);
   if (locked) {
     if (waiter->timeout_task_id_ != CancelableTaskManager::kInvalidTaskId) {
@@ -1099,7 +1124,13 @@ void JSAtomicsCondition::CleanupMatchingAsyncWaiters(Isolate* isolate,
   auto* async_node = static_cast<WaitAsyncWaiterQueueNode*>(node);
   if (async_node->ready_for_async_cleanup_) {
     // The node is not in the waiter queue and there is no HandleNotify task
-    // for it in the event loop. So it is safe to delete the it.
+    // for it in the event loop. So it is safe to delete it.
+    return;
+  }
+  if (async_node->IsEmpty()) {
+    // The node's underlying synchronization primitive has been collected, so
+    // delete it.
+    async_node->SetNotInListForVerification();
     return;
   }
   DirectHandle<JSAtomicsCondition> cv =
@@ -1109,8 +1140,7 @@ void JSAtomicsCondition::CleanupMatchingAsyncWaiters(Isolate* isolate,
 
   WaiterQueueLockGuard waiter_queue_lock_guard(state, current_state);
 
-  WaiterQueueNode* waiter_head =
-      cv->DestructivelyGetWaiterQueueHead(cv->GetIsolate());
+  WaiterQueueNode* waiter_head = cv->DestructivelyGetWaiterQueueHead(isolate);
   if (waiter_head) {
     WaiterQueueNode::DequeueAllMatchingForAsyncCleanup(&waiter_head, matcher);
   }
@@ -1146,7 +1176,7 @@ void JSAtomicsCondition::QueueWaiter(Isolate* requester,
 // static
 bool JSAtomicsCondition::WaitFor(Isolate* requester,
                                  DirectHandle<JSAtomicsCondition> cv,
-                                 Handle<JSAtomicsMutex> mutex,
+                                 DirectHandle<JSAtomicsMutex> mutex,
                                  std::optional<base::TimeDelta> timeout) {
   DisallowGarbageCollection no_gc;
 
@@ -1254,25 +1284,26 @@ uint32_t JSAtomicsCondition::Notify(Isolate* requester,
 // 2. `lock_promise`, which will be resolved when the lock is acquired after
 //    waiting.
 // static
-MaybeHandle<JSReceiver> JSAtomicsCondition::WaitAsync(
-    Isolate* requester, Handle<JSAtomicsCondition> cv,
+MaybeDirectHandle<JSReceiver> JSAtomicsCondition::WaitAsync(
+    Isolate* requester, DirectHandle<JSAtomicsCondition> cv,
     DirectHandle<JSAtomicsMutex> mutex,
     std::optional<base::TimeDelta> timeout) {
   Handle<JSPromise> internal_waiting_promise =
       requester->factory()->NewJSPromise();
-  Handle<Context> handler_context = requester->factory()->NewBuiltinContext(
-      requester->native_context(), kAsyncContextLength);
+  DirectHandle<Context> handler_context =
+      requester->factory()->NewBuiltinContext(requester->native_context(),
+                                              kAsyncContextLength);
   handler_context->set(kMutexAsyncContextSlot, *mutex);
   handler_context->set(kConditionVariableAsyncContextSlot, *cv);
 
-  Handle<SharedFunctionInfo> info(
+  DirectHandle<SharedFunctionInfo> info(
       requester->heap()->atomics_condition_acquire_lock_sfi(), requester);
-  Handle<JSFunction> lock_function =
+  DirectHandle<JSFunction> lock_function =
       Factory::JSFunctionBuilder{requester, info, handler_context}
           .set_map(requester->strict_function_without_prototype_map())
           .Build();
 
-  Handle<JSReceiver> lock_promise;
+  DirectHandle<JSReceiver> lock_promise;
 
   ASSIGN_RETURN_ON_EXCEPTION(
       requester, lock_promise,
@@ -1351,8 +1382,8 @@ void JSAtomicsCondition::HandleAsyncNotify(WaitAsyncWaiterQueueNode* waiter) {
     USE(abort_result);
   }
   v8::Context::Scope contextScope(waiter->GetNativeContext());
-  Handle<JSPromise> promise = waiter->GetInternalWaitingPromise();
-  MaybeHandle<Object> result =
+  DirectHandle<JSPromise> promise = waiter->GetInternalWaitingPromise();
+  MaybeDirectHandle<Object> result =
       JSPromise::Resolve(promise, requester->factory()->undefined_value());
   USE(result);
   WaitAsyncWaiterQueueNode::RemoveFromAsyncWaiterQueueList(waiter);

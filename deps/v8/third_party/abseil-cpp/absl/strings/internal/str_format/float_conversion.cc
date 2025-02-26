@@ -17,6 +17,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <limits>
@@ -159,7 +160,7 @@ class BinaryToDecimal {
 
   // See the current block of digits.
   absl::string_view CurrentDigits() const {
-    return absl::string_view(digits_ + kDigitsPerChunk - size_, size_);
+    return absl::string_view(&digits_[kDigitsPerChunk - size_], size_);
   }
 
   // Advance the current view of digits.
@@ -234,7 +235,7 @@ class BinaryToDecimal {
   size_t decimal_start_;
   size_t decimal_end_;
 
-  char digits_[kDigitsPerChunk];
+  std::array<char, kDigitsPerChunk> digits_;
   size_t size_ = 0;
 
   absl::Span<uint32_t> data_;

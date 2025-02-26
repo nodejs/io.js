@@ -19,6 +19,7 @@
 
 // Features that are always enabled and do not have a flag.
 #define FOREACH_WASM_NON_FLAG_FEATURE(V) \
+  V(shared_memory)                       \
   V(reftypes)                            \
   V(simd)                                \
   V(threads)                             \
@@ -75,10 +76,10 @@ class WasmEnabledFeatures : public base::EnumSet<WasmEnabledFeature> {
   static inline constexpr WasmEnabledFeatures ForAsmjs() { return {}; }
   // Retuns optional features that are enabled by flags, plus features that are
   // not enabled by a flag and are always on.
-  static WasmEnabledFeatures FromFlags();
+  static V8_EXPORT_PRIVATE WasmEnabledFeatures FromFlags();
   static V8_EXPORT_PRIVATE WasmEnabledFeatures FromIsolate(Isolate*);
   static V8_EXPORT_PRIVATE WasmEnabledFeatures
-  FromContext(Isolate*, Handle<NativeContext>);
+  FromContext(Isolate*, DirectHandle<NativeContext>);
 };
 
 // Set of detected features. This includes features that have a flag plus
@@ -86,6 +87,9 @@ class WasmEnabledFeatures : public base::EnumSet<WasmEnabledFeature> {
 class WasmDetectedFeatures : public base::EnumSet<WasmDetectedFeature> {
  public:
   constexpr WasmDetectedFeatures() = default;
+  // Construct from an enum set.
+  constexpr WasmDetectedFeatures(base::EnumSet<WasmDetectedFeature> features)
+      : base::EnumSet<WasmDetectedFeature>(features) {}
 
   // Simplified getters and setters. Use {add_foo()} and {has_foo()} instead of
   // {Add(WasmDetectedFeature::foo)} or {contains(WasmDetectedFeature::foo)}.
@@ -131,6 +135,8 @@ enum class CompileTimeImport {
   kStringConstants,
   kTextEncoder,
   kTextDecoder,
+  // Not really an import, but needs the same handling as compile-time imports.
+  kDisableDenormalFloats,
 };
 
 inline std::ostream& operator<<(std::ostream& os, CompileTimeImport imp) {

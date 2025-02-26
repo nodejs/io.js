@@ -10,10 +10,10 @@ namespace internal {
 const int Deoptimizer::kEagerDeoptExitSize = 2 * kInstrSize;
 const int Deoptimizer::kLazyDeoptExitSize = 2 * kInstrSize;
 
+const int Deoptimizer::kAdaptShadowStackOffsetToSubtract = 0;
+
 // static
-void Deoptimizer::PatchJumpToTrampoline(Address pc, Address new_pc) {
-  UNREACHABLE();
-}
+void Deoptimizer::PatchToJump(Address pc, Address new_pc) { UNREACHABLE(); }
 
 Float32 RegisterValues::GetFloatRegister(unsigned n) const {
   return Float32::FromBits(

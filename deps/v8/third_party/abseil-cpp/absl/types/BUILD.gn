@@ -40,6 +40,7 @@ absl_source_set("span") {
   sources = [ "internal/span.h" ]
   deps = [
     "//third_party/abseil-cpp/absl/algorithm",
+    "//third_party/abseil-cpp/absl/base:config",
     "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/base:nullability",
     "//third_party/abseil-cpp/absl/base:throw_delegate",

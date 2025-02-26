@@ -511,7 +511,7 @@
   species_breakage();
   a.constructor = {};
   a.constructor[Symbol.species] = function() {};
-  species_breakage();
   assertUnoptimized(species_breakage);
+  species_breakage();
   assertEquals(24, result);
 })();
