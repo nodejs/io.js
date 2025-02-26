@@ -100,8 +100,12 @@ void TTYWrap::GetWindowSize(const FunctionCallbackInfo<Value>& args) {
 
   if (err == 0) {
     Local<Array> a = args[0].As<Array>();
-    a->Set(env->context(), 0, Integer::New(env->isolate(), width)).Check();
-    a->Set(env->context(), 1, Integer::New(env->isolate(), height)).Check();
+    if (a->Set(env->context(), 0, Integer::New(env->isolate(), width))
+            .IsNothing() ||
+        a->Set(env->context(), 1, Integer::New(env->isolate(), height))
+            .IsNothing()) {
+      return;
+    }
   }
 
   args.GetReturnValue().Set(err);
