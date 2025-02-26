@@ -998,19 +998,20 @@ will be made to remove the destination.
 ```mjs
 import { copyFile, constants } from 'node:fs/promises';
 
+// Example 1: Copy the file, overwriting the destination file if it exists
 try {
   await copyFile('source.txt', 'destination.txt');
-  console.log('source.txt was copied to destination.txt');
-} catch {
-  console.error('The file could not be copied');
+  console.log('File copied successfully: source.txt -> destination.txt');
+} catch (err) {
+  console.error(`Error copying file: ${err.message}`);
 }
 
-// By using COPYFILE_EXCL, the operation will fail if destination.txt exists.
+// Example 2: By using COPYFILE_EXCL, the operation will fail if destination.txt exists.
 try {
   await copyFile('source.txt', 'destination.txt', constants.COPYFILE_EXCL);
-  console.log('source.txt was copied to destination.txt');
-} catch {
-  console.error('The file could not be copied');
+  console.log('File copied successfully: source.txt -> destination.txt');
+} catch (err) {
+  console.error(`Error copying file: ${err.message}`);
 }
 ```
 
