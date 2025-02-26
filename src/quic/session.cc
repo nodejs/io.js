@@ -729,7 +729,7 @@ struct Session::Impl final : public MemoryRetainer {
       THROW_ERR_INVALID_STATE(env, "Session is destroyed");
     }
 
-    session->Close(Session::CloseMethod::GRACEFUL);
+    session->Close(CloseMethod::GRACEFUL);
   }
 
   static void SilentClose(const FunctionCallbackInfo<Value>& args) {
@@ -742,7 +742,7 @@ struct Session::Impl final : public MemoryRetainer {
       THROW_ERR_INVALID_STATE(env, "Session is destroyed");
     }
 
-    session->Close(Session::CloseMethod::SILENT);
+    session->Close(CloseMethod::SILENT);
   }
 
   static void UpdateKey(const FunctionCallbackInfo<Value>& args) {
@@ -831,7 +831,7 @@ struct Session::Impl final : public MemoryRetainer {
                                      uint64_t dgram_id,
                                      void* user_data) {
     NGTCP2_CALLBACK_SCOPE(session)
-    session->DatagramStatus(dgram_id, quic::DatagramStatus::ACKNOWLEDGED);
+    session->DatagramStatus(dgram_id, DatagramStatus::ACKNOWLEDGED);
     return NGTCP2_SUCCESS;
   }
 
@@ -934,7 +934,7 @@ struct Session::Impl final : public MemoryRetainer {
                               uint64_t dgram_id,
                               void* user_data) {
     NGTCP2_CALLBACK_SCOPE(session)
-    session->DatagramStatus(dgram_id, quic::DatagramStatus::LOST);
+    session->DatagramStatus(dgram_id, DatagramStatus::LOST);
     return NGTCP2_SUCCESS;
   }
 
@@ -1285,7 +1285,7 @@ Session::Session(Endpoint* endpoint,
                  const Config& config,
                  TLSContext* tls_context,
                  const std::optional<SessionTicket>& session_ticket)
-    : AsyncWrap(endpoint->env(), object, AsyncWrap::PROVIDER_QUIC_SESSION),
+    : AsyncWrap(endpoint->env(), object, PROVIDER_QUIC_SESSION),
       side_(config.side),
       allocator_(BindingData::Get(env())),
       impl_(std::make_unique<Impl>(this, endpoint, config)),
@@ -1386,7 +1386,7 @@ bool Session::is_destroyed_or_closing() const {
   return !impl_ || impl_->state_->closing;
 }
 
-void Session::Close(Session::CloseMethod method) {
+void Session::Close(CloseMethod method) {
   if (is_destroyed()) return;
   auto& stats_ = impl_->stats_;
 
@@ -2098,8 +2098,7 @@ void Session::CollectSessionTicketAppData(
 }
 
 SessionTicket::AppData::Status Session::ExtractSessionTicketAppData(
-    const SessionTicket::AppData& app_data,
-    SessionTicket::AppData::Source::Flag flag) {
+    const SessionTicket::AppData& app_data, Flag flag) {
   CHECK(!is_destroyed());
   return application().ExtractSessionTicketAppData(app_data, flag);
 }
@@ -2307,12 +2306,12 @@ void Session::DatagramStatus(uint64_t datagramId, quic::DatagramStatus status) {
   DCHECK(!is_destroyed());
   auto& stats_ = impl_->stats_;
   switch (status) {
-    case quic::DatagramStatus::ACKNOWLEDGED: {
+    case DatagramStatus::ACKNOWLEDGED: {
       Debug(this, "Datagram %" PRIu64 " was acknowledged", datagramId);
       STAT_INCREMENT(Stats, datagrams_acknowledged);
       break;
     }
-    case quic::DatagramStatus::LOST: {
+    case DatagramStatus::LOST: {
       Debug(this, "Datagram %" PRIu64 " was lost", datagramId);
       STAT_INCREMENT(Stats, datagrams_lost);
       break;
@@ -2559,9 +2558,9 @@ void Session::EmitDatagramStatus(uint64_t id, quic::DatagramStatus status) {
 
   const auto status_to_string = ([&] {
     switch (status) {
-      case quic::DatagramStatus::ACKNOWLEDGED:
+      case DatagramStatus::ACKNOWLEDGED:
         return state.acknowledged_string();
-      case quic::DatagramStatus::LOST:
+      case DatagramStatus::LOST:
         return state.lost_string();
     }
     UNREACHABLE();
@@ -2769,8 +2768,7 @@ Local<FunctionTemplate> Session::GetConstructorTemplate(Environment* env) {
     tmpl = NewFunctionTemplate(isolate, IllegalConstructor);
     tmpl->SetClassName(state.session_string());
     tmpl->Inherit(AsyncWrap::GetConstructorTemplate(env));
-    tmpl->InstanceTemplate()->SetInternalFieldCount(
-        Session::kInternalFieldCount);
+    tmpl->InstanceTemplate()->SetInternalFieldCount(kInternalFieldCount);
 #define V(name, key, no_side_effect)                                           \
   if (no_side_effect) {                                                        \
     SetProtoMethodNoSideEffect(isolate, tmpl, #key, Impl::name);               \

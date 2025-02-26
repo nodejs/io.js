@@ -177,7 +177,7 @@ bool SetOption(Environment* env,
 Maybe<Endpoint::Options> Endpoint::Options::From(Environment* env,
                                                  Local<Value> value) {
   if (value.IsEmpty() || !value->IsObject()) {
-    if (value->IsUndefined()) return Just(Endpoint::Options());
+    if (value->IsUndefined()) return Just(Options());
     THROW_ERR_INVALID_ARG_TYPE(env, "options must be an object");
     return Nothing<Options>();
   }
@@ -213,7 +213,7 @@ Maybe<Endpoint::Options> Endpoint::Options::From(Environment* env,
                                  "The address option must be a SocketAddress");
       return Nothing<Options>();
     }
-    auto addr = FromJSObject<SocketAddressBase>(address.As<v8::Object>());
+    auto addr = FromJSObject<SocketAddressBase>(address.As<Object>());
     options.local_address = addr->address();
   } else {
     options.local_address = std::make_shared<SocketAddress>();
@@ -286,8 +286,7 @@ class Endpoint::UDP::Impl final : public HandleWrap {
     if (tmpl.IsEmpty()) {
       tmpl = NewFunctionTemplate(env->isolate(), IllegalConstructor);
       tmpl->Inherit(HandleWrap::GetConstructorTemplate(env));
-      tmpl->InstanceTemplate()->SetInternalFieldCount(
-          HandleWrap::kInternalFieldCount);
+      tmpl->InstanceTemplate()->SetInternalFieldCount(kInternalFieldCount);
       tmpl->SetClassName(state.endpoint_udp_string());
       state.set_udp_constructor_template(tmpl);
     }
@@ -317,7 +316,7 @@ class Endpoint::UDP::Impl final : public HandleWrap {
       : HandleWrap(endpoint->env(),
                    object,
                    reinterpret_cast<uv_handle_t*>(&handle_),
-                   AsyncWrap::PROVIDER_QUIC_UDP),
+                   PROVIDER_QUIC_UDP),
         endpoint_(endpoint) {
     CHECK_EQ(uv_udp_init(endpoint->env()->event_loop(), &handle_), 0);
     handle_.data = this;
@@ -376,7 +375,7 @@ Endpoint::UDP::~UDP() {
   Close();
 }
 
-int Endpoint::UDP::Bind(const Endpoint::Options& options) {
+int Endpoint::UDP::Bind(const Options& options) {
   if (is_bound_) return UV_EALREADY;
   if (is_closed_or_closing()) return UV_EBADF;
 
@@ -521,8 +520,7 @@ Local<FunctionTemplate> Endpoint::GetConstructorTemplate(Environment* env) {
     tmpl = NewFunctionTemplate(isolate, New);
     tmpl->Inherit(AsyncWrap::GetConstructorTemplate(env));
     tmpl->SetClassName(state.endpoint_string());
-    tmpl->InstanceTemplate()->SetInternalFieldCount(
-        Endpoint::kInternalFieldCount);
+    tmpl->InstanceTemplate()->SetInternalFieldCount(kInternalFieldCount);
     SetProtoMethod(isolate, tmpl, "listen", DoListen);
     SetProtoMethod(isolate, tmpl, "closeGracefully", DoCloseGracefully);
     SetProtoMethod(isolate, tmpl, "connect", DoConnect);
@@ -612,8 +610,8 @@ void Endpoint::RegisterExternalReferences(ExternalReferenceRegistry* registry) {
 
 Endpoint::Endpoint(Environment* env,
                    Local<Object> object,
-                   const Endpoint::Options& options)
-    : AsyncWrap(env, object, AsyncWrap::PROVIDER_QUIC_ENDPOINT),
+                   const Options& options)
+    : AsyncWrap(env, object, PROVIDER_QUIC_ENDPOINT),
       stats_(env->isolate()),
       state_(env->isolate()),
       options_(options),

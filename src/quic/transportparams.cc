@@ -279,8 +279,7 @@ const QuicError& TransportParams::error() const {
   return error_;
 }
 
-void TransportParams::Initialize(Environment* env,
-                                 v8::Local<v8::Object> target) {
+void TransportParams::Initialize(Environment* env, Local<Object> target) {
   NODE_DEFINE_CONSTANT(target, DEFAULT_MAX_STREAM_DATA);
   NODE_DEFINE_CONSTANT(target, DEFAULT_MAX_DATA);
   NODE_DEFINE_CONSTANT(target, DEFAULT_MAX_IDLE_TIMEOUT);
