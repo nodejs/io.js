@@ -42,17 +42,26 @@
       }
     },
     'conditions': [
-      ['OS=="mac"', {
-        # Hide symbols that are not explicitly exported with V8_EXPORT.
-        # TODO(joyeecheung): enable it on other platforms. Currently gcc times out
-        # or run out of memory with -fvisibility=hidden on some machines in the CI.
-        'xcode_settings': {
-          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',  # -fvisibility=hidden
-        },
+      # Build with -fvisibility=hidden and -fvisibility-inlines-hidden to avoid
+      # including unnecessary internal symbols, which may lead to run-time fixups.
+      # This is not done on AIX where symbols are exported by tools/create_expfile.sh
+      # see https://github.com/nodejs/node/pull/56290#issuecomment-2582703109
+      ['OS!="aix"', {
         'defines': [
           'BUILDING_V8_SHARED',  # Make V8_EXPORT visible.
-        ],
+        ]
       }],
+      ['OS=="mac"', {
+        'xcode_settings': {
+          'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',  # -fvisibility=hidden
+          'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES'  # -fvisibility-inlines-hidden
+        },
+      }, 'OS!="aix" and (OS!="win" or clang==1)', {
+        'cflags': [
+          '-fvisibility=hidden',
+          '-fvisibility-inlines-hidden'
+        ],
+      }],  # MSVC hides the non-public symbols by default so no need to configure it.
     ],
   },
   'targets': [

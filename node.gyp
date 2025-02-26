@@ -473,6 +473,19 @@
       ['clang==0 and OS!="win"', {
         'cflags': [ '-Wno-restrict', ],
       }],
+      # TODO(joyeecheung): investigate if it breaks addons.
+      # ['OS=="mac"', {
+      #   'xcode_settings': {
+      #     'GCC_SYMBOLS_PRIVATE_EXTERN': 'YES',  # -fvisibility=hidden
+      #     'GCC_INLINES_ARE_PRIVATE_EXTERN': 'YES'  # -fvisibility-inlines-hidden
+      #   },
+      # }],
+      # ['OS!="win" or clang==1', {
+      #   'cflags': [
+      #     '-fvisibility=hidden',
+      #     '-fvisibility-inlines-hidden'
+      #   ],
+      # }],
       # Pointer authentication for ARM64.
       ['target_arch=="arm64"', {
           'target_conditions': [
