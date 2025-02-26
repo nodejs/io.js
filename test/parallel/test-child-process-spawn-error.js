@@ -53,3 +53,18 @@ enoentChild.on('error', common.mustCall(function(err) {
   assert.strictEqual(err.path, enoentPath);
   assert.deepStrictEqual(err.spawnargs, spawnargs);
 }));
+
+// Verify that the spawn() function throws when the file parameter is not a valid string
+{
+  assert.throws(() => {
+    spawn(123, common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_TYPE' });
+
+  assert.throws(() => {
+    spawn('', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+
+  assert.throws(() => {
+    spawn('\u0000', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+}

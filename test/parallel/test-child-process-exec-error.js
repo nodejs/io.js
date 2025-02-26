@@ -22,7 +22,7 @@
 'use strict';
 const common = require('../common');
 const assert = require('assert');
-const child_process = require('child_process');
+const { exec, execSync, execFile } = require('child_process');
 
 function test(fn, code, expectPidType = 'number') {
   const child = fn('does-not-exist', common.mustCall(function(err) {
@@ -35,10 +35,42 @@ function test(fn, code, expectPidType = 'number') {
 
 // With `shell: true`, expect pid (of the shell)
 if (common.isWindows) {
-  test(child_process.exec, 1, 'number'); // Exit code of cmd.exe
+  test(exec, 1, 'number'); // Exit code of cmd.exe
 } else {
-  test(child_process.exec, 127, 'number'); // Exit code of /bin/sh
+  test(exec, 127, 'number'); // Exit code of /bin/sh
 }
 
 // With `shell: false`, expect no pid
-test(child_process.execFile, 'ENOENT', 'undefined');
+test(execFile, 'ENOENT', 'undefined');
+
+
+// Verify that the exec() function throws when command parameter is not a valid string
+{
+  assert.throws(() => {
+    exec(123, common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_TYPE' });
+
+  assert.throws(() => {
+    exec('', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+
+  assert.throws(() => {
+    exec('\u0000', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+}
+
+
+// Verify that the execSync() function throws when command parameter is not a valid string
+{
+  assert.throws(() => {
+    execSync(123, common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_TYPE' });
+
+  assert.throws(() => {
+    execSync('', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+
+  assert.throws(() => {
+    execSync('\u0000', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+}

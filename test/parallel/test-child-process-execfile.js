@@ -125,3 +125,33 @@ const execOpts = { encoding: 'utf8', shell: true, env: { ...process.env, NODE: p
     }));
   });
 }
+
+// Verify that the execFile() function throws when the file parameter is not a valid string
+{
+  assert.throws(() => {
+    execFile(123, common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_TYPE' });
+
+  assert.throws(() => {
+    execFile('', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+
+  assert.throws(() => {
+    execFile('\u0000', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+}
+
+// Verify that the execFileSync() function throws when file parameter is not a valid string
+{
+  assert.throws(() => {
+    execFileSync(123, common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_TYPE' });
+
+  assert.throws(() => {
+    execFileSync('', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+
+  assert.throws(() => {
+    execFileSync('\u0000', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+}

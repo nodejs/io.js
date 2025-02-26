@@ -65,3 +65,18 @@ assert.deepStrictEqual(ret_err.spawnargs, ['bar']);
   ];
   assert.deepStrictEqual(retUTF8.output, stringifiedDefault);
 }
+
+// Verify that the spawnSync() function throws when the file parameter is not a valid string
+{
+  assert.throws(() => {
+    spawnSync(123, common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_TYPE' });
+
+  assert.throws(() => {
+    spawnSync('', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+
+  assert.throws(() => {
+    spawnSync('\u0000', common.mustNotCall());
+  }, { code: 'ERR_INVALID_ARG_VALUE' });
+}
