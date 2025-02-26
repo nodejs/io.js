@@ -3727,7 +3727,7 @@ inline double IfEmptyReturnZero(double value) {
 Maybe<DurationRecord> ParseTemporalDurationString(Isolate* isolate,
                                                   Handle<String> iso_string) {
   TEMPORAL_ENTER_FUNC();
-  // In this funciton, we use 'double' as type for all mathematical values
+  // In this function, we use 'double' as type for all mathematical values
   // because in
   // https://tc39.es/proposal-temporal/#sec-properties-of-temporal-duration-instances
   // they are "A float64-representable integer representing the number" in the

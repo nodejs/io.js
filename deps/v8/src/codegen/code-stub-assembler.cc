@@ -13194,7 +13194,7 @@ void CodeStubAssembler::EmitElementStore(
   // TODO(ishell): introduce TryToIntPtrOrSmi() and use BInt.
   TNode<IntPtrT> intptr_key = TryToIntptr(key, bailout);
 
-  // TODO(rmcilroy): TNodify the converted value once this funciton and
+  // TODO(rmcilroy): TNodify the converted value once this function and
   // StoreElement are templated based on the type elements_kind type.
   if (IsTypedArrayOrRabGsabTypedArrayElementsKind(elements_kind)) {
     TNode<JSTypedArray> typed_array = CAST(object);

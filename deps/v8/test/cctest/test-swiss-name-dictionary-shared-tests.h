@@ -34,7 +34,7 @@ extern const char kCSATestFileName[];
 // Whenever creating an instance of this class in a file bar.cc, the template
 // parameter |kTestFileName| should be set to the name of the file that
 // *instantiates the class* (i.e., "bar.cc"). This ensures that the tests
-// defined below are then registred within the overall cctest machinery as if
+// defined below are then registered within the overall cctest machinery as if
 // they were directly written within bar.cc.
 template <typename TestRunner, char const* kTestFileName>
 struct SharedSwissTableTests {

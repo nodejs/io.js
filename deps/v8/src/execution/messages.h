@@ -41,7 +41,7 @@ class V8_EXPORT_PRIVATE MessageLocation {
   MessageLocation(Handle<Script> script, int start_pos, int end_pos,
                   Handle<SharedFunctionInfo> shared);
   // Constructor for when source positions were not collected but which can be
-  // reconstructed from the SharedFuncitonInfo and bytecode offset.
+  // reconstructed from the SharedFunctionInfo and bytecode offset.
   MessageLocation(Handle<Script> script, Handle<SharedFunctionInfo> shared,
                   int bytecode_offset);
   MessageLocation();

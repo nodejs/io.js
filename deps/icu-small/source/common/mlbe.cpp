@@ -180,7 +180,7 @@ int32_t MlBreakEngine::initIndexList(const UnicodeString &inString, int32_t *ind
     }
     int32_t index = 0;
     int32_t length = inString.countChar32();
-    // Set all (lenght+4) items inside indexLength to -1 presuming -1 is 4 bytes of 0xff.
+    // Set all (length+4) items inside indexLength to -1 presuming -1 is 4 bytes of 0xff.
     uprv_memset(indexList, 0xff, (length + 4) * sizeof(int32_t));
     if (length > 0) {
         indexList[2] = 0;

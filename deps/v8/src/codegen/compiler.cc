@@ -2912,7 +2912,7 @@ bool Compiler::Compile(Isolate* isolate, Handle<SharedFunctionInfo> shared_info,
   }
 
   if (script->produce_compile_hints()) {
-    // Log lazy funtion compilation.
+    // Log lazy function compilation.
     Handle<ArrayList> list;
     if (IsUndefined(script->compiled_lazy_function_positions())) {
       constexpr int kInitialLazyFunctionPositionListSize = 100;
@@ -4438,7 +4438,7 @@ void Compiler::PostInstantiation(Isolate* isolate,
       // Evict any deoptimized code on feedback vector. We need to do this after
       // creating the closure, since any heap allocations could trigger a GC and
       // deoptimized the code on the feedback vector. So check for any
-      // deoptimized code just before installing it on the funciton.
+      // deoptimized code just before installing it on the function.
       function->feedback_vector()->EvictOptimizedCodeMarkedForDeoptimization(
           isolate, *shared, "new function from shared function info");
       Tagged<Code> code = function->feedback_vector()->optimized_code(isolate);

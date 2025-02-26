@@ -399,7 +399,7 @@ typedef struct ResourceData {
     UBool useNativeStrcmp;
 } ResourceData;
 
-struct UResourceDataEntry;   // forward declared for ResoureDataValue below; actually defined in uresimp.h
+struct UResourceDataEntry;   // forward declared for ResourceDataValue below; actually defined in uresimp.h
 
 /*
  * Read a resource bundle from memory.

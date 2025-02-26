@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 /**
- * @fileoverview Tests for mutating funciton calls.
+ * @fileoverview Tests for mutating function calls.
  */
 
 'use strict';

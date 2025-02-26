@@ -46,7 +46,7 @@ typedef struct ngtcp2_log {
      told. */
   ngtcp2_tstamp last_ts;
   /* user_data is user-defined opaque data which is passed to
-     log_pritnf. */
+     log_printf. */
   void *user_data;
   /* scid is SCID encoded as NULL-terminated hex string. */
   uint8_t scid[NGTCP2_MAX_CIDLEN * 2 + 1];
