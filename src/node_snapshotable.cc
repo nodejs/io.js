@@ -863,9 +863,10 @@ const std::vector<intptr_t>& SnapshotBuilder::CollectExternalReferences() {
 
 void SnapshotBuilder::InitializeIsolateParams(const SnapshotData* data,
                                               Isolate::CreateParams* params) {
-  CHECK_NULL(params->external_references);
   CHECK_NULL(params->snapshot_blob);
-  params->external_references = CollectExternalReferences().data();
+  if (params->external_references == nullptr) {
+    params->external_references = CollectExternalReferences().data();
+  }
   params->snapshot_blob =
       const_cast<v8::StartupData*>(&(data->v8_snapshot_blob_data));
 }
