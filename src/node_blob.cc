@@ -168,11 +168,10 @@ BaseObjectPtr<Blob> Blob::Create(Environment* env,
 
   Local<Function> ctor;
   if (!GetConstructorTemplate(env)->GetFunction(env->context()).ToLocal(&ctor))
-    return BaseObjectPtr<Blob>();
+    return nullptr;
 
   Local<Object> obj;
-  if (!ctor->NewInstance(env->context()).ToLocal(&obj))
-    return BaseObjectPtr<Blob>();
+  if (!ctor->NewInstance(env->context()).ToLocal(&obj)) return nullptr;
 
   return MakeBaseObject<Blob>(env, obj, data_queue);
 }
@@ -326,7 +325,7 @@ BaseObjectPtr<Blob::Reader> Blob::Reader::Create(Environment* env,
            ->InstanceTemplate()
            ->NewInstance(env->context())
            .ToLocal(&obj)) {
-    return BaseObjectPtr<Blob::Reader>();
+    return nullptr;
   }
 
   return MakeBaseObject<Blob::Reader>(env, obj, std::move(blob));
