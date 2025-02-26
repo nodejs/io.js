@@ -23,6 +23,7 @@ For the tests to run on Windows, be sure to clone Node.js source code with the
 | `code-cache`     | No         | Tests for a Node.js binary compiled with V8 code cache.                                                       |
 | `common`         | _N/A_      | Common modules shared among many tests.[^1]                                                                   |
 | `doctool`        | Yes        | Tests for the documentation generator.                                                                        |
+| `embdedding`     | Yes        | Test Node.js embedding API.                                                                                   |
 | `es-module`      | Yes        | Test ESM module loading.                                                                                      |
 | `fixtures`       | _N/A_      | Test fixtures used in various tests throughout the test suite.                                                |
 | `internet`       | No         | Tests that make real outbound network connections.[^2]                                                        |

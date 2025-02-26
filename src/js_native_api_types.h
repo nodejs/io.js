@@ -4,8 +4,14 @@
 // This file needs to be compatible with C compilers.
 // This is a public include file, and these includes have essentially
 // became part of it's API.
-#include <stddef.h>  // NOLINT(modernize-deprecated-headers)
-#include <stdint.h>  // NOLINT(modernize-deprecated-headers)
+#ifdef __cplusplus
+#include <cstddef>
+#include <cstdint>
+#else
+#include <stdbool.h>  // NOLINT(modernize-deprecated-headers)
+#include <stddef.h>   // NOLINT(modernize-deprecated-headers)
+#include <stdint.h>   // NOLINT(modernize-deprecated-headers)
+#endif
 
 #if !defined __cplusplus || (defined(_MSC_VER) && _MSC_VER < 1900)
 typedef uint16_t char16_t;

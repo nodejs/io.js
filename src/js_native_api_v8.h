@@ -85,14 +85,31 @@ struct napi_env__ {
   // v8 uses a special exception to indicate termination, the
   // `handle_exception` callback should identify such case using
   // terminatedOrTerminating() before actually handle the exception
-  template <typename T, typename U = decltype(HandleThrow)>
-  inline void CallIntoModule(T&& call, U&& handle_exception = HandleThrow) {
-    int open_handle_scopes_before = open_handle_scopes;
-    int open_callback_scopes_before = open_callback_scopes;
-    napi_clear_last_error(this);
+  template <typename Call, typename JSExceptionHandler = decltype(HandleThrow)>
+  inline void CallIntoModule(
+      Call&& call, JSExceptionHandler&& handle_exception = HandleThrow) {
+    CallModuleScopeData scope_data = OpenCallModuleScope();
+    auto onModuleScopeLeave = node::OnScopeLeave(
+        [&] { CloseCallModuleScope(scope_data, handle_exception); });
     call(this);
-    CHECK_EQ(open_handle_scopes, open_handle_scopes_before);
-    CHECK_EQ(open_callback_scopes, open_callback_scopes_before);
+  }
+
+  struct CallModuleScopeData {
+    int open_handle_scopes_before;
+    int open_callback_scopes_before;
+  };
+
+  inline CallModuleScopeData OpenCallModuleScope() {
+    napi_clear_last_error(this);
+    return {open_handle_scopes, open_callback_scopes};
+  }
+
+  template <typename JSExceptionHandler = decltype(HandleThrow)>
+  inline void CloseCallModuleScope(
+      const CallModuleScopeData& scope_data,
+      JSExceptionHandler&& handle_exception = HandleThrow) {
+    CHECK_EQ(open_handle_scopes, scope_data.open_handle_scopes_before);
+    CHECK_EQ(open_callback_scopes, scope_data.open_callback_scopes_before);
     if (!last_exception.IsEmpty()) {
       handle_exception(this, last_exception.Get(this->isolate));
       last_exception.Reset();
