@@ -2,7 +2,7 @@
 require('../common');
 const assert = require('assert');
 
-const buf = Buffer.allocUnsafe(8);
+const buf = Buffer.allocUnsafe(9);
 
 ['LE', 'BE'].forEach(function(endianness) {
   // Should allow simple BigInts to be written and read
@@ -26,6 +26,11 @@ const buf = Buffer.allocUnsafe(8);
   val = 123456789n;
   buf[`writeBigUInt64${endianness}`](val, 0);
   assert.strictEqual(val, buf[`readBigUInt64${endianness}`](0));
+
+  assert.strictEqual(buf[`writeBigUInt64${endianness}`](val, 0), 8);
+  assert.strictEqual(buf[`writeBigInt64${endianness}`](val, 0), 8);
+  assert.strictEqual(buf[`writeBigUInt64${endianness}`](val, 1), 9);
+  assert.strictEqual(buf[`writeBigInt64${endianness}`](val, 1), 9);
 
   // Should throw a RangeError upon INT64_MAX+1 being written
   assert.throws(function() {
