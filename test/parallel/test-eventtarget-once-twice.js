@@ -1,14 +1,24 @@
 'use strict';
-const common = require('../common');
-const { once } = require('events');
+require('../common');
+const { once } = require('node:events');
+const { test } = require('node:test');
+const { setImmediate } = require('node:timers/promises');
 
-const et = new EventTarget();
-(async function() {
-  await once(et, 'foo');
-  await once(et, 'foo');
-})().then(common.mustCall());
+test('should resolve `once` twice', async () => {
 
-et.dispatchEvent(new Event('foo'));
-setImmediate(() => {
-  et.dispatchEvent(new Event('foo'));
+  const et = new EventTarget();
+
+  await Promise.all([
+    (async () => {
+      await once(et, 'foo');
+      await once(et, 'foo');
+    })(),
+
+    (async () => {
+      et.dispatchEvent(new Event('foo'));
+      await setImmediate();
+      et.dispatchEvent(new Event('foo'));
+    })(),
+  ]);
+
 });
