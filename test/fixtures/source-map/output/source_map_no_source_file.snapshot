@@ -1,9 +1,9 @@
-*no-source.js:2
+*/test/fixtures/source-map/no-source.js:2
     throw new Error('foo');
     ^
 
 Error: foo
-    at Throw (*file-not-exists.ts:2:9)
-    at Object.<anonymous> (*file-not-exists.ts:5:1)
+    at Throw (*/test/fixtures/source-map/file-not-exists.ts:2:9)
+    at Object.<anonymous> (*/test/fixtures/source-map/file-not-exists.ts:5:1)
 
 Node.js *

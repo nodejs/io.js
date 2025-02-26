@@ -1,11 +1,11 @@
-*uglify-throw-original.js:5
+*/test/fixtures/source-map/uglify-throw-original.js:5
   throw Error('goodbye');
   ^
 
 
 Error: goodbye
-    at Hello (*uglify-throw-original.js:5:9)
-    at Immediate.<anonymous> (*uglify-throw-original.js:9:3)
+    at Hello (*/test/fixtures/source-map/uglify-throw-original.js:5:9)
+    at Immediate.<anonymous> (*/test/fixtures/source-map/uglify-throw-original.js:9:3)
     *
 
 Node.js *

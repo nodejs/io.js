@@ -354,6 +354,7 @@
   V(sni_context_string, "sni_context")                                         \
   V(source_string, "source")                                                   \
   V(source_map_url_string, "sourceMapURL")                                     \
+  V(source_url_string, "sourceURL")                                            \
   V(specifier_string, "specifier")                                             \
   V(stack_string, "stack")                                                     \
   V(standard_name_string, "standardName")                                      \

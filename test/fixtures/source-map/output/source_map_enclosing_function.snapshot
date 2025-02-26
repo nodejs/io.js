@@ -1,13 +1,13 @@
-*enclosing-call-site.js:26
+*/test/fixtures/source-map/enclosing-call-site.js:26
   throw err
   ^
 
 
 Error: an error!
-    at functionD (*enclosing-call-site.js:16:17)
-    at functionC (*enclosing-call-site.js:10:3)
-    at functionB (*enclosing-call-site.js:6:3)
-    at functionA (*enclosing-call-site.js:2:3)
-    at Object.<anonymous> (*enclosing-call-site.js:24:3)
+    at functionD (*/test/fixtures/source-map/enclosing-call-site.js:16:17)
+    at functionC (*/test/fixtures/source-map/enclosing-call-site.js:10:3)
+    at functionB (*/test/fixtures/source-map/enclosing-call-site.js:6:3)
+    at functionA (*/test/fixtures/source-map/enclosing-call-site.js:2:3)
+    at Object.<anonymous> (*/test/fixtures/source-map/enclosing-call-site.js:24:3)
 
 Node.js *

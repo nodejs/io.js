@@ -1,4 +1,4 @@
 reachable
 Error: an exception
-    at branch (*typescript-throw.ts:18:11)
-    at Object.<anonymous> (*typescript-throw.ts:24:1)
+    at branch (*/test/fixtures/source-map/typescript-throw.ts:18:11)
+    at Object.<anonymous> (*/test/fixtures/source-map/typescript-throw.ts:24:1)

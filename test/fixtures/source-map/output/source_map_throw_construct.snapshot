@@ -1,11 +1,11 @@
-*output*source_map_throw_construct.mts:13
+*/test/fixtures/source-map/output/source_map_throw_construct.mts:13
     throw new Error('message');
           ^
 
 
 Error: message
-    at new Foo (*output*source_map_throw_construct.mts:13:11)
-    at <anonymous> (*output*source_map_throw_construct.mts:17:1)
+    at new Foo (*/test/fixtures/source-map/output/source_map_throw_construct.mts:13:11)
+    at <anonymous> (*/test/fixtures/source-map/output/source_map_throw_construct.mts:17:1)
     *
     *
     *

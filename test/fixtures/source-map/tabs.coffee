@@ -27,3 +27,8 @@ if true
 
 # Array comprehensions:
 cubes = (math.cube num for num in list)
+
+# To reproduce:
+# cd test/fixtures/source-map
+# npx --package=coffeescript@2.5.1 -- coffee -M --compile tabs.coffee
+# sed -i -e "s/$(pwd | sed -e "s/\//\\\\\//g")/\\/synthethized\\/workspace/g" tabs.js

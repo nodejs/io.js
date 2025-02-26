@@ -1,11 +1,11 @@
-*output*source_map_throw_async_stack_trace.mts:13
+*/test/fixtures/source-map/output/source_map_throw_async_stack_trace.mts:13
   throw new Error('message')
         ^
 
 
 Error: message
-    at Throw (*output*source_map_throw_async_stack_trace.mts:13:9)
+    at Throw (*/test/fixtures/source-map/output/source_map_throw_async_stack_trace.mts:13:9)
     at async Promise.all (index 3)
-    at async main (*output*source_map_throw_async_stack_trace.mts:17:3)
+    at async main (*/test/fixtures/source-map/output/source_map_throw_async_stack_trace.mts:17:3)
 
 Node.js *
