@@ -36,6 +36,7 @@ using v8::Int32;
 using v8::Integer;
 using v8::Isolate;
 using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::LocalVector;
 using v8::Maybe;
@@ -46,6 +47,7 @@ using v8::MicrotaskQueue;
 using v8::Module;
 using v8::ModuleRequest;
 using v8::Name;
+using v8::Nothing;
 using v8::Null;
 using v8::Object;
 using v8::ObjectTemplate;
@@ -653,6 +655,43 @@ void ModuleWrap::InstantiateSync(const FunctionCallbackInfo<Value>& args) {
   args.GetReturnValue().Set(module->IsGraphAsync());
 }
 
+Maybe<void> ThrowIfPromiseRejected(Realm* realm, Local<Promise> promise) {
+  Isolate* isolate = realm->isolate();
+  Local<Context> context = realm->context();
+  if (promise->State() != Promise::PromiseState::kRejected) {
+    return JustVoid();
+  }
+  // The rejected promise is created by V8, so we don't get a chance to mark
+  // it as resolved before the rejection happens from evaluation. But we can
+  // tell the promise rejection callback to treat it as a promise rejected
+  // before handler was added which would remove it from the unhandled
+  // rejection handling, since we are converting it into an error and throw
+  // from here directly.
+  Local<Value> type =
+      Integer::New(isolate,
+                   static_cast<int32_t>(
+                       PromiseRejectEvent::kPromiseHandlerAddedAfterReject));
+  Local<Value> args[] = {type, promise, Undefined(isolate)};
+  if (realm->promise_reject_callback()
+          ->Call(context, Undefined(isolate), arraysize(args), args)
+          .IsEmpty()) {
+    return Nothing<void>();
+  }
+  Local<Value> exception = promise->Result();
+  Local<Message> message = Exception::CreateMessage(isolate, exception);
+  AppendExceptionLine(
+      realm->env(), exception, message, ErrorHandlingMode::MODULE_ERROR);
+  isolate->ThrowException(exception);
+  return Nothing<void>();
+}
+
+void ThrowIfPromiseRejected(const FunctionCallbackInfo<Value>& args) {
+  if (!args[0]->IsPromise()) {
+    return;
+  }
+  ThrowIfPromiseRejected(Realm::GetCurrent(args), args[0].As<Promise>());
+}
+
 void ModuleWrap::EvaluateSync(const FunctionCallbackInfo<Value>& args) {
   Realm* realm = Realm::GetCurrent(args);
   Isolate* isolate = args.GetIsolate();
@@ -677,28 +716,7 @@ void ModuleWrap::EvaluateSync(const FunctionCallbackInfo<Value>& args) {
 
   CHECK(result->IsPromise());
   Local<Promise> promise = result.As<Promise>();
-  if (promise->State() == Promise::PromiseState::kRejected) {
-    // The rejected promise is created by V8, so we don't get a chance to mark
-    // it as resolved before the rejection happens from evaluation. But we can
-    // tell the promise rejection callback to treat it as a promise rejected
-    // before handler was added which would remove it from the unhandled
-    // rejection handling, since we are converting it into an error and throw
-    // from here directly.
-    Local<Value> type =
-        Integer::New(isolate,
-                     static_cast<int32_t>(
-                         PromiseRejectEvent::kPromiseHandlerAddedAfterReject));
-    Local<Value> args[] = {type, promise, Undefined(isolate)};
-    if (env->promise_reject_callback()
-            ->Call(context, Undefined(isolate), arraysize(args), args)
-            .IsEmpty()) {
-      return;
-    }
-    Local<Value> exception = promise->Result();
-    Local<Message> message = Exception::CreateMessage(isolate, exception);
-    AppendExceptionLine(
-        env, exception, message, ErrorHandlingMode::MODULE_ERROR);
-    isolate->ThrowException(exception);
+  if (ThrowIfPromiseRejected(realm, promise).IsNothing()) {
     return;
   }
 
@@ -1152,6 +1170,7 @@ void ModuleWrap::CreatePerIsolateProperties(IsolateData* isolate_data,
             target,
             "createRequiredModuleFacade",
             CreateRequiredModuleFacade);
+  SetMethod(isolate, target, "throwIfPromiseRejected", ThrowIfPromiseRejected);
 }
 
 void ModuleWrap::CreatePerContextProperties(Local<Object> target,
@@ -1196,6 +1215,7 @@ void ModuleWrap::RegisterExternalReferences(
 
   registry->Register(SetImportModuleDynamicallyCallback);
   registry->Register(SetInitializeImportMetaObjectCallback);
+  registry->Register(ThrowIfPromiseRejected);
 }
 }  // namespace loader
 }  // namespace node
