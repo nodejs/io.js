@@ -1,5 +1,7 @@
 # Code Integrity
 
+<!--introduced_in=v24.0.0-->
+
 <!-- type=misc -->
 
 > Stability: 1.1 - Active development
