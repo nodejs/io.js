@@ -22,6 +22,10 @@ If you find a potential security vulnerability, please refer to our
 
 ## Code Integrity on Windows
 
+<!-- YAML
+added: REPLACEME
+-->
+
 Code integrity is an opt-in feature that leverages Window Defender Application Control
 to verify the code executing conforms to system policy and has not been modified since
 signing time.
