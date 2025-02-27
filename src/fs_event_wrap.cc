@@ -24,6 +24,7 @@
 #include "handle_wrap.h"
 #include "node.h"
 #include "node_external_reference.h"
+#include "path.h"
 #include "permission/permission.h"
 #include "string_bytes.h"
 
@@ -137,6 +138,8 @@ void FSEventWrap::New(const FunctionCallbackInfo<Value>& args) {
 // wrap.start(filename, persistent, recursive, encoding)
 void FSEventWrap::Start(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
+  auto isolate = env->isolate();
+  auto context = env->context();
 
   FSEventWrap* wrap = Unwrap<FSEventWrap>(args.This());
   CHECK_NOT_NULL(wrap);
@@ -147,8 +150,9 @@ void FSEventWrap::Start(const FunctionCallbackInfo<Value>& args) {
 
   BufferValue path(env->isolate(), args[0]);
   CHECK_NOT_NULL(*path);
+  ToNamespacedPath(env, &path);
   THROW_IF_INSUFFICIENT_PERMISSIONS(
-      env, permission::PermissionScope::kFileSystemRead, *path);
+      env, permission::PermissionScope::kFileSystemRead, path.ToStringView());
 
   unsigned int flags = 0;
   if (args[2]->IsTrue())
@@ -156,9 +160,31 @@ void FSEventWrap::Start(const FunctionCallbackInfo<Value>& args) {
 
   wrap->encoding_ = ParseEncoding(env->isolate(), args[3], kDefaultEncoding);
 
+  auto get_error_message = [](int err) -> std::optional<std::string> {
+    if (err == UV_ENOSPC) {
+      return "System limit for number of file watchers reached";
+    }
+    return std::nullopt;
+  };
+
   int err = uv_fs_event_init(wrap->env()->event_loop(), &wrap->handle_);
   if (err != 0) {
-    return args.GetReturnValue().Set(err);
+    auto message = get_error_message(err);
+    auto exception =
+        UVException(isolate,
+                    err,
+                    "watch",
+                    message.has_value() ? message.value().c_str() : nullptr,
+                    path.out());
+    // TODO(anonrig): Move this to a helper function, or preferably to the
+    // uv_exception class.
+    exception.As<Object>()
+        ->Set(context,
+              env->filename_string(),
+              ToV8Value(context, path.out()).ToLocalChecked())
+        .Check();
+    isolate->ThrowException(exception);
+    return;
   }
 
   err = uv_fs_event_start(&wrap->handle_, OnEvent, *path, flags);
@@ -166,15 +192,28 @@ void FSEventWrap::Start(const FunctionCallbackInfo<Value>& args) {
 
   if (err != 0) {
     FSEventWrap::Close(args);
-    return args.GetReturnValue().Set(err);
+    auto message = get_error_message(err);
+    auto exception =
+        UVException(isolate,
+                    err,
+                    "watch",
+                    message.has_value() ? message.value().c_str() : nullptr,
+                    path.out());
+    // TODO(anonrig): Move this to a helper function, or preferably to the
+    // uv_exception class.
+    exception.As<Object>()
+        ->Set(context,
+              env->filename_string(),
+              ToV8Value(context, path.out()).ToLocalChecked())
+        .Check();
+    isolate->ThrowException(exception);
+    return;
   }
 
   // Check for persistent argument
   if (!args[1]->IsTrue()) {
     uv_unref(reinterpret_cast<uv_handle_t*>(&wrap->handle_));
   }
-
-  args.GetReturnValue().Set(err);
 }
 
 

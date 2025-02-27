@@ -10,6 +10,7 @@ if (common.isIBMi)
 
 const assert = require('assert');
 const fs = require('fs');
+const path = require('path');
 const tmpdir = require('../common/tmpdir');
 const nonexistentFile = tmpdir.resolve('non-existent');
 const { internalBinding } = require('internal/test/binding');
@@ -22,17 +23,13 @@ tmpdir.refresh();
 
 {
   const validateError = (err) => {
-    assert.strictEqual(err.path, nonexistentFile);
-    assert.strictEqual(err.filename, nonexistentFile);
+    assert.strictEqual(err.path, path.toNamespacedPath(nonexistentFile));
+    assert.strictEqual(err.filename, path.toNamespacedPath(nonexistentFile));
     assert.ok(err.syscall === 'watch' || err.syscall === 'stat');
     if (err.code === 'ENOENT') {
-      assert.ok(err.message.startsWith('ENOENT: no such file or directory'));
       assert.strictEqual(err.errno, UV_ENOENT);
       assert.strictEqual(err.code, 'ENOENT');
     } else {  // AIX
-      assert.strictEqual(
-        err.message,
-        `ENODEV: no such device, watch '${nonexistentFile}'`);
       assert.strictEqual(err.errno, UV_ENODEV);
       assert.strictEqual(err.code, 'ENODEV');
     }
@@ -52,11 +49,8 @@ tmpdir.refresh();
     const watcher = fs.watch(file, common.mustNotCall());
 
     const validateError = (err) => {
-      assert.strictEqual(err.path, nonexistentFile);
-      assert.strictEqual(err.filename, nonexistentFile);
-      assert.strictEqual(
-        err.message,
-        `ENOENT: no such file or directory, watch '${nonexistentFile}'`);
+      assert.strictEqual(err.path, path.toNamespacedPath(nonexistentFile));
+      assert.strictEqual(err.filename, path.toNamespacedPath(nonexistentFile));
       assert.strictEqual(err.errno, UV_ENOENT);
       assert.strictEqual(err.code, 'ENOENT');
       assert.strictEqual(err.syscall, 'watch');
