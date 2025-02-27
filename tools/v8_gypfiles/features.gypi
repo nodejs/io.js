@@ -87,6 +87,12 @@
       }, {
         'v8_enable_private_mapping_fork_optimization': 0,
       }],
+
+      ['OS in "aix os400"', {
+        'v8_enable_leaptiering': 0,
+      }, {
+        'v8_enable_leaptiering': 1,
+      }],
     ],
 
     # Variables from BUILD.gn
@@ -241,9 +247,6 @@
     # Enable the experimental V8 sandbox.
     # Sets -DV8_ENABLE_SANDBOX.
     'v8_enable_sandbox%': 0,
-
-    # Enable leaptiering
-    'v8_enable_leaptiering%': 1,
 
     # Experimental feature for collecting per-class zone memory stats.
     # Requires use_rtti = true
