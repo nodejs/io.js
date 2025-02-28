@@ -3549,6 +3549,482 @@ console.log(buf.toString());
 // Also prints: cuffer (!)
 ```
 
+### `buf.asciiSlice([start[, end]])`
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop slicing at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according ASCII character encoding. `start` and
+`end` may be passed to decode only a subset of `buf`.
+
+In most cases, `buf.toString()` is preferable, especially if encoding is
+variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('ascii', 0, 3)
+console.log(buf.asciiSlice(0, 3));
+// Prints: buf
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('ascii', 0, 3)
+console.log(buf.asciiSlice(0, 3));
+// Prints: buf
+```
+
+### `buf.base64Slice([start[, end]])`
+
+<!-- YAML
+added: v0.11.3
+-->
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop decoding at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according to base64 character encoding. `start` and
+`end` may be passed to decode only a subset of `buf`.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('base64', 0, 3)
+console.log(buf.base64Slice(0, 3));
+// Prints: YnVm
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('base64', 0, 3)
+console.log(buf.base64Slice(0, 3));
+// Prints: YnVm
+```
+
+### `buf.base64urlSlice([start[, end]])`
+
+<!-- YAML
+added: v14.18.0
+-->
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop decoding at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according to base64url character encoding. `start`
+and `end` may be passed to decode only a subset of `buf`.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('base64url', 0, 3)
+console.log(buf.base64urlSlice(0, 3));
+// Prints: YnVm
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('base64url', 0, 3)
+console.log(buf.base64urlSlice(0, 3));
+// Prints: YnVm
+```
+
+### `buf.hexSlice([start[, end]])`
+
+<!-- YAML
+added: v0.11.3
+-->
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop decoding at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according to hex character encoding. `start` and
+`end` may be passed to decode only a subset of `buf`.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('hex', 0, 3)
+console.log(buf.hexSlice(0, 3));
+// Prints: 627566
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('hex', 0, 3)
+console.log(buf.hexSlice(0, 3));
+// Prints: 627566
+```
+
+### `buf.latin1Slice([start[, end]])`
+
+<!-- YAML
+added: v6.4.0
+-->
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop slicing at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according to latin1 character encoding. `start` and
+`end` may be passed to decode only a subset of `buf`.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('latin1', 0, 3)
+console.log(buf.latin1Slice(0, 3));
+// Prints: buf
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('latin1', 0, 3)
+console.log(buf.latin1Slice(0, 3));
+// Prints: buf
+```
+
+### `buf.ucs2Slice([start[, end]])`
+
+<!-- YAML
+added: v0.11.3
+-->
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop slicing at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according to UCS-2 character encoding. `start` and
+`end` may be passed to decode only a subset of `buf`.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('ucs2', 0, 3)
+console.log(buf.ucs2Slice(0, 3));
+// Prints: 畢
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('ucs2', 0, 3)
+console.log(buf.ucs2Slice(0, 3));
+// Prints: 畢
+```
+
+### `buf.utf8Slice([start[, end]])`
+
+* `start` {integer} The byte offset to start slicing at. **Default**: 0.
+* `end` {integer} The byte offset to stop slicing at (not inclusive).
+  **Default**: `buf.length`.
+* Returns: {string}
+
+Decodes buf to a string according to UTF-8 character encoding. `start` and
+`end` may be passed to decode only a subset of `buf`.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('utf8', 0, 3)
+console.log(buf.utf8Slice(0, 3));
+// Prints: buf
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.from('buffer');
+
+// Equivalent to buf.toString('utf8', 0, 3)
+console.log(buf.utf8Slice(0, 3));
+// Prints: buf
+```
+
+### `buf.asciiWrite(string[, offset[, length]])`
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write
+  `string`. **Default**: 0.
+* `length` {integer} Maximum number of bytes to write. **Default**: `buf.
+  length - offset`.
+
+Writes `string` to `buf` at `offset` according to the ASCII character encoding
+and returns the number of bytes written. If `buf` did not contain enough space
+to fit the entire string, only part of `string` will be written. However,
+partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.asciiWrite('buffer');
+console.log(bytesWritten);
+// Prints: 6
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.asciiWrite('buffer');
+console.log(bytesWritten);
+// Prints: 6
+```
+
+### `buf.base64Write(string[, offset[, length]])`
+
+<!-- YAML
+added: v0.11.3
+-->
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write
+  `string`. **Default**: 0.
+* `length` {integer} Maximum number of bytes to write. **Default**: `buf.
+  length - offset`.
+* Returns: {integer} The number of bytes written.
+
+Writes `string` to `buf` at `offset` according to the base64 character encoding
+and returns the number of bytes written. If `buf` did not contain enough space
+to fit the entire string, only part of `string` will be written. However,
+partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.base64Write('buffer');
+console.log(bytesWritten);
+// Prints: 4
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.base64Write('buffer');
+console.log(bytesWritten);
+// Prints: 4
+```
+
+### `buf.base64urlWrite(string[, offset[, length]])`
+
+<!-- YAML
+added: v14.18.0
+-->
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write `string`.
+  **Default**: 0.
+* `length` {integer} Maximum number of bytes to write.
+  **Default**: `buf.length - offset`.
+* Returns: {integer} The number of bytes written.
+
+Writes `string` to `buf` at `offset` according to the base64url character
+encoding and returns the number of bytes written. If `buf` did not contain
+enough space to fit the entire string, only part of `string` will be written.
+However, partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.base64urlWrite('buffer');
+console.log(bytesWritten);
+// Prints: 4
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.base64urlWrite('buffer');
+console.log(bytesWritten);
+// Prints: 4
+```
+
+### `buf.hexWrite(string[, offset[, length]])`
+
+<!-- YAML
+added: v0.11.3
+-->
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write
+  `string`. **Default**: 0.
+* `length` {integer} Maximum number of bytes to write. **Default**: `buf.
+  length - offset`.
+* Returns: {integer} The number of bytes written.
+
+Writes `string` to `buf` at `offset` according to the hex character encoding
+and returns the number of bytes written. If `buf` did not contain enough space
+to fit the entire string, only part of `string` will be written. However,
+partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.hexWrite('ab');
+console.log(bytesWritten);
+// Prints: 1
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.hexWrite('ab');
+console.log(bytesWritten);
+// Prints: 1
+```
+
+### `buf.latin1Write(string[, offset[, length]])`
+
+<!-- YAML
+added: v6.4.0
+-->
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write
+  `string`. **Default**: 0.
+* `length` {integer} Maximum number of bytes to write. **Default**: `buf.
+  length - offset`.
+* Returns: {integer} The number of bytes written.
+
+Writes `string` to `buf` at `offset` according to the latin1 character encoding
+and returns the number of bytes written. If `buf` did not contain enough space
+to fit the entire string, only part of `string` will be written. However,
+partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.latin1Write('buffer');
+console.log(bytesWritten);
+// Prints: 2
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.latin1Write('buffer');
+console.log(bytesWritten);
+// Prints: 2
+```
+
+### `buf.ucs2Write([start[, end]])`
+
+<!-- YAML
+added: v0.11.3
+-->
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write
+  `string`. **Default**: 0.
+* `length` {integer} Maximum number of bytes to write. **Default**: `buf.
+  length - offset`.
+* Returns: {integer} The number of bytes written.
+
+Writes `string` to `buf` at `offset` according to the UCS-2 character encoding
+and returns the number of bytes written. If `buf` did not contain enough space
+to fit the entire string, only part of `string` will be written. However,
+partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.ucs2Write('buffer');
+console.log(bytesWritten);
+// Prints: 4
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.ucs2Write('buffer');
+console.log(bytesWritten);
+// Prints: 4
+```
+
+### `buf.utf8Write(string[, offset[, length]])`
+
+* `string` {string} String to write to `buf`.
+* `offset` {integer} Number of bytes to skip before starting to write
+  `string`. **Default**: 0.
+* `length` {integer} Maximum number of bytes to write. **Default**: `buf.
+  length - offset`.
+* Returns: {integer} The number of bytes written.
+
+Writes `string` to `buf` at `offset` according to the utf8 character encoding
+and returns the number of bytes written. If `buf` did not contain enough space
+to fit the entire string, only part of `string` will be written. However,
+partially encoded characters will not be written.
+
+In most cases, `buf.write` is preferable, especially if `encoding` is variable.
+
+```mjs
+import { Buffer } from 'node:buffer';
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.utf8Write('buffer');
+console.log(bytesWritten);
+// Prints: 2
+```
+
+```cjs
+const { Buffer } = require('node:buffer');
+const buf = Buffer.alloc(10);
+
+const bytesWritten = buf.utf8Write('buffer');
+console.log(bytesWritten);
+// Prints: 2
+```
+
 ### `buf.swap16()`
 
 <!-- YAML
