@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<meta charset=utf-8>
+<meta name="timeout" content="long">
+<script src="/resources/testharness.js"></script>
+<script src="/resources/testharnessreport.js"></script>
+<script src="/common/get-host-info.sub.js"></script>
+<script src="/common/utils.js"></script>
+<script src="/common/dispatcher/dispatcher.js"></script>
+<!-- Pull in executor_path needed by newPopup / newIframe -->
+<script src="/html/cross-origin-embedder-policy/credentialless/resources/common.js"></script>
+<!-- Pull in importScript / newPopup / newIframe -->
+<script src="/html/anonymous-iframe/resources/common.js"></script>
+<body>
+<script>
+
+const create_worker_unsuccessful = "Worker creation failed.";
+const create_worker_successful = "Worker creation succeeded.";
+
+const add_iframe_js = (iframe_origin, response_queue_uuid) => `
+  const importScript = ${importScript};
+  await importScript("/html/cross-origin-embedder-policy/credentialless" +
+                   "/resources/common.js");
+  await importScript("/html/anonymous-iframe/resources/common.js");
+  await importScript("/common/utils.js");
+
+  // dispatcher.js has already been loaded by the popup this is running in.
+  await send("${response_queue_uuid}", newIframe("${iframe_origin}"));
+`;
+
+const same_site_origin = get_host_info().HTTPS_ORIGIN;
+const cross_site_origin = get_host_info().HTTPS_NOTSAMESITE_ORIGIN;
+
+async function create_test_iframes(t, response_queue_uuid) {
+  assert_equals("https://" + window.location.host, same_site_origin,
+  "this test assumes that the page's window.location.host corresponds to " +
+  "get_host_info().HTTPS_ORIGIN");
+
+  // Create a same-origin iframe in a cross-site popup.
+  const not_same_site_popup_uuid = newPopup(t, cross_site_origin);
+  await send(not_same_site_popup_uuid,
+       add_iframe_js(same_site_origin, response_queue_uuid));
+  const cross_site_iframe_uuid = await receive(response_queue_uuid);
+
+  // Create a same-origin iframe in a same-site popup.
+  const same_origin_popup_uuid = newPopup(t, same_site_origin);
+  await send(same_origin_popup_uuid,
+       add_iframe_js(same_site_origin, response_queue_uuid));
+  const same_site_iframe_uuid = await receive(response_queue_uuid);
+
+  return [cross_site_iframe_uuid, same_site_iframe_uuid];
+}
+
+const can_create_blob_url_shared_worker_js = (blob_url, response_queue_name) => `
+  const worker = new SharedWorker("${blob_url}");
+  worker.onerror = (e) => {
+    send("${response_queue_name}", "${create_worker_unsuccessful}");
+  };
+  worker.port.onmessage = (e) => {
+    send("${response_queue_name}", "${create_worker_successful}");
+  };
+`;
+
+// Tests cross-partition Shared Worker creation from blob URL.
+promise_test(t => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const response_queue_uuid = token();
+
+      const [cross_site_iframe_uuid, same_site_iframe_uuid] =
+        await create_test_iframes(t, response_queue_uuid);
+
+      const worker_js = `
+        onconnect = function(e) {
+          e.ports[0].postMessage('ping');
+          self.close();
+        };
+      `;
+
+      const blob = new Blob([worker_js], {type : "text/javascript"});
+      const blob_url = window.URL.createObjectURL(blob);
+      t.add_cleanup(() => window.URL.revokeObjectURL(blob_url));
+
+      // Create a shared worker in the cross-top-level-site iframe.
+      await send(cross_site_iframe_uuid, can_create_blob_url_shared_worker_js(blob_url, response_queue_uuid));
+      const response_1 = await receive(response_queue_uuid);
+      if (response_1 !== create_worker_unsuccessful) {
+        reject(`Shared worker was created in not-same-top-level-site iframe`);
+      }
+
+      // Create a shared worker in the same-top-level-site iframe.
+      await send(same_site_iframe_uuid, can_create_blob_url_shared_worker_js(blob_url, response_queue_uuid));
+      const response_2 = await receive(response_queue_uuid);
+      if (response_2 !== create_worker_successful) {
+        reject(`Shared worker wasn't created in same-top-level-site iframe`);
+      }
+
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}, "Cross-partition Shared worker shouldn't be created from blob URL.");
+
+const can_create_blob_url_dedicated_worker_js = (blob_url, response_queue_name) => `
+  const worker = new Worker("${blob_url}");
+  worker.onerror = (e) => {
+    send("${response_queue_name}", "${create_worker_unsuccessful}");
+  };
+  worker.onmessage = (e) => {
+    send("${response_queue_name}", "${create_worker_successful}");
+    worker.terminate();
+  };
+`;
+
+// Tests cross-partition Dedicated Worker creation from blob URL.
+promise_test(t => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const response_queue_uuid = token();
+
+      const [cross_site_iframe_uuid, same_site_iframe_uuid] =
+        await create_test_iframes(t, response_queue_uuid);
+
+      const blob = new Blob(["postMessage('ping');"], {type : "text/javascript"});
+      const blob_url = window.URL.createObjectURL(blob);
+      t.add_cleanup(() => window.URL.revokeObjectURL(blob_url));
+
+      // Create a dedicated worker in the cross-top-level-site iframe.
+      await send(cross_site_iframe_uuid, can_create_blob_url_dedicated_worker_js(blob_url, response_queue_uuid));
+      const response_1 = await receive(response_queue_uuid);
+      if (response_1 !== create_worker_unsuccessful) {
+        reject(`Dedicated worker was created in not-same-top-level-site iframe`);
+      }
+
+      // Create a dedicated worker in the same-top-level-site iframe.
+      await send(same_site_iframe_uuid, can_create_blob_url_dedicated_worker_js(blob_url, response_queue_uuid));
+      const response_2 = await receive(response_queue_uuid);
+      if (response_2 !== create_worker_successful) {
+        reject(`Dedicated worker wasn't created in same-top-level-site iframe`);
+      }
+
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}, "Cross-partition Dedicated worker shouldn't be created from blob URL.");
+
+</script>
+</body>
