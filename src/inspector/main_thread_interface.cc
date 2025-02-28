@@ -240,26 +240,32 @@ void MainThreadInterface::StopWaitingForFrontendEvent() {
 }
 
 void MainThreadInterface::DispatchMessages() {
-  if (dispatching_messages_)
-    return;
-  dispatching_messages_ = true;
-  bool had_messages = false;
-  do {
-    if (dispatching_message_queue_.empty()) {
-      Mutex::ScopedLock scoped_lock(requests_lock_);
-      requests_.swap(dispatching_message_queue_);
-    }
-    had_messages = !dispatching_message_queue_.empty();
-    while (!dispatching_message_queue_.empty()) {
-      MessageQueue::value_type task;
-      std::swap(dispatching_message_queue_.front(), task);
-      dispatching_message_queue_.pop_front();
+  bool expected = false;
+  // compare_exchange_strong returns true if the value was successfully changed
+  // from false to true.
+  if (dispatching_messages_.compare_exchange_strong(
+          expected,
+          true,
+          std::memory_order_acquire,
+          std::memory_order_relaxed)) {
+    bool had_messages = false;
+    do {
+      if (dispatching_message_queue_.empty()) {
+        Mutex::ScopedLock scoped_lock(requests_lock_);
+        requests_.swap(dispatching_message_queue_);
+      }
+      had_messages = !dispatching_message_queue_.empty();
+      while (!dispatching_message_queue_.empty()) {
+        MessageQueue::value_type task;
+        std::swap(dispatching_message_queue_.front(), task);
+        dispatching_message_queue_.pop_front();
 
-      v8::SealHandleScope seal_handle_scope(agent_->env()->isolate());
-      task->Call(this);
-    }
-  } while (had_messages);
-  dispatching_messages_ = false;
+        v8::SealHandleScope seal_handle_scope(agent_->env()->isolate());
+        task->Call(this);
+      }
+    } while (had_messages);
+    dispatching_messages_.store(false, std::memory_order_release);
+  }
 }
 
 std::shared_ptr<MainThreadHandle> MainThreadInterface::GetHandle() {
