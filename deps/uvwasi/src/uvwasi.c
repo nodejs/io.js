@@ -2832,6 +2832,10 @@ uvwasi_errno_t uvwasi_sock_accept(uvwasi_t* uvwasi,
 
   sock_loop = uv_handle_get_loop((uv_handle_t*) wrap->sock);
   uv_tcp_t* uv_connect_sock = (uv_tcp_t*) uvwasi__malloc(uvwasi, sizeof(uv_tcp_t));
+
+  if (uv_connect_sock == NULL)
+    return UVWASI_ENOMEM;
+
   uv_tcp_init(sock_loop, uv_connect_sock);
 
   r = uv_accept((uv_stream_t*) wrap->sock, (uv_stream_t*) uv_connect_sock);
