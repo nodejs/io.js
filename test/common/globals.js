@@ -136,6 +136,7 @@ const nodeGlobals = new Set([
   'Buffer',
   'clearImmediate',
   'setImmediate',
+  'rawDebug',
 ]);
 
 module.exports = {
