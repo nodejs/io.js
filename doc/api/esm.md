@@ -667,10 +667,16 @@ imported from the same path.
 
 ## Wasm modules
 
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/57038
+    description: Wasm modules no longer require the `--experimental-wasm-modules` flag.
+-->
+
 > Stability: 1 - Experimental
 
-Importing WebAssembly modules is supported under the
-`--experimental-wasm-modules` flag, allowing any `.wasm` files to be
+Importing WebAssembly modules is supported, allowing any `.wasm` files to be
 imported as normal modules while also supporting their module imports.
 
 This integration is in line with the
@@ -686,7 +692,7 @@ console.log(M);
 executed under:
 
 ```bash
-node --experimental-wasm-modules index.mjs
+node index.mjs
 ```
 
 would provide the exports interface for the instantiation of `module.wasm`.

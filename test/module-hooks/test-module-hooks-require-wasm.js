@@ -1,8 +1,7 @@
-// Flags: --no-experimental-wasm-modules
 'use strict';
 
 // This tests that module.registerHooks() can be used to support unknown formats, like
-// require(wasm) and import(wasm) (without --experimental-wasm-modules).
+// require(wasm) and import(wasm)
 const common = require('../common');
 
 const assert = require('assert');

@@ -118,6 +118,7 @@ assert(undocumented.delete('--debug-arraybuffer-allocations'));
 assert(undocumented.delete('--no-debug-arraybuffer-allocations'));
 assert(undocumented.delete('--es-module-specifier-resolution'));
 assert(undocumented.delete('--experimental-fetch'));
+assert(undocumented.delete('--experimental-wasm-modules'));
 assert(undocumented.delete('--experimental-global-customevent'));
 assert(undocumented.delete('--experimental-global-webcrypto'));
 assert(undocumented.delete('--experimental-report'));

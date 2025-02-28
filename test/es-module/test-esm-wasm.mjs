@@ -1,6 +1,6 @@
 import { spawnPromisified } from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
-import { strictEqual, match } from 'node:assert';
+import { strictEqual } from 'node:assert';
 import { execPath } from 'node:process';
 import { describe, it } from 'node:test';
 
@@ -8,8 +8,6 @@ import { describe, it } from 'node:test';
 describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () => {
   it('should load exports', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
-      '--no-warnings',
-      '--experimental-wasm-modules',
       '--input-type=module',
       '--eval',
       [
@@ -31,8 +29,6 @@ describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () =>
 
   it('should not allow code injection through export names', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
-      '--no-warnings',
-      '--experimental-wasm-modules',
       '--input-type=module',
       '--eval',
       `import * as wasmExports from ${JSON.stringify(fixtures.fileURL('es-modules/export-name-code-injection.wasm'))};`,
@@ -45,8 +41,6 @@ describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () =>
 
   it('should allow non-identifier export names', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
-      '--no-warnings',
-      '--experimental-wasm-modules',
       '--input-type=module',
       '--eval',
       [
@@ -63,8 +57,6 @@ describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () =>
 
   it('should properly escape import names as well', async () => {
     const { code, stderr, stdout } = await spawnPromisified(execPath, [
-      '--no-warnings',
-      '--experimental-wasm-modules',
       '--input-type=module',
       '--eval',
       [
@@ -77,17 +69,5 @@ describe('ESM: WASM modules', { concurrency: !process.env.TEST_PARALLEL }, () =>
     strictEqual(stderr, '');
     strictEqual(stdout, '');
     strictEqual(code, 0);
-  });
-
-  it('should emit experimental warning', async () => {
-    const { code, signal, stderr } = await spawnPromisified(execPath, [
-      '--experimental-wasm-modules',
-      fixtures.path('es-modules/wasm-modules.mjs'),
-    ]);
-
-    strictEqual(code, 0);
-    strictEqual(signal, null);
-    match(stderr, /ExperimentalWarning/);
-    match(stderr, /WebAssembly/);
   });
 });
