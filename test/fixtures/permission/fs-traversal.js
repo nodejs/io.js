@@ -98,11 +98,6 @@ const uint8ArrayTraversalPath = new TextEncoder().encode(traversalPath);
     return w.apply(this, [traversalPath, ...args]);
   })(Buffer.prototype.utf8Write);
 
-  // Sanity check (remove if the internals of Buffer.from change):
-  // The custom implementation of utf8Write should cause Buffer.from() to encode
-  // traversalPath instead of the sanitized output of resolve().
-  assert.strictEqual(Buffer.from(resolve(traversalPathWithExtraChars)).toString(), traversalPath);
-
   assert.throws(() => {
     fs.readFileSync(traversalPathWithExtraBytes);
   }, common.expectsError({
