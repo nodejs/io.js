@@ -1527,7 +1527,7 @@ CLANG_FORMAT_START ?= HEAD
 format-cpp: ## Format C++ diff from $CLANG_FORMAT_START to current changes.
 ifneq ("","$(wildcard tools/clang-format/node_modules/)")
 	$(info Formatting C++ diff from $(CLANG_FORMAT_START)..)
-	@$(PYTHON) tools/clang-format/node_modules/.bin/git-clang-format \
+	@$(NODE) tools/clang-format/node_modules/.bin/git-clang-format \
 		--binary=tools/clang-format/node_modules/.bin/clang-format \
 		--style=file \
 		$(CLANG_FORMAT_START) -- \

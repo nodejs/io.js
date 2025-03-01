@@ -1,9 +1,5 @@
 {
-  "name": "node-core-clang-format",
-  "version": "1.0.0",
-  "description": "Formatting C++ files for Node.js core",
-  "license": "MIT",
   "dependencies": {
-    "clang-format": "^1.8.0"
+    "clang-format-git-python": "^1.2.0-canary.0"
   }
 }
