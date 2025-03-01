@@ -19,6 +19,7 @@ This a list of all the dependencies:
 * [googletest][]
 * [histogram][]
 * [icu-small][]
+* [inspector\_protocol][inspector_protocol]
 * [libuv][]
 * [llhttp][]
 * [minimatch][]
@@ -272,6 +273,12 @@ and Java libraries providing Unicode and Globalization
 support for software applications.
 See [maintaining-icu][] for more information.
 
+### inspector\_protocol
+
+The [inspector\_protocol](https://chromium.googlesource.com/deps/inspector_protocol/)
+is Chromium's of code generators and templates for the inspector protocol.
+See [this doc](../../../tools/inspector_protocol/README.md) for more information.
+
 ### libuv
 
 The [libuv](https://github.com/libuv/libuv) dependency is a
@@ -411,6 +418,7 @@ according to [RFC 8878](https://datatracker.ietf.org/doc/html/rfc8878).
 [googletest]: #googletest
 [histogram]: #histogram
 [icu-small]: #icu-small
+[inspector_protocol]: #inspector_protocol
 [libuv]: #libuv
 [llhttp]: #llhttp
 [maintaining-V8]: ./maintaining-V8.md
