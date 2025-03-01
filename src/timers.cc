@@ -43,9 +43,12 @@ double BindingData::GetLibuvNowImpl(BindingData* data) {
 }
 
 void BindingData::SlowScheduleTimer(const FunctionCallbackInfo<Value>& args) {
-  int64_t duration =
-      args[0]->IntegerValue(args.GetIsolate()->GetCurrentContext()).FromJust();
-  ScheduleTimerImpl(Realm::GetBindingData<BindingData>(args), duration);
+  int64_t duration;
+  if (args[0]
+          ->IntegerValue(args.GetIsolate()->GetCurrentContext())
+          .To(&duration)) {
+    ScheduleTimerImpl(Realm::GetBindingData<BindingData>(args), duration);
+  }
 }
 
 void BindingData::FastScheduleTimer(Local<Object> unused,

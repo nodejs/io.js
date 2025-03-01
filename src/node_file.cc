@@ -254,10 +254,20 @@ void FileHandle::New(const FunctionCallbackInfo<Value>& args) {
 
   std::optional<int64_t> maybeOffset = std::nullopt;
   std::optional<int64_t> maybeLength = std::nullopt;
-  if (args[1]->IsNumber())
-    maybeOffset = args[1]->IntegerValue(realm->context()).FromJust();
-  if (args[2]->IsNumber())
-    maybeLength = args[2]->IntegerValue(realm->context()).FromJust();
+  if (args[1]->IsNumber()) {
+    int64_t val;
+    if (!args[1]->IntegerValue(realm->context()).To(&val)) {
+      return;
+    }
+    maybeOffset = val;
+  }
+  if (args[2]->IsNumber()) {
+    int64_t val;
+    if (!args[2]->IntegerValue(realm->context()).To(&val)) {
+      return;
+    }
+    maybeLength = val;
+  }
 
   FileHandle::New(binding_data,
                   args[0].As<Int32>()->Value(),

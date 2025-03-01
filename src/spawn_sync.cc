@@ -912,7 +912,10 @@ Maybe<int> SyncProcessRunner::ParseOptions(Local<Value> js_value) {
       THROW_ERR_INVALID_ARG_TYPE(env(), "options.timeout must be a number");
       return Nothing<int>();
     }
-    int64_t timeout = js_timeout->IntegerValue(context).FromJust();
+    int64_t timeout;
+    if (!js_timeout->IntegerValue(context).To(&timeout)) {
+      return Nothing<int>();
+    }
     timeout_ = static_cast<uint64_t>(timeout);
   }
 
@@ -926,7 +929,9 @@ Maybe<int> SyncProcessRunner::ParseOptions(Local<Value> js_value) {
       THROW_ERR_INVALID_ARG_TYPE(env(), "options.maxBuffer must be a number");
       return Nothing<int>();
     }
-    max_buffer_ = js_max_buffer->NumberValue(context).FromJust();
+    if (!js_max_buffer->NumberValue(context).To(&max_buffer_)) {
+      return Nothing<int>();
+    }
   }
 
   Local<Value> js_kill_signal;
@@ -1164,9 +1169,11 @@ Maybe<int> SyncProcessRunner::CopyJsStringArray(Local<Value> js_value,
       }
     }
 
-    Maybe<size_t> maybe_size = StringBytes::StorageSize(isolate, value, UTF8);
-    if (maybe_size.IsNothing()) return Nothing<int>();
-    data_size += maybe_size.FromJust() + 1;
+    size_t maybe_size;
+    if (!StringBytes::StorageSize(isolate, value, UTF8).To(&maybe_size)) {
+      return Nothing<int>();
+    }
+    data_size += maybe_size + 1;
     data_size = nbytes::RoundUp(data_size, sizeof(void*));
   }
 

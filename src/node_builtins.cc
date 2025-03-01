@@ -79,7 +79,9 @@ void BuiltinLoader::GetNatives(Local<Name> property,
   auto source = env->builtin_loader()->source_.read();
   for (auto const& x : *source) {
     Local<String> key = OneByteString(isolate, x.first);
-    out->Set(context, key, x.second.ToStringChecked(isolate)).FromJust();
+    if (out->Set(context, key, x.second.ToStringChecked(isolate)).IsNothing()) {
+      return;
+    }
   }
   info.GetReturnValue().Set(out);
 }

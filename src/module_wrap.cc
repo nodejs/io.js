@@ -576,7 +576,10 @@ void ModuleWrap::Evaluate(const FunctionCallbackInfo<Value>& args) {
   CHECK_EQ(args.Length(), 2);
 
   CHECK(args[0]->IsNumber());
-  int64_t timeout = args[0]->IntegerValue(realm->context()).FromJust();
+  int64_t timeout;
+  if (!args[0]->IntegerValue(realm->context()).To(&timeout)) {
+    return;
+  }
 
   CHECK(args[1]->IsBoolean());
   bool break_on_sigint = args[1]->IsTrue();
