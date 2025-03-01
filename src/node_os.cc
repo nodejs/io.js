@@ -184,6 +184,9 @@ static void GetInterfaceAddresses(const FunctionCallbackInfo<Value>& args) {
   int count, i;
   char ip[INET6_ADDRSTRLEN];
   char netmask[INET6_ADDRSTRLEN];
+#if UV_VERSION_MAJOR >= 2
+  char broadcast[INET6_ADDRSTRLEN];
+#endif
   std::array<char, 18> mac;
   Local<String> name, family;
 
@@ -228,6 +231,9 @@ static void GetInterfaceAddresses(const FunctionCallbackInfo<Value>& args) {
     if (interfaces[i].address.address4.sin_family == AF_INET) {
       uv_ip4_name(&interfaces[i].address.address4, ip, sizeof(ip));
       uv_ip4_name(&interfaces[i].netmask.netmask4, netmask, sizeof(netmask));
+#if UV_VERSION_MAJOR >= 2
+      uv_ip4_name(&interfaces[i].broadcast.broadcast4, broadcast, sizeof(broadcast));
+#endif
       family = env->ipv4_string();
     } else if (interfaces[i].address.address4.sin_family == AF_INET6) {
       uv_ip6_name(&interfaces[i].address.address6, ip, sizeof(ip));
