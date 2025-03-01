@@ -47,8 +47,7 @@ const execOpts = { encoding: 'utf8', shell: true, env: { ...process.env, NODE: p
 {
   // Verify the shell option works properly
   execFile(
-    `"${common.isWindows ? execOpts.env.NODE : '$NODE'}"`,
-    [`"${common.isWindows ? execOpts.env.FIXTURE : '$FIXTURE'}"`, 0],
+    common.isWindows ? `"${execOpts.env.NODE}" "${execOpts.env.FIXTURE} 0` : `"$NODE" "$FIXTURE" 0`,
     execOpts,
     common.mustSucceed(),
   );
@@ -117,10 +116,14 @@ const execOpts = { encoding: 'utf8', shell: true, env: { ...process.env, NODE: p
     ...(common.isWindows ? [] : [{ encoding: 'utf8' }]),
     { shell: true, encoding: 'utf8' },
   ].forEach((options) => {
-    const execFileSyncStdout = execFileSync(file, args, options);
+    const command = options.shell ?
+      [[file, ...args].join(' ')] :
+      [file, args];
+
+    const execFileSyncStdout = execFileSync(...command, options);
     assert.strictEqual(execFileSyncStdout, `foo bar${os.EOL}`);
 
-    execFile(file, args, options, common.mustCall((_, stdout) => {
+    execFile(...command, options, common.mustCall((_, stdout) => {
       assert.strictEqual(stdout, execFileSyncStdout);
     }));
   });
