@@ -49,7 +49,7 @@ const execOpts = { encoding: 'utf8', shell: true, env: { ...process.env, NODE: p
   execFile(
     common.isWindows ? `"${execOpts.env.NODE}" "${execOpts.env.FIXTURE} 0` : `"$NODE" "$FIXTURE" 0`,
     execOpts,
-    common.mustSucceed()
+    common.mustSucceed(),
   );
 }
 
