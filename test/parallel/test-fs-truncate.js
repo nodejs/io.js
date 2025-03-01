@@ -242,17 +242,17 @@ function testFtruncate(cb) {
 }
 
 {
-  const file8 = path.resolve(tmp, 'non-existent-truncate-file.txt');
-  const validateError = (err) => {
-    assert.strictEqual(file8, err.path);
-    assert.strictEqual(
-      err.message,
-      `ENOENT: no such file or directory, open '${file8}'`);
-    assert.strictEqual(err.code, 'ENOENT');
-    assert.strictEqual(err.syscall, 'open');
-    return true;
-  };
-  fs.truncate(file8, 0, common.mustCall(validateError));
+  const file8 = path.resolve(tmp, 'non-existent-truncate-file-1.txt');
+  fs.truncate(file8, 0, common.mustSucceed(() => {
+    assert(fs.readFileSync(file8).equals(Buffer.from('')));
+  }));
+}
+
+{
+  const file9 = path.resolve(tmp, 'non-existent-truncate-file-2.txt');
+  fs.truncate(file9, 2, common.mustSucceed(() => {
+    assert(fs.readFileSync(file9).equals(Buffer.from('\u0000\u0000')));
+  }));
 }
 
 ['', false, null, {}, []].forEach((input) => {
