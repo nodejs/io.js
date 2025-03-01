@@ -102,6 +102,99 @@ tmpdir.refresh();
 }
 
 {
+  const w = new Writable({
+    write(chunk, enc, cb) {
+      cb();
+    }
+  });
+
+  function createTransformStream(tf, context) {
+    return new Transform({
+      readableObjectMode: true,
+      writableObjectMode: true,
+
+      transform(chunk, encoding, done) {
+        tf(chunk, context, done);
+      }
+    });
+  }
+
+  const ts = createTransformStream((chunk, _, done) => {
+    return done(new Error('Artificial error'));
+  });
+
+  pipeline(ts, w, common.mustCall((err) => {
+    assert.ok(err, 'should have an error');
+  }));
+
+  ts.write('test');
+}
+
+{
+  const read = new Readable({
+    read() {}
+  });
+
+  assert.throws(() => {
+    pipeline(read, () => {});
+  }, /ERR_MISSING_ARGS/);
+  assert.throws(() => {
+    pipeline(() => {});
+  }, /ERR_MISSING_ARGS/);
+  assert.throws(() => {
+    pipeline();
+  }, /ERR_INVALID_CALLBACK/);
+}
+
+{
+  const read = new Readable({
+    read() {}
+  });
+
+  const write = new Writable({
+    write(data, enc, cb) {
+      cb();
+    }
+  });
+
+  read.push('data');
+  setImmediate(() => read.destroy());
+
+  pipeline(read, write, common.mustCall((err) => {
+    assert.ok(err, 'should have an error');
+  }));
+}
+
+{
+  const w = new Writable({
+    write(chunk, enc, cb) {
+      cb();
+    }
+  });
+
+  function createTransformStream(tf, context) {
+    return new Transform({
+      readableObjectMode: true,
+      writableObjectMode: true,
+
+      transform(chunk, encoding, done) {
+        tf(chunk, context, done);
+      }
+    });
+  }
+
+  const ts = createTransformStream((chunk, _, done) => {
+    return done(new Error('Artificial error'));
+  });
+
+  pipeline(ts, w, common.mustCall((err) => {
+    assert.ok(err, 'should have an error');
+  }));
+
+  ts.write('test');
+}
+
+{
   const read = new Readable({
     read() {}
   });
