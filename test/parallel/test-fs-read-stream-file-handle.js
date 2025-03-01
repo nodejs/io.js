@@ -28,10 +28,20 @@ fs.promises.open(file, 'r').then((handle) => {
 fs.promises.open(file, 'r').then((handle) => {
   handle.on('close', common.mustCall());
   const stream = fs.createReadStream(null, { fd: handle });
-  stream.on('data', common.mustNotCall());
+  stream.on('data', common.mustCall(() => {
+    stream.destroy();
+  }));
   stream.on('close', common.mustCall());
 
   return handle.close();
+}).then(common.mustCall());
+
+fs.promises.open(file, 'r').then((handle) => {
+  handle.on('close', common.mustCall());
+  const stream = fs.createReadStream(null, { fd: handle });
+  stream.on('data', common.mustNotCall());
+  stream.on('close', common.mustCall());
+  stream.destroy();
 }).then(common.mustCall());
 
 fs.promises.open(file, 'r').then((handle) => {
