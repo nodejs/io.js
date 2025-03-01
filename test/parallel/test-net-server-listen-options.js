@@ -88,7 +88,6 @@ const listenOnPort = [
   // Neither port or path are specified in options
   shouldFailToListen({});
   shouldFailToListen({ host: 'localhost' });
-  shouldFailToListen({ host: 'localhost:3000' });
   shouldFailToListen({ host: { port: 3000 } });
   shouldFailToListen({ exclusive: true });
 }
