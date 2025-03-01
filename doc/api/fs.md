@@ -896,6 +896,21 @@ try {
 }
 ```
 
+```cjs
+const { access, constants } = require('node:fs/promises');
+
+async function checkAccess() {
+  try {
+    await access('/etc/passwd', constants.R_OK | constants.W_OK);
+    console.log('can access');
+  } catch {
+    console.error('cannot access');
+  }
+}
+
+checkAccess();
+```
+
 Using `fsPromises.access()` to check for the accessibility of a file before
 calling `fsPromises.open()` is not recommended. Doing so introduces a race
 condition, since other processes may change the file's state between the two
@@ -935,6 +950,30 @@ for more details.
 The `path` may be specified as a {FileHandle} that has been opened
 for appending (using `fsPromises.open()`).
 
+```mjs
+import { appendFile } from 'node:fs/promises';
+
+try {
+  await appendFile('message.txt', 'data to append');
+} catch {
+  console.error('The file could not be appended!');
+}
+```
+
+```cjs
+const { appendFile } = require('node:fs/promises');
+
+async function appendMessagesFile() {
+  try {
+    await appendFile('message.txt', 'data to append');
+  } catch {
+    console.error('The file could not be appended!');
+  }
+}
+
+appendMessagesFile();
+```
+
 ### `fsPromises.chmod(path, mode)`
 
 <!-- YAML
@@ -946,6 +985,30 @@ added: v10.0.0
 * Returns: {Promise} Fulfills with `undefined` upon success.
 
 Changes the permissions of a file.
+
+```mjs
+import { chmod } from 'node:fs/promises';
+
+try {
+  await chmod('my_file.txt', 0o775).then(console.log('The permissions for file "my_file.txt" have been changed!'));
+} catch {
+  console.error('The permissions for file "my_file.txt" failed to change!');
+}
+```
+
+```cjs
+const { chmod } = require('node:fs/promises');
+
+async function changeFilePermissions() {
+  try {
+    await chmod('my_file.txt', 0o775).then(console.log('The permissions for file "my_file.txt" have been changed!'));
+  } catch {
+    console.error('The permissions for file "my_file.txt" failed to change!');
+  }
+}
+
+changeFilePermissions();
+```
 
 ### `fsPromises.chown(path, uid, gid)`
 
@@ -959,6 +1022,38 @@ added: v10.0.0
 * Returns: {Promise} Fulfills with `undefined` upon success.
 
 Changes the ownership of a file.
+
+```mjs
+import { chown } from 'node:fs/promises';
+import { getuid, getgid } from 'node:process';
+
+const uid = getuid();
+const gid = getgid();
+
+try {
+  await chown('my_file.txt', uid, gid).then(console.log(`Successfully ran chown on my_file.txt to UID ${uid} and GID ${gid}!`));
+} catch {
+  console.error('Failed to chown my_file.txt!');
+}
+```
+
+```cjs
+const { chown } = require('node:fs/promises');
+const { getuid, getgid } = require('node:process');
+
+async function chownMyFile() {
+  const uid = getuid();
+  const gid = getgid();
+
+  try {
+    await chown('my_file.txt', uid, gid).then(console.log(`Successfully ran chown on my_file.txt to UID ${uid} and GID ${gid}!`));
+  } catch {
+    console.error('Failed to chown my_file.txt!');
+  }
+}
+
+chownMyFile();
+```
 
 ### `fsPromises.copyFile(src, dest[, mode])`
 
@@ -2255,6 +2350,15 @@ chmod('my_file.txt', 0o775, (err) => {
 });
 ```
 
+```cjs
+const { chmod } = require('node:fs');
+
+chmod('my_file.txt', 0o775, (err) => {
+  if (err) throw err;
+  console.log('The permissions for file "my_file.txt" have been changed!');
+});
+```
+
 #### File modes
 
 The `mode` argument used in both the `fs.chmod()` and `fs.chmodSync()`
@@ -2339,6 +2443,34 @@ Asynchronously changes owner and group of a file. No arguments other than a
 possible exception are given to the completion callback.
 
 See the POSIX chown(2) documentation for more detail.
+
+```mjs
+import { chown } from 'node:fs';
+import { getuid, getgid } from 'node:process';
+
+const uid = getuid();
+const gid = getgid();
+
+chown('my_file.txt', uid, gid, (err) => {
+  if (err) throw err;
+
+  console.log(`Successfully ran chown on my_file.txt to UID ${uid} and GID ${gid}!`);
+});
+```
+
+```cjs
+const { chown } = require('node:fs');
+const { getuid, getgid } = require('node:process');
+
+const uid = getuid();
+const gid = getgid();
+
+chown('my_file.txt', uid, gid, (err) => {
+  if (err) throw err;
+
+  console.log(`Successfully ran chown on my_file.txt to UID ${uid} and GID ${gid}!`);
+});
+```
 
 ### `fs.close(fd[, callback])`
 
