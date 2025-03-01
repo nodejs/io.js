@@ -1,0 +1,26 @@
+name: Comment Commands
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  pull-requests: write
+  issues: write
+
+jobs:
+  reopen-stale:
+    runs-on: ubuntu-latest
+    if: >
+      github.repository == 'nodejs/node' &&
+      github.event.comment.body == '/reopen-stale' &&
+      contains(github.event.issue.labels.*.name, 'stale') &&
+      github.event.issue.state == 'closed'
+
+    steps:
+      - name: Reopen issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue reopen "$ISSUE_NUMBER" --repo ${{ github.repository }}
