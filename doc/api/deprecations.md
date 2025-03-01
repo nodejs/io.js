@@ -3840,7 +3840,7 @@ Type: Documentation-only
 `process.features.tls_alpn`, `process.features.tls_ocsp`, and `process.features.tls_sni` are
 deprecated, as their values are guaranteed to be identical to that of `process.features.tls`.
 
-### DEP0190: Passing args to child\_process `execFile`/`spawn` with shell option true
+### DEP0190: Passing `args` to `child_process` `execFile`/`spawn` with `shell` option `true`
 
 <!-- YAML
 changes:
