@@ -37,7 +37,7 @@ inline v8::Maybe<bool> ProcessEmitWarning(Environment* env,
                                           const char* fmt,
                                           Args&&... args);
 
-v8::Maybe<bool> ProcessEmitWarningSync(Environment* env,
+v8::Maybe<void> ProcessEmitWarningSync(Environment* env,
                                        std::string_view message);
 v8::Maybe<bool> ProcessEmitExperimentalWarning(Environment* env,
                                                const std::string& warning);

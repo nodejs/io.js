@@ -10,6 +10,7 @@ using v8::Function;
 using v8::HandleScope;
 using v8::Isolate;
 using v8::Just;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
@@ -18,7 +19,7 @@ using v8::Object;
 using v8::String;
 using v8::Value;
 
-Maybe<bool> ProcessEmitWarningSync(Environment* env, std::string_view message) {
+Maybe<void> ProcessEmitWarningSync(Environment* env, std::string_view message) {
   Isolate* isolate = env->isolate();
   Local<Context> context = env->context();
   Local<String> message_string = OneByteString(isolate, message);
@@ -31,9 +32,9 @@ Maybe<bool> ProcessEmitWarningSync(Environment* env, std::string_view message) {
   if (emit_function.As<Function>()
           ->Call(context, v8::Undefined(isolate), arraysize(argv), argv)
           .IsEmpty()) {
-    return Nothing<bool>();
+    return Nothing<void>();
   }
-  return Just(true);
+  return JustVoid();
 }
 
 MaybeLocal<Value> ProcessEmit(Environment* env,
