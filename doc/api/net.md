@@ -1867,7 +1867,7 @@ added:
 -->
 
 Gets the current default value of the `autoSelectFamilyAttemptTimeout` option of [`socket.connect(options)`][].
-The initial default value is `250` or the value specified via the command line
+The initial default value is `500` or the value specified via the command line
 option `--network-family-autoselection-attempt-timeout`.
 
 * Returns: {number} The current default value of the `autoSelectFamilyAttemptTimeout` option.
