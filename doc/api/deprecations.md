@@ -3851,8 +3851,8 @@ changes:
 
 Type: Runtime
 
-When args are passed to `child_process.execFile` or `child_process.spawn` with the option
-`{ shell: true }`, the args are not escaped, only concatenated, which can lead to security issues.
+When an `args` array is passed to [`child_process.execFile`][] or [`child_process.spawn`][] with the option
+`{ shell: true }`, the values are not escaped, only space-separated, which can lead to shell injection.
 
 [NIST SP 800-38D]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 [RFC 6066]: https://tools.ietf.org/html/rfc6066#section-3
