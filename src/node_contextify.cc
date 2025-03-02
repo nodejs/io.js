@@ -1831,6 +1831,26 @@ bool ShouldRetryAsESM(Realm* realm,
   Utf8Value message_value(isolate, message);
   auto message_view = message_value.ToStringView();
 
+  for (const auto& error_message : throws_only_in_cjs_error_messages) {
+    if (message_view.find(error_message) != std::string_view::npos &&
+        error_message.find("await is only valid in async functions and "
+                           "the top level bodies of modules") !=
+            std::string_view::npos) {
+      const char* error_text =
+          "Top-level await is not supported in CommonJS modules. "
+          "To use top-level await, add \"type\": \"module\" to your "
+          "package.json "
+          "or rename the file to use the .mjs extension. Alternatively, wrap "
+          "the await expression in an async function. Module syntax like "
+          "import/export statements requires proper module configuration.";
+
+      isolate->ThrowException(v8::Exception::SyntaxError(
+          String::NewFromUtf8(isolate, error_text).ToLocalChecked()));
+
+      return true;
+    }
+  }
+
   // These indicates that the file contains syntaxes that are only valid in
   // ESM. So it must be true.
   for (const auto& error_message : esm_syntax_error_messages) {

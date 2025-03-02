@@ -233,9 +233,12 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         'await Promise.resolve(); console.log("executed");',
       ]);
 
-      strictEqual(stderr, '');
-      strictEqual(stdout, 'executed\n');
-      strictEqual(code, 0);
+      match(
+        stderr,
+        /Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension/
+      );
+      strictEqual(stdout, '');
+      strictEqual(code, 1);
       strictEqual(signal, null);
     });
 
@@ -245,9 +248,12 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         fixtures.path('es-modules/tla/unresolved.js'),
       ]);
 
-      strictEqual(stderr, '');
+      match(
+        stderr,
+        /SyntaxError: Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension/
+      );
       strictEqual(stdout, '');
-      strictEqual(code, 13);
+      strictEqual(code, 1);
       strictEqual(signal, null);
     });
 
@@ -257,9 +263,12 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         'await Promise.resolve(); import "node:os"; console.log("executed");',
       ]);
 
-      strictEqual(stderr, '');
-      strictEqual(stdout, 'executed\n');
-      strictEqual(code, 0);
+      match(
+        stderr,
+        /Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension/
+      );
+      strictEqual(stdout, '');
+      strictEqual(code, 1);
       strictEqual(signal, null);
     });
 
@@ -269,7 +278,10 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         'function fn() { await Promise.resolve(); } fn();',
       ]);
 
-      match(stderr, /SyntaxError: await is only valid in async function/);
+      match(
+        stderr,
+        /Top-level await is not supported in CommonJS modules/
+      );
       strictEqual(stdout, '');
       strictEqual(code, 1);
       strictEqual(signal, null);
@@ -281,7 +293,11 @@ describe('Module syntax detection', { concurrency: !process.env.TEST_PARALLEL },
         'const fs = require("node:fs"); await Promise.resolve();',
       ]);
 
-      match(stderr, /ReferenceError: require is not defined in ES module scope/);
+      match(
+        stderr,
+        /SyntaxError: Top-level await is not supported in CommonJS modules\. To use top-level await, add "type": "module" to your package\.json or rename the file to use the \.mjs extension\. Alternatively, wrap the await expression in an async function\./
+      );
+
       strictEqual(stdout, '');
       strictEqual(code, 1);
       strictEqual(signal, null);
