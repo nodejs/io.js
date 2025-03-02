@@ -202,7 +202,7 @@ async function prepareKeys() {
           public: keys['P-384'].publicKey
         },
         keys['P-521'].privateKey,
-        8 * keys['P-521'].size),
+        8 * keys['P-384'].size),
       { message: /Named curve mismatch/ });
   }
 
@@ -218,7 +218,7 @@ async function prepareKeys() {
       name: 'ECDH',
       public: publicKey
     }, keys['P-521'].privateKey, null), {
-      message: /Keys must be ECDH, X25519, or X448 keys/
+      message: 'algorithm.public must be an ECDH key'
     });
   }
 
