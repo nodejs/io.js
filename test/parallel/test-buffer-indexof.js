@@ -71,6 +71,11 @@ assert.strictEqual(b.indexOf('f', 5), 5);
 assert.strictEqual(b.indexOf('f', -1), 5);
 assert.strictEqual(b.indexOf('f', 6), -1);
 
+assert.strictEqual(b.indexOf(100, 2), 3);
+assert.strictEqual(b.indexOf(102, 5), 5);
+assert.strictEqual(b.indexOf(102, -1), 5);
+assert.strictEqual(b.indexOf(102, 6), -1);
+
 assert.strictEqual(b.indexOf(Buffer.from('d'), 2), 3);
 assert.strictEqual(b.indexOf(Buffer.from('f'), 5), 5);
 assert.strictEqual(b.indexOf(Buffer.from('f'), -1), 5);
