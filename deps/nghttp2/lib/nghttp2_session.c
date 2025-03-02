@@ -41,6 +41,8 @@
 #include "nghttp2_debug.h"
 #include "nghttp2_submit.h"
 
+nghttp2_stream root;
+
 /*
  * Returns non-zero if the number of outgoing opened streams is larger
  * than or equal to
@@ -144,11 +146,6 @@ static int session_detect_idle_stream(nghttp2_session *session,
     return 1;
   }
   return 0;
-}
-
-static int session_no_rfc7540_pri_no_fallback(nghttp2_session *session) {
-  return session->pending_no_rfc7540_priorities == 1 &&
-         !session->fallback_rfc7540_priorities;
 }
 
 static int check_ext_type_set(const uint8_t *ext_types, uint8_t type) {
@@ -458,10 +455,6 @@ static int session_new(nghttp2_session **session_ptr,
   /* next_stream_id is initialized in either
      nghttp2_session_client_new2 or nghttp2_session_server_new2 */
 
-  nghttp2_stream_init(&(*session_ptr)->root, 0, NGHTTP2_STREAM_FLAG_NONE,
-                      NGHTTP2_STREAM_IDLE, NGHTTP2_DEFAULT_WEIGHT, 0, 0, NULL,
-                      mem);
-
   (*session_ptr)->remote_window_size = NGHTTP2_INITIAL_CONNECTION_WINDOW_SIZE;
   (*session_ptr)->recv_window_size = 0;
   (*session_ptr)->consumed_size = 0;
@@ -548,11 +541,6 @@ static int session_new(nghttp2_session **session_ptr,
       max_deflate_dynamic_table_size = option->max_deflate_dynamic_table_size;
     }
 
-    if ((option->opt_set_mask & NGHTTP2_OPT_NO_CLOSED_STREAMS) &&
-        option->no_closed_streams) {
-      (*session_ptr)->opt_flags |= NGHTTP2_OPTMASK_NO_CLOSED_STREAMS;
-    }
-
     if (option->opt_set_mask & NGHTTP2_OPT_MAX_OUTBOUND_ACK) {
       (*session_ptr)->max_outbound_ack = option->max_outbound_ack;
     }
@@ -560,13 +548,6 @@ static int session_new(nghttp2_session **session_ptr,
     if ((option->opt_set_mask & NGHTTP2_OPT_MAX_SETTINGS) &&
         option->max_settings) {
       (*session_ptr)->max_settings = option->max_settings;
-    }
-
-    if ((option->opt_set_mask &
-         NGHTTP2_OPT_SERVER_FALLBACK_RFC7540_PRIORITIES) &&
-        option->server_fallback_rfc7540_priorities) {
-      (*session_ptr)->opt_flags |=
-        NGHTTP2_OPTMASK_SERVER_FALLBACK_RFC7540_PRIORITIES;
     }
 
     if ((option->opt_set_mask &
@@ -810,7 +791,6 @@ void nghttp2_session_del(nghttp2_session *session) {
   for (i = 0; i < NGHTTP2_EXTPRI_URGENCY_LEVELS; ++i) {
     nghttp2_pq_free(&session->sched[i].ob_data);
   }
-  nghttp2_stream_free(&session->root);
 
   /* Have to free streams first, so that we can check
      stream->item->queued */
@@ -827,82 +807,6 @@ void nghttp2_session_del(nghttp2_session *session) {
   nghttp2_hd_inflate_free(&session->hd_inflater);
   nghttp2_bufs_free(&session->aob.framebufs);
   nghttp2_mem_free(mem, session);
-}
-
-int nghttp2_session_reprioritize_stream(
-  nghttp2_session *session, nghttp2_stream *stream,
-  const nghttp2_priority_spec *pri_spec_in) {
-  int rv;
-  nghttp2_stream *dep_stream = NULL;
-  nghttp2_priority_spec pri_spec_default;
-  const nghttp2_priority_spec *pri_spec = pri_spec_in;
-
-  assert((!session->server && session->pending_no_rfc7540_priorities != 1) ||
-         (session->server && !session_no_rfc7540_pri_no_fallback(session)));
-  assert(pri_spec->stream_id != stream->stream_id);
-
-  if (!nghttp2_stream_in_dep_tree(stream)) {
-    return 0;
-  }
-
-  if (pri_spec->stream_id != 0) {
-    dep_stream = nghttp2_session_get_stream_raw(session, pri_spec->stream_id);
-
-    if (!dep_stream &&
-        session_detect_idle_stream(session, pri_spec->stream_id)) {
-      nghttp2_priority_spec_default_init(&pri_spec_default);
-
-      dep_stream = nghttp2_session_open_stream(
-        session, pri_spec->stream_id, NGHTTP2_FLAG_NONE, &pri_spec_default,
-        NGHTTP2_STREAM_IDLE, NULL);
-
-      if (dep_stream == NULL) {
-        return NGHTTP2_ERR_NOMEM;
-      }
-    } else if (!dep_stream || !nghttp2_stream_in_dep_tree(dep_stream)) {
-      nghttp2_priority_spec_default_init(&pri_spec_default);
-      pri_spec = &pri_spec_default;
-    }
-  }
-
-  if (pri_spec->stream_id == 0) {
-    dep_stream = &session->root;
-  } else if (nghttp2_stream_dep_find_ancestor(dep_stream, stream)) {
-    DEBUGF("stream: cycle detected, dep_stream(%p)=%d stream(%p)=%d\n",
-           dep_stream, dep_stream->stream_id, stream, stream->stream_id);
-
-    nghttp2_stream_dep_remove_subtree(dep_stream);
-    rv = nghttp2_stream_dep_add_subtree(stream->dep_prev, dep_stream);
-    if (rv != 0) {
-      return rv;
-    }
-  }
-
-  assert(dep_stream);
-
-  if (dep_stream == stream->dep_prev && !pri_spec->exclusive) {
-    /* This is minor optimization when just weight is changed. */
-    nghttp2_stream_change_weight(stream, pri_spec->weight);
-
-    return 0;
-  }
-
-  nghttp2_stream_dep_remove_subtree(stream);
-
-  /* We have to update weight after removing stream from tree */
-  stream->weight = pri_spec->weight;
-
-  if (pri_spec->exclusive) {
-    rv = nghttp2_stream_dep_insert_subtree(dep_stream, stream);
-  } else {
-    rv = nghttp2_stream_dep_add_subtree(dep_stream, stream);
-  }
-
-  if (rv != 0) {
-    return rv;
-  }
-
-  return 0;
 }
 
 static uint64_t pq_get_first_cycle(nghttp2_pq *pq) {
@@ -923,7 +827,6 @@ static int session_ob_data_push(nghttp2_session *session,
   int inc;
   nghttp2_pq *pq;
 
-  assert(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES);
   assert(stream->queued == 0);
 
   urgency = nghttp2_extpri_uint8_urgency(stream->extpri);
@@ -952,7 +855,6 @@ static void session_ob_data_remove(nghttp2_session *session,
                                    nghttp2_stream *stream) {
   uint32_t urgency;
 
-  assert(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES);
   assert(stream->queued == 1);
 
   urgency = nghttp2_extpri_uint8_urgency(stream->extpri);
@@ -969,14 +871,7 @@ static int session_attach_stream_item(nghttp2_session *session,
                                       nghttp2_outbound_item *item) {
   int rv;
 
-  rv = nghttp2_stream_attach_item(stream, item);
-  if (rv != 0) {
-    return rv;
-  }
-
-  if (!(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES)) {
-    return 0;
-  }
+  nghttp2_stream_attach_item(stream, item);
 
   rv = session_ob_data_push(session, stream);
   if (rv != 0) {
@@ -992,8 +887,7 @@ static void session_detach_stream_item(nghttp2_session *session,
                                        nghttp2_stream *stream) {
   nghttp2_stream_detach_item(stream);
 
-  if (!(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES) ||
-      !stream->queued) {
+  if (!stream->queued) {
     return;
   }
 
@@ -1004,8 +898,7 @@ static void session_defer_stream_item(nghttp2_session *session,
                                       nghttp2_stream *stream, uint8_t flags) {
   nghttp2_stream_defer_item(stream, flags);
 
-  if (!(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES) ||
-      !stream->queued) {
+  if (!stream->queued) {
     return;
   }
 
@@ -1015,15 +908,9 @@ static void session_defer_stream_item(nghttp2_session *session,
 static int session_resume_deferred_stream_item(nghttp2_session *session,
                                                nghttp2_stream *stream,
                                                uint8_t flags) {
-  int rv;
+  nghttp2_stream_resume_deferred_item(stream, flags);
 
-  rv = nghttp2_stream_resume_deferred_item(stream, flags);
-  if (rv != 0) {
-    return rv;
-  }
-
-  if (!(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES) ||
-      (stream->flags & NGHTTP2_STREAM_FLAG_DEFERRED_ALL)) {
+  if (stream->flags & NGHTTP2_STREAM_FLAG_DEFERRED_ALL) {
     return 0;
   }
 
@@ -1168,7 +1055,6 @@ int nghttp2_session_add_item(nghttp2_session *session,
     return 0;
   case NGHTTP2_PUSH_PROMISE: {
     nghttp2_headers_aux_data *aux_data;
-    nghttp2_priority_spec pri_spec;
 
     aux_data = &item->aux_data.headers;
 
@@ -1176,19 +1062,12 @@ int nghttp2_session_add_item(nghttp2_session *session,
       return NGHTTP2_ERR_STREAM_CLOSED;
     }
 
-    nghttp2_priority_spec_init(&pri_spec, stream->stream_id,
-                               NGHTTP2_DEFAULT_WEIGHT, 0);
-
     if (!nghttp2_session_open_stream(
           session, frame->push_promise.promised_stream_id,
-          NGHTTP2_STREAM_FLAG_NONE, &pri_spec, NGHTTP2_STREAM_RESERVED,
+          NGHTTP2_STREAM_FLAG_NONE, NGHTTP2_STREAM_RESERVED,
           aux_data->stream_user_data)) {
       return NGHTTP2_ERR_NOMEM;
     }
-
-    /* We don't have to call nghttp2_session_adjust_closed_stream()
-       here, since stream->stream_id is local stream_id, and it does
-       not affect closed stream count. */
 
     nghttp2_outbound_queue_push(&session->ob_reg, item);
     item->queued = 1;
@@ -1290,15 +1169,11 @@ int nghttp2_session_add_rst_stream(nghttp2_session *session, int32_t stream_id,
 
 nghttp2_stream *nghttp2_session_open_stream(nghttp2_session *session,
                                             int32_t stream_id, uint8_t flags,
-                                            nghttp2_priority_spec *pri_spec_in,
                                             nghttp2_stream_state initial_state,
                                             void *stream_user_data) {
   int rv;
   nghttp2_stream *stream;
-  nghttp2_stream *dep_stream = NULL;
   int stream_alloc = 0;
-  nghttp2_priority_spec pri_spec_default;
-  nghttp2_priority_spec *pri_spec = pri_spec_in;
   nghttp2_mem *mem;
 
   mem = &session->mem;
@@ -1311,23 +1186,9 @@ nghttp2_stream *nghttp2_session_open_stream(nghttp2_session *session,
 
   if (stream) {
     assert(stream->state == NGHTTP2_STREAM_IDLE);
-    assert((stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES) ||
-           nghttp2_stream_in_dep_tree(stream));
+    assert(initial_state != NGHTTP2_STREAM_IDLE);
 
-    nghttp2_session_detach_idle_stream(session, stream);
-
-    if (nghttp2_stream_in_dep_tree(stream)) {
-      assert(!(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES));
-
-      rv = nghttp2_stream_dep_remove(stream);
-      if (rv != 0) {
-        return NULL;
-      }
-
-      if (session_no_rfc7540_pri_no_fallback(session)) {
-        stream->flags |= NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES;
-      }
-    }
+    --session->num_idle_streams;
   } else {
     stream = nghttp2_mem_malloc(mem, sizeof(nghttp2_stream));
     if (stream == NULL) {
@@ -1337,69 +1198,16 @@ nghttp2_stream *nghttp2_session_open_stream(nghttp2_session *session,
     stream_alloc = 1;
   }
 
-  if (session_no_rfc7540_pri_no_fallback(session) ||
-      session->remote_settings.no_rfc7540_priorities == 1) {
-    /* For client which has not received server
-       SETTINGS_NO_RFC7540_PRIORITIES = 1, send a priority signal
-       opportunistically. */
-    if (session->server ||
-        session->remote_settings.no_rfc7540_priorities == 1) {
-      nghttp2_priority_spec_default_init(&pri_spec_default);
-      pri_spec = &pri_spec_default;
-    }
-
-    if (session->pending_no_rfc7540_priorities == 1) {
-      flags |= NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES;
-    }
-  } else if (pri_spec->stream_id != 0) {
-    dep_stream = nghttp2_session_get_stream_raw(session, pri_spec->stream_id);
-
-    if (!dep_stream &&
-        session_detect_idle_stream(session, pri_spec->stream_id)) {
-      /* Depends on idle stream, which does not exist in memory.
-         Assign default priority for it. */
-      nghttp2_priority_spec_default_init(&pri_spec_default);
-
-      dep_stream = nghttp2_session_open_stream(
-        session, pri_spec->stream_id, NGHTTP2_FLAG_NONE, &pri_spec_default,
-        NGHTTP2_STREAM_IDLE, NULL);
-
-      if (dep_stream == NULL) {
-        if (stream_alloc) {
-          nghttp2_mem_free(mem, stream);
-        }
-
-        return NULL;
-      }
-    } else if (!dep_stream || !nghttp2_stream_in_dep_tree(dep_stream)) {
-      /* If dep_stream is not part of dependency tree, stream will get
-         default priority.  This handles the case when
-         pri_spec->stream_id == stream_id.  This happens because we
-         don't check pri_spec->stream_id against new stream ID in
-         nghttp2_submit_request.  This also handles the case when idle
-         stream created by PRIORITY frame was opened.  Somehow we
-         first remove the idle stream from dependency tree.  This is
-         done to simplify code base, but ideally we should retain old
-         dependency.  But I'm not sure this adds values. */
-      nghttp2_priority_spec_default_init(&pri_spec_default);
-      pri_spec = &pri_spec_default;
-    }
-  }
-
   if (initial_state == NGHTTP2_STREAM_RESERVED) {
     flags |= NGHTTP2_STREAM_FLAG_PUSH;
   }
 
   if (stream_alloc) {
     nghttp2_stream_init(stream, stream_id, flags, initial_state,
-                        pri_spec->weight,
                         (int32_t)session->remote_settings.initial_window_size,
                         (int32_t)session->local_settings.initial_window_size,
-                        stream_user_data, mem);
-
-    if (session_no_rfc7540_pri_no_fallback(session)) {
-      stream->seq = session->stream_seq++;
-    }
+                        stream_user_data);
+    stream->seq = session->stream_seq++;
 
     rv = nghttp2_map_insert(&session->streams, stream_id, stream);
     if (rv != 0) {
@@ -1410,7 +1218,6 @@ nghttp2_stream *nghttp2_session_open_stream(nghttp2_session *session,
   } else {
     stream->flags = flags;
     stream->state = initial_state;
-    stream->weight = pri_spec->weight;
     stream->stream_user_data = stream_user_data;
   }
 
@@ -1428,9 +1235,7 @@ nghttp2_stream *nghttp2_session_open_stream(nghttp2_session *session,
        limit. That is one of the DOS vector. */
     break;
   case NGHTTP2_STREAM_IDLE:
-    /* Idle stream does not count toward the concurrent streams limit.
-       This is used as anchor node in dependency tree. */
-    nghttp2_session_keep_idle_stream(session, stream);
+    ++session->num_idle_streams;
     break;
   default:
     if (nghttp2_session_is_my_stream_id(session, stream_id)) {
@@ -1440,31 +1245,11 @@ nghttp2_stream *nghttp2_session_open_stream(nghttp2_session *session,
     }
   }
 
-  if (stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES) {
-    return stream;
-  }
-
-  if (pri_spec->stream_id == 0) {
-    dep_stream = &session->root;
-  }
-
-  assert(dep_stream);
-
-  if (pri_spec->exclusive) {
-    rv = nghttp2_stream_dep_insert(dep_stream, stream);
-    if (rv != 0) {
-      return NULL;
-    }
-  } else {
-    nghttp2_stream_dep_add(dep_stream, stream);
-  }
-
   return stream;
 }
 
 int nghttp2_session_close_stream(nghttp2_session *session, int32_t stream_id,
                                  uint32_t error_code) {
-  int rv;
   nghttp2_stream *stream;
   nghttp2_mem *mem;
   int is_my_stream_id;
@@ -1528,207 +1313,26 @@ int nghttp2_session_close_stream(nghttp2_session *session, int32_t stream_id,
   /* Closes both directions just in case they are not closed yet */
   stream->flags |= NGHTTP2_STREAM_FLAG_CLOSED;
 
-  if (session->pending_no_rfc7540_priorities == 1) {
-    return nghttp2_session_destroy_stream(session, stream);
-  }
-
-  if ((session->opt_flags & NGHTTP2_OPTMASK_NO_CLOSED_STREAMS) == 0 &&
-      session->server && !is_my_stream_id &&
-      nghttp2_stream_in_dep_tree(stream)) {
-    /* On server side, retain stream at most MAX_CONCURRENT_STREAMS
-       combined with the current active incoming streams to make
-       dependency tree work better. */
-    nghttp2_session_keep_closed_stream(session, stream);
-  } else {
-    rv = nghttp2_session_destroy_stream(session, stream);
-    if (rv != 0) {
-      return rv;
-    }
-  }
+  nghttp2_session_destroy_stream(session, stream);
 
   return 0;
 }
 
-int nghttp2_session_destroy_stream(nghttp2_session *session,
-                                   nghttp2_stream *stream) {
+void nghttp2_session_destroy_stream(nghttp2_session *session,
+                                    nghttp2_stream *stream) {
   nghttp2_mem *mem;
-  int rv;
 
   DEBUGF("stream: destroy closed stream(%p)=%d\n", stream, stream->stream_id);
 
   mem = &session->mem;
 
-  if (nghttp2_stream_in_dep_tree(stream)) {
-    rv = nghttp2_stream_dep_remove(stream);
-    if (rv != 0) {
-      return rv;
-    }
-  }
-
-  if (stream->queued &&
-      (stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES)) {
+  if (stream->queued) {
     session_ob_data_remove(session, stream);
   }
 
   nghttp2_map_remove(&session->streams, stream->stream_id);
   nghttp2_stream_free(stream);
   nghttp2_mem_free(mem, stream);
-
-  return 0;
-}
-
-void nghttp2_session_keep_closed_stream(nghttp2_session *session,
-                                        nghttp2_stream *stream) {
-  DEBUGF("stream: keep closed stream(%p)=%d, state=%d\n", stream,
-         stream->stream_id, stream->state);
-
-  if (session->closed_stream_tail) {
-    session->closed_stream_tail->closed_next = stream;
-    stream->closed_prev = session->closed_stream_tail;
-  } else {
-    session->closed_stream_head = stream;
-  }
-  session->closed_stream_tail = stream;
-
-  ++session->num_closed_streams;
-}
-
-void nghttp2_session_keep_idle_stream(nghttp2_session *session,
-                                      nghttp2_stream *stream) {
-  DEBUGF("stream: keep idle stream(%p)=%d, state=%d\n", stream,
-         stream->stream_id, stream->state);
-
-  if (session->idle_stream_tail) {
-    session->idle_stream_tail->closed_next = stream;
-    stream->closed_prev = session->idle_stream_tail;
-  } else {
-    session->idle_stream_head = stream;
-  }
-  session->idle_stream_tail = stream;
-
-  ++session->num_idle_streams;
-}
-
-void nghttp2_session_detach_idle_stream(nghttp2_session *session,
-                                        nghttp2_stream *stream) {
-  nghttp2_stream *prev_stream, *next_stream;
-
-  DEBUGF("stream: detach idle stream(%p)=%d, state=%d\n", stream,
-         stream->stream_id, stream->state);
-
-  prev_stream = stream->closed_prev;
-  next_stream = stream->closed_next;
-
-  if (prev_stream) {
-    prev_stream->closed_next = next_stream;
-  } else {
-    session->idle_stream_head = next_stream;
-  }
-
-  if (next_stream) {
-    next_stream->closed_prev = prev_stream;
-  } else {
-    session->idle_stream_tail = prev_stream;
-  }
-
-  stream->closed_prev = NULL;
-  stream->closed_next = NULL;
-
-  --session->num_idle_streams;
-}
-
-int nghttp2_session_adjust_closed_stream(nghttp2_session *session) {
-  size_t num_stream_max;
-  int rv;
-
-  if (session->local_settings.max_concurrent_streams ==
-      NGHTTP2_DEFAULT_MAX_CONCURRENT_STREAMS) {
-    num_stream_max = session->pending_local_max_concurrent_stream;
-  } else {
-    num_stream_max = session->local_settings.max_concurrent_streams;
-  }
-
-  DEBUGF("stream: adjusting kept closed streams num_closed_streams=%zu, "
-         "num_incoming_streams=%zu, max_concurrent_streams=%zu\n",
-         session->num_closed_streams, session->num_incoming_streams,
-         num_stream_max);
-
-  while (session->num_closed_streams > 0 &&
-         session->num_closed_streams + session->num_incoming_streams >
-           num_stream_max) {
-    nghttp2_stream *head_stream;
-    nghttp2_stream *next;
-
-    head_stream = session->closed_stream_head;
-
-    assert(head_stream);
-
-    next = head_stream->closed_next;
-
-    rv = nghttp2_session_destroy_stream(session, head_stream);
-    if (rv != 0) {
-      return rv;
-    }
-
-    /* head_stream is now freed */
-
-    session->closed_stream_head = next;
-
-    if (session->closed_stream_head) {
-      session->closed_stream_head->closed_prev = NULL;
-    } else {
-      session->closed_stream_tail = NULL;
-    }
-
-    --session->num_closed_streams;
-  }
-
-  return 0;
-}
-
-int nghttp2_session_adjust_idle_stream(nghttp2_session *session) {
-  size_t max;
-  int rv;
-
-  /* Make minimum number of idle streams 16, and maximum 100, which
-     are arbitrary chosen numbers. */
-  max = nghttp2_min_uint32(
-    100,
-    nghttp2_max_uint32(
-      16, nghttp2_min_uint32(session->local_settings.max_concurrent_streams,
-                             session->pending_local_max_concurrent_stream)));
-
-  DEBUGF("stream: adjusting kept idle streams num_idle_streams=%zu, max=%zu\n",
-         session->num_idle_streams, max);
-
-  while (session->num_idle_streams > max) {
-    nghttp2_stream *head;
-    nghttp2_stream *next;
-
-    head = session->idle_stream_head;
-    assert(head);
-
-    next = head->closed_next;
-
-    rv = nghttp2_session_destroy_stream(session, head);
-    if (rv != 0) {
-      return rv;
-    }
-
-    /* head is now destroyed */
-
-    session->idle_stream_head = next;
-
-    if (session->idle_stream_head) {
-      session->idle_stream_head->closed_prev = NULL;
-    } else {
-      session->idle_stream_tail = NULL;
-    }
-
-    --session->num_idle_streams;
-  }
-
-  return 0;
 }
 
 /*
@@ -2411,15 +2015,11 @@ static int session_prep_frame(nghttp2_session *session,
 
       stream = nghttp2_session_open_stream(
         session, frame->hd.stream_id, NGHTTP2_STREAM_FLAG_NONE,
-        &frame->headers.pri_spec, NGHTTP2_STREAM_INITIAL,
-        aux_data->stream_user_data);
+        NGHTTP2_STREAM_INITIAL, aux_data->stream_user_data);
 
       if (stream == NULL) {
         return NGHTTP2_ERR_NOMEM;
       }
-
-      /* We don't call nghttp2_session_adjust_closed_stream() here,
-         since we don't keep closed stream in client side */
 
       rv = session_predicate_request_headers_send(session, item);
       if (rv != 0) {
@@ -2662,8 +2262,6 @@ static int session_prep_frame(nghttp2_session *session,
 
 nghttp2_outbound_item *
 nghttp2_session_get_next_ob_item(nghttp2_session *session) {
-  nghttp2_outbound_item *item;
-
   if (nghttp2_outbound_queue_top(&session->ob_urgent)) {
     return nghttp2_outbound_queue_top(&session->ob_urgent);
   }
@@ -2679,11 +2277,6 @@ nghttp2_session_get_next_ob_item(nghttp2_session *session) {
   }
 
   if (session->remote_window_size > 0) {
-    item = nghttp2_stream_next_outbound_item(&session->root);
-    if (item) {
-      return item;
-    }
-
     return session_sched_get_next_outbound_item(session);
   }
 
@@ -2718,11 +2311,6 @@ nghttp2_session_pop_next_ob_item(nghttp2_session *session) {
   }
 
   if (session->remote_window_size > 0) {
-    item = nghttp2_stream_next_outbound_item(&session->root);
-    if (item) {
-      return item;
-    }
-
     return session_sched_get_next_outbound_item(session);
   }
 
@@ -2781,7 +2369,6 @@ static int find_stream_on_goaway_func(void *entry, void *ptr) {
        nghttp2_session_close_stream() inside nghttp2_map_each().
        Reuse closed_next member.. bad choice? */
     assert(stream->closed_next == NULL);
-    assert(stream->closed_prev == NULL);
 
     if (arg->head) {
       stream->closed_next = arg->head;
@@ -2836,11 +2423,6 @@ static int session_close_stream_on_goaway(nghttp2_session *session,
 static void session_reschedule_stream(nghttp2_session *session,
                                       nghttp2_stream *stream) {
   stream->last_writelen = stream->item->frame.hd.length;
-
-  if (!(stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES)) {
-    nghttp2_stream_reschedule(stream);
-    return;
-  }
 
   if (!session->server) {
     return;
@@ -3020,37 +2602,6 @@ static int session_after_frame_sent1(nghttp2_session *session) {
     }
   }
   case NGHTTP2_PRIORITY:
-    if (session->server || session->pending_no_rfc7540_priorities == 1) {
-      return 0;
-    }
-
-    stream = nghttp2_session_get_stream_raw(session, frame->hd.stream_id);
-
-    if (!stream) {
-      if (!session_detect_idle_stream(session, frame->hd.stream_id)) {
-        return 0;
-      }
-
-      stream = nghttp2_session_open_stream(
-        session, frame->hd.stream_id, NGHTTP2_FLAG_NONE,
-        &frame->priority.pri_spec, NGHTTP2_STREAM_IDLE, NULL);
-      if (!stream) {
-        return NGHTTP2_ERR_NOMEM;
-      }
-    } else {
-      rv = nghttp2_session_reprioritize_stream(session, stream,
-                                               &frame->priority.pri_spec);
-      if (nghttp2_is_fatal(rv)) {
-        return rv;
-      }
-    }
-
-    rv = nghttp2_session_adjust_idle_stream(session);
-
-    if (nghttp2_is_fatal(rv)) {
-      return rv;
-    }
-
     return 0;
   case NGHTTP2_RST_STREAM:
     rv = nghttp2_session_close_stream(session, frame->hd.stream_id,
@@ -3238,14 +2789,6 @@ static nghttp2_ssize nghttp2_session_mem_send_internal(nghttp2_session *session,
   mem = &session->mem;
   aob = &session->aob;
   framebufs = &aob->framebufs;
-
-  /* We may have idle streams more than we expect (e.g.,
-     nghttp2_session_change_stream_priority() or
-     nghttp2_session_create_idle_stream()).  Adjust them here. */
-  rv = nghttp2_session_adjust_idle_stream(session);
-  if (nghttp2_is_fatal(rv)) {
-    return rv;
-  }
 
   for (;;) {
     switch (aob->state) {
@@ -4064,7 +3607,6 @@ static int session_end_stream_headers_received(nghttp2_session *session,
 
   if (session->server && session_enforce_http_messaging(session) &&
       frame->headers.cat == NGHTTP2_HCAT_REQUEST &&
-      (stream->flags & NGHTTP2_STREAM_FLAG_NO_RFC7540_PRIORITIES) &&
       !(stream->flags & NGHTTP2_STREAM_FLAG_IGNORE_CLIENT_PRIORITIES) &&
       (stream->http_flags & NGHTTP2_HTTP_FLAG_PRIORITY)) {
     rv = session_update_stream_priority(session, stream, stream->http_extpri);
@@ -4253,16 +3795,11 @@ int nghttp2_session_on_request_headers_received(nghttp2_session *session,
                                                  NGHTTP2_ERR_REFUSED_STREAM);
   }
 
-  stream = nghttp2_session_open_stream(
-    session, frame->hd.stream_id, NGHTTP2_STREAM_FLAG_NONE,
-    &frame->headers.pri_spec, NGHTTP2_STREAM_OPENING, NULL);
+  stream = nghttp2_session_open_stream(session, frame->hd.stream_id,
+                                       NGHTTP2_STREAM_FLAG_NONE,
+                                       NGHTTP2_STREAM_OPENING, NULL);
   if (!stream) {
     return NGHTTP2_ERR_NOMEM;
-  }
-
-  rv = nghttp2_session_adjust_closed_stream(session);
-  if (nghttp2_is_fatal(rv)) {
-    return rv;
   }
 
   session->last_proc_stream_id = session->last_recv_stream_id;
@@ -4423,77 +3960,6 @@ static int session_process_headers_frame(nghttp2_session *session) {
 
   frame->headers.cat = NGHTTP2_HCAT_HEADERS;
   return nghttp2_session_on_headers_received(session, frame, stream);
-}
-
-int nghttp2_session_on_priority_received(nghttp2_session *session,
-                                         nghttp2_frame *frame) {
-  int rv;
-  nghttp2_stream *stream;
-
-  assert(!session_no_rfc7540_pri_no_fallback(session));
-
-  if (frame->hd.stream_id == 0) {
-    return session_handle_invalid_connection(session, frame, NGHTTP2_ERR_PROTO,
-                                             "PRIORITY: stream_id == 0");
-  }
-
-  if (frame->priority.pri_spec.stream_id == frame->hd.stream_id) {
-    return nghttp2_session_terminate_session_with_reason(
-      session, NGHTTP2_PROTOCOL_ERROR, "depend on itself");
-  }
-
-  if (!session->server) {
-    /* Re-prioritization works only in server */
-    return session_call_on_frame_received(session, frame);
-  }
-
-  stream = nghttp2_session_get_stream_raw(session, frame->hd.stream_id);
-
-  if (!stream) {
-    /* PRIORITY against idle stream can create anchor node in
-       dependency tree. */
-    if (!session_detect_idle_stream(session, frame->hd.stream_id)) {
-      return 0;
-    }
-
-    stream = nghttp2_session_open_stream(
-      session, frame->hd.stream_id, NGHTTP2_STREAM_FLAG_NONE,
-      &frame->priority.pri_spec, NGHTTP2_STREAM_IDLE, NULL);
-
-    if (stream == NULL) {
-      return NGHTTP2_ERR_NOMEM;
-    }
-
-    rv = nghttp2_session_adjust_idle_stream(session);
-    if (nghttp2_is_fatal(rv)) {
-      return rv;
-    }
-  } else {
-    rv = nghttp2_session_reprioritize_stream(session, stream,
-                                             &frame->priority.pri_spec);
-
-    if (nghttp2_is_fatal(rv)) {
-      return rv;
-    }
-
-    rv = nghttp2_session_adjust_idle_stream(session);
-    if (nghttp2_is_fatal(rv)) {
-      return rv;
-    }
-  }
-
-  return session_call_on_frame_received(session, frame);
-}
-
-static int session_process_priority_frame(nghttp2_session *session) {
-  nghttp2_inbound_frame *iframe = &session->iframe;
-  nghttp2_frame *frame = &iframe->frame;
-
-  assert(!session_no_rfc7540_pri_no_fallback(session));
-
-  nghttp2_frame_unpack_priority_payload(&frame->priority, iframe->sbuf.pos);
-
-  return nghttp2_session_on_priority_received(session, frame);
 }
 
 static int session_update_stream_reset_ratelim(nghttp2_session *session) {
@@ -4934,12 +4400,6 @@ int nghttp2_session_on_settings_received(nghttp2_session *session,
 
   if (session->remote_settings.no_rfc7540_priorities == UINT32_MAX) {
     session->remote_settings.no_rfc7540_priorities = 0;
-
-    if (session->server && session->pending_no_rfc7540_priorities &&
-        (session->opt_flags &
-         NGHTTP2_OPTMASK_SERVER_FALLBACK_RFC7540_PRIORITIES)) {
-      session->fallback_rfc7540_priorities = 1;
-    }
   }
 
   if (!noack && !session_is_closing(session)) {
@@ -5000,7 +4460,6 @@ int nghttp2_session_on_push_promise_received(nghttp2_session *session,
   int rv;
   nghttp2_stream *stream;
   nghttp2_stream *promised_stream;
-  nghttp2_priority_spec pri_spec;
 
   if (frame->hd.stream_id == 0) {
     return session_inflate_handle_invalid_connection(
@@ -5058,19 +4517,13 @@ int nghttp2_session_on_push_promise_received(nghttp2_session *session,
       session, frame, NGHTTP2_ERR_STREAM_CLOSED, "PUSH_PROMISE: stream closed");
   }
 
-  nghttp2_priority_spec_init(&pri_spec, stream->stream_id,
-                             NGHTTP2_DEFAULT_WEIGHT, 0);
-
   promised_stream = nghttp2_session_open_stream(
     session, frame->push_promise.promised_stream_id, NGHTTP2_STREAM_FLAG_NONE,
-    &pri_spec, NGHTTP2_STREAM_RESERVED, NULL);
+    NGHTTP2_STREAM_RESERVED, NULL);
 
   if (!promised_stream) {
     return NGHTTP2_ERR_NOMEM;
   }
-
-  /* We don't call nghttp2_session_adjust_closed_stream(), since we
-     don't keep closed stream in client side */
 
   session->last_proc_stream_id = session->last_recv_stream_id;
   rv = session_call_on_begin_headers(session, frame);
@@ -5292,7 +4745,6 @@ int nghttp2_session_on_priority_update_received(nghttp2_session *session,
                                                 nghttp2_frame *frame) {
   nghttp2_ext_priority_update *priority_update;
   nghttp2_stream *stream;
-  nghttp2_priority_spec pri_spec;
   nghttp2_extpri extpri;
   int rv;
 
@@ -5330,10 +4782,9 @@ int nghttp2_session_on_priority_update_received(nghttp2_session *session,
         "PRIORITY_UPDATE: max concurrent streams exceeded");
     }
 
-    nghttp2_priority_spec_default_init(&pri_spec);
-    stream = nghttp2_session_open_stream(session, priority_update->stream_id,
-                                         NGHTTP2_FLAG_NONE, &pri_spec,
-                                         NGHTTP2_STREAM_IDLE, NULL);
+    stream =
+      nghttp2_session_open_stream(session, priority_update->stream_id,
+                                  NGHTTP2_FLAG_NONE, NGHTTP2_STREAM_IDLE, NULL);
     if (!stream) {
       return NGHTTP2_ERR_NOMEM;
     }
@@ -5869,14 +5320,6 @@ nghttp2_ssize nghttp2_session_mem_recv2(nghttp2_session *session,
 
   mem = &session->mem;
 
-  /* We may have idle streams more than we expect (e.g.,
-     nghttp2_session_change_stream_priority() or
-     nghttp2_session_create_idle_stream()).  Adjust them here. */
-  rv = nghttp2_session_adjust_idle_stream(session);
-  if (nghttp2_is_fatal(rv)) {
-    return rv;
-  }
-
   if (!nghttp2_session_want_read(session)) {
     return (nghttp2_ssize)inlen;
   }
@@ -6392,8 +5835,7 @@ nghttp2_ssize nghttp2_session_mem_recv2(nghttp2_session *session,
               break;
             }
 
-            if (!session_no_rfc7540_pri_no_fallback(session) ||
-                iframe->payloadleft > sizeof(iframe->raw_sbuf)) {
+            if (iframe->payloadleft > sizeof(iframe->raw_sbuf)) {
               busy = 1;
               iframe->state = NGHTTP2_IB_IGN_PAYLOAD;
               break;
@@ -6510,18 +5952,6 @@ nghttp2_ssize nghttp2_session_mem_recv2(nghttp2_session *session,
 
         break;
       case NGHTTP2_PRIORITY:
-        if (!session_no_rfc7540_pri_no_fallback(session) &&
-            session->remote_settings.no_rfc7540_priorities != 1) {
-          rv = session_process_priority_frame(session);
-          if (nghttp2_is_fatal(rv)) {
-            return rv;
-          }
-
-          if (iframe->state == NGHTTP2_IB_IGN_ALL) {
-            return (nghttp2_ssize)inlen;
-          }
-        }
-
         session_inbound_frame_reset(session);
 
         break;
@@ -7404,9 +6834,7 @@ int nghttp2_session_want_write(nghttp2_session *session) {
    */
   return session->aob.item || nghttp2_outbound_queue_top(&session->ob_urgent) ||
          nghttp2_outbound_queue_top(&session->ob_reg) ||
-         ((!nghttp2_pq_empty(&session->root.obq) ||
-           !session_sched_empty(session)) &&
-          session->remote_window_size > 0) ||
+         (!session_sched_empty(session) && session->remote_window_size > 0) ||
          (nghttp2_outbound_queue_top(&session->ob_syn) &&
           !session_is_outgoing_concurrent_streams_max(session));
 }
@@ -8046,7 +7474,6 @@ static int nghttp2_session_upgrade_internal(nghttp2_session *session,
   nghttp2_settings_entry *iv;
   size_t niv;
   int rv;
-  nghttp2_priority_spec pri_spec;
   nghttp2_mem *mem;
 
   mem = &session->mem;
@@ -8083,17 +7510,12 @@ static int nghttp2_session_upgrade_internal(nghttp2_session *session,
     return rv;
   }
 
-  nghttp2_priority_spec_default_init(&pri_spec);
-
   stream = nghttp2_session_open_stream(
-    session, 1, NGHTTP2_STREAM_FLAG_NONE, &pri_spec, NGHTTP2_STREAM_OPENING,
+    session, 1, NGHTTP2_STREAM_FLAG_NONE, NGHTTP2_STREAM_OPENING,
     session->server ? NULL : stream_user_data);
   if (stream == NULL) {
     return NGHTTP2_ERR_NOMEM;
   }
-
-  /* We don't call nghttp2_session_adjust_closed_stream(), since this
-     should be the first stream open. */
 
   if (session->server) {
     nghttp2_stream_shutdown(stream, NGHTTP2_SHUT_RD);
@@ -8293,14 +7715,16 @@ int32_t nghttp2_session_get_last_proc_stream_id(nghttp2_session *session) {
 nghttp2_stream *nghttp2_session_find_stream(nghttp2_session *session,
                                             int32_t stream_id) {
   if (stream_id == 0) {
-    return &session->root;
+    return &root;
   }
 
   return nghttp2_session_get_stream_raw(session, stream_id);
 }
 
 nghttp2_stream *nghttp2_session_get_root_stream(nghttp2_session *session) {
-  return &session->root;
+  (void)session;
+
+  return &root;
 }
 
 int nghttp2_session_check_server_session(nghttp2_session *session) {
@@ -8310,75 +7734,20 @@ int nghttp2_session_check_server_session(nghttp2_session *session) {
 int nghttp2_session_change_stream_priority(
   nghttp2_session *session, int32_t stream_id,
   const nghttp2_priority_spec *pri_spec) {
-  int rv;
-  nghttp2_stream *stream;
-  nghttp2_priority_spec pri_spec_copy;
+  (void)session;
+  (void)stream_id;
+  (void)pri_spec;
 
-  if (session->pending_no_rfc7540_priorities == 1) {
-    return 0;
-  }
-
-  if (stream_id == 0 || stream_id == pri_spec->stream_id) {
-    return NGHTTP2_ERR_INVALID_ARGUMENT;
-  }
-
-  stream = nghttp2_session_get_stream_raw(session, stream_id);
-  if (!stream) {
-    return NGHTTP2_ERR_INVALID_ARGUMENT;
-  }
-
-  pri_spec_copy = *pri_spec;
-  nghttp2_priority_spec_normalize_weight(&pri_spec_copy);
-
-  rv = nghttp2_session_reprioritize_stream(session, stream, &pri_spec_copy);
-
-  if (nghttp2_is_fatal(rv)) {
-    return rv;
-  }
-
-  /* We don't intentionally call nghttp2_session_adjust_idle_stream()
-     so that idle stream created by this function, and existing ones
-     are kept for application.  We will adjust number of idle stream
-     in nghttp2_session_mem_send2 or nghttp2_session_mem_recv2 is
-     called. */
   return 0;
 }
 
 int nghttp2_session_create_idle_stream(nghttp2_session *session,
                                        int32_t stream_id,
                                        const nghttp2_priority_spec *pri_spec) {
-  nghttp2_stream *stream;
-  nghttp2_priority_spec pri_spec_copy;
+  (void)session;
+  (void)stream_id;
+  (void)pri_spec;
 
-  if (session->pending_no_rfc7540_priorities == 1) {
-    return 0;
-  }
-
-  if (stream_id == 0 || stream_id == pri_spec->stream_id ||
-      !session_detect_idle_stream(session, stream_id)) {
-    return NGHTTP2_ERR_INVALID_ARGUMENT;
-  }
-
-  stream = nghttp2_session_get_stream_raw(session, stream_id);
-  if (stream) {
-    return NGHTTP2_ERR_INVALID_ARGUMENT;
-  }
-
-  pri_spec_copy = *pri_spec;
-  nghttp2_priority_spec_normalize_weight(&pri_spec_copy);
-
-  stream =
-    nghttp2_session_open_stream(session, stream_id, NGHTTP2_STREAM_FLAG_NONE,
-                                &pri_spec_copy, NGHTTP2_STREAM_IDLE, NULL);
-  if (!stream) {
-    return NGHTTP2_ERR_NOMEM;
-  }
-
-  /* We don't intentionally call nghttp2_session_adjust_idle_stream()
-     so that idle stream created by this function, and existing ones
-     are kept for application.  We will adjust number of idle stream
-     in nghttp2_session_mem_send2 or nghttp2_session_mem_recv2 is
-     called. */
   return 0;
 }
 

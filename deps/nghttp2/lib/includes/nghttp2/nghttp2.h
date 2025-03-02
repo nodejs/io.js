@@ -3133,14 +3133,12 @@ nghttp2_option_set_max_deflate_dynamic_table_size(nghttp2_option *option,
 /**
  * @function
  *
- * This option prevents the library from retaining closed streams to
- * maintain the priority tree.  If this option is set to nonzero,
- * applications can discard closed stream completely to save memory.
+ * .. warning::
  *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is submitted via `nghttp2_submit_settings()`, any
- * closed streams are not retained regardless of this option.
+ *   Deprecated.  Closed streams are not retained anymore.
+ *
+ * This function works as before, but it does not take any effect
+ * against :type:`nghttp2_session`.
  */
 NGHTTP2_EXTERN void nghttp2_option_set_no_closed_streams(nghttp2_option *option,
                                                          int val);
@@ -3170,16 +3168,11 @@ NGHTTP2_EXTERN void nghttp2_option_set_max_settings(nghttp2_option *option,
 /**
  * @function
  *
- * This option, if set to nonzero, allows server to fallback to
- * :rfc:`7540` priorities if SETTINGS_NO_RFC7540_PRIORITIES was not
- * received from client, and server submitted
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * = 1 via `nghttp2_submit_settings()`.  Most of the advanced
- * functionality for RFC 7540 priorities are still disabled.  This
- * fallback only enables the minimal feature set of RFC 7540
- * priorities to deal with priority signaling from client.
+ * .. warning::
+ *    Deprecated.  :rfc:`7540` priorities have been removed.
  *
- * Client session ignores this option.
+ * This function works as before, but it does not take any effect
+ * against :type:`nghttp2_session`.
  */
 NGHTTP2_EXTERN void
 nghttp2_option_set_server_fallback_rfc7540_priorities(nghttp2_option *option,
@@ -4179,39 +4172,9 @@ NGHTTP2_EXTERN int nghttp2_session_consume_stream(nghttp2_session *session,
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return 0 without doing anything.
+ *   prioritization scheme.
  *
- * Changes priority of existing stream denoted by |stream_id|.  The
- * new priority specification is |pri_spec|.
- *
- * The priority is changed silently and instantly, and no PRIORITY
- * frame will be sent to notify the peer of this change.  This
- * function may be useful for server to change the priority of pushed
- * stream.
- *
- * If |session| is initialized as server, and ``pri_spec->stream_id``
- * points to the idle stream, the idle stream is created if it does
- * not exist.  The created idle stream will depend on root stream
- * (stream 0) with weight 16.
- *
- * Otherwise, if stream denoted by ``pri_spec->stream_id`` is not
- * found, we use default priority instead of given |pri_spec|.  That
- * is make stream depend on root stream with weight 16.
- *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is submitted via `nghttp2_submit_settings()`, this
- * function does nothing and returns 0.
- *
- * This function returns 0 if it succeeds, or one of the following
- * negative error codes:
- *
- * :enum:`nghttp2_error.NGHTTP2_ERR_NOMEM`
- *     Out of memory.
- * :enum:`nghttp2_error.NGHTTP2_ERR_INVALID_ARGUMENT`
- *     Attempted to depend on itself; or no stream exist for the given
- *     |stream_id|; or |stream_id| is 0
+ * This function is noop.  It always returns 0.
  */
 NGHTTP2_EXTERN int
 nghttp2_session_change_stream_priority(nghttp2_session *session,
@@ -4225,51 +4188,9 @@ nghttp2_session_change_stream_priority(nghttp2_session *session,
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return 0 without doing anything.
+ *   prioritization scheme.
  *
- * Creates idle stream with the given |stream_id|, and priority
- * |pri_spec|.
- *
- * The stream creation is done without sending PRIORITY frame, which
- * means that peer does not know about the existence of this idle
- * stream in the local endpoint.
- *
- * RFC 7540 does not disallow the use of creation of idle stream with
- * odd or even stream ID regardless of client or server.  So this
- * function can create odd or even stream ID regardless of client or
- * server.  But probably it is a bit safer to use the stream ID the
- * local endpoint can initiate (in other words, use odd stream ID for
- * client, and even stream ID for server), to avoid potential
- * collision from peer's instruction.  Also we can use
- * `nghttp2_session_set_next_stream_id()` to avoid to open created
- * idle streams accidentally if we follow this recommendation.
- *
- * If |session| is initialized as server, and ``pri_spec->stream_id``
- * points to the idle stream, the idle stream is created if it does
- * not exist.  The created idle stream will depend on root stream
- * (stream 0) with weight 16.
- *
- * Otherwise, if stream denoted by ``pri_spec->stream_id`` is not
- * found, we use default priority instead of given |pri_spec|.  That
- * is make stream depend on root stream with weight 16.
- *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is submitted via `nghttp2_submit_settings()`, this
- * function does nothing and returns 0.
- *
- * This function returns 0 if it succeeds, or one of the following
- * negative error codes:
- *
- * :enum:`nghttp2_error.NGHTTP2_ERR_NOMEM`
- *     Out of memory.
- * :enum:`nghttp2_error.NGHTTP2_ERR_INVALID_ARGUMENT`
- *     Attempted to depend on itself; or stream denoted by |stream_id|
- *     already exists; or |stream_id| cannot be used to create idle
- *     stream (in other words, local endpoint has already opened
- *     stream ID greater than or equal to the given stream ID; or
- *     |stream_id| is 0
+ * This function is noop.  It always returns 0.
  */
 NGHTTP2_EXTERN int
 nghttp2_session_create_idle_stream(nghttp2_session *session, int32_t stream_id,
@@ -4505,23 +4426,7 @@ nghttp2_priority_spec_check_default(const nghttp2_priority_spec *pri_spec);
  *
  * Submits HEADERS frame and optionally one or more DATA frames.
  *
- * The |pri_spec| is a deprecated priority specification of this
- * request.  ``NULL`` means the default priority (see
- * `nghttp2_priority_spec_default_init()`).  To specify the priority,
- * use `nghttp2_priority_spec_init()`.  If |pri_spec| is not ``NULL``,
- * this function will copy its data members.
- *
- * The ``pri_spec->weight`` must be in [:macro:`NGHTTP2_MIN_WEIGHT`,
- * :macro:`NGHTTP2_MAX_WEIGHT`], inclusive.  If ``pri_spec->weight``
- * is strictly less than :macro:`NGHTTP2_MIN_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MIN_WEIGHT`.  If it is strictly greater than
- * :macro:`NGHTTP2_MAX_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MAX_WEIGHT`.
- *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is received by a remote endpoint, |pri_spec| is
- * ignored, and treated as if ``NULL`` is specified.
+ * The |pri_spec| is ignored.
  *
  * The |nva| is an array of name/value pair :type:`nghttp2_nv` with
  * |nvlen| elements.  The application is responsible to include
@@ -4564,9 +4469,6 @@ nghttp2_priority_spec_check_default(const nghttp2_priority_spec *pri_spec);
  * :enum:`nghttp2_error.NGHTTP2_ERR_STREAM_ID_NOT_AVAILABLE`
  *     No stream ID is available because maximum stream ID was
  *     reached.
- * :enum:`nghttp2_error.NGHTTP2_ERR_INVALID_ARGUMENT`
- *     Trying to depend on itself (new stream ID equals
- *     ``pri_spec->stream_id``).
  * :enum:`nghttp2_error.NGHTTP2_ERR_PROTO`
  *     The |session| is server session.
  *
@@ -4594,25 +4496,7 @@ NGHTTP2_EXTERN int32_t nghttp2_submit_request(
  *
  * Submits HEADERS frame and optionally one or more DATA frames.
  *
- * The |pri_spec| is a deprecated priority specification of this
- * request.  ``NULL`` means the default priority (see
- * `nghttp2_priority_spec_default_init()`).  To specify the priority,
- * use `nghttp2_priority_spec_init()`.  If |pri_spec| is not ``NULL``,
- * this function will copy its data members.  In the future release
- * after the end of 2024, this function will ignore |pri_spec| and
- * behave as if ``NULL`` is given.
- *
- * The ``pri_spec->weight`` must be in [:macro:`NGHTTP2_MIN_WEIGHT`,
- * :macro:`NGHTTP2_MAX_WEIGHT`], inclusive.  If ``pri_spec->weight``
- * is strictly less than :macro:`NGHTTP2_MIN_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MIN_WEIGHT`.  If it is strictly greater than
- * :macro:`NGHTTP2_MAX_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MAX_WEIGHT`.
- *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is received by a remote endpoint, |pri_spec| is
- * ignored, and treated as if ``NULL`` is specified.
+ * The |pri_spec| is ignored.
  *
  * The |nva| is an array of name/value pair :type:`nghttp2_nv` with
  * |nvlen| elements.  The application is responsible to include
@@ -4655,9 +4539,6 @@ NGHTTP2_EXTERN int32_t nghttp2_submit_request(
  * :enum:`nghttp2_error.NGHTTP2_ERR_STREAM_ID_NOT_AVAILABLE`
  *     No stream ID is available because maximum stream ID was
  *     reached.
- * :enum:`nghttp2_error.NGHTTP2_ERR_INVALID_ARGUMENT`
- *     Trying to depend on itself (new stream ID equals
- *     ``pri_spec->stream_id``).
  * :enum:`nghttp2_error.NGHTTP2_ERR_PROTO`
  *     The |session| is server session.
  *
@@ -4899,24 +4780,7 @@ NGHTTP2_EXTERN int nghttp2_submit_trailer(nghttp2_session *session,
  * assigned stream ID will be returned.  Otherwise, specify stream ID
  * in |stream_id|.
  *
- * The |pri_spec| is a deprecated priority specification of this
- * request.  ``NULL`` means the default priority (see
- * `nghttp2_priority_spec_default_init()`).  To specify the priority,
- * use `nghttp2_priority_spec_init()`.  If |pri_spec| is not ``NULL``,
- * this function will copy its data members.  In the future release
- * after the end of 2024, this function will ignore |pri_spec| and
- * behave as if ``NULL`` is given.
- *
- * The ``pri_spec->weight`` must be in [:macro:`NGHTTP2_MIN_WEIGHT`,
- * :macro:`NGHTTP2_MAX_WEIGHT`], inclusive.  If ``pri_spec->weight``
- * is strictly less than :macro:`NGHTTP2_MIN_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MIN_WEIGHT`.  If it is strictly greater than
- * :macro:`NGHTTP2_MAX_WEIGHT`, it becomes :macro:`NGHTTP2_MAX_WEIGHT`.
- *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is received by a remote endpoint, |pri_spec| is
- * ignored, and treated as if ``NULL`` is specified.
+ * The |pri_spec| is ignored.
  *
  * The |nva| is an array of name/value pair :type:`nghttp2_nv` with
  * |nvlen| elements.  The application is responsible to include
@@ -4956,8 +4820,7 @@ NGHTTP2_EXTERN int nghttp2_submit_trailer(nghttp2_session *session,
  *     No stream ID is available because maximum stream ID was
  *     reached.
  * :enum:`nghttp2_error.NGHTTP2_ERR_INVALID_ARGUMENT`
- *     The |stream_id| is 0; or trying to depend on itself (stream ID
- *     equals ``pri_spec->stream_id``).
+ *     The |stream_id| is 0.
  * :enum:`nghttp2_error.NGHTTP2_ERR_DATA_EXIST`
  *     DATA or HEADERS has been already submitted and not fully
  *     processed yet.  This happens if stream denoted by |stream_id|
@@ -5083,40 +4946,9 @@ NGHTTP2_EXTERN int nghttp2_submit_data2(nghttp2_session *session, uint8_t flags,
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return 0 without doing anything.
+ *   prioritization scheme.
  *
- * Submits PRIORITY frame to change the priority of stream |stream_id|
- * to the priority specification |pri_spec|.
- *
- * The |flags| is currently ignored and should be
- * :enum:`nghttp2_flag.NGHTTP2_FLAG_NONE`.
- *
- * The |pri_spec| is a deprecated priority specification of this
- * request.  ``NULL`` is not allowed for this function. To specify the
- * priority, use `nghttp2_priority_spec_init()`.  This function will
- * copy its data members.
- *
- * The ``pri_spec->weight`` must be in [:macro:`NGHTTP2_MIN_WEIGHT`,
- * :macro:`NGHTTP2_MAX_WEIGHT`], inclusive.  If ``pri_spec->weight``
- * is strictly less than :macro:`NGHTTP2_MIN_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MIN_WEIGHT`.  If it is strictly greater than
- * :macro:`NGHTTP2_MAX_WEIGHT`, it becomes
- * :macro:`NGHTTP2_MAX_WEIGHT`.
- *
- * If
- * :enum:`nghttp2_settings_id.NGHTTP2_SETTINGS_NO_RFC7540_PRIORITIES`
- * of value of 1 is received by a remote endpoint, this function does
- * nothing and returns 0.
- *
- * This function returns 0 if it succeeds, or one of the following
- * negative error codes:
- *
- * :enum:`nghttp2_error.NGHTTP2_ERR_NOMEM`
- *     Out of memory.
- * :enum:`nghttp2_error.NGHTTP2_ERR_INVALID_ARGUMENT`
- *     The |stream_id| is 0; or the |pri_spec| is NULL; or trying to
- *     depend on itself.
+ * This function is noop.  It always returns 0.
  */
 NGHTTP2_EXTERN int
 nghttp2_submit_priority(nghttp2_session *session, uint8_t flags,
@@ -6885,11 +6717,9 @@ nghttp2_session_get_root_stream(nghttp2_session *session);
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return NULL.
+ *   prioritization scheme.
  *
- * Returns the parent stream of |stream| in dependency tree.  Returns
- * NULL if there is no such stream.
+ * This function always returns NULL.
  */
 NGHTTP2_EXTERN nghttp2_stream *
 nghttp2_stream_get_parent(nghttp2_stream *stream);
@@ -6903,11 +6733,9 @@ NGHTTP2_EXTERN int32_t nghttp2_stream_get_stream_id(nghttp2_stream *stream);
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return NULL.
+ *   prioritization scheme.
  *
- * Returns the next sibling stream of |stream| in dependency tree.
- * Returns NULL if there is no such stream.
+ * This function always returns NULL.
  */
 NGHTTP2_EXTERN nghttp2_stream *
 nghttp2_stream_get_next_sibling(nghttp2_stream *stream);
@@ -6919,11 +6747,9 @@ nghttp2_stream_get_next_sibling(nghttp2_stream *stream);
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return NULL.
+ *   prioritization scheme.
  *
- * Returns the previous sibling stream of |stream| in dependency tree.
- * Returns NULL if there is no such stream.
+ * This function always returns NULL.
  */
 NGHTTP2_EXTERN nghttp2_stream *
 nghttp2_stream_get_previous_sibling(nghttp2_stream *stream);
@@ -6935,11 +6761,9 @@ nghttp2_stream_get_previous_sibling(nghttp2_stream *stream);
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return NULL.
+ *   prioritization scheme.
  *
- * Returns the first child stream of |stream| in dependency tree.
- * Returns NULL if there is no such stream.
+ * This function always returns NULL.
  */
 NGHTTP2_EXTERN nghttp2_stream *
 nghttp2_stream_get_first_child(nghttp2_stream *stream);
@@ -6951,11 +6775,9 @@ nghttp2_stream_get_first_child(nghttp2_stream *stream);
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return
- *   :macro:`NGHTTP2_DEFAULT_WEIGHT`.
+ *   prioritization scheme.
  *
- * Returns dependency weight to the parent stream of |stream|.
+ * This function always returns :macro:`NGHTTP2_DEFAULT_WEIGHT`.
  */
 NGHTTP2_EXTERN int32_t nghttp2_stream_get_weight(nghttp2_stream *stream);
 
@@ -6966,10 +6788,9 @@ NGHTTP2_EXTERN int32_t nghttp2_stream_get_weight(nghttp2_stream *stream);
  *
  *   Deprecated.  :rfc:`7540` priorities are deprecated by
  *   :rfc:`9113`.  Consider migrating to :rfc:`9218` extensible
- *   prioritization scheme.  In the future release after the end of
- *   2024, this function will always return 0.
+ *   prioritization scheme.
  *
- * Returns the sum of the weight for |stream|'s children.
+ * This function always returns 0.
  */
 NGHTTP2_EXTERN int32_t
 nghttp2_stream_get_sum_dependency_weight(nghttp2_stream *stream);

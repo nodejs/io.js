@@ -594,8 +594,19 @@ static void hd_map_remove(nghttp2_hd_map *map, nghttp2_hd_entry *ent) {
 static int hd_ringbuf_init(nghttp2_hd_ringbuf *ringbuf, size_t bufsize,
                            nghttp2_mem *mem) {
   size_t size;
+  const size_t max_size = SIZE_MAX / sizeof(nghttp2_hd_entry *);
+
+  if (bufsize > max_size) {
+    return NGHTTP2_ERR_NOMEM;
+  }
+
   for (size = 1; size < bufsize; size <<= 1)
     ;
+
+  if (size > max_size) {
+    return NGHTTP2_ERR_NOMEM;
+  }
+
   ringbuf->buffer = nghttp2_mem_malloc(mem, sizeof(nghttp2_hd_entry *) * size);
   if (ringbuf->buffer == NULL) {
     return NGHTTP2_ERR_NOMEM;
