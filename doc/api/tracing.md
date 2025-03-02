@@ -355,7 +355,7 @@ async function collect() {
   setTimeout(() => {
     post('NodeTracing.stop').then(() => {
       session.disconnect();
-      console.log(data);
+      console.dir(data, { depth: null });
     });
   }, 1000);
 }
