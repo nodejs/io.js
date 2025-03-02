@@ -3647,6 +3647,61 @@ server.on('request', (request, res) => {
 server.listen(8000);
 ```
 
+## `http.createStaticServer([options])`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental. The implementation lacks support for partial
+> responses (Ranges) and conditional-GET negotiation (If-Match,
+> If-Unmodified-Since, If-None-Match, If-Modified-Since).
+
+* `options` {Object}
+  * `directory` {string|URL} Root directory from which files would be served.
+    **Default:** `process.cwd()`.
+  * `port` {number}
+  * `host` {string} **Default:** `'localhost'`
+  * `mimeOverrides` {Object} Dictionary linking file extension to a MIME string,
+    to override or extend the built-in ones.
+  * `filter` {Function|null} should be a function that accepts two arguments and
+    returns a value that is coercible to a {boolean} value. When `null`, no
+    files are filtered. **Default:** filters all dot files.
+  * `log` {Function|null} called when sending a response to the client.
+    **Default:** `console.log`.
+    * `statusCode` {integer} The status code that is sent to the client.
+    * `url` {string} the (origin-relative) URL that was requested.
+  * `onStart` {Function} called the server starts listening to requests.
+    **Default:** logs the URL to the console.
+
+* Returns: {http.Server}
+
+Start a TCP server listening for connections on the given `port` and `host`, and
+serve static local files, using `directory` as the root.
+When specifying a `host` other than `localhost`, you are exposing your local
+file system to all the machines that can connect to your computer.
+
+If specified and not `null`, `filter` will be called with two arguments: the
+first one is the request URL string (the URL that is present in the actual HTTP
+request), and the second one is the `file:` `URL` that was generated from the
+base directory and the request URL. If the function returns a falsy value, the
+server will respond with a 403 HTTP error.
+
+If `port` is omitted or is 0, the operating system will assign an arbitrary
+unused port, which it's output will be the standard output.
+
+```bash
+# Starts serving the cwd on a random port:
+node -e 'http.createStaticServer()'
+
+# To start serving on the port 8080 using /path/to/dir as the root:
+node -e 'http.createStaticServer({directory: "/path/to/dir", port: 8080})'
+
+# Same as above, but exposing your local file system to the whole
+# IPv4 network:
+node -e 'http.createStaticServer({directory: "/path/to/dir", port: 8080, host: "0.0.0.0"})'
+```
+
 ## `http.get(options[, callback])`
 
 ## `http.get(url[, options][, callback])`
