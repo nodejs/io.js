@@ -20,13 +20,15 @@
 // USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 'use strict';
-const common = require('../common');
-const assert = require('assert');
 
-const dns = require('dns');
+require('../common');
+
+const { test } = require('node:test');
+const assert = require('node:assert');
+const dns = require('node:dns');
 const dnsPromises = dns.promises;
 
-(async function() {
+test('dns promises lookup', async (t) => {
   let res;
 
   res = await dnsPromises.lookup(null);
@@ -40,54 +42,58 @@ const dnsPromises = dns.promises;
   res = await dnsPromises.lookup('::1');
   assert.strictEqual(res.address, '::1');
   assert.strictEqual(res.family, 6);
-})().then(common.mustCall());
-
-// Try resolution without hostname.
-dns.lookup(null, common.mustSucceed((result, addressType) => {
-  assert.strictEqual(result, null);
-  assert.strictEqual(addressType, 4);
-}));
-
-dns.lookup('127.0.0.1', common.mustSucceed((result, addressType) => {
-  assert.strictEqual(result, '127.0.0.1');
-  assert.strictEqual(addressType, 4);
-}));
-
-dns.lookup('::1', common.mustSucceed((result, addressType) => {
-  assert.strictEqual(result, '::1');
-  assert.strictEqual(addressType, 6);
-}));
-
-[
-  // Try calling resolve with an unsupported type.
-  'HI',
-  // Try calling resolve with an unsupported type that's an object key
-  'toString',
-].forEach((val) => {
-  const err = {
-    code: 'ERR_INVALID_ARG_VALUE',
-    name: 'TypeError',
-    message: `The argument 'rrtype' is invalid. Received '${val}'`,
-  };
-
-  assert.throws(
-    () => dns.resolve('www.google.com', val),
-    err
-  );
-
-  assert.throws(() => dnsPromises.resolve('www.google.com', val), err);
 });
 
-// Windows doesn't usually have an entry for localhost 127.0.0.1 in
-// C:\Windows\System32\drivers\etc\hosts
-// so we disable this test on Windows.
-// IBMi reports `ENOTFOUND` when get hostname by address 127.0.0.1
-if (!common.isWindows && !common.isIBMi) {
-  dns.reverse('127.0.0.1', common.mustSucceed((domains) => {
-    assert.ok(Array.isArray(domains));
-  }));
+test('dns callback lookup', (t) => {
+  dns.lookup(null, (err, result, addressType) => {
+    assert.strictEqual(err, null);
+    assert.strictEqual(result, null);
+    assert.strictEqual(addressType, 4);
+  });
 
-  (async function() {
-    assert.ok(Array.isArray(await dnsPromises.reverse('127.0.0.1')));
-  })().then(common.mustCall());
-}
+  dns.lookup('127.0.0.1', (err, result, addressType) => {
+    assert.strictEqual(err, null);
+    assert.strictEqual(result, '127.0.0.1');
+    assert.strictEqual(addressType, 4);
+  });
+
+  dns.lookup('::1', (err, result, addressType) => {
+    assert.strictEqual(err, null);
+    assert.strictEqual(result, '::1');
+    assert.strictEqual(addressType, 6);
+  });
+});
+
+test('unsupported rrtype resolves', (t) => {
+  [
+    // Try calling resolve with an unsupported type.
+    'HI',
+    // Try calling resolve with an unsupported type that's an object key
+    'toString',
+  ].forEach((val) => {
+    const err = {
+      code: 'ERR_INVALID_ARG_VALUE',
+      name: 'TypeError',
+      message: `The argument 'rrtype' is invalid. Received '${val}'`,
+    };
+
+    assert.throws(
+      () => dns.resolve('www.google.com', val),
+      err
+    );
+
+    assert.throws(() => dnsPromises.resolve('www.google.com', val), err);
+  });
+});
+
+test('reverse DNS lookup (non-Windows, non-IBMi)', async (t) => {
+  if (!process.platform.startsWith('win') && process.platform !== 'aix') {
+    dns.reverse('127.0.0.1', (err, domains) => {
+      assert.strictEqual(err, null);
+      assert.ok(Array.isArray(domains));
+    });
+
+    const domains = await dnsPromises.reverse('127.0.0.1');
+    assert.ok(Array.isArray(domains));
+  }
+});
