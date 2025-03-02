@@ -32,7 +32,7 @@ process.on('multipleResolves', common.mustNotCall());
   const iterator = iterable[Symbol.asyncIterator]();
   const promise = iterator.next();
   promise.then(common.mustCall((result) => {
-    assert.ok(!result.done, 'iterator was wronly marked as done');
+    assert.ok(!result.done, 'iterator was wrongly marked as done');
     assert.strictEqual(result.value, 'foobar');
     return iterator.return();
   })).then(common.mustCall());
@@ -44,7 +44,7 @@ process.on('multipleResolves', common.mustNotCall());
   const promise = iterator.next();
   promise
     .then(common.mustCall((result) => {
-      assert.ok(!result.done, 'iterator was wronly marked as done');
+      assert.ok(!result.done, 'iterator was wrongly marked as done');
       assert.strictEqual(result.value, 'foobar');
       return iterator.next();
     }))

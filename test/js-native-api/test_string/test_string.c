@@ -20,7 +20,7 @@ static napi_status validate_and_retrieve_single_string_arg(
 
   NODE_API_ASSERT_STATUS(env,
                          valuetype == napi_string,
-                         "Wrong type of argment. Expects a string.");
+                         "Wrong type of argument. Expects a string.");
 
   return napi_ok;
 }

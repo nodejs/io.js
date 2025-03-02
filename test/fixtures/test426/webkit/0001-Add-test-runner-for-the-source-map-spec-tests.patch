@@ -3397,7 +3397,7 @@ index 000000000000..c5fbd4baa8b0
 ++    },
 ++    {
 ++      "name": "sourceRootResolution",
-++      "description": "Similar to basic mapping test, but test resoultion of sources with a sourceRoot field",
+++      "description": "Similar to basic mapping test, but test resolution of sources with a sourceRoot field",
 ++      "baseFile": "source-root-resolution.js",
 ++      "sourceMapFile": "source-root-resolution.js.map",
 ++      "sourceMapIsValid": true,
@@ -3424,7 +3424,7 @@ index 000000000000..c5fbd4baa8b0
 ++    },
 ++    {
 ++      "name": "sourceResolutionAbsoluteURL",
-++      "description": "Test resoultion of sources with absolute URLs",
+++      "description": "Test resolution of sources with absolute URLs",
 ++      "baseFile": "source-resolution-absolute-url.js",
 ++      "sourceMapFile": "source-resolution-absolute-url.js.map",
 ++      "sourceMapIsValid": true,
@@ -7950,7 +7950,7 @@ index 000000000000..4601502fffd6
 +    },
 +    {
 +      "name": "sourceRootResolution",
-+      "description": "Similar to basic mapping test, but test resoultion of sources with a sourceRoot field",
++      "description": "Similar to basic mapping test, but test resolution of sources with a sourceRoot field",
 +      "baseFile": "source-root-resolution.js",
 +      "sourceMapFile": "source-root-resolution.js.map",
 +      "sourceMapIsValid": true,
@@ -7977,7 +7977,7 @@ index 000000000000..4601502fffd6
 +    },
 +    {
 +      "name": "sourceResolutionAbsoluteURL",
-+      "description": "Test resoultion of sources with absolute URLs",
++      "description": "Test resolution of sources with absolute URLs",
 +      "baseFile": "source-resolution-absolute-url.js",
 +      "sourceMapFile": "source-resolution-absolute-url.js.map",
 +      "sourceMapIsValid": true,

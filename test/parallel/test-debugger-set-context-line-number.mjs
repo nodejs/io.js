@@ -15,8 +15,8 @@ function onFatal(error) {
 }
 
 function getLastLine(output) {
-  const splittedByLine = output.split(';');
-  return splittedByLine[splittedByLine.length - 2];
+  const splitByLine = output.split(';');
+  return splitByLine[splitByLine.length - 2];
 }
 
 // Stepping through breakpoints.

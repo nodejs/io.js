@@ -52,7 +52,7 @@ class ErrorWithCause extends Error {
     return new Error('err');
   }
 }
-class ErrorWithThowingCause extends Error {
+class ErrorWithThrowingCause extends Error {
   get cause() {
     throw new Error('err');
   }
@@ -81,8 +81,8 @@ assert.deepStrictEqual(cycle(errorWithCause).cause, { foo: 'bar' });
 assert.strictEqual(Object.hasOwn(cycle(errorWithThrowingCause), 'cause'), false);
 assert.strictEqual(Object.hasOwn(cycle(errorWithCyclicCause), 'cause'), true);
 assert.deepStrictEqual(cycle(new ErrorWithCause('Error with cause')).cause, new Error('err'));
-assert.strictEqual(cycle(new ErrorWithThowingCause('Error with cause')).cause, undefined);
-assert.strictEqual(Object.hasOwn(cycle(new ErrorWithThowingCause('Error with cause')), 'cause'), false);
+assert.strictEqual(cycle(new ErrorWithThrowingCause('Error with cause')).cause, undefined);
+assert.strictEqual(Object.hasOwn(cycle(new ErrorWithThrowingCause('Error with cause')), 'cause'), false);
 // When the cause is cyclic, it is serialized until Maximum call stack size is reached
 let depth = 0;
 let e = cycle(new ErrorWithCyclicCause('Error with cause'));

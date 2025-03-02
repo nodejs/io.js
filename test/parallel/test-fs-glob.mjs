@@ -340,7 +340,7 @@ describe('fsPromises glob', function() {
 
 const normalizeDirent = (dirent) => relative(fixtureDir, join(dirent.parentPath, dirent.name));
 // The call to `join()` with only one argument is important, as
-// it ensures that the proper path seperators are applied.
+// it ensures that the proper path separators are applied.
 const normalizePath = (path) => (isAbsolute(path) ? relative(fixtureDir, path) : join(path));
 
 describe('glob - withFileTypes', function() {

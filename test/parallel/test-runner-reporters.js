@@ -13,7 +13,7 @@ tmpdir.refresh();
 
 let tmpFiles = 0;
 describe('node:test reporters', { concurrency: true }, () => {
-  it('should default to outputing TAP to stdout', async () => {
+  it('should default to outputting TAP to stdout', async () => {
     const child = spawnSync(process.execPath, ['--test', testFile]);
     assert.strictEqual(child.stderr.toString(), '');
     assert.match(child.stdout.toString(), /✖ failing tests:/);
@@ -180,15 +180,15 @@ describe('node:test reporters', { concurrency: true }, () => {
                             ['--test', '--test-reporter', 'spec', '--test-reporter-destination', file, testFile]);
     assert.strictEqual(child.stderr.toString(), '');
     assert.strictEqual(child.stdout.toString(), '');
-    const fileConent = fs.readFileSync(file, 'utf8');
-    assert.match(fileConent, /▶ nested/);
-    assert.match(fileConent, /✔ ok/);
-    assert.match(fileConent, /✖ failing/);
-    assert.match(fileConent, /ℹ tests 4/);
-    assert.match(fileConent, /ℹ pass 2/);
-    assert.match(fileConent, /ℹ fail 2/);
-    assert.match(fileConent, /ℹ cancelled 0/);
-    assert.match(fileConent, /ℹ skipped 0/);
-    assert.match(fileConent, /ℹ todo 0/);
+    const fileContent = fs.readFileSync(file, 'utf8');
+    assert.match(fileContent, /▶ nested/);
+    assert.match(fileContent, /✔ ok/);
+    assert.match(fileContent, /✖ failing/);
+    assert.match(fileContent, /ℹ tests 4/);
+    assert.match(fileContent, /ℹ pass 2/);
+    assert.match(fileContent, /ℹ fail 2/);
+    assert.match(fileContent, /ℹ cancelled 0/);
+    assert.match(fileContent, /ℹ skipped 0/);
+    assert.match(fileContent, /ℹ todo 0/);
   });
 });

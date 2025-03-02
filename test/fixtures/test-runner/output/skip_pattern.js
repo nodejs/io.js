@@ -17,4 +17,4 @@ it.skip('top level skipped it enabled', common.mustNotCall());
 describe('top level describe', common.mustCall());
 describe.skip('top level skipped describe disabled', common.mustNotCall());
 describe.skip('top level skipped describe enabled', common.mustNotCall());
-test('this will NOt call', common.mustNotCall());
+test('this will NOT call', common.mustNotCall());

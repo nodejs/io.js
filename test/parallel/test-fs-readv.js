@@ -11,11 +11,11 @@ const expected = 'ümlaut. Лорем 運務ホソモ指及 आपको कर�
 
 let cnt = 0;
 const getFileName = () => tmpdir.resolve(`readv_${++cnt}.txt`);
-const exptectedBuff = Buffer.from(expected);
+const expectedBuff = Buffer.from(expected);
 
 const allocateEmptyBuffers = (combinedLength) => {
   const bufferArr = [];
-  // Allocate two buffers, each half the size of exptectedBuff
+  // Allocate two buffers, each half the size of expectedBuff
   bufferArr[0] = Buffer.alloc(Math.floor(combinedLength / 2));
   bufferArr[1] = Buffer.alloc(combinedLength - bufferArr[0].length);
 
@@ -25,11 +25,11 @@ const allocateEmptyBuffers = (combinedLength) => {
 const getCallback = (fd, bufferArr) => {
   return common.mustSucceed((bytesRead, buffers) => {
     assert.deepStrictEqual(bufferArr, buffers);
-    const expectedLength = exptectedBuff.length;
+    const expectedLength = expectedBuff.length;
     assert.deepStrictEqual(bytesRead, expectedLength);
     fs.closeSync(fd);
 
-    assert(Buffer.concat(bufferArr).equals(exptectedBuff));
+    assert(Buffer.concat(bufferArr).equals(expectedBuff));
   });
 };
 
@@ -37,9 +37,9 @@ const getCallback = (fd, bufferArr) => {
 {
   const filename = getFileName();
   const fd = fs.openSync(filename, 'w+');
-  fs.writeSync(fd, exptectedBuff);
+  fs.writeSync(fd, expectedBuff);
 
-  const bufferArr = allocateEmptyBuffers(exptectedBuff.length);
+  const bufferArr = allocateEmptyBuffers(expectedBuff.length);
   const callback = getCallback(fd, bufferArr);
 
   fs.readv(fd, bufferArr, 0, callback);
@@ -48,10 +48,10 @@ const getCallback = (fd, bufferArr) => {
 // fs.readv with array of buffers without position
 {
   const filename = getFileName();
-  fs.writeFileSync(filename, exptectedBuff);
+  fs.writeFileSync(filename, expectedBuff);
   const fd = fs.openSync(filename, 'r');
 
-  const bufferArr = allocateEmptyBuffers(exptectedBuff.length);
+  const bufferArr = allocateEmptyBuffers(expectedBuff.length);
   const callback = getCallback(fd, bufferArr);
 
   fs.readv(fd, bufferArr, callback);
@@ -64,7 +64,7 @@ const wrongInputs = [false, 'test', {}, [{}], ['sdf'], null, undefined];
 
 {
   const filename = getFileName(2);
-  fs.writeFileSync(filename, exptectedBuff);
+  fs.writeFileSync(filename, expectedBuff);
   const fd = fs.openSync(filename, 'r');
 
   for (const wrongInput of wrongInputs) {

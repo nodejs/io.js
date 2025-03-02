@@ -7,7 +7,7 @@ const tmpdir = require('../common/tmpdir');
 tmpdir.refresh();
 
 const expected = 'ümlaut. Лорем 運務ホソモ指及 आपको करने विकास 紙読決多密所 أضف';
-const exptectedBuff = Buffer.from(expected);
+const expectedBuff = Buffer.from(expected);
 
 let cnt = 0;
 function getFileName() {
@@ -16,7 +16,7 @@ function getFileName() {
 
 const allocateEmptyBuffers = (combinedLength) => {
   const bufferArr = [];
-  // Allocate two buffers, each half the size of exptectedBuff
+  // Allocate two buffers, each half the size of expectedBuff
   bufferArr[0] = Buffer.alloc(Math.floor(combinedLength / 2));
   bufferArr[1] = Buffer.alloc(combinedLength - bufferArr[0].length);
 
@@ -26,10 +26,10 @@ const allocateEmptyBuffers = (combinedLength) => {
 (async () => {
   {
     const filename = getFileName();
-    await fs.writeFile(filename, exptectedBuff);
+    await fs.writeFile(filename, expectedBuff);
     const handle = await fs.open(filename, 'r');
-    const bufferArr = allocateEmptyBuffers(exptectedBuff.length);
-    const expectedLength = exptectedBuff.length;
+    const bufferArr = allocateEmptyBuffers(expectedBuff.length);
+    const expectedLength = expectedBuff.length;
 
     let { bytesRead, buffers } = await handle.readv([Buffer.from('')],
                                                     null);
@@ -45,10 +45,10 @@ const allocateEmptyBuffers = (combinedLength) => {
 
   {
     const filename = getFileName();
-    await fs.writeFile(filename, exptectedBuff);
+    await fs.writeFile(filename, expectedBuff);
     const handle = await fs.open(filename, 'r');
-    const bufferArr = allocateEmptyBuffers(exptectedBuff.length);
-    const expectedLength = exptectedBuff.length;
+    const bufferArr = allocateEmptyBuffers(expectedBuff.length);
+    const expectedLength = expectedBuff.length;
 
     let { bytesRead, buffers } = await handle.readv([Buffer.from('')]);
     assert.strictEqual(bytesRead, 0);

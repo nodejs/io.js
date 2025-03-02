@@ -96,7 +96,7 @@ test('should not override NODE_OPTIONS', async () => {
   strictEqual(result.code, 1);
 });
 
-test('should not ovverride CLI flags', async () => {
+test('should not override CLI flags', async () => {
   const result = await spawnPromisified(process.execPath, [
     '--no-warnings',
     '--no-experimental-transform-types',
