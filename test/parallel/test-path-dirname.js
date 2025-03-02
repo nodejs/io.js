@@ -8,9 +8,12 @@ assert.strictEqual(path.dirname(__filename).slice(-13),
 
 assert.strictEqual(path.posix.dirname('/a/b/'), '/a');
 assert.strictEqual(path.posix.dirname('/a/b'), '/a');
+assert.strictEqual(path.posix.dirname('a/'), '.');
 assert.strictEqual(path.posix.dirname('/a'), '/');
 assert.strictEqual(path.posix.dirname(''), '.');
+assert.strictEqual(path.posix.dirname('ab'), '.');
 assert.strictEqual(path.posix.dirname('/'), '/');
+assert.strictEqual(path.posix.dirname('//'), '/');
 assert.strictEqual(path.posix.dirname('////'), '/');
 assert.strictEqual(path.posix.dirname('//a'), '//');
 assert.strictEqual(path.posix.dirname('foo'), '.');
@@ -53,6 +56,9 @@ assert.strictEqual(path.win32.dirname('\\\\unc\\share\\foo\\bar\\baz'),
 assert.strictEqual(path.win32.dirname('/a/b/'), '/a');
 assert.strictEqual(path.win32.dirname('/a/b'), '/a');
 assert.strictEqual(path.win32.dirname('/a'), '/');
+assert.strictEqual(path.win32.dirname('a/'), '.');
+assert.strictEqual(path.win32.dirname('ab'), '.');
+assert.strictEqual(path.win32.dirname('//'), '/');
 assert.strictEqual(path.win32.dirname(''), '.');
 assert.strictEqual(path.win32.dirname('/'), '/');
 assert.strictEqual(path.win32.dirname('////'), '/');
