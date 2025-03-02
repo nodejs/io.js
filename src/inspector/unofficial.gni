@@ -13,7 +13,7 @@ template("inspector_gn_build") {
   }
 
   node_gen_dir = get_label_info("../..", "target_gen_dir")
-  protocol_tool_path = "../../deps/inspector_protocol"
+  protocol_tool_path = "$node_inspector_protocol_path"
 
   gypi_values = exec_script(
       "../../tools/gypi_to_gn.py",

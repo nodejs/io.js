@@ -16,6 +16,9 @@ declare_args() {
   # The location of simdutf - use the one from node's deps by default.
   node_simdutf_path = "$node_path/deps/simdutf"
 
+  # The location of inspector_protocol - use the one from node's deps by default.
+  node_inspector_protocol_path = "$node_path/deps/inspector_protocol"
+
   # The NODE_MODULE_VERSION defined in node_version.h.
   node_module_version = exec_script("$node_path/tools/getmoduleversion.py", [], "value")
 
