@@ -68,6 +68,12 @@ declare_args() {
 
   # Build with Amaro (TypeScript utils).
   node_use_amaro = true
+
+  # Allows downstream packagers (eg. Linux distributions) to build against system shared libraries.
+  use_system_cares = false
+  use_system_nghttp2 = false
+  use_system_llhttp = false
+  use_system_histogram = false
 }
 
 assert(!node_enable_inspector || node_use_openssl,
