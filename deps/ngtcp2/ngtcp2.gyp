@@ -82,8 +82,7 @@
       'nghttp3/lib/nghttp3_unreachable.c',
       'nghttp3/lib/nghttp3_vec.c',
       'nghttp3/lib/nghttp3_version.c',
-      # sfparse is also used by nghttp2 and is included by nghttp2.gyp
-      # 'nghttp3/lib/sfparse.c'
+      'nghttp3/lib/sfparse.c'
     ]
   },
   'targets': [
