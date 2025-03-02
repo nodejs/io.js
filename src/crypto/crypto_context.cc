@@ -630,6 +630,21 @@ void ReadWindowsCertificates(
                          CERT_SYSTEM_STORE_CURRENT_USER_GROUP_POLICY,
                          L"ROOT");
 
+  // Grab the intermediate certs
+  GatherCertsForLocation(
+      system_root_certificates_X509, CERT_SYSTEM_STORE_LOCAL_MACHINE, L"CA");
+  GatherCertsForLocation(system_root_certificates_X509,
+                         CERT_SYSTEM_STORE_LOCAL_MACHINE_GROUP_POLICY,
+                         L"CA");
+  GatherCertsForLocation(system_root_certificates_X509,
+                         CERT_SYSTEM_STORE_LOCAL_MACHINE_ENTERPRISE,
+                         L"CA");
+  GatherCertsForLocation(
+      system_root_certificates_X509, CERT_SYSTEM_STORE_CURRENT_USER, L"CA");
+  GatherCertsForLocation(system_root_certificates_X509,
+                         CERT_SYSTEM_STORE_CURRENT_USER_GROUP_POLICY,
+                         L"CA");
+
   // Grab the user-added trusted server certs. Trusted end-entity certs are
   // only allowed for server auth in the "local machine" store, but not in the
   // "current user" store.
