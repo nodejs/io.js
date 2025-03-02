@@ -27,6 +27,7 @@
 
     'clang%': 0,
     'error_on_warn%': 'false',
+    'control_flow_guard%': 'false',
     'suppress_all_error_on_warn%': 'false',
 
     'openssl_product': '<(STATIC_LIB_PREFIX)openssl<(STATIC_LIB_SUFFIX)',
@@ -310,6 +311,11 @@
               '/Zm2000',
             ],
           }],
+          ['control_flow_guard=="true"', {
+            'AdditionalOptions': [
+              '/guard:cf',                        # Control Flow Guard
+            ],
+          }],
         ],
         'BufferSecurityCheck': 'true',
         'DebugInformationFormat': 1,          # /Z7 embed info in .obj files
@@ -335,6 +341,11 @@
           }],
           ['target_arch=="arm64"', {
             'TargetMachine' : 0,              # NotSet. MACHINE:ARM64 is inferred from the input files.
+          }],
+          ['control_flow_guard=="true"', {
+            'AdditionalOptions': [
+              '/guard:cf',                        # Control Flow Guard
+            ],
           }],
         ],
         'GenerateDebugInformation': 'true',
