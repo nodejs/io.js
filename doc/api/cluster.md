@@ -843,6 +843,45 @@ Spawn a new worker process.
 
 This can only be called from the primary process.
 
+## `cluster.getSettings()`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+* Returns: {Object}
+  * `execArgv` {string\[]} List of string arguments passed to the Node.js
+    executable. **Default:** `process.execArgv`.
+  * `exec` {string} File path to worker file. **Default:** `process.argv[1]`.
+  * `args` {string\[]} String arguments passed to worker.
+    **Default:** `process.argv.slice(2)`.
+  * `cwd` {string} Current working directory of the worker process. **Default:**
+    `undefined` (inherits from parent process).
+  * `serialization` {string} Specify the kind of serialization used for sending
+    messages between processes. Possible values are `'json'` and `'advanced'`.
+    See [Advanced serialization for `child_process`][] for more details.
+    **Default:** `false`.
+  * `schedulingPolicy` {string} Scheduling policy to use between processes.
+    **Default:** `cluster.SCHED_RR`. See \[`cluster.schedulingPolicy`]\[] for
+    details.
+  * `silent` {boolean} Whether or not to send output to parent's stdio.
+    **Default:** `false`.
+  * `stdio` {Array} Configures the stdio of forked processes. Because the
+    cluster module relies on IPC to function, this configuration must contain an
+    `'ipc'` entry. When this option is provided, it overrides `silent`. See
+    [`child_process.spawn()`][]'s [`stdio`][].
+  * `uid` {number} Sets the user identity of the process. (See setuid(2).)
+  * `gid` {number} Sets the group identity of the process. (See setgid(2).)
+  * `inspectPort` {number|Function} Sets inspector port of worker.
+    This can be a number, or a function that takes no arguments and returns a
+    number. By default each worker gets its own port, incremented from the
+    primary's `process.debugPort`.
+  * `windowsHide` {boolean} Hide the forked processes console window that would
+    normally be created on Windows systems. **Default:** `false`.
+
+After calling [`.setupPrimary()`][] (or [`.fork()`][]) this function will return
+the cluster settings, including the default values.
+
 ## `cluster.isMaster`
 
 <!-- YAML
@@ -900,6 +939,9 @@ values are `'rr'` and `'none'`.
 <!-- YAML
 added: v0.7.1
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/49292
+    description: The `schedulingPolicy` option is supported now.
   - version:
      - v13.2.0
      - v12.16.0
@@ -931,6 +973,9 @@ changes:
     messages between processes. Possible values are `'json'` and `'advanced'`.
     See [Advanced serialization for `child_process`][] for more details.
     **Default:** `false`.
+  * `schedulingPolicy` {string} Scheduling policy to use between processes.
+    **Default:** `cluster.SCHED_RR`. See \[`cluster.schedulingPolicy`]\[] for
+    details.
   * `silent` {boolean} Whether or not to send output to parent's stdio.
     **Default:** `false`.
   * `stdio` {Array} Configures the stdio of forked processes. Because the
