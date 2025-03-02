@@ -120,7 +120,11 @@ void nghttp3_map_print_distance(const nghttp3_map *map) {
 static int insert(nghttp3_map_bucket *table, size_t hashbits,
                   nghttp3_map_key_type key, void *data) {
   size_t idx = hash(key, hashbits);
-  nghttp3_map_bucket b = {0, key, data}, *bkt;
+  nghttp3_map_bucket b = {
+    .key = key,
+    .data = data,
+  };
+  nghttp3_map_bucket *bkt;
   size_t mask = (1u << hashbits) - 1;
 
   for (;;) {

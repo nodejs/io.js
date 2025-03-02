@@ -44,7 +44,7 @@
 /* NGHTTP3_MIN_RBLEN is the minimum length of nghttp3_ringbuf */
 #define NGHTTP3_MIN_RBLEN 4
 
-nghttp3_objalloc_def(stream, nghttp3_stream, oplent);
+nghttp3_objalloc_def(stream, nghttp3_stream, oplent)
 
 int nghttp3_stream_new(nghttp3_stream **pstream, int64_t stream_id,
                        const nghttp3_stream_callbacks *callbacks,
@@ -336,12 +336,19 @@ int nghttp3_stream_write_settings(nghttp3_stream *stream,
   struct {
     nghttp3_frame_settings settings;
     nghttp3_settings_entry iv[15];
-  } fr;
+  } fr = {
+    .settings =
+      {
+        .hd =
+          {
+            .type = NGHTTP3_FRAME_SETTINGS,
+          },
+        .niv = 3,
+      },
+  };
   nghttp3_settings_entry *iv;
   nghttp3_settings *local_settings = frent->aux.settings.local_settings;
 
-  fr.settings.hd.type = NGHTTP3_FRAME_SETTINGS;
-  fr.settings.niv = 3;
   iv = &fr.settings.iv[0];
 
   iv[0].id = NGHTTP3_SETTINGS_ID_MAX_FIELD_SECTION_SIZE;

@@ -124,17 +124,17 @@ static int is_ws(uint8_t c) {
 int nghttp3_http_parse_priority(nghttp3_pri *dest, const uint8_t *value,
                                 size_t valuelen) {
   nghttp3_pri pri = *dest;
-  sf_parser sfp;
-  sf_vec key;
-  sf_value val;
+  sfparse_parser sfp;
+  sfparse_vec key;
+  sfparse_value val;
   int rv;
 
-  sf_parser_init(&sfp, value, valuelen);
+  sfparse_parser_init(&sfp, value, valuelen);
 
   for (;;) {
-    rv = sf_parser_dict(&sfp, &key, &val);
+    rv = sfparse_parser_dict(&sfp, &key, &val);
     if (rv != 0) {
-      if (rv == SF_ERR_EOF) {
+      if (rv == SFPARSE_ERR_EOF) {
         break;
       }
 
@@ -147,7 +147,7 @@ int nghttp3_http_parse_priority(nghttp3_pri *dest, const uint8_t *value,
 
     switch (key.base[0]) {
     case 'i':
-      if (val.type != SF_TYPE_BOOLEAN) {
+      if (val.type != SFPARSE_TYPE_BOOLEAN) {
         return NGHTTP3_ERR_INVALID_ARGUMENT;
       }
 
@@ -155,7 +155,8 @@ int nghttp3_http_parse_priority(nghttp3_pri *dest, const uint8_t *value,
 
       break;
     case 'u':
-      if (val.type != SF_TYPE_INTEGER || val.integer < NGHTTP3_URGENCY_HIGH ||
+      if (val.type != SFPARSE_TYPE_INTEGER ||
+          val.integer < NGHTTP3_URGENCY_HIGH ||
           NGHTTP3_URGENCY_LOW < val.integer) {
         return NGHTTP3_ERR_INVALID_ARGUMENT;
       }
@@ -197,7 +198,7 @@ static char VALID_AUTHORITY_CHARS[] = {
   1 /* 4    */, 1 /* 5    */, 1 /* 6    */, 1 /* 7    */,
   1 /* 8    */, 1 /* 9    */, 1 /* :    */, 1 /* ;    */,
   0 /* <    */, 1 /* =    */, 0 /* >    */, 0 /* ?    */,
-  1 /* @    */, 1 /* A    */, 1 /* B    */, 1 /* C    */,
+  0 /* @    */, 1 /* A    */, 1 /* B    */, 1 /* C    */,
   1 /* D    */, 1 /* E    */, 1 /* F    */, 1 /* G    */,
   1 /* H    */, 1 /* I    */, 1 /* J    */, 1 /* K    */,
   1 /* L    */, 1 /* M    */, 1 /* N    */, 1 /* O    */,

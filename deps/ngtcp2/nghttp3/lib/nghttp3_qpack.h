@@ -270,16 +270,10 @@ struct nghttp3_qpack_encoder {
  * nghttp3_qpack_encoder_init initializes |encoder|.
  * |hard_max_dtable_capacity| is the upper bound of the dynamic table
  * capacity.  |mem| is a memory allocator.
- *
- * This function returns 0 if it succeeds, or one of the following
- * negative error codes:
- *
- * NGHTTP3_ERR_NOMEM
- *     Out of memory.
  */
-int nghttp3_qpack_encoder_init(nghttp3_qpack_encoder *encoder,
-                               size_t hard_max_dtable_capacity,
-                               const nghttp3_mem *mem);
+void nghttp3_qpack_encoder_init(nghttp3_qpack_encoder *encoder,
+                                size_t hard_max_dtable_capacity,
+                                const nghttp3_mem *mem);
 
 /*
  * nghttp3_qpack_encoder_free frees memory allocated for |encoder|.
@@ -800,17 +794,11 @@ struct nghttp3_qpack_decoder {
  * |hard_max_dtable_capacity| is the upper bound of the dynamic table
  * capacity.  |max_blocked_streams| is the maximum number of stream
  * which can be blocked.  |mem| is a memory allocator.
- *
- * This function returns 0 if it succeeds, or one of the following
- * negative error codes:
- *
- * NGHTTP3_ERR_NOMEM
- *     Out of memory.
  */
-int nghttp3_qpack_decoder_init(nghttp3_qpack_decoder *decoder,
-                               size_t hard_max_dtable_capacity,
-                               size_t max_blocked_streams,
-                               const nghttp3_mem *mem);
+void nghttp3_qpack_decoder_init(nghttp3_qpack_decoder *decoder,
+                                size_t hard_max_dtable_capacity,
+                                size_t max_blocked_streams,
+                                const nghttp3_mem *mem);
 
 /*
  * nghttp3_qpack_decoder_free frees memory allocated for |decoder|.

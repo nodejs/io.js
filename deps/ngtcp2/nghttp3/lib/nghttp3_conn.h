@@ -76,7 +76,7 @@ typedef struct nghttp3_chunk {
   nghttp3_opl_entry oplent;
 } nghttp3_chunk;
 
-nghttp3_objalloc_decl(chunk, nghttp3_chunk, oplent);
+nghttp3_objalloc_decl(chunk, nghttp3_chunk, oplent)
 
 struct nghttp3_conn {
   nghttp3_objalloc out_chunk_objalloc;

@@ -48,27 +48,27 @@
 #define nghttp3_max_def(SUFFIX, T)                                             \
   static inline T nghttp3_max_##SUFFIX(T a, T b) { return a < b ? b : a; }
 
-nghttp3_max_def(int8, int8_t);
-nghttp3_max_def(int16, int16_t);
-nghttp3_max_def(int32, int32_t);
-nghttp3_max_def(int64, int64_t);
-nghttp3_max_def(uint8, uint8_t);
-nghttp3_max_def(uint16, uint16_t);
-nghttp3_max_def(uint32, uint32_t);
-nghttp3_max_def(uint64, uint64_t);
-nghttp3_max_def(size, size_t);
+nghttp3_max_def(int8, int8_t)
+nghttp3_max_def(int16, int16_t)
+nghttp3_max_def(int32, int32_t)
+nghttp3_max_def(int64, int64_t)
+nghttp3_max_def(uint8, uint8_t)
+nghttp3_max_def(uint16, uint16_t)
+nghttp3_max_def(uint32, uint32_t)
+nghttp3_max_def(uint64, uint64_t)
+nghttp3_max_def(size, size_t)
 
 #define nghttp3_min_def(SUFFIX, T)                                             \
   static inline T nghttp3_min_##SUFFIX(T a, T b) { return a < b ? a : b; }
 
-nghttp3_min_def(int8, int8_t);
-nghttp3_min_def(int16, int16_t);
-nghttp3_min_def(int32, int32_t);
-nghttp3_min_def(int64, int64_t);
-nghttp3_min_def(uint8, uint8_t);
-nghttp3_min_def(uint16, uint16_t);
-nghttp3_min_def(uint32, uint32_t);
-nghttp3_min_def(uint64, uint64_t);
-nghttp3_min_def(size, size_t);
+nghttp3_min_def(int8, int8_t)
+nghttp3_min_def(int16, int16_t)
+nghttp3_min_def(int32, int32_t)
+nghttp3_min_def(int64, int64_t)
+nghttp3_min_def(uint8, uint8_t)
+nghttp3_min_def(uint16, uint16_t)
+nghttp3_min_def(uint32, uint32_t)
+nghttp3_min_def(uint64, uint64_t)
+nghttp3_min_def(size, size_t)
 
 #endif /* !defined(NGHTTP3_MACRO_H) */

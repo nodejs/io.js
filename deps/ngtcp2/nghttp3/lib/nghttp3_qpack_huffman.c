@@ -88,7 +88,9 @@ nghttp3_qpack_huffman_decode(nghttp3_qpack_huffman_decode_context *ctx,
                              int fin) {
   uint8_t *p = dest;
   const uint8_t *end = src + srclen;
-  nghttp3_qpack_huffman_decode_node node = {ctx->fstate, 0};
+  nghttp3_qpack_huffman_decode_node node = {
+    .fstate = ctx->fstate,
+  };
   const nghttp3_qpack_huffman_decode_node *t = &node;
   uint8_t c;
 
