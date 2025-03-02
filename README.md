@@ -761,6 +761,8 @@ maintaining the Node.js project.
   **Mert Can Altin** <<mertgold60@gmail.com>>
 * [preveen-stack](https://github.com/preveen-stack) -
   **Preveen Padmanabhan** <<wide4head@gmail.com>> (he/him)
+* [sonsurim](https://github.com/sonsurim) -
+  **Surim Son** <<surim014@naver.com>> (she/her)
 * [VoltrexKeyva](https://github.com/VoltrexKeyva) -
   **Mohammed Keyvanzadeh** <<mohammadkeyvanzade94@gmail.com>> (he/him)
 
