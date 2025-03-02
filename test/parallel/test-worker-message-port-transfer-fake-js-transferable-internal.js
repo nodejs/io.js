@@ -1,33 +1,50 @@
 'use strict';
+
 const common = require('../common');
-const assert = require('assert');
-const fs = require('fs').promises;
-const { MessageChannel } = require('worker_threads');
-const { once } = require('events');
+const fs = require('node:fs').promises;
+const assert = require('node:assert');
 
-// Test that overriding the internal kTransfer method of a JSTransferable does
-// not enable loading arbitrary code from internal Node.js core modules.
+const { test } = require('node:test');
+const { MessageChannel } = require('node:worker_threads');
+const { once } = require('node:events');
 
-(async function() {
-  const fh = await fs.open(__filename);
-  assert.strictEqual(fh.constructor.name, 'FileHandle');
+// Test: Overriding kTransfer method should not enable loading arbitrary code from Node.js core modules.
+test('Security test for overriding kTransfer method', async (t) => {
+  await t.test(
+    'should throw an error for invalid deserializeInfo from core module',
+    async () => {
+      const fh = await fs.open(__filename);
+      assert.strictEqual(fh.constructor.name, 'FileHandle');
 
-  const kTransfer = Object.getOwnPropertySymbols(Object.getPrototypeOf(fh))
-    .filter((symbol) => symbol.description === 'messaging_transfer_symbol')[0];
-  assert.strictEqual(typeof kTransfer, 'symbol');
-  fh[kTransfer] = () => {
-    return {
-      data: '✨',
-      deserializeInfo: 'net:Socket'
-    };
-  };
+      const kTransfer = Object.getOwnPropertySymbols(
+        Object.getPrototypeOf(fh),
+      ).find((symbol) => symbol.description === 'messaging_transfer_symbol');
+      assert.strictEqual(typeof kTransfer, 'symbol');
 
-  const { port1, port2 } = new MessageChannel();
-  port1.postMessage(fh, [ fh ]);
-  port2.on('message', common.mustNotCall());
+      // Override the kTransfer method
+      fh[kTransfer] = () => ({
+        data: '✨',
+        deserializeInfo: 'net:Socket', // Attempt to load an internal module
+      });
 
-  const [ exception ] = await once(port2, 'messageerror');
+      const { port1, port2 } = new MessageChannel();
+      port1.postMessage(fh, [fh]);
 
-  assert.strictEqual(exception.message, 'Unknown deserialize spec net:Socket');
-  port2.close();
-})().then(common.mustCall());
+      // Verify that no valid message is processed
+      port2.on('message', common.mustNotCall());
+
+      // Capture the 'messageerror' event and validate the error
+      const [exception] = await once(port2, 'messageerror');
+      const errorMessage =
+        'Unexpected error message for invalid deserializeInfo';
+
+      assert.strictEqual(
+        exception.message,
+        'Unknown deserialize spec net:Socket',
+        errorMessage,
+      );
+
+      port2.close();
+    },
+  );
+});
