@@ -75,8 +75,8 @@ const customTypesMap = {
 
   'cluster.Worker': 'cluster.html#class-worker',
 
-  'Cipher': 'crypto.html#class-cipher',
-  'Decipher': 'crypto.html#class-decipher',
+  'Cipheriv': 'crypto.html#class-cipheriv',
+  'Decipheriv': 'crypto.html#class-decipheriv',
   'DiffieHellman': 'crypto.html#class-diffiehellman',
   'DiffieHellmanGroup': 'crypto.html#class-diffiehellmangroup',
   'ECDH': 'crypto.html#class-ecdh',

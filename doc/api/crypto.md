@@ -303,7 +303,7 @@ console.log(cert.verifySpkac(Buffer.from(spkac)));
 // Prints: true or false
 ```
 
-## Class: `Cipher`
+## Class: `Cipheriv`
 
 <!-- YAML
 added: v0.1.94
@@ -311,7 +311,7 @@ added: v0.1.94
 
 * Extends: {stream.Transform}
 
-Instances of the `Cipher` class are used to encrypt data. The class can be
+Instances of the `Cipheriv` class are used to encrypt data. The class can be
 used in one of two ways:
 
 * As a [stream][] that is both readable and writable, where plain unencrypted
@@ -320,10 +320,10 @@ used in one of two ways:
   the encrypted data.
 
 The [`crypto.createCipheriv()`][] method is
-used to create `Cipher` instances. `Cipher` objects are not to be created
+used to create `Cipheriv` instances. `Cipheriv` objects are not to be created
 directly using the `new` keyword.
 
-Example: Using `Cipher` objects as streams:
+Example: Using `Cipheriv` objects as streams:
 
 ```mjs
 const {
@@ -391,7 +391,7 @@ scrypt(password, 'salt', 24, (err, key) => {
 });
 ```
 
-Example: Using `Cipher` and piped streams:
+Example: Using `Cipheriv` and piped streams:
 
 ```mjs
 import {
@@ -538,7 +538,7 @@ added: v0.1.94
   If `outputEncoding` is specified, a string is
   returned. If an `outputEncoding` is not provided, a [`Buffer`][] is returned.
 
-Once the `cipher.final()` method has been called, the `Cipher` object can no
+Once the `cipher.final()` method has been called, the `Cipheriv` object can no
 longer be used to encrypt data. Attempts to call `cipher.final()` more than
 once will result in an error being thrown.
 
@@ -570,7 +570,7 @@ added: v1.0.0
 * `options` {Object} [`stream.transform` options][]
   * `plaintextLength` {number}
   * `encoding` {string} The string encoding to use when `buffer` is a string.
-* Returns: {Cipher} The same `Cipher` instance for method chaining.
+* Returns: {Cipheriv} The same `Cipheriv` instance for method chaining.
 
 When using an authenticated encryption mode (`GCM`, `CCM`, `OCB`, and
 `chacha20-poly1305` are
@@ -590,9 +590,9 @@ added: v0.7.1
 -->
 
 * `autoPadding` {boolean} **Default:** `true`
-* Returns: {Cipher} The same `Cipher` instance for method chaining.
+* Returns: {Cipheriv} The same `Cipheriv` instance for method chaining.
 
-When using block encryption algorithms, the `Cipher` class will automatically
+When using block encryption algorithms, the `Cipheriv` class will automatically
 add padding to the input data to the appropriate block size. To disable the
 default padding call `cipher.setAutoPadding(false)`.
 
@@ -635,7 +635,7 @@ The `cipher.update()` method can be called multiple times with new data until
 [`cipher.final()`][] is called. Calling `cipher.update()` after
 [`cipher.final()`][] will result in an error being thrown.
 
-## Class: `Decipher`
+## Class: `Decipheriv`
 
 <!-- YAML
 added: v0.1.94
@@ -643,7 +643,7 @@ added: v0.1.94
 
 * Extends: {stream.Transform}
 
-Instances of the `Decipher` class are used to decrypt data. The class can be
+Instances of the `Decipheriv` class are used to decrypt data. The class can be
 used in one of two ways:
 
 * As a [stream][] that is both readable and writable, where plain encrypted
@@ -652,10 +652,10 @@ used in one of two ways:
   produce the unencrypted data.
 
 The [`crypto.createDecipheriv()`][] method is
-used to create `Decipher` instances. `Decipher` objects are not to be created
+used to create `Decipheriv` instances. `Decipheriv` objects are not to be created
 directly using the `new` keyword.
 
-Example: Using `Decipher` objects as streams:
+Example: Using `Decipheriv` objects as streams:
 
 ```mjs
 import { Buffer } from 'node:buffer';
@@ -731,7 +731,7 @@ decipher.write(encrypted, 'hex');
 decipher.end();
 ```
 
-Example: Using `Decipher` and piped streams:
+Example: Using `Decipheriv` and piped streams:
 
 ```mjs
 import {
@@ -848,7 +848,7 @@ added: v0.1.94
   If `outputEncoding` is specified, a string is
   returned. If an `outputEncoding` is not provided, a [`Buffer`][] is returned.
 
-Once the `decipher.final()` method has been called, the `Decipher` object can
+Once the `decipher.final()` method has been called, the `Decipheriv` object can
 no longer be used to decrypt data. Attempts to call `decipher.final()` more
 than once will result in an error being thrown.
 
@@ -870,7 +870,7 @@ changes:
 * `options` {Object} [`stream.transform` options][]
   * `plaintextLength` {number}
   * `encoding` {string} String encoding to use when `buffer` is a string.
-* Returns: {Decipher} The same Decipher for method chaining.
+* Returns: {Decipheriv} The same Decipher for method chaining.
 
 When using an authenticated encryption mode (`GCM`, `CCM`, `OCB`, and
 `chacha20-poly1305` are
@@ -912,7 +912,7 @@ changes:
 
 * `buffer` {string|Buffer|ArrayBuffer|TypedArray|DataView}
 * `encoding` {string} String encoding to use when `buffer` is a string.
-* Returns: {Decipher} The same Decipher for method chaining.
+* Returns: {Decipheriv} The same Decipher for method chaining.
 
 When using an authenticated encryption mode (`GCM`, `CCM`, `OCB`, and
 `chacha20-poly1305` are
@@ -938,7 +938,7 @@ added: v0.7.1
 -->
 
 * `autoPadding` {boolean} **Default:** `true`
-* Returns: {Decipher} The same Decipher for method chaining.
+* Returns: {Decipheriv} The same Decipher for method chaining.
 
 When data has been encrypted without standard block padding, calling
 `decipher.setAutoPadding(false)` will disable automatic padding to prevent
@@ -3036,9 +3036,9 @@ changes:
 * `key` {string|ArrayBuffer|Buffer|TypedArray|DataView|KeyObject|CryptoKey}
 * `iv` {string|ArrayBuffer|Buffer|TypedArray|DataView|null}
 * `options` {Object} [`stream.transform` options][]
-* Returns: {Cipher}
+* Returns: {Cipheriv}
 
-Creates and returns a `Cipher` object, with the given `algorithm`, `key` and
+Creates and returns a `Cipheriv` object, with the given `algorithm`, `key` and
 initialization vector (`iv`).
 
 The `options` argument controls stream behavior and is optional except when a
@@ -3106,9 +3106,9 @@ changes:
 * `key` {string|ArrayBuffer|Buffer|TypedArray|DataView|KeyObject|CryptoKey}
 * `iv` {string|ArrayBuffer|Buffer|TypedArray|DataView|null}
 * `options` {Object} [`stream.transform` options][]
-* Returns: {Decipher}
+* Returns: {Decipheriv}
 
-Creates and returns a `Decipher` object that uses the given `algorithm`, `key`
+Creates and returns a `Decipheriv` object that uses the given `algorithm`, `key`
 and initialization vector (`iv`).
 
 The `options` argument controls stream behavior and is optional except when a
