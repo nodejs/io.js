@@ -12,9 +12,6 @@
 #if OPENSSL_VERSION_MAJOR >= 3
 #include <openssl/provider.h>
 #endif
-#ifdef OPENSSL_IS_BORINGSSL
-#include "dh-primes.h"
-#endif  // OPENSSL_IS_BORINGSSL
 
 // EVP_PKEY_CTX_set_dsa_paramgen_q_bits was added in OpenSSL 1.1.1e.
 #if OPENSSL_VERSION_NUMBER < 0x1010105fL
