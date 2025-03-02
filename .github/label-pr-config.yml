@@ -34,6 +34,9 @@ subSystemLabels:
   /^src\/node_bob*/: c++, quic
   /^src\/node_sea/: single-executable
   /^src\/node_sqlite.*/: c++, sqlite
+  /^src\/node_config_file.*/: c++, config
+  /^src\/node_dotenv.*/: c++, config
+  /^src\/node_options.*/: c++, config
 
   # Properly label changes to V8 inspector integration-related files
   /^src\/inspector_/: c++, inspector, needs-ci
@@ -149,6 +152,8 @@ exlusiveLabels:
   # Specific map for typescript.md as it should be labeled 'strip-types'
   /^doc\/api\/typescript.md$/: doc, strip-types
 
+  /^doc\/node-config-schema.json$/: doc, config
+
   /^doc\//: doc
 
   # More specific benchmarks
@@ -168,6 +173,7 @@ allJsSubSystems:
   - buffer
   - child_process
   - cluster
+  - config
   - console
   - crypto
   - debugger
