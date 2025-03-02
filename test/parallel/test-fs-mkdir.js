@@ -24,6 +24,7 @@ const common = require('../common');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
+const child_process = require('child_process');
 const { isMainThread } = require('worker_threads');
 
 const tmpdir = require('../common/tmpdir');
@@ -171,6 +172,31 @@ function nextdir() {
       path: pathname // See: https://github.com/nodejs/node/issues/28015
     }
   );
+}
+
+// mkdirpSync when interacting with read-only filesystem.
+if (common.isLinux && process.getuid() === 0) // Mounting filesystem requires root privilege.
+{
+  const roTmpfsPath = path.join(tmpdir.path, 'ro-tmpfs');
+  const pathname = path.join(roTmpfsPath, nextdir());
+
+  fs.mkdirSync(roTmpfsPath);
+  child_process.execSync(`sudo mount -t tmpfs -o ro tmpfs ${roTmpfsPath}`);
+
+  try {
+    assert.throws(
+      () => { fs.mkdirSync(pathname, common.mustNotMutateObjectDeep({ recursive: true })); },
+      {
+        code: 'EROFS',
+        message: /EROFS: .*mkdir/,
+        name: 'Error',
+        syscall: 'mkdir',
+      }
+    );
+  } finally {
+    child_process.execSync(`sudo umount ${roTmpfsPath}`);
+    fs.rmdirSync(roTmpfsPath);
+  }
 }
 
 // `mkdirp` when folder does not yet exist.
