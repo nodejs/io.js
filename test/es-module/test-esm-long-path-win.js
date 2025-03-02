@@ -182,7 +182,7 @@ describe('long path on Windows', () => {
     fs.writeFileSync(cjsIndexJSPath, 'import fs from "node:fs/promises";');
     const { code, signal, stderr } = await spawnPromisified(execPath, [cjsIndexJSPath]);
 
-    assert.ok(stderr.includes('Warning: To load an ES module'));
+    assert.ok(stderr.includes('Failed to load the ES module'));
     assert.strictEqual(code, 1);
     assert.strictEqual(signal, null);
   });

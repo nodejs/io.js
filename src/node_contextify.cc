@@ -1702,13 +1702,19 @@ static MaybeLocal<Function> CompileFunctionForCJSLoader(
   return scope.Escape(fn);
 }
 
+static std::string GetRequireEsmWarning(Local<String> filename) {
+  Isolate* isolate = Isolate::GetCurrent();
+  Utf8Value filename_utf8(isolate, filename);
+
+  std::string warning_message =
+      "Failed to load the ES module: " + filename_utf8.ToString() +
+      ". Make sure to set \"type\": \"module\" in the nearest package.json "
+      "file "
+      "or use the .mjs extension.";
+  return warning_message;
+}
+
 static bool warned_about_require_esm = false;
-// TODO(joyeecheung): this was copied from the warning previously emitted in the
-// JS land, but it's not very helpful. There should be specific information
-// about which file or which package.json to update.
-const char* require_esm_warning =
-    "To load an ES module, set \"type\": \"module\" in the package.json or use "
-    "the .mjs extension.";
 
 static bool ShouldRetryAsESM(Realm* realm,
                              Local<String> message,
@@ -1794,8 +1800,8 @@ static void CompileFunctionForCJSLoader(
         // This needs to call process.emit('warning') in JS which can throw if
         // the user listener throws. In that case, don't try to throw the syntax
         // error.
-        should_throw =
-            ProcessEmitWarningSync(env, require_esm_warning).IsJust();
+        std::string warning_message = GetRequireEsmWarning(filename);
+        should_throw = ProcessEmitWarningSync(env, warning_message).IsJust();
       }
       if (should_throw) {
         isolate->ThrowException(cjs_exception);

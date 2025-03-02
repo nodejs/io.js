@@ -1,6 +1,6 @@
 import { skip, spawnPromisified } from '../common/index.mjs';
 import * as fixtures from '../common/fixtures.mjs';
-import { match, strictEqual } from 'node:assert';
+import assert, { match, strictEqual } from 'node:assert';
 import { test } from 'node:test';
 
 if (!process.config.variables.node_use_amaro) skip('Requires Amaro');
@@ -59,13 +59,43 @@ test('require a .ts file with implicit extension fails', async () => {
 });
 
 test('expect failure of an .mts file with CommonJS syntax', async () => {
-  const result = await spawnPromisified(process.execPath, [
-    fixtures.path('typescript/cts/test-cts-but-module-syntax.cts'),
-  ]);
+  const testFilePath = fixtures.path(
+    'typescript/cts/test-cts-but-module-syntax.cts'
+  );
+  const result = await spawnPromisified(process.execPath, [testFilePath]);
 
-  strictEqual(result.stdout, '');
-  match(result.stderr, /To load an ES module, set "type": "module" in the package\.json or use the \.mjs extension\./);
-  strictEqual(result.code, 1);
+  assert.strictEqual(result.stdout, '');
+
+  const expectedWarning = `Failed to load the ES module: ${testFilePath}. Make sure to set "type": "module" in the nearest package.json file or use the .mjs extension.`;
+
+  // First assertion: check that stderr contains a generic pattern for the ES module load failure.
+  // This ensures that at a minimum the error message structure is as expected.
+  assert.match(
+    result.stderr,
+    /Failed to load the ES module:.*test-cts-but-module-syntax\.cts/
+  );
+
+  // Second assertion: verify that stderr includes the complete expected warning message.
+  // We use a try/catch here to improve the error output, providing more context if the assertion fails.
+  // Having two assertions ensures that:
+  //   1. We first confirm the error message follows the expected general format.
+  //   2. We then check that the specific warning (with file path and message details) is present.
+  try {
+    assert.ok(
+      result.stderr.includes(expectedWarning),
+      `Expected stderr to include: ${expectedWarning}`
+    );
+  } catch (e) {
+    if (e?.code === 'ERR_ASSERTION') {
+      e.expected = expectedWarning;
+      e.actual = result.stderr;
+      e.operator = 'includes';
+    }
+    throw e;
+  }
+
+
+  assert.strictEqual(result.code, 1);
 });
 
 test('execute a .cts file importing a .cts file', async () => {

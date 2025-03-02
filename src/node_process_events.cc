@@ -13,6 +13,7 @@ using v8::Just;
 using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
+using v8::NewStringType;
 using v8::Nothing;
 using v8::Object;
 using v8::String;
@@ -21,7 +22,14 @@ using v8::Value;
 Maybe<bool> ProcessEmitWarningSync(Environment* env, std::string_view message) {
   Isolate* isolate = env->isolate();
   Local<Context> context = env->context();
-  Local<String> message_string = OneByteString(isolate, message);
+  Local<String> message_string;
+  if (!String::NewFromUtf8(isolate,
+                           message.data(),
+                           NewStringType::kNormal,
+                           static_cast<int>(message.size()))
+           .ToLocal(&message_string)) {
+    return Nothing<bool>();
+  }
 
   Local<Value> argv[] = {message_string};
   Local<Function> emit_function = env->process_emit_warning_sync();
