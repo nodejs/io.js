@@ -136,8 +136,7 @@ void TTYWrap::New(const FunctionCallbackInfo<Value>& args) {
   int err = 0;
   new TTYWrap(env, args.This(), fd, &err);
   if (err != 0) {
-    env->CollectUVExceptionInfo(args[1], err, "uv_tty_init");
-    args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(args[1], err, "uv_tty_init"));
   }
 }
 

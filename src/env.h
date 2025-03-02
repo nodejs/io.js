@@ -767,12 +767,12 @@ class Environment final : public MemoryRetainer {
 
   inline performance::PerformanceState* performance_state();
 
-  void CollectUVExceptionInfo(v8::Local<v8::Value> context,
-                              int errorno,
-                              const char* syscall = nullptr,
-                              const char* message = nullptr,
-                              const char* path = nullptr,
-                              const char* dest = nullptr);
+  v8::Maybe<void> CollectUVExceptionInfo(v8::Local<v8::Value> context,
+                                         int errorno,
+                                         const char* syscall = nullptr,
+                                         const char* message = nullptr,
+                                         const char* path = nullptr,
+                                         const char* dest = nullptr);
 
   // If this flag is set, calls into JS (if they would be observable
   // from userland) must be avoided.  This flag does not indicate whether

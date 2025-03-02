@@ -67,9 +67,9 @@ static void GetHostname(const FunctionCallbackInfo<Value>& args) {
 
   if (r != 0) {
     CHECK_GE(args.Length(), 1);
-    env->CollectUVExceptionInfo(args[args.Length() - 1], r,
-                                "uv_os_gethostname");
-    return args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(
+        args[args.Length() - 1], r, "uv_os_gethostname"));
+    return;
   }
 
   Local<Value> ret;
@@ -85,8 +85,9 @@ static void GetOSInformation(const FunctionCallbackInfo<Value>& args) {
 
   if (err != 0) {
     CHECK_GE(args.Length(), 1);
-    env->CollectUVExceptionInfo(args[args.Length() - 1], err, "uv_os_uname");
-    return args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(
+        args[args.Length() - 1], err, "uv_os_uname"));
+    return;
   }
 
   // [sysname, version, release, machine]
@@ -159,8 +160,8 @@ static void GetUptime(const FunctionCallbackInfo<Value>& args) {
   double uptime;
   int err = uv_uptime(&uptime);
   if (err != 0) {
-    env->CollectUVExceptionInfo(args[args.Length() - 1], err, "uv_uptime");
-    return args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(args[args.Length() - 1], err, "uv_uptime"));
+    return;
   }
 
   args.GetReturnValue().Set(uptime);
@@ -189,14 +190,13 @@ static void GetInterfaceAddresses(const FunctionCallbackInfo<Value>& args) {
 
   int err = uv_interface_addresses(&interfaces, &count);
 
-  if (err == UV_ENOSYS)
-    return args.GetReturnValue().SetUndefined();
+  if (err == UV_ENOSYS) return;
 
   if (err) {
     CHECK_GE(args.Length(), 1);
-    env->CollectUVExceptionInfo(args[args.Length() - 1], errno,
-                                "uv_interface_addresses");
-    return args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(
+        args[args.Length() - 1], errno, "uv_interface_addresses"));
+    return;
   }
 
   Local<Value> no_scope_id = Integer::New(isolate, -1);
@@ -267,8 +267,9 @@ static void GetHomeDirectory(const FunctionCallbackInfo<Value>& args) {
 
   if (err) {
     CHECK_GE(args.Length(), 1);
-    env->CollectUVExceptionInfo(args[args.Length() - 1], err, "uv_os_homedir");
-    return args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(
+        args[args.Length() - 1], err, "uv_os_homedir"));
+    return;
   }
 
   Local<String> home;
@@ -299,9 +300,9 @@ static void GetUserInfo(const FunctionCallbackInfo<Value>& args) {
 
   if (const int err = uv_os_get_passwd(&pwd)) {
     CHECK_GE(args.Length(), 2);
-    env->CollectUVExceptionInfo(args[args.Length() - 1], err,
-                                "uv_os_get_passwd");
-    return args.GetReturnValue().SetUndefined();
+    USE(env->CollectUVExceptionInfo(
+        args[args.Length() - 1], err, "uv_os_get_passwd"));
+    return;
   }
 
   auto free_passwd = OnScopeLeave([&] { uv_os_free_passwd(&pwd); });
@@ -371,7 +372,10 @@ static void SetPriority(const FunctionCallbackInfo<Value>& args) {
 
   if (err) {
     CHECK(args[2]->IsObject());
-    env->CollectUVExceptionInfo(args[2], err, "uv_os_setpriority");
+    if (env->CollectUVExceptionInfo(args[2], err, "uv_os_setpriority")
+            .IsNothing()) {
+      return;
+    }
   }
 
   args.GetReturnValue().Set(err);
@@ -390,7 +394,7 @@ static void GetPriority(const FunctionCallbackInfo<Value>& args) {
 
   if (err) {
     CHECK(args[1]->IsObject());
-    env->CollectUVExceptionInfo(args[1], err, "uv_os_getpriority");
+    USE(env->CollectUVExceptionInfo(args[1], err, "uv_os_getpriority"));
     return;
   }
 

@@ -1215,9 +1215,12 @@ void TriggerUncaughtException(Isolate* isolate,
   // monkey-patchable.
   Local<Object> process_object = env->process_object();
   Local<String> fatal_exception_string = env->fatal_exception_string();
-  Local<Value> fatal_exception_function =
-      process_object->Get(env->context(),
-                          fatal_exception_string).ToLocalChecked();
+  Local<Value> fatal_exception_function;
+  if (!process_object->Get(env->context(), fatal_exception_string)
+           .ToLocal(&fatal_exception_function)) {
+    // V8 will have scheduled a superseding error to throw
+    return;
+  }
   // If the exception happens before process._fatalException is attached
   // during bootstrap, or if the user has patched it incorrectly, exit
   // the current Node.js instance.

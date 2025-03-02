@@ -54,10 +54,12 @@ using v8::HeapProfiler;
 using v8::HeapSpaceStatistics;
 using v8::Integer;
 using v8::Isolate;
+using v8::JustVoid;
 using v8::Local;
 using v8::Maybe;
 using v8::MaybeLocal;
 using v8::NewStringType;
+using v8::Nothing;
 using v8::Number;
 using v8::Object;
 using v8::ObjectTemplate;
@@ -1590,54 +1592,66 @@ Local<Value> Environment::GetNow() {
   return Number::New(isolate(), static_cast<double>(now));
 }
 
-void CollectExceptionInfo(Environment* env,
-                          Local<Object> obj,
-                          int errorno,
-                          const char* err_string,
-                          const char* syscall,
-                          const char* message,
-                          const char* path,
-                          const char* dest) {
-  obj->Set(env->context(),
-           env->errno_string(),
-           Integer::New(env->isolate(), errorno)).Check();
-
-  obj->Set(env->context(), env->code_string(),
-           OneByteString(env->isolate(), err_string)).Check();
-
-  if (message != nullptr) {
-    obj->Set(env->context(), env->message_string(),
-             OneByteString(env->isolate(), message)).Check();
+Maybe<void> CollectExceptionInfo(Environment* env,
+                                 Local<Object> obj,
+                                 int errorno,
+                                 const char* err_string,
+                                 const char* syscall,
+                                 const char* message,
+                                 const char* path,
+                                 const char* dest) {
+  if (obj->Set(env->context(),
+               env->errno_string(),
+               Integer::New(env->isolate(), errorno))
+          .IsNothing() ||
+      obj->Set(env->context(),
+               env->code_string(),
+               OneByteString(env->isolate(), err_string))
+          .IsNothing() ||
+      (message != nullptr && obj->Set(env->context(),
+                                      env->message_string(),
+                                      OneByteString(env->isolate(), message))
+                                 .IsNothing())) {
+    return Nothing<void>();
   }
 
   Local<Value> path_buffer;
   if (path != nullptr) {
-    path_buffer =
-      Buffer::Copy(env->isolate(), path, strlen(path)).ToLocalChecked();
-    obj->Set(env->context(), env->path_string(), path_buffer).Check();
+    if (!Buffer::Copy(env->isolate(), path, strlen(path))
+             .ToLocal(&path_buffer) ||
+        obj->Set(env->context(), env->path_string(), path_buffer).IsNothing()) {
+      return Nothing<void>();
+    }
   }
 
   Local<Value> dest_buffer;
   if (dest != nullptr) {
-    dest_buffer =
-      Buffer::Copy(env->isolate(), dest, strlen(dest)).ToLocalChecked();
-    obj->Set(env->context(), env->dest_string(), dest_buffer).Check();
+    if (!Buffer::Copy(env->isolate(), dest, strlen(dest))
+             .ToLocal(&dest_buffer) ||
+        obj->Set(env->context(), env->dest_string(), dest_buffer).IsNothing()) {
+      return Nothing<void>();
+    }
   }
 
   if (syscall != nullptr) {
-    obj->Set(env->context(), env->syscall_string(),
-             OneByteString(env->isolate(), syscall)).Check();
+    if (obj->Set(env->context(),
+                 env->syscall_string(),
+                 OneByteString(env->isolate(), syscall))
+            .IsNothing()) {
+      return Nothing<void>();
+    }
   }
+
+  return JustVoid();
 }
 
-void Environment::CollectUVExceptionInfo(Local<Value> object,
-                                         int errorno,
-                                         const char* syscall,
-                                         const char* message,
-                                         const char* path,
-                                         const char* dest) {
-  if (!object->IsObject() || errorno == 0)
-    return;
+Maybe<void> Environment::CollectUVExceptionInfo(Local<Value> object,
+                                                int errorno,
+                                                const char* syscall,
+                                                const char* message,
+                                                const char* path,
+                                                const char* dest) {
+  if (!object->IsObject() || errorno == 0) return JustVoid();
 
   Local<Object> obj = object.As<Object>();
   const char* err_string = uv_err_name(errorno);
@@ -1646,7 +1660,7 @@ void Environment::CollectUVExceptionInfo(Local<Value> object,
     message = uv_strerror(errorno);
   }
 
-  CollectExceptionInfo(
+  return CollectExceptionInfo(
       this, obj, errorno, err_string, syscall, message, path, dest);
 }
 
