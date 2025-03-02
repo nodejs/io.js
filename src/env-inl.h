@@ -341,6 +341,11 @@ inline ExitCode Environment::exit_code(const ExitCode default_code) const {
              : static_cast<ExitCode>(exit_info_[kExitCode]);
 }
 
+inline void Environment::set_exit_code(const ExitCode code) {
+  exit_info_[kExitCode] = static_cast<int>(code);
+  exit_info_[kHasExitCode] = 1;
+}
+
 inline AliasedInt32Array& Environment::exit_info() {
   return exit_info_;
 }

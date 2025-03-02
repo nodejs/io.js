@@ -70,14 +70,26 @@ Maybe<ExitCode> EmitProcessExitInternal(Environment* env) {
     return Nothing<ExitCode>();
   }
 
-  Local<Integer> exit_code = Integer::New(
-      isolate, static_cast<int32_t>(env->exit_code(ExitCode::kNoFailure)));
+  ExitCode exit_code = env->exit_code(ExitCode::kNoFailure);
 
-  if (ProcessEmit(env, "exit", exit_code).IsEmpty()) {
+  // the exit code wasn't already set, so let's check for unsettled tlas
+  if (exit_code == ExitCode::kNoFailure) {
+    auto unsettled_tla = env->CheckUnsettledTopLevelAwait();
+    if (!unsettled_tla.FromJust()) {
+      exit_code = ExitCode::kUnsettledTopLevelAwait;
+      env->set_exit_code(exit_code);
+    }
+  }
+
+  Local<Integer> exit_code_int =
+      Integer::New(isolate, static_cast<int32_t>(exit_code));
+
+  if (ProcessEmit(env, "exit", exit_code_int).IsEmpty()) {
     return Nothing<ExitCode>();
   }
+
   // Reload exit code, it may be changed by `emit('exit')`
-  return Just(env->exit_code(ExitCode::kNoFailure));
+  return Just(env->exit_code(exit_code));
 }
 
 Maybe<int> EmitProcessExit(Environment* env) {
