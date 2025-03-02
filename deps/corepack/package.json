@@ -1,6 +1,6 @@
 {
   "name": "corepack",
-  "version": "0.31.0",
+  "version": "0.32.0",
   "homepage": "https://github.com/nodejs/corepack#readme",
   "bugs": {
     "url": "https://github.com/nodejs/corepack/issues"
@@ -16,7 +16,7 @@
     "./package.json": "./package.json"
   },
   "license": "MIT",
-  "packageManager": "yarn@4.3.1+sha224.934d21773e22af4b69a7032a2d3b4cb38c1f7c019624777cc9916b23",
+  "packageManager": "yarn@4.6.0+sha512.5383cc12567a95f1d668fbe762dfe0075c595b4bfff433be478dbbe24e05251a8e8c3eb992a986667c1d53b6c3a9c85b8398c35a960587fbd9fa3a0915406728",
   "devDependencies": {
     "@types/debug": "^4.1.5",
     "@types/node": "^20.4.6",
@@ -29,18 +29,18 @@
     "better-sqlite3": "^11.7.2",
     "clipanion": "patch:clipanion@npm%3A3.2.1#~/.yarn/patches/clipanion-npm-3.2.1-fc9187f56c.patch",
     "debug": "^4.1.1",
-    "esbuild": "^0.21.0",
+    "esbuild": "^0.25.0",
     "eslint": "^8.57.0",
     "proxy-from-env": "^1.1.0",
     "semver": "^7.6.3",
-    "supports-color": "^9.0.0",
+    "supports-color": "^10.0.0",
     "tar": "^7.4.0",
     "tsx": "^4.16.2",
-    "typescript": "^5.3.3",
+    "typescript": "^5.7.3",
     "undici": "^6.19.2",
     "v8-compile-cache": "^2.3.0",
-    "vitest": "^2.0.3",
-    "which": "^4.0.0"
+    "vitest": "^3.0.5",
+    "which": "^5.0.0"
   },
   "resolutions": {
     "undici-types": "6.x"

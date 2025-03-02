@@ -41,6 +41,25 @@ is distributed along with Node.js itself.
 
 </details>
 
+<details><summary>Update Corepack using npm</summary>
+
+To install the latest version of Corepack, use:
+
+```shell
+npm install -g corepack@latest
+```
+
+If Corepack was installed on your system using a Node.js Windows Installer
+`.msi` package then you might need to remove it before attempting to install a
+different version of Corepack using npm. You can select the Modify option of the
+Node.js app settings to access the Windows Installer feature selection, and on
+the "corepack manager" feature of the Node.js `.msi` package by selecting
+"Entire feature will be unavailable". See
+[Repair apps and programs in Windows](https://support.microsoft.com/en-us/windows/repair-apps-and-programs-in-windows-e90eefe4-d0a2-7c1b-dd59-949a9030f317)
+for instructions on accessing the Windows apps page to modify settings.
+
+</details>
+
 <details><summary>Install Corepack from source</summary>
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
@@ -91,6 +110,35 @@ use in the archive).
 ```json
 {
   "packageManager": "yarn@https://registry.npmjs.org/@yarnpkg/cli-dist/-/cli-dist-3.2.3.tgz#sha224.16a0797d1710d1fb7ec40ab5c3801b68370a612a9b66ba117ad9924b"
+}
+```
+
+#### `devEngines.packageManager`
+
+When a `devEngines.packageManager` field is defined, and is an object containing
+a `"name"` field (can also optionally contain `version` and `onFail` fields),
+Corepack will use it to validate you're using a compatible package manager.
+
+Depending on the value of `devEngines.packageManager.onFail`:
+
+- if set to `ignore`, Corepack won't print any warning or error.
+- if unset or set to `error`, Corepack will throw an error in case of a mismatch.
+- if set to `warn` or some other value, Corepack will print a warning in case
+  of mismatch.
+
+If the top-level `packageManager` field is missing, Corepack will use the
+package manager defined in `devEngines.packageManager` – in which case you must
+provide a specific version in `devEngines.packageManager.version`, ideally with
+a hash, as explained in the previous section:
+
+```json
+{
+  "devEngines":{
+    "packageManager": {
+      "name": "yarn",
+      "version": "3.2.3+sha224.953c8233f7a92884eee2de69a1b92d1f2ec1655e66d08071ba9a02fa"
+    }
+  }
 }
 ```
 
@@ -227,6 +275,7 @@ it.
 
 Unlike `corepack use` this command doesn't take a package manager name nor a
 version range, as it will always select the latest available version from the
+range specified in `devEngines.packageManager.version`, or fallback to the
 same major line. Should you need to upgrade to a new major, use an explicit
 `corepack use {name}@latest` call (or simply `corepack use {name}`).
 
@@ -248,6 +297,7 @@ same major line. Should you need to upgrade to a new major, use an explicit
   set to `1` to have the URL shown. By default, when Corepack is called
   explicitly (e.g. `corepack pnpm …`), it is set to `0`; when Corepack is called
   implicitly (e.g. `pnpm …`), it is set to `1`.
+  The default value cannot be overridden in a `.corepack.env` file.
   When standard input is a TTY and no CI environment is detected, Corepack will
   ask for user input before starting the download.
 
@@ -273,6 +323,14 @@ same major line. Should you need to upgrade to a new major, use an explicit
   project. This means that it will always use the system-wide package manager
   regardless of what is being specified in the project's `packageManager` field.
 
+- `COREPACK_ENV_FILE` can be set to `0` to request Corepack to not attempt to
+  load `.corepack.env`; it can be set to a path to specify a different env file.
+  Only keys that start with `COREPACK_` and are not in the exception list
+  (`COREPACK_ENABLE_DOWNLOAD_PROMPT` and `COREPACK_ENV_FILE` are ignored)
+  will be taken into account.
+  For Node.js 18.x users, this setting has no effect as that version doesn't
+  support parsing of `.env` files.
+
 - `COREPACK_HOME` can be set in order to define where Corepack should install
   the package managers. By default it is set to `%LOCALAPPDATA%\node\corepack`
   on Windows, and to `$HOME/.cache/node/corepack` everywhere else.
@@ -294,7 +352,7 @@ same major line. Should you need to upgrade to a new major, use an explicit
   empty password, explicitly set `COREPACK_NPM_PASSWORD` to an empty string.
 
 - `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` are supported through
-  [`node-proxy-agent`](https://github.com/TooTallNate/node-proxy-agent).
+  [`proxy-from-env`](https://github.com/Rob--W/proxy-from-env).
 
 - `COREPACK_INTEGRITY_KEYS` can be set to an empty string or `0` to
   instruct Corepack to skip integrity checks, or to a JSON string containing

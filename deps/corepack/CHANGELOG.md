@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.32.0](https://github.com/nodejs/corepack/compare/v0.31.0...v0.32.0) (2025-02-28)
+
+
+### Features
+
+* add limited support for `devEngines` ([#643](https://github.com/nodejs/corepack/issues/643)) ([b456268](https://github.com/nodejs/corepack/commit/b4562688513f23e37e37b0d69a0daff33ca84c8d))
+* add more informative error when fetching latest stable fails ([#644](https://github.com/nodejs/corepack/issues/644)) ([53b1fe7](https://github.com/nodejs/corepack/commit/53b1fe75c47c06bd72a8b8f8bb699a47c9ca32fb))
+* add support for `.corepack.env` ([#642](https://github.com/nodejs/corepack/issues/642)) ([9b95b46](https://github.com/nodejs/corepack/commit/9b95b46f05e50fe1c60f05309c210ba8fe4e23c5))
+* update package manager versions ([#617](https://github.com/nodejs/corepack/issues/617)) ([b83bb5e](https://github.com/nodejs/corepack/commit/b83bb5ec150980c998b9c7053dff307d912cb508))
+
+
+### Bug Fixes
+
+* do not resolve fallback descriptor when `packageManager` is defined ([#632](https://github.com/nodejs/corepack/issues/632)) ([12e77e5](https://github.com/nodejs/corepack/commit/12e77e506946d42a0de9ce8e68d75af8454d6776))
+* **doc:** fix link to proxy library ([#636](https://github.com/nodejs/corepack/issues/636)) ([bae0839](https://github.com/nodejs/corepack/commit/bae08397943d4b99437389b4286546361091f4b3))
+* replace explicit with specify as verb ([#665](https://github.com/nodejs/corepack/issues/665)) ([351d86c](https://github.com/nodejs/corepack/commit/351d86c20226a8c18bfe212be27401f2908b1595))
+* **use:** do not throw on invalid `packageManager` ([#663](https://github.com/nodejs/corepack/issues/663)) ([4be72f6](https://github.com/nodejs/corepack/commit/4be72f6941afa0c9b2b7d26635016bb7b560df8a))
+
 ## [0.31.0](https://github.com/nodejs/corepack/compare/v0.30.0...v0.31.0) (2025-01-27)
 
 
