@@ -26,10 +26,14 @@ function makeCacheKey (opts) {
       if (typeof key !== 'string' || typeof val !== 'string') {
         throw new Error('opts.headers is not a valid header map')
       }
-      headers[key] = val
+      headers[key.toLowerCase()] = val
     }
   } else if (typeof opts.headers === 'object') {
-    headers = opts.headers
+    headers = {}
+
+    for (const key of Object.keys(opts.headers)) {
+      headers[key.toLowerCase()] = opts.headers[key]
+    }
   } else {
     throw new Error('opts.headers is not an object')
   }
@@ -260,19 +264,16 @@ function parseVaryHeader (varyHeader, headers) {
     return headers
   }
 
-  const output = /** @type {Record<string, string | string[]>} */ ({})
+  const output = /** @type {Record<string, string | string[] | null>} */ ({})
 
   const varyingHeaders = typeof varyHeader === 'string'
     ? varyHeader.split(',')
     : varyHeader
+
   for (const header of varyingHeaders) {
     const trimmedHeader = header.trim().toLowerCase()
 
-    if (headers[trimmedHeader]) {
-      output[trimmedHeader] = headers[trimmedHeader]
-    } else {
-      return undefined
-    }
+    output[trimmedHeader] = headers[trimmedHeader] ?? null
   }
 
   return output

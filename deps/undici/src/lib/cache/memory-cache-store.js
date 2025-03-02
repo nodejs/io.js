@@ -79,7 +79,13 @@ class MemoryCacheStore {
     const entry = this.#entries.get(topLevelKey)?.find((entry) => (
       entry.deleteAt > now &&
       entry.method === key.method &&
-      (entry.vary == null || Object.keys(entry.vary).every(headerName => entry.vary[headerName] === key.headers?.[headerName]))
+      (entry.vary == null || Object.keys(entry.vary).every(headerName => {
+        if (entry.vary[headerName] === null) {
+          return key.headers[headerName] === undefined
+        }
+
+        return entry.vary[headerName] === key.headers[headerName]
+      }))
     ))
 
     return entry == null

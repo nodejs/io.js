@@ -31,3 +31,13 @@ Maintainers are encouraged to use the extensive and detailed list of labels for 
 * Issues with a low-barrier of entry should be assigned the `good first issue` label.
 * Do not use the `invalid` label, instead use `bug` or `Status: wontfix`.
 * Duplicate issues should initially be assigned the `duplicate` label.
+
+
+## Making a Release
+
+1. Go to github actions, then select ["Create Release PR"](https://github.com/nodejs/undici/actions/workflows/release-create-pr.yml).
+2. Run the workflow, selecting `main` and indicating if you want a specific version number or a patch/minor/major release
+3. Wait for the PR to be created. Approve the PR ([this](https://github.com/nodejs/undici/pull/4021) is a an example).
+4. Land the PR, wait for the CI to pass.
+5. Got to the ["Release"](https://github.com/nodejs/undici/actions/workflows/release.yml) workflow, you should see a job waiting.
+6. If you are one of the [releases](https://github.com/nodejs/undici?tab=readme-ov-file#releasers), then click "review deployments", then select "release" and click "approve and deploy". If you are not a releaser, contact one.

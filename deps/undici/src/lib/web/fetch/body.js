@@ -23,7 +23,7 @@ try {
   const crypto = require('node:crypto')
   random = (max) => crypto.randomInt(0, max)
 } catch {
-  random = (max) => Math.floor(Math.random(max))
+  random = (max) => Math.floor(Math.random() * max)
 }
 
 const textEncoder = new TextEncoder()

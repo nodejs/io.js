@@ -37,6 +37,14 @@ const requestFinalizer = new FinalizationRegistry(({ signal, abort }) => {
 
 const dependentControllerMap = new WeakMap()
 
+let abortSignalHasEventHandlerLeakWarning
+
+try {
+  abortSignalHasEventHandlerLeakWarning = getMaxListeners(new AbortController().signal) > 0
+} catch {
+  abortSignalHasEventHandlerLeakWarning = false
+}
+
 function buildAbort (acRef) {
   return abort
 
@@ -424,15 +432,10 @@ class Request {
         const acRef = new WeakRef(ac)
         const abort = buildAbort(acRef)
 
-        // Third-party AbortControllers may not work with these.
-        // See, https://github.com/nodejs/undici/pull/1910#issuecomment-1464495619.
-        try {
-          // If the max amount of listeners is equal to the default, increase it
-          // This is only available in node >= v19.9.0
-          if (typeof getMaxListeners === 'function' && getMaxListeners(signal) === defaultMaxListeners) {
-            setMaxListeners(1500, signal)
-          }
-        } catch {}
+        // If the max amount of listeners is equal to the default, increase it
+        if (abortSignalHasEventHandlerLeakWarning && getMaxListeners(signal) === defaultMaxListeners) {
+          setMaxListeners(1500, signal)
+        }
 
         util.addAbortListener(signal, abort)
         // The third argument must be a registry key to be unregistered.

@@ -124,8 +124,10 @@ function getResponseData (data) {
     return data
   } else if (typeof data === 'object') {
     return JSON.stringify(data)
-  } else {
+  } else if (data) {
     return data.toString()
+  } else {
+    return ''
   }
 }
 

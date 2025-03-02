@@ -232,7 +232,7 @@ module.exports = class SqliteCacheStore {
     const value = this.#findValue(key)
     return value
       ? {
-          body: value.body ? Buffer.from(value.body.buffer) : undefined,
+          body: value.body ? Buffer.from(value.body.buffer, value.body.byteOffset, value.body.byteLength) : undefined,
           statusCode: value.statusCode,
           statusMessage: value.statusMessage,
           headers: value.headers ? JSON.parse(value.headers) : undefined,
@@ -411,10 +411,6 @@ module.exports = class SqliteCacheStore {
       let matches = true
 
       if (value.vary) {
-        if (!headers) {
-          return undefined
-        }
-
         const vary = JSON.parse(value.vary)
 
         for (const header in vary) {
@@ -440,18 +436,21 @@ module.exports = class SqliteCacheStore {
  * @returns {boolean}
  */
 function headerValueEquals (lhs, rhs) {
+  if (lhs == null && rhs == null) {
+    return true
+  }
+
+  if ((lhs == null && rhs != null) ||
+      (lhs != null && rhs == null)) {
+    return false
+  }
+
   if (Array.isArray(lhs) && Array.isArray(rhs)) {
     if (lhs.length !== rhs.length) {
       return false
     }
 
-    for (let i = 0; i < lhs.length; i++) {
-      if (rhs.includes(lhs[i])) {
-        return false
-      }
-    }
-
-    return true
+    return lhs.every((x, i) => x === rhs[i])
   }
 
   return lhs === rhs

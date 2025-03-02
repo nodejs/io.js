@@ -26,6 +26,9 @@ module.exports.createFastMessageEvent = createFastMessageEvent
 
 module.exports.EventSource = require('./lib/web/eventsource/eventsource').EventSource
 
+const api = require('./lib/api')
+const Dispatcher = require('./lib/dispatcher/dispatcher')
+Object.assign(Dispatcher.prototype, api)
 // Expose the fetch implementation to be enabled in Node.js core via a flag
 module.exports.EnvHttpProxyAgent = EnvHttpProxyAgent
 module.exports.getGlobalDispatcher = getGlobalDispatcher
