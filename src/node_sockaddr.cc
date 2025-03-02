@@ -553,7 +553,7 @@ BaseObjectPtr<SocketAddressBlockListWrap> SocketAddressBlockListWrap::New(
   if (!env->blocklist_constructor_template()
           ->InstanceTemplate()
           ->NewInstance(env->context()).ToLocal(&obj)) {
-    return BaseObjectPtr<SocketAddressBlockListWrap>();
+    return nullptr;
   }
   BaseObjectPtr<SocketAddressBlockListWrap> wrap =
       MakeBaseObject<SocketAddressBlockListWrap>(env, obj);
@@ -568,7 +568,7 @@ BaseObjectPtr<SocketAddressBlockListWrap> SocketAddressBlockListWrap::New(
   if (!env->blocklist_constructor_template()
           ->InstanceTemplate()
           ->NewInstance(env->context()).ToLocal(&obj)) {
-    return BaseObjectPtr<SocketAddressBlockListWrap>();
+    return nullptr;
   }
   BaseObjectPtr<SocketAddressBlockListWrap> wrap =
       MakeBaseObject<SocketAddressBlockListWrap>(
@@ -775,7 +775,7 @@ BaseObjectPtr<SocketAddressBase> SocketAddressBase::Create(
   if (!GetConstructorTemplate(env)
           ->InstanceTemplate()
           ->NewInstance(env->context()).ToLocal(&obj)) {
-    return BaseObjectPtr<SocketAddressBase>();
+    return nullptr;
   }
 
   return MakeBaseObject<SocketAddressBase>(env, obj, std::move(address));

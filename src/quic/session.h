@@ -135,11 +135,11 @@ class Session final : public AsyncWrap, private SessionTicket::AppData::Source {
     const CID::Factory* cid_factory = &CID::Factory::random();
     // If the CID::Factory is a base object, we keep a reference to it
     // so that it cannot be garbage collected.
-    BaseObjectPtr<BaseObject> cid_factory_ref = {};
+    BaseObjectPtr<BaseObject> cid_factory_ref;
 
     // If the application provider is specified, it will be used to create
     // the underlying Application instance for the session.
-    BaseObjectPtr<ApplicationProvider> application_provider = {};
+    BaseObjectPtr<ApplicationProvider> application_provider;
 
     // When true, QLog output will be enabled for the session.
     bool qlog = false;

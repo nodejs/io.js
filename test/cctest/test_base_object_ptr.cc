@@ -155,6 +155,42 @@ TEST_F(BaseObjectPtrTest, Moveable) {
   EXPECT_EQ(realm->base_object_created_after_bootstrap(), 0);
 }
 
+TEST_F(BaseObjectPtrTest, Nullptr) {
+  const HandleScope handle_scope(isolate_);
+  const Argv argv;
+  Env env_{handle_scope, argv};
+  Environment* env = *env_;
+  Realm* realm = env->principal_realm();
+
+  BaseObjectPtr<DummyBaseObject> ptr = nullptr;
+  EXPECT_EQ(nullptr, ptr);
+  EXPECT_EQ(ptr, nullptr);
+  EXPECT_EQ(nullptr, ptr.get());
+
+  // Implicit constructor.
+  BaseObjectPtr<DummyBaseObject> ptr2 = []() -> BaseObjectPtr<DummyBaseObject> {
+    return nullptr;
+  }();
+  EXPECT_EQ(nullptr, ptr2);
+  EXPECT_EQ(ptr2, nullptr);
+  EXPECT_EQ(nullptr, ptr2.get());
+
+  BaseObjectWeakPtr<DummyBaseObject> weak_ptr{ptr};
+  EXPECT_EQ(nullptr, weak_ptr);
+  EXPECT_EQ(weak_ptr, nullptr);
+  EXPECT_EQ(nullptr, weak_ptr.get());
+  ptr.reset();
+  EXPECT_EQ(weak_ptr.get(), nullptr);
+
+  // No object creation with nullptr.
+  EXPECT_EQ(realm->base_object_created_after_bootstrap(), 0);
+
+  BaseObjectPtr<DummyBaseObject> ptr4 = DummyBaseObject::NewDetached(env);
+  EXPECT_NE(nullptr, ptr4);
+  EXPECT_NE(ptr4, nullptr);
+  EXPECT_EQ(realm->base_object_created_after_bootstrap(), 1);
+}
+
 TEST_F(BaseObjectPtrTest, NestedClasses) {
   class ObjectWithPtr : public BaseObject {
    public:

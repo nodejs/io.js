@@ -251,6 +251,17 @@ BaseObjectPtrImpl<T, kIsWeak>& BaseObjectPtrImpl<T, kIsWeak>::operator=(
 }
 
 template <typename T, bool kIsWeak>
+BaseObjectPtrImpl<T, kIsWeak>::BaseObjectPtrImpl(std::nullptr_t)
+    : BaseObjectPtrImpl() {}
+
+template <typename T, bool kIsWeak>
+BaseObjectPtrImpl<T, kIsWeak>& BaseObjectPtrImpl<T, kIsWeak>::operator=(
+    std::nullptr_t) {
+  this->~BaseObjectPtrImpl();
+  return *new (this) BaseObjectPtrImpl();
+}
+
+template <typename T, bool kIsWeak>
 void BaseObjectPtrImpl<T, kIsWeak>::reset(T* ptr) {
   *this = BaseObjectPtrImpl(ptr);
 }
@@ -287,6 +298,16 @@ template <typename U, bool kW>
 bool BaseObjectPtrImpl<T, kIsWeak>::operator !=(
     const BaseObjectPtrImpl<U, kW>& other) const {
   return get() != other.get();
+}
+
+template <typename T, bool kIsWeak>
+bool operator==(const BaseObjectPtrImpl<T, kIsWeak> ptr, const std::nullptr_t) {
+  return ptr.get() == nullptr;
+}
+
+template <typename T, bool kIsWeak>
+bool operator==(const std::nullptr_t, const BaseObjectPtrImpl<T, kIsWeak> ptr) {
+  return ptr.get() == nullptr;
 }
 
 template <typename T, typename... Args>
