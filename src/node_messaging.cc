@@ -1090,9 +1090,10 @@ void MessagePort::PostMessage(const FunctionCallbackInfo<Value>& args) {
     return;
   }
 
-  Maybe<bool> res = port->PostMessage(env, context, args[0], transfer_list);
-  if (res.IsJust())
-    args.GetReturnValue().Set(res.FromJust());
+  bool res;
+  if (port->PostMessage(env, context, args[0], transfer_list).To(&res)) {
+    args.GetReturnValue().Set(res);
+  }
 }
 
 void MessagePort::Start() {

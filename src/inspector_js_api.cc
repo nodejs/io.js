@@ -231,8 +231,10 @@ template <void (Agent::*asyncTaskFn)(void*)>
 static void InvokeAsyncTaskFnWithId(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   CHECK(args[0]->IsNumber());
-  int64_t task_id = args[0]->IntegerValue(env->context()).FromJust();
-  (env->inspector_agent()->*asyncTaskFn)(GetAsyncTask(task_id));
+  int64_t task_id;
+  if (args[0]->IntegerValue(env->context()).To(&task_id)) {
+    (env->inspector_agent()->*asyncTaskFn)(GetAsyncTask(task_id));
+  }
 }
 
 static void AsyncTaskScheduledWrapper(const FunctionCallbackInfo<Value>& args) {
@@ -244,7 +246,10 @@ static void AsyncTaskScheduledWrapper(const FunctionCallbackInfo<Value>& args) {
   StringView task_name_view(*task_name_value, task_name_value.length());
 
   CHECK(args[1]->IsNumber());
-  int64_t task_id = args[1]->IntegerValue(env->context()).FromJust();
+  int64_t task_id;
+  if (!args[1]->IntegerValue(env->context()).To(&task_id)) {
+    return;
+  }
   void* task = GetAsyncTask(task_id);
 
   CHECK(args[2]->IsBoolean());

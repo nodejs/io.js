@@ -968,7 +968,11 @@ void DatabaseSync::CreateSession(const FunctionCallbackInfo<Value>& args) {
     Local<Object> options = args[0].As<Object>();
 
     Local<String> table_key = FIXED_ONE_BYTE_STRING(env->isolate(), "table");
-    if (options->HasOwnProperty(env->context(), table_key).FromJust()) {
+    bool hasIt;
+    if (!options->HasOwnProperty(env->context(), table_key).To(&hasIt)) {
+      return;
+    }
+    if (hasIt) {
       Local<Value> table_value;
       if (!options->Get(env->context(), table_key).ToLocal(&table_value)) {
         return;
@@ -986,7 +990,10 @@ void DatabaseSync::CreateSession(const FunctionCallbackInfo<Value>& args) {
 
     Local<String> db_key = FIXED_ONE_BYTE_STRING(env->isolate(), "db");
 
-    if (options->HasOwnProperty(env->context(), db_key).FromJust()) {
+    if (!options->HasOwnProperty(env->context(), db_key).To(&hasIt)) {
+      return;
+    }
+    if (hasIt) {
       Local<Value> db_value;
       if (!options->Get(env->context(), db_key).ToLocal(&db_value)) {
         // An error will have been scheduled.
@@ -1205,8 +1212,12 @@ void DatabaseSync::ApplyChangeset(const FunctionCallbackInfo<Value>& args) {
       };
     }
 
-    if (options->HasOwnProperty(env->context(), env->filter_string())
-            .FromJust()) {
+    bool hasIt;
+    if (!options->HasOwnProperty(env->context(), env->filter_string())
+             .To(&hasIt)) {
+      return;
+    }
+    if (hasIt) {
       Local<Value> filterValue;
       if (!options->Get(env->context(), env->filter_string())
                .ToLocal(&filterValue)) {

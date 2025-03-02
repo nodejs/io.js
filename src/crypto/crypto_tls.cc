@@ -2157,10 +2157,10 @@ void TLSWrap::SetMaxSendFragment(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   TLSWrap* w;
   ASSIGN_OR_RETURN_UNWRAP(&w, args.This());
-  int rv = SSL_set_max_send_fragment(
-      w->ssl_.get(),
-      args[0]->Int32Value(env->context()).FromJust());
-  args.GetReturnValue().Set(rv);
+  int val;
+  if (args[0]->Int32Value(env->context()).To(&val)) {
+    args.GetReturnValue().Set(SSL_set_max_send_fragment(w->ssl_.get(), val));
+  }
 }
 #endif  // SSL_set_max_send_fragment
 

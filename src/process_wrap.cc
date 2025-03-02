@@ -379,7 +379,10 @@ class ProcessWrap : public HandleWrap {
     Environment* env = Environment::GetCurrent(args);
     ProcessWrap* wrap;
     ASSIGN_OR_RETURN_UNWRAP(&wrap, args.This());
-    int signal = args[0]->Int32Value(env->context()).FromJust();
+    int signal;
+    if (!args[0]->Int32Value(env->context()).To(&signal)) {
+      return;
+    }
 #ifdef _WIN32
     if (signal != SIGKILL && signal != SIGTERM && signal != SIGINT &&
         signal != SIGQUIT) {

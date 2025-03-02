@@ -1237,7 +1237,10 @@ void ContextifyScript::RunInContext(const FunctionCallbackInfo<Value>& args) {
   TRACE_EVENT0(TRACING_CATEGORY_NODE2(vm, script), "RunInContext");
 
   CHECK(args[1]->IsNumber());
-  int64_t timeout = args[1]->IntegerValue(env->context()).FromJust();
+  int64_t timeout;
+  if (!args[1]->IntegerValue(env->context()).To(&timeout)) {
+    return;
+  }
 
   CHECK(args[2]->IsBoolean());
   bool display_errors = args[2]->IsTrue();
