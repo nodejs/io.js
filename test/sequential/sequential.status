@@ -31,8 +31,10 @@ test-single-executable-application-empty: PASS, FLAKY
 # https://github.com/nodejs/node/issues/43465
 test-http-server-request-timeouts-mixed: PASS, FLAKY
 
-[$system==solaris] # Also applies to SmartOS
+[$system==solaris] # Also applies to SmartOS/illumos
 test-worker-prof: PASS, FLAKY
+# https://github.com/nodejs/node/issues/57000
+test-perf-hooks: PASS, FLAKY
 
 [$system==freebsd]
 
