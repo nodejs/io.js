@@ -48,7 +48,8 @@ MaybeLocal<Value> ProcessEmit(Environment* env,
 
   Local<Object> process = env->process_object();
   Local<Value> argv[] = {event_string, message};
-  return MakeCallback(isolate, process, "emit", arraysize(argv), argv, {0, 0});
+  return MakeCallback(
+      isolate, process, env->emit_string(), arraysize(argv), argv, {0, 0});
 }
 
 Maybe<bool> ProcessEmitWarningGeneric(Environment* env,
