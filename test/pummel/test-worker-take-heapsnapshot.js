@@ -1,22 +1,37 @@
 // Flags: --expose-internals
 'use strict';
-const common = require('../common');
+require('../common');
+
+const { test } = require('node:test');
+const { Worker } = require('node:worker_threads');
+const { once } = require('node:events');
 const { recordState } = require('../common/heap');
-const { Worker } = require('worker_threads');
-const { once } = require('events');
 
-(async function() {
-  const w = new Worker('setInterval(() => {}, 100)', { eval: true });
+test('Worker threads heap snapshot validation', async (t) => {
+  await t.test('should validate heap snapshot structure for MessagePort', async () => {
+    const w = new Worker('setInterval(() => {}, 100)', { eval: true });
 
-  await once(w, 'online');
-  const stream = await w.getHeapSnapshot();
-  const snapshot = recordState(stream);
-  snapshot.validateSnapshot('Node / MessagePort', [
-    {
-      children: [
-        { node_name: 'Node / MessagePortData', edge_name: 'data' },
+    // Wait for the Worker to be online
+    await once(w, 'online');
+
+    // Generate heap snapshot
+    const stream = await w.getHeapSnapshot();
+    const snapshot = recordState(stream);
+
+    // Validate the snapshot
+    snapshot.validateSnapshot(
+      'Node / MessagePort',
+      [
+        {
+          children: [
+            { node_name: 'Node / MessagePortData', edge_name: 'data' },
+          ],
+        },
       ],
-    },
-  ], { loose: true });
-  await w.terminate();
-})().then(common.mustCall());
+      { loose: true },
+    );
+
+    // Terminate the Worker
+    await w.terminate();
+  });
+});
