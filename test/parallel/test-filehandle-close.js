@@ -2,16 +2,18 @@
 const common = require('../common');
 const assert = require('assert');
 const fs = require('fs');
+const { test } = require('node:test');
 
-// Test that using FileHandle.close to close an already-closed fd fails
-// with EBADF.
-
-(async function() {
+test('FileHandle.close should fail with EBADF when closing an already closed fd', async () => {
   const fh = await fs.promises.open(__filename);
   fs.closeSync(fh.fd);
 
-  await assert.rejects(() => fh.close(), {
-    code: 'EBADF',
-    syscall: 'close'
-  });
-})().then(common.mustCall());
+  // Test that closing an already closed fd results in EBADF
+  await assert.rejects(
+    () => fh.close(),
+    {
+      code: 'EBADF',
+      syscall: 'close'
+    }
+  );
+}).then(common.mustCall());
