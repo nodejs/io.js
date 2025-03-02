@@ -3,6 +3,7 @@
 'use strict';
 const crypto = require('crypto');
 const net = require('net');
+const assert = require('assert');
 
 exports.ccs = Buffer.from('140303000101', 'hex');
 
@@ -172,5 +173,17 @@ function P_hash(algo, secret, seed, size) {
   }
   return result;
 }
+
+exports.assertIsCAArray = function assertIsCAArray(certs) {
+  assert(Array.isArray(certs));
+  assert(certs.length > 0);
+
+  // The certificates looks PEM-encoded.
+  for (const cert of certs) {
+    const trimmed = cert.trim();
+    assert.match(trimmed, /^-----BEGIN CERTIFICATE-----/);
+    assert.match(trimmed, /-----END CERTIFICATE-----$/);
+  }
+};
 
 exports.TestTLSSocket = TestTLSSocket;

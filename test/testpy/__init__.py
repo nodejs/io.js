@@ -68,16 +68,19 @@ class SimpleTestCase(test.TestCase):
       # is currently when Node is configured --without-ssl and the tests should
       # still be runnable but skip any tests that require ssl (which includes the
       # inspector related tests). Also, if there is no ssl support the options
-      # '--use-bundled-ca' and '--use-openssl-ca' will also cause a similar
-      # failure so such tests are also skipped.
+      # '--use-bundled-ca', '--use-system-ca' and '--use-openssl-ca' will also
+      # cause a similar failure so such tests are also skipped.
       if (any(flag.startswith('--inspect') for flag in flags) and
           not self.context.v8_enable_inspector):
         print(': Skipping as node was compiled without inspector support')
       elif (('--use-bundled-ca' in flags or
           '--use-openssl-ca' in flags or
+          '--use-system-ca' in flags or
           '--tls-v1.0' in flags or
           '--tls-v1.1' in flags) and
           not self.context.node_has_crypto):
+        # TODO(joyeecheung): add this to the status file variables so that we can
+        # list the crypto dependency in the status files explicitly instead.
         print(': Skipping as node was compiled without crypto support')
       else:
         result += flags
