@@ -42,7 +42,8 @@ using BytecodeGraphBuilderFlags = base::Flags<BytecodeGraphBuilderFlag>;
 // on AIX (v8:8193).
 void BuildGraphFromBytecode(
     JSHeapBroker* broker, Zone* local_zone, SharedFunctionInfoRef shared_info,
-    FeedbackCellRef feedback_cell, BytecodeOffset osr_offset, JSGraph* jsgraph,
+    BytecodeArrayRef bytecode, FeedbackCellRef feedback_cell,
+    BytecodeOffset osr_offset, JSGraph* jsgraph,
     CallFrequency const& invocation_frequency,
     SourcePositionTable* source_positions, NodeOriginTable* node_origins,
     int inlining_id, CodeKind code_kind, BytecodeGraphBuilderFlags flags,

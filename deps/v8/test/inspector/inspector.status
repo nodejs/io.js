@@ -257,7 +257,7 @@
 }],  # 'clang_coverage and mode == debug'
 
 ##############################################################################
-['((arch != x64 and arch != arm64 and arch != ia32 and arch != arm) or (simulator_run and conservative_stack_scanning))', {
+['((arch != x64 and arch != arm64 and arch != ia32 and arch != arm and arch != ppc64) or (simulator_run and conservative_stack_scanning))', {
   # Stack switching is only supported on x64/arm64/ia32/arm.
   'debugger/wasm-jspi-async-stack': [SKIP],
 }],  # (arch != x64 and arch != arm64 and arch != ia32 and arch != arm)

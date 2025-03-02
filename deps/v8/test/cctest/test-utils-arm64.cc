@@ -292,7 +292,7 @@ void Clobber(MacroAssembler* masm, RegList reg_list, uint64_t const value) {
         __ Mov(xn, value);
         first = xn;
       } else {
-        // We've already loaded the literal, so re-use the value already
+        // We've already loaded the literal, so reuse the value already
         // loaded into the first register we hit.
         __ Mov(xn, first);
       }
@@ -310,7 +310,7 @@ void ClobberFP(MacroAssembler* masm, DoubleRegList reg_list,
       __ Fmov(dn, value);
       first = dn;
     } else {
-      // We've already loaded the literal, so re-use the value already loaded
+      // We've already loaded the literal, so reuse the value already loaded
       // into the first register we hit.
       __ Fmov(dn, first);
     }

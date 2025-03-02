@@ -3,7 +3,10 @@
 // found in the LICENSE file.
 
 namespace array {
-extern builtin ArrayUnshift(Context, JSFunction, JSAny, int32): JSAny;
+// These are technically all js-implicit parameters, but we don't currently
+// support supplying these in tail calls (where we have to supply them).
+extern javascript builtin ArrayUnshift(
+    Context, JSFunction, JSAny, int32, DispatchHandle): JSAny;
 
 transitioning macro GenericArrayUnshift(
     context: Context, receiver: JSAny, arguments: Arguments): Number {
@@ -89,7 +92,7 @@ transitioning javascript builtin ArrayPrototypeUnshift(
 
     tail ArrayUnshift(
         context, LoadTargetFromFrame(), Undefined,
-        Convert<int32>(arguments.actual_count));
+        Convert<int32>(arguments.actual_count), kInvalidDispatchHandle);
   } label Slow {
     return GenericArrayUnshift(context, receiver, arguments);
   }

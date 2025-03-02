@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "src/codegen/optimized-compilation-info.h"
-#include "src/compiler/const-tracking-let-helpers.h"
 #include "src/compiler/heap-refs.h"
 #include "src/maglev/maglev-basic-block.h"
 #include "src/maglev/maglev-ir.h"
@@ -97,6 +96,11 @@ class Graph final : public ZoneObject {
     total_inlined_bytecode_size_ += size;
   }
 
+  int total_peeled_bytecode_size() const { return total_peeled_bytecode_size_; }
+  void add_peeled_bytecode_size(int size) {
+    total_peeled_bytecode_size_ += size;
+  }
+
   ZoneMap<RootIndex, RootConstant*>& root() { return root_; }
   ZoneVector<InitialValue*>& osr_values() { return osr_values_; }
   ZoneMap<int, SmiConstant*>& smi() { return smi_; }
@@ -154,6 +158,25 @@ class Graph final : public ZoneObject {
   void set_has_resumable_generator() { has_resumable_generator_ = true; }
   bool has_resumable_generator() const { return has_resumable_generator_; }
 
+  compiler::OptionalScopeInfoRef TryGetScopeInfoForContextLoad(
+      ValueNode* context, int offset, compiler::JSHeapBroker* broker) {
+    compiler::OptionalScopeInfoRef cur = TryGetScopeInfo(context, broker);
+    if (offset == Context::OffsetOfElementAt(Context::EXTENSION_INDEX)) {
+      return cur;
+    }
+    CHECK_EQ(offset, Context::OffsetOfElementAt(Context::PREVIOUS_INDEX));
+    if (cur.has_value()) {
+      cur = (*cur).OuterScopeInfo(broker);
+      while (!cur->HasContext() && cur->HasOuterScopeInfo()) {
+        cur = cur->OuterScopeInfo(broker);
+      }
+      if (cur->HasContext()) {
+        return cur;
+      }
+    }
+    return {};
+  }
+
   // Resolve the scope info of a context value.
   // An empty result means we don't statically know the context's scope.
   compiler::OptionalScopeInfoRef TryGetScopeInfo(
@@ -167,27 +190,14 @@ class Graph final : public ZoneObject {
       res = context_const->object().AsContext().scope_info(broker);
       DCHECK(res->HasContext());
     } else if (auto load = context->TryCast<LoadTaggedFieldForContextSlot>()) {
-      compiler::OptionalScopeInfoRef cur =
-          TryGetScopeInfo(load->input(0).node(), broker);
-      DCHECK(load->offset() ==
-                 Context::OffsetOfElementAt(Context::EXTENSION_INDEX) ||
-             load->offset() ==
-                 Context::OffsetOfElementAt(Context::PREVIOUS_INDEX));
-      if (load->offset() ==
-          Context::OffsetOfElementAt(Context::EXTENSION_INDEX)) {
-        res = cur;
-      } else if (load->offset() ==
-                 Context::OffsetOfElementAt(Context::PREVIOUS_INDEX)) {
-        if (cur.has_value()) {
-          cur = (*cur).OuterScopeInfo(broker);
-          while (!cur->HasContext() && cur->HasOuterScopeInfo()) {
-            cur = cur->OuterScopeInfo(broker);
-          }
-          if (cur->HasContext()) {
-            res = cur;
-          }
-        }
-      }
+      compiler::OptionalScopeInfoRef cur = TryGetScopeInfoForContextLoad(
+          load->input(0).node(), load->offset(), broker);
+      if (cur.has_value()) res = cur;
+    } else if (auto load_script =
+                   context->TryCast<LoadTaggedFieldForScriptContextSlot>()) {
+      compiler::OptionalScopeInfoRef cur = TryGetScopeInfoForContextLoad(
+          load_script->input(0).node(), load_script->offset(), broker);
+      if (cur.has_value()) res = cur;
     } else if (context->Is<InitialValue>()) {
       // We should only fail to keep track of initial contexts originating from
       // the OSR prequel.
@@ -236,6 +246,7 @@ class Graph final : public ZoneObject {
       inlined_functions_;
   bool has_recursive_calls_ = false;
   int total_inlined_bytecode_size_ = 0;
+  int total_peeled_bytecode_size_ = 0;
   bool is_osr_ = false;
   uint32_t object_ids_ = 0;
   bool has_resumable_generator_ = false;

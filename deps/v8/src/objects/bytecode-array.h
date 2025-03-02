@@ -73,6 +73,7 @@ class BytecodeArray : public ExposedTrustedObject {
 
   // Note: the parameter count includes the implicit 'this' receiver.
   inline uint16_t parameter_count() const;
+  inline uint16_t parameter_count_without_receiver() const;
   inline void set_parameter_count(uint16_t number_of_parameters);
   inline uint16_t max_arguments() const;
   inline void set_max_arguments(uint16_t max_arguments);

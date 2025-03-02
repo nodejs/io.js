@@ -173,6 +173,7 @@ Reduction SimplifiedOperatorReducer::Reduce(Node* node) {
       }
       break;
     }
+    case IrOpcode::kCheckNumberFitsInt32:
     case IrOpcode::kCheckNumber: {
       NodeMatcher m(node->InputAt(0));
       if (m.IsConvertTaggedHoleToUndefined()) {

@@ -35,11 +35,13 @@
 #include "src/compiler/turboshaft/explicit-truncation-reducer.h"
 #include "src/compiler/turboshaft/graph.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/opmasks.h"
 #include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/representations.h"
 #include "src/compiler/turboshaft/variable-reducer.h"
 #include "src/flags/flags.h"
 #include "src/heap/factory-inl.h"
+#include "src/objects/js-objects.h"
 #include "src/objects/map.h"
 #include "src/zone/zone-containers.h"
 
@@ -48,6 +50,13 @@ namespace v8::internal::compiler::turboshaft {
 #include "src/compiler/turboshaft/define-assembler-macros.inc"
 
 namespace {
+
+bool IsValidSmi(intptr_t c) {
+  Tagged<Object> as_obj = Tagged<Object>(c);
+  if (!IsSmi(as_obj)) return false;
+
+  return Smi::FromInt(Smi::ToInt(as_obj)).ptr() == static_cast<uintptr_t>(c);
+}
 
 struct GraphBuilder {
   Zone* phase_zone;
@@ -173,31 +182,7 @@ struct GraphBuilder {
     ProcessDeoptInput(builder, frame_state.context(), MachineType::AnyTagged());
     ProcessStateValues(builder, frame_state.locals());
     Node* stack = frame_state.stack();
-    if (v8_flags.turboshaft_frontend) {
-      // If we run graph building before Turbofan's SimplifiedLowering, the
-      // `stack` input of frame states is still a single deopt input, rather
-      // than a StateValues node.
-      if (stack->opcode() == IrOpcode::kHeapConstant &&
-          *HeapConstantOf(stack->op()) ==
-              ReadOnlyRoots(isolate->heap()).optimized_out()) {
-        builder->AddUnusedRegister();
-      } else {
-        const Operation& accumulator_op = __ output_graph().Get(Map(stack));
-        const RegisterRepresentation accumulator_rep =
-            accumulator_op.outputs_rep()[0];
-        MachineType type;
-        switch (accumulator_rep.value()) {
-          case RegisterRepresentation::Tagged():
-            type = MachineType::AnyTagged();
-            break;
-          default:
-            UNIMPLEMENTED();
-        }
-        ProcessDeoptInput(builder, stack, type);
-      }
-    } else {
-      ProcessStateValues(builder, stack);
-    }
+    ProcessStateValues(builder, stack);
   }
 
   Block::Kind BlockKind(BasicBlock* block) {
@@ -319,7 +304,7 @@ std::optional<BailoutReason> GraphBuilder::Run() {
         dominating_frame_state;
   }
 
-  if (source_positions->IsEnabled()) {
+  if (source_positions && source_positions->IsEnabled()) {
     for (OpIndex index : __ output_graph().AllOperationIndices()) {
       compiler::NodeId origin =
           __ output_graph().operation_origins()[index].DecodeTurbofanNodeId();
@@ -701,6 +686,12 @@ OpIndex GraphBuilder::Process(
       UNARY_CASE(Float64ExtractLowWord32, Float64ExtractLowWord32)
       UNARY_CASE(Float64ExtractHighWord32, Float64ExtractHighWord32)
 #undef UNARY_CASE
+    case IrOpcode::kTruncateFloat64ToFloat16RawBits:
+      return __ Float16Change(Map(node->InputAt(0)),
+                              Float16ChangeOp::Kind::kToFloat16);
+    case IrOpcode::kChangeFloat16RawBitsToFloat64:
+      return __ Float16Change(Map(node->InputAt(0)),
+                              Float16ChangeOp::Kind::kToFloat64);
     case IrOpcode::kTruncateInt64ToInt32:
       return __ TruncateWord64ToWord32(Map(node->InputAt(0)));
     case IrOpcode::kTruncateFloat32ToInt32:
@@ -845,6 +836,8 @@ OpIndex GraphBuilder::Process(
                            HeapObject, WrongInstanceType, {})
       CHECK_OBJECT_IS_CASE(CheckNumber, Number, None, NotANumber,
                            CheckParametersOf(op).feedback())
+      CHECK_OBJECT_IS_CASE(CheckNumberFitsInt32, NumberFitsInt32, None,
+                           NotInt32, CheckParametersOf(op).feedback())
       CHECK_OBJECT_IS_CASE(CheckReceiver, Receiver, HeapObject,
                            NotAJavaScriptObject, {})
       CHECK_OBJECT_IS_CASE(CheckReceiverOrNullOrUndefined,
@@ -1161,6 +1154,11 @@ OpIndex GraphBuilder::Process(
           Map<Word32>(node->InputAt(0)), Map<Word64>(node->InputAt(1)),
           Map<Word64>(node->InputAt(2)), RegisterRepresentation::Word64(),
           BranchHint::kNone, SelectOp::Implementation::kCMove);
+    case IrOpcode::kFloat32Select:
+      return __ Select(
+          Map<Word32>(node->InputAt(0)), Map<Float32>(node->InputAt(1)),
+          Map<Float32>(node->InputAt(2)), RegisterRepresentation::Float32(),
+          BranchHint::kNone, SelectOp::Implementation::kCMove);
 
     case IrOpcode::kLoad:
     case IrOpcode::kLoadImmutable:
@@ -1307,7 +1305,7 @@ OpIndex GraphBuilder::Process(
       auto call_descriptor = CallDescriptorOf(op);
       const JSWasmCallParameters* wasm_call_parameters = nullptr;
 #if V8_ENABLE_WEBASSEMBLY
-      if (call_descriptor->kind() == CallDescriptor::kCallWasmFunction &&
+      if (call_descriptor->IsAnyWasmFunctionCall() &&
           v8_flags.turboshaft_wasm_in_js_inlining) {
         // A JS-to-Wasm call where the wrapper got inlined in TurboFan but the
         // actual Wasm body inlining was either not possible or is going to
@@ -1336,7 +1334,7 @@ OpIndex GraphBuilder::Process(
         arguments.emplace_back(Map(node->InputAt(i)));
       }
 
-      OpIndex frame_state_idx = OpIndex::Invalid();
+      OptionalV<FrameState> frame_state_idx = OptionalV<FrameState>::Nullopt();
       if (call_descriptor->NeedsFrameState()) {
         compiler::FrameState frame_state{
             node->InputAt(static_cast<int>(call_descriptor->InputCount()))};
@@ -1549,6 +1547,18 @@ OpIndex GraphBuilder::Process(
 
       MemoryRepresentation rep =
           MemoryRepresentation::FromMachineType(machine_type);
+
+      if (const ConstantOp* value_cst =
+              __ Get(value).TryCast<Opmask::kWord64Constant>()) {
+        if (rep.value() == any_of(MemoryRepresentation::Enum::kAnyTagged,
+                                  MemoryRepresentation::Enum::kTaggedSigned)) {
+          // This is storing a Smi as a raw Word64. Instead, we'll convert the
+          // raw Word64 to a proper Smi.
+          if (IsValidSmi(value_cst->signed_integral())) {
+            value = __ SmiConstant(Tagged<Smi>(value_cst->signed_integral()));
+          }
+        }
+      }
 
       __ Store(object, value, kind, rep, access.write_barrier_kind,
                access.offset, initializing_transitioning,
@@ -1789,6 +1799,18 @@ OpIndex GraphBuilder::Process(
     case IrOpcode::kStringLength:
       return __ StringLength(Map(node->InputAt(0)));
 
+    case IrOpcode::kStringWrapperLength: {
+      V<String> str =
+          __ LoadField<String>(Map<JSPrimitiveWrapper>(node->InputAt(0)),
+                               AccessBuilder::ForJSPrimitiveWrapperValue());
+      return __ StringLength(str);
+    }
+
+    case IrOpcode::kTypedArrayLength: {
+      ElementsKind elements_kind = OpParameter<ElementsKind>(node->op());
+      return __ TypedArrayLength(Map(node->InputAt(0)), elements_kind);
+    }
+
     case IrOpcode::kStringIndexOf:
       return __ StringIndexOf(Map(node->InputAt(0)), Map(node->InputAt(1)),
                               Map(node->InputAt(2)));
@@ -1802,8 +1824,8 @@ OpIndex GraphBuilder::Process(
                                 Map(node->InputAt(2)));
 
     case IrOpcode::kStringConcat:
-      // We don't need node->InputAt(0) here.
-      return __ StringConcat(Map(node->InputAt(1)), Map(node->InputAt(2)));
+      return __ StringConcat(Map(node->InputAt(0)), Map(node->InputAt(1)),
+                             Map(node->InputAt(2)));
 
     case IrOpcode::kStringEqual:
       return __ StringEqual(Map(node->InputAt(0)), Map(node->InputAt(1)));
@@ -1885,13 +1907,13 @@ OpIndex GraphBuilder::Process(
     case IrOpcode::kCompareMaps: {
       const ZoneRefSet<v8::internal::Map>& maps =
           CompareMapsParametersOf(node->op());
-      return __ CompareMaps(Map(node->InputAt(0)), maps);
+      return __ CompareMaps(Map(node->InputAt(0)), {}, maps);
     }
 
     case IrOpcode::kCheckMaps: {
       DCHECK(dominating_frame_state.valid());
       const auto& p = CheckMapsParametersOf(node->op());
-      __ CheckMaps(Map(node->InputAt(0)), dominating_frame_state, p.maps(),
+      __ CheckMaps(Map(node->InputAt(0)), dominating_frame_state, {}, p.maps(),
                    p.flags(), p.feedback());
       return OpIndex{};
     }
@@ -1988,7 +2010,7 @@ OpIndex GraphBuilder::Process(
       DCHECK(dominating_frame_state.valid());
       FastApiCallNode n(node);
       const auto& params = n.Parameters();
-      const FastApiCallFunctionVector& c_functions = params.c_functions();
+      FastApiCallFunction c_function = params.c_function();
       const int c_arg_count = params.argument_count();
 
       base::SmallVector<OpIndex, 16> slow_call_arguments;
@@ -2000,29 +2022,161 @@ OpIndex GraphBuilder::Process(
         slow_call_arguments.push_back(Map(n.SlowCallArgument(i)));
       }
 
+      auto convert_fallback_return = [this](Variable value,
+                                            CFunctionInfo::Int64Representation
+                                                int64_rep,
+                                            CTypeInfo::Type return_type,
+                                            V<Object> result) {
+#define ELSE_UNREACHABLE                                    \
+  ELSE {                                                    \
+    __ RuntimeAbort(AbortReason::kFastCallFallbackInvalid); \
+    __ Unreachable();                                       \
+  }
+        switch (return_type) {
+          case CTypeInfo::Type::kVoid:
+            __ SetVariable(value, __ UndefinedConstant());
+            return;
+          case CTypeInfo::Type::kBool:
+            // Check that the return value is actually a boolean.
+            IF (LIKELY(__ Word32BitwiseOr(
+                    __ TaggedEqual(result, __ TrueConstant()),
+                    __ TaggedEqual(result, __ FalseConstant())))) {
+              __ SetVariable(
+                  value, __ ConvertJSPrimitiveToUntagged(
+                             V<Boolean>::Cast(result),
+                             ConvertJSPrimitiveToUntaggedOp::UntaggedKind::kBit,
+                             ConvertJSPrimitiveToUntaggedOp::InputAssumptions::
+                                 kBoolean));
+            }
+            ELSE_UNREACHABLE
+            return;
+          case CTypeInfo::Type::kInt32:
+            IF (LIKELY(__ ObjectIsNumber(result))) {
+              __ SetVariable(
+                  value,
+                  __ ConvertJSPrimitiveToUntagged(
+                      V<Number>::Cast(result),
+                      ConvertJSPrimitiveToUntaggedOp::UntaggedKind::kInt32,
+                      ConvertJSPrimitiveToUntaggedOp::InputAssumptions::
+                          kNumberOrOddball));
+            }
+            ELSE_UNREACHABLE
+            return;
+          case CTypeInfo::Type::kUint32:
+            IF (LIKELY(__ ObjectIsNumber(result))) {
+              __ SetVariable(
+                  value,
+                  __ ConvertJSPrimitiveToUntagged(
+                      V<Number>::Cast(result),
+                      ConvertJSPrimitiveToUntaggedOp::UntaggedKind::kUint32,
+                      ConvertJSPrimitiveToUntaggedOp::InputAssumptions::
+                          kNumberOrOddball));
+            }
+            ELSE_UNREACHABLE
+            return;
+          case CTypeInfo::Type::kInt64:
+            if (int64_rep == CFunctionInfo::Int64Representation::kBigInt) {
+              IF (LIKELY(__ ObjectIsBigInt(result))) {
+                __ SetVariable(
+                    value,
+                    __ TruncateJSPrimitiveToUntagged(
+                        V<BigInt>::Cast(result),
+                        TruncateJSPrimitiveToUntaggedOp::UntaggedKind::kInt64,
+                        TruncateJSPrimitiveToUntaggedOp::InputAssumptions::
+                            kBigInt));
+              }
+              ELSE_UNREACHABLE
+            } else {
+              DCHECK_EQ(int64_rep, CFunctionInfo::Int64Representation::kNumber);
+              IF (LIKELY(__ ObjectIsNumber(result))) {
+                V<turboshaft::Tuple<Word64, Word32>> tuple =
+                    __ TryTruncateFloat64ToInt64(
+                        V<Float64>::Cast(__ ConvertJSPrimitiveToUntagged(
+                            V<Number>::Cast(result),
+                            ConvertJSPrimitiveToUntaggedOp::UntaggedKind::
+                                kFloat64,
+                            ConvertJSPrimitiveToUntaggedOp::InputAssumptions::
+                                kNumberOrOddball)));
+                IF (__ Word32Equal(__ template Projection<1>(tuple),
+                                   TryChangeOp::kSuccessValue)) {
+                  __ SetVariable(value, __ ChangeInt64ToFloat64(
+                                            __ template Projection<0>(tuple)));
+                }
+                ELSE_UNREACHABLE
+              }
+              ELSE_UNREACHABLE
+            }
+            return;
+          case CTypeInfo::Type::kUint64:
+            if (int64_rep == CFunctionInfo::Int64Representation::kBigInt) {
+              IF (LIKELY(__ ObjectIsBigInt(result))) {
+                __ SetVariable(
+                    value,
+                    __ TruncateJSPrimitiveToUntagged(
+                        V<BigInt>::Cast(result),
+                        // Truncation from BigInt to int64 and uint64 is the
+                        // same.
+                        TruncateJSPrimitiveToUntaggedOp::UntaggedKind::kInt64,
+                        TruncateJSPrimitiveToUntaggedOp::InputAssumptions::
+                            kBigInt));
+              }
+              ELSE_UNREACHABLE
+            } else {
+              DCHECK_EQ(int64_rep, CFunctionInfo::Int64Representation::kNumber);
+              IF (LIKELY(__ ObjectIsNumber(result))) {
+                V<turboshaft::Tuple<Word64, Word32>> tuple =
+                    __ TryTruncateFloat64ToUint64(
+                        V<Float64>::Cast(__ ConvertJSPrimitiveToUntagged(
+                            V<Number>::Cast(result),
+                            ConvertJSPrimitiveToUntaggedOp::UntaggedKind::
+                                kFloat64,
+                            ConvertJSPrimitiveToUntaggedOp::InputAssumptions::
+                                kNumberOrOddball)));
+                IF (__ Word32Equal(__ template Projection<1>(tuple),
+                                   TryChangeOp::kSuccessValue)) {
+                  __ SetVariable(value, __ ChangeUint64ToFloat64(
+                                            __ template Projection<0>(tuple)));
+                }
+                ELSE_UNREACHABLE
+              }
+              ELSE_UNREACHABLE
+            }
+            return;
+          case CTypeInfo::Type::kFloat32:
+          case CTypeInfo::Type::kFloat64:
+            IF (LIKELY(__ ObjectIsNumber(result))) {
+              V<Float64> f = V<Float64>::Cast(__ ConvertJSPrimitiveToUntagged(
+                  V<Number>::Cast(result),
+                  ConvertJSPrimitiveToUntaggedOp::UntaggedKind::kFloat64,
+                  ConvertJSPrimitiveToUntaggedOp::InputAssumptions::
+                      kNumberOrOddball));
+              if (return_type == CTypeInfo::Type::kFloat32) {
+                __ SetVariable(value, __ TruncateFloat64ToFloat32(f));
+              } else {
+                __ SetVariable(value, f);
+              }
+            }
+            ELSE_UNREACHABLE
+            return;
+          case CTypeInfo::Type::kPointer:
+            __ SetVariable(value, result);
+            return;
+          case CTypeInfo::Type::kAny:
+          case CTypeInfo::Type::kSeqOneByteString:
+          case CTypeInfo::Type::kV8Value:
+          case CTypeInfo::Type::kApiObject:
+          case CTypeInfo::Type::kUint8:
+            UNREACHABLE();
+        }
+
+#undef ELSE_UNREACHABLE
+      };
+
       std::optional<decltype(assembler)::CatchScope> catch_scope;
       if (is_final_control) {
         Block* catch_block = Map(block->SuccessorAt(1));
         catch_scope.emplace(assembler, catch_block);
       }
-      // Overload resolution.
-      auto resolution_result =
-          fast_api_call::OverloadsResolutionResult::Invalid();
-      if (c_functions.size() != 1) {
-        DCHECK_EQ(c_functions.size(), 2);
-        resolution_result =
-            fast_api_call::ResolveOverloads(c_functions, c_arg_count);
-        if (!resolution_result.is_valid()) {
-          auto result = __ Call(
-              slow_call_callee, dominating_frame_state,
-              base::VectorOf(slow_call_arguments),
-              TSCallDescriptor::Create(params.descriptor(), CanThrow::kYes,
-                                       LazyDeoptOnThrow::kNo, __ graph_zone()));
-          __ Unreachable();
-          return result;
-        }
-      }
-
       // Prepare FastCallApiOp parameters.
       base::SmallVector<OpIndex, 16> arguments;
       for (int i = 0; i < c_arg_count; ++i) {
@@ -2032,41 +2186,22 @@ OpIndex GraphBuilder::Process(
 
       V<Context> context = Map(n.Context());
 
-      const FastApiCallParameters* parameters = FastApiCallParameters::Create(
-          c_functions, resolution_result, __ graph_zone());
+      const FastApiCallParameters* parameters =
+          FastApiCallParameters::Create(c_function, __ graph_zone());
 
       // There is one return in addition to the return value of the C function,
       // which indicates if a fast API call actually happened.
-      CTypeInfo return_type = params.c_functions()[0].signature->ReturnInfo();
-      bool return_is_void = return_type.GetType() == CTypeInfo::Type::kVoid;
+      CTypeInfo return_type = parameters->c_signature()->ReturnInfo();
       int return_count = 2;
-
-      const base::Vector<RegisterRepresentation> out_reps =
-          graph_zone->AllocateVector<RegisterRepresentation>(return_count);
-      out_reps[0] = RegisterRepresentation::Word32();
-
-      if (return_is_void ||
-          return_type.GetType() == CTypeInfo::Type::kPointer) {
-        out_reps[1] = RegisterRepresentation::Tagged();
-      } else if (return_type.GetType() == CTypeInfo::Type::kInt64 ||
-                 return_type.GetType() == CTypeInfo::Type::kUint64) {
-        if (params.c_functions()[0].signature->GetInt64Representation() ==
-            CFunctionInfo::Int64Representation::kBigInt) {
-          out_reps[1] = RegisterRepresentation::Word64();
-        } else {
-          DCHECK_EQ(params.c_functions()[0].signature->GetInt64Representation(),
-                    CFunctionInfo::Int64Representation::kNumber);
-          out_reps[1] = RegisterRepresentation::Float64();
-        }
-      } else {
-        out_reps[1] = RegisterRepresentation::FromMachineType(
-            MachineType::TypeForCType(return_type));
-      }
-
-      Label<Object> done(this);
 
       // Allocate the out_reps vector in the zone, so that it lives through the
       // whole compilation.
+      const base::Vector<RegisterRepresentation> out_reps =
+          graph_zone->AllocateVector<RegisterRepresentation>(return_count);
+      out_reps[0] = RegisterRepresentation::Word32();
+      out_reps[1] = RegisterRepresentation::FromCTypeInfo(
+          return_type, parameters->c_signature()->GetInt64Representation());
+
       V<Tuple<Word32, Any>> fast_call_result =
           __ FastApiCall(dominating_frame_state, data_argument, context,
                          base::VectorOf(arguments), parameters, out_reps);
@@ -2074,37 +2209,28 @@ OpIndex GraphBuilder::Process(
       V<Word32> result_state = __ template Projection<0>(fast_call_result);
       V<Any> result_value =
           __ template Projection<1>(fast_call_result, out_reps[1]);
+      Variable result = __ NewVariable(out_reps[1]);
+      __ SetVariable(result, result_value);
 
       IF (UNLIKELY(
               __ Word32Equal(result_state, FastApiCallOp::kFailureValue))) {
-        // We need to generate a fallback (both fast and slow call) in case:
-        // 1) the generated code might fail, in case e.g. a Smi was passed where
-        // a JSObject was expected and an error must be thrown or
-        // 2) the embedder requested fallback possibility via providing options
-        // arg. None of the above usually holds true for Wasm functions with
+        // We need to generate a fallback (both fast and slow call) in case
+        // the generated code might fail, in case e.g. a Smi was passed where
+        // a JSObject was expected and an error must be thrown.
+        // None of this usually holds true for Wasm functions with
         // primitive types only, so we avoid generating an extra branch here.
 
-        __ Call(
+        V<Object> fallback_result = V<Object>::Cast(__ Call(
             slow_call_callee, dominating_frame_state,
             base::VectorOf(slow_call_arguments),
             TSCallDescriptor::Create(params.descriptor(), CanThrow::kYes,
-                                     LazyDeoptOnThrow::kNo, __ graph_zone()));
+                                     LazyDeoptOnThrow::kNo, __ graph_zone())));
 
-        // Currently we cannot handle return values of regular API calls here.
-        // Typically, regular API calls are only used when a parameter is
-        // invalid, so that the correct exception can be thrown by the regular
-        // API call. However, when a string is passed in the wrong format, the
-        // string is still a valid value, and the regular API call will succeed,
-        // even though a fast API call was not possible.
-        // TODO(ahaas): This issue could be solved by converting the return
-        // value of `__ CALL()` from Tagged to the correct type, and by
-        // introducing a `Variable` of the correct type to use the result of the
-        // regular API call and not unconditionally the return value of the fast
-        // API call.
-        if (!return_is_void) {
-          __ Unreachable();
-        }
+        convert_fallback_return(
+            result, parameters->c_signature()->GetInt64Representation(),
+            return_type.GetType(), fallback_result);
       }
+      V<Any> value = __ GetVariable(result);
       if (is_final_control) {
         // The `__ FastApiCall()` before has already created exceptional control
         // flow and bound a new block for the success case. So we can just
@@ -2112,7 +2238,7 @@ OpIndex GraphBuilder::Process(
         // successor.
         __ Goto(Map(block->SuccessorAt(0)));
       }
-      return result_value;
+      return value;
     }
 
     case IrOpcode::kRuntimeAbort:
@@ -2140,7 +2266,15 @@ OpIndex GraphBuilder::Process(
       __ TransitionElementsKind(Map(node->InputAt(0)),
                                 ElementsTransitionOf(node->op()));
       return OpIndex::Invalid();
-
+    case IrOpcode::kTransitionElementsKindOrCheckMap: {
+      DCHECK(dominating_frame_state.valid());
+      V<HeapObject> receiver = Map(node->InputAt(0));
+      V<i::Map> map = __ LoadMapField(receiver);
+      __ TransitionElementsKindOrCheckMap(
+          receiver, map, dominating_frame_state,
+          ElementsTransitionWithMultipleSourcesOf(node->op()));
+      return OpIndex::Invalid();
+    }
     case IrOpcode::kAssertType: {
       compiler::Type type = OpParameter<compiler::Type>(node->op());
       CHECK(type.CanBeAsserted());
@@ -2226,16 +2360,32 @@ OpIndex GraphBuilder::Process(
           break;
         case MemoryAccessKind::kUnaligned:
           UNREACHABLE();
-        case MemoryAccessKind::kProtected:
+        case MemoryAccessKind::kProtectedByTrapHandler:
           kind = LoadOp::Kind::RawAligned().Atomic().Protected();
           break;
       }
+      RegisterRepresentation result_rep =
+          RegisterRepresentation::FromMachineType(p.representation());
+      if (result_rep == RegisterRepresentation::Tagged()) {
+        // TODO(nicohartmann): Tagged loads are currently not supported by the
+        // instruction selectors, but are emitted by some tests.. We work around
+        // this using bitcasts, which is safe because atomic loads are not
+        // load-eliminated. We still should try to properly support tagged
+        // atomic loads eventually and remove this workaround.
+        result_rep = node->opcode() == IrOpcode::kWord32AtomicLoad
+                         ? RegisterRepresentation::Word32()
+                         : RegisterRepresentation::Word64();
+        return __ TaggedBitcast(
+            __ Load(base, offset, kind,
+                    MemoryRepresentation::FromRegisterRepresentation(result_rep,
+                                                                     true),
+                    result_rep, 0, 0),
+            result_rep, RegisterRepresentation::Tagged(),
+            TaggedBitcastOp::Kind::kAny);
+      }
       return __ Load(base, offset, kind,
                      MemoryRepresentation::FromMachineType(p.representation()),
-                     node->opcode() == IrOpcode::kWord32AtomicLoad
-                         ? RegisterRepresentation::Word32()
-                         : RegisterRepresentation::Word64(),
-                     0, 0);
+                     result_rep, 0, 0);
     }
 
     case IrOpcode::kWord32AtomicStore:
@@ -2253,7 +2403,7 @@ OpIndex GraphBuilder::Process(
           break;
         case MemoryAccessKind::kUnaligned:
           UNREACHABLE();
-        case MemoryAccessKind::kProtected:
+        case MemoryAccessKind::kProtectedByTrapHandler:
           kind = StoreOp::Kind::RawAligned().Atomic().Protected();
           break;
       }

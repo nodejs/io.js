@@ -2,16 +2,14 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-# for py2/py3 compatibility
-from __future__ import print_function
-
 print("""
+Some smoke-test output.
+___foozzie___smoke_test_end___
+
 1
 v8-foozzie source: name/to/a/file.js
 2
 v8-foozzie source: name/to/file.js
-  weird other error
-^
 3
 not unknown
 """)

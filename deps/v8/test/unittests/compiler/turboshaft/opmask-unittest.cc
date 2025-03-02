@@ -4,6 +4,7 @@
 
 #include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/opmasks.h"
+#include "src/heap/parked-scope.h"
 #include "testing/gtest-support.h"
 
 namespace v8::internal::compiler::turboshaft {

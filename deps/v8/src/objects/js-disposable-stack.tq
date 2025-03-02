@@ -15,9 +15,10 @@ extern enum DisposableStackResourcesType extends uint31 {
 
 bitfield struct DisposableStackStatus extends uint31 {
   state: DisposableStackState: 1 bit;
-  needsAwait: bool: 1 bit;
-  hasAwaited: bool: 1 bit;
-  length: int32: 28 bit;
+  needs_await: bool: 1 bit;
+  has_awaited: bool: 1 bit;
+  suppressed_error_created: bool: 1 bit;
+  length: int32: 27 bit;
 }
 
 extern class JSDisposableStackBase extends JSObject {
@@ -29,6 +30,7 @@ extern class JSDisposableStackBase extends JSObject {
   stack: FixedArray;
   status: SmiTagged<DisposableStackStatus>;
   error: Object|Hole;
+  error_message: Object|Hole;
 }
 
 extern class JSSyncDisposableStack extends JSDisposableStackBase {}

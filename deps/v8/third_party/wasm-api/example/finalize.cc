@@ -46,7 +46,8 @@ void run_in_store(wasm::Store* store) {
   std::cout << "Instantiating modules..." << std::endl;
   for (int i = 0; i <= iterations; ++i) {
     if (i % (iterations / 10) == 0) std::cout << i << std::endl;
-    auto instance = wasm::Instance::make(store, module.get(), nullptr);
+    auto imports = wasm::vec<wasm::Extern*>::make();
+    auto instance = wasm::Instance::make(store, module.get(), imports);
     if (!instance) {
       std::cout << "> Error instantiating module " << i << "!" << std::endl;
       exit(1);

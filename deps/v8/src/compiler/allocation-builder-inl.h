@@ -34,7 +34,7 @@ void AllocationBuilder::AllocateContext(int variadic_part_length, MapRef map) {
   Allocate(size, AllocationType::kYoung, Type::OtherInternal());
   Store(AccessBuilder::ForMap(), map);
   static_assert(static_cast<int>(Context::kLengthOffset) ==
-                static_cast<int>(FixedArray::kLengthOffset));
+                static_cast<int>(offsetof(FixedArray, length_)));
   Store(AccessBuilder::ForFixedArrayLength(),
         jsgraph()->ConstantNoHole(variadic_part_length));
 }

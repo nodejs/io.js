@@ -6,6 +6,7 @@
 #define V8_OBJECTS_TURBOSHAFT_TYPES_INL_H_
 
 #include "src/heap/heap-write-barrier.h"
+#include "src/objects/objects-inl.h"
 #include "src/objects/turboshaft-types.h"
 #include "src/torque/runtime-macro-shims.h"
 #include "src/torque/runtime-support.h"

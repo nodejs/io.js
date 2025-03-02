@@ -23,20 +23,20 @@ class StringSetShape : public BaseShape<Tagged<String>> {
   static const int kPrefixSize = 0;
   static const int kEntrySize = 1;
   static const bool kMatchNeedsHoleCheck = true;
+  static const bool kDoHashSpreading = false;
+  static const uint32_t kHashBits = 0;
 };
 
 EXTERN_DECLARE_HASH_TABLE(StringSet, StringSetShape)
 
-class StringSet : public HashTable<StringSet, StringSetShape> {
+V8_OBJECT class StringSet : public HashTable<StringSet, StringSetShape> {
  public:
   V8_EXPORT_PRIVATE static Handle<StringSet> New(Isolate* isolate);
   V8_EXPORT_PRIVATE static Handle<StringSet> Add(Isolate* isolate,
                                                  Handle<StringSet> stringset,
                                                  DirectHandle<String> name);
   V8_EXPORT_PRIVATE bool Has(Isolate* isolate, DirectHandle<String> name);
-
-  OBJECT_CONSTRUCTORS(StringSet, HashTable<StringSet, StringSetShape>);
-};
+} V8_OBJECT_END;
 
 }  // namespace internal
 }  // namespace v8

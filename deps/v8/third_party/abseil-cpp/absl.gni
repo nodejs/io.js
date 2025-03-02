@@ -37,8 +37,11 @@ template("absl_source_set") {
         "//third_party/abseil-cpp:absl_define_config",
       ]
 
+      if (!defined(defines)) {
+        defines = []
+      }
       if (is_component_build) {
-        defines = [ "ABSL_BUILD_DLL" ]
+        defines += [ "ABSL_BUILD_DLL" ]
         if (!is_win && current_os != "aix") {
           configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
           configs += [ "//build/config/gcc:symbol_visibility_default" ]
@@ -48,17 +51,12 @@ template("absl_source_set") {
       if (!defined(public_configs)) {
         public_configs = []
       }
-      public_configs += [
-        "//third_party/abseil-cpp:absl_include_config",
-        "//third_party/abseil-cpp:absl_public_cflags_cc",
-      ]
+      public_configs += [ "//third_party/abseil-cpp:absl_include_config" ]
 
       if (!defined(visibility)) {
         # Within Chromium builds, restrict direct visibility of Abseil sources, so
         # users must depend on //third_party/abseil-cpp:absl. This prevents use of
         # banned targets like absl/types:any. A few targets require exceptions.
-        # TODO(crbug.com/1096380): Consider replacing build_with_chromium with
-        # is_component_build for a narrower, more accurate condition.
         if (build_with_chromium) {
           visibility = [
             # Abseil itself.
@@ -67,28 +65,15 @@ template("absl_source_set") {
             # GTest.  It unconditionally #includes any.h if pretty-print support
             # for absl types is enabled.
             "//third_party/googletest/*",
-
-            # WebRTC binary to run PSNR and SSIM video quality analysis. It
-            # statically links absl and it is used by "browser_tests" when
-            # is_component_build=false but it cannot depend on the absl
-            # component because it uses absl/flags.
-            "//third_party/webrtc/rtc_tools:frame_analyzer",
-
-            # WebRTC binaries used by //:chromium_builder_asan. They both
-            # statically link absl (because they depend on absl/flags) and are
-            # used by Chromium only when is_component_build=false.
-            "//third_party/webrtc/rtc_tools:rtp_generator",
-            "//third_party/webrtc/rtc_tools:video_replay",
-
-            # Not used by Chromium directly.
-            "//chromecast/internal/*",
-            "//libassistant/*",
-
-            # Not built into Chrome.
-            # TODO(crbug.com/357147248): Remove after these targets depend
-            # on absl_full instead.
-            "//components/optimization_guide/internal/*",
           ]
+
+          if (!is_component_build) {
+            visibility += [
+              # Not used by Chromium directly.
+              "//chromecast/internal/*",
+              "//libassistant/*",
+            ]
+          }
         } else {
           visibility = [ "*" ]
         }
@@ -115,10 +100,7 @@ template("absl_test") {
       if (!defined(public_configs)) {
         public_configs = []
       }
-      public_configs += [
-        "//third_party/abseil-cpp:absl_include_config",
-        "//third_party/abseil-cpp:absl_public_cflags_cc",
-      ]
+      public_configs += [ "//third_party/abseil-cpp:absl_include_config" ]
 
       visibility = [ "//third_party/abseil-cpp/:*" ]
       deps += [

@@ -81,7 +81,8 @@ class ValueTypeFieldsRange {
   ValueTypeFieldIterator end() {
     size_t index = 0;
     std::optional<const StructType*> struct_type = type_->StructSupertype();
-    if (struct_type && *struct_type != TypeOracle::GetFloat64OrHoleType()) {
+    if (struct_type &&
+        *struct_type != TypeOracle::GetFloat64OrUndefinedOrHoleType()) {
       index = (*struct_type)->fields().size();
     }
     const Type* type = type_;

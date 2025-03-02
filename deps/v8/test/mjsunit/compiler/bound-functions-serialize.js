@@ -27,5 +27,5 @@ c.prop = 42;
 // Assert that the call reducer optimized the call to Object.getPrototypeOf
 // by asserting that foo gets deopted when c's previous map becomes
 // unstable.
-foo();
 assertUnoptimized(foo);
+foo();

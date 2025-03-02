@@ -14,9 +14,11 @@ namespace base {
 // Checks if value is in range [lower_limit, higher_limit] using a single
 // branch.
 template <typename T, typename U>
+  requires((std::is_integral_v<T> || std::is_enum_v<T>) &&
+           (std::is_integral_v<U> || std::is_enum_v<U>)) &&
+          (sizeof(U) <= sizeof(T))
 inline constexpr bool IsInRange(T value, U lower_limit, U higher_limit) {
   DCHECK_LE(lower_limit, higher_limit);
-  static_assert(sizeof(U) <= sizeof(T));
   using unsigned_T = typename std::make_unsigned<T>::type;
   // Use static_cast to support enum classes.
   return static_cast<unsigned_T>(static_cast<unsigned_T>(value) -
@@ -27,10 +29,12 @@ inline constexpr bool IsInRange(T value, U lower_limit, U higher_limit) {
 
 // Like IsInRange but for the half-open range [lower_limit, higher_limit).
 template <typename T, typename U>
+  requires((std::is_integral_v<T> || std::is_enum_v<T>) &&
+           (std::is_integral_v<U> || std::is_enum_v<U>)) &&
+          (sizeof(U) <= sizeof(T))
 inline constexpr bool IsInHalfOpenRange(T value, U lower_limit,
                                         U higher_limit) {
   DCHECK_LE(lower_limit, higher_limit);
-  static_assert(sizeof(U) <= sizeof(T));
   using unsigned_T = typename std::make_unsigned<T>::type;
   // Use static_cast to support enum classes.
   return static_cast<unsigned_T>(static_cast<unsigned_T>(value) -
@@ -41,9 +45,10 @@ inline constexpr bool IsInHalfOpenRange(T value, U lower_limit,
 
 // Checks if [index, index+length) is in range [0, max). Note that this check
 // works even if {index+length} would wrap around.
-template <typename T,
-          typename = typename std::enable_if<std::is_unsigned<T>::value>::type>
-inline constexpr bool IsInBounds(T index, T length, T max) {
+template <typename T>
+inline constexpr bool IsInBounds(T index, T length, T max)
+  requires std::is_unsigned<T>::value
+{
   return length <= max && index <= (max - length);
 }
 

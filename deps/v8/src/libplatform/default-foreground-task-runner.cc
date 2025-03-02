@@ -49,7 +49,7 @@ void DefaultForegroundTaskRunner::Terminate() {
 
 std::unique_ptr<Task> DefaultForegroundTaskRunner::PostTaskLocked(
     std::unique_ptr<Task> task, Nestability nestability) {
-  DCHECK(!mutex_.TryLock());
+  mutex_.AssertHeld();
   if (terminated_) return task;
   task_queue_.push_back(std::make_pair(nestability, std::move(task)));
   event_loop_control_.NotifyOne();
@@ -69,7 +69,7 @@ double DefaultForegroundTaskRunner::MonotonicallyIncreasingTime() {
 void DefaultForegroundTaskRunner::PostDelayedTaskLocked(
     std::unique_ptr<Task> task, double delay_in_seconds,
     Nestability nestability) {
-  DCHECK(!mutex_.TryLock());
+  mutex_.AssertHeld();
   DCHECK_GE(delay_in_seconds, 0.0);
   if (terminated_) return;
   double deadline = MonotonicallyIncreasingTime() + delay_in_seconds;
@@ -164,7 +164,7 @@ std::unique_ptr<Task> DefaultForegroundTaskRunner::PopTaskFromQueue(
 std::unique_ptr<Task>
 DefaultForegroundTaskRunner::PopTaskFromDelayedQueueLocked(
     Nestability* nestability) {
-  DCHECK(!mutex_.TryLock());
+  mutex_.AssertHeld();
   if (delayed_task_queue_.empty()) return {};
 
   double now = MonotonicallyIncreasingTime();
@@ -193,7 +193,7 @@ std::unique_ptr<IdleTask> DefaultForegroundTaskRunner::PopTaskFromIdleQueue() {
 }
 
 void DefaultForegroundTaskRunner::WaitForTaskLocked() {
-  DCHECK(!mutex_.TryLock());
+  mutex_.AssertHeld();
   if (!delayed_task_queue_.empty()) {
     double now = MonotonicallyIncreasingTime();
     const DelayedEntry& entry = delayed_task_queue_.top();

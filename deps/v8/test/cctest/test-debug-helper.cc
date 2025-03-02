@@ -125,7 +125,7 @@ class TestDebugHelper {
  public:
   static Address MetadataTableAddress() {
 #ifdef V8_ENABLE_SANDBOX
-    return MemoryChunk::MetadataTableAddress();
+    return reinterpret_cast<Address>(MemoryChunk::MetadataTableAddress());
 #else
     return 0;
 #endif
@@ -143,7 +143,7 @@ TEST(GetObjectProperties) {
   d::HeapAddresses heap_addresses{0, 0, 0, 0, 0};
 
   v8::Local<v8::Value> v = CompileRun("42");
-  Handle<Object> o = v8::Utils::OpenHandle(*v);
+  DirectHandle<Object> o = v8::Utils::OpenDirectHandle(*v);
   d::ObjectPropertiesResultPtr props =
       d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK(props->type_check_result == d::TypeCheckResult::kSmi);
@@ -152,7 +152,7 @@ TEST(GetObjectProperties) {
   CHECK_EQ(props->num_properties, 0);
 
   v = CompileRun("[\"a\", \"bc\"]");
-  o = v8::Utils::OpenHandle(*v);
+  o = v8::Utils::OpenDirectHandle(*v);
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK(props->type_check_result == d::TypeCheckResult::kUsedMap);
   CHECK(props->type == std::string("v8::internal::JSArray"));
@@ -316,7 +316,7 @@ TEST(GetObjectProperties) {
   v = CompileRun(R"(
     const alphabet = "abcdefghijklmnopqrstuvwxyz";
     alphabet.substr(3,20) + alphabet.toUpperCase().substr(5,15) + "7")");
-  o = v8::Utils::OpenHandle(*v);
+  o = v8::Utils::OpenDirectHandle(*v);
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK(Contains(props->brief, "\"defghijklmnopqrstuvwFGHIJKLMNOPQRST7\""));
 
@@ -333,7 +333,7 @@ TEST(GetObjectProperties) {
 
   // Build a very long string.
   v = CompileRun("'a'.repeat(1000)");
-  o = v8::Utils::OpenHandle(*v);
+  o = v8::Utils::OpenDirectHandle(*v);
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK(Contains(props->brief, "\"" + std::string(80, 'a') + "...\""));
 
@@ -343,7 +343,7 @@ TEST(GetObjectProperties) {
   StringResource* string_resource = new StringResource(true);
   auto cachable_external_string =
       v8::String::NewExternalTwoByte(isolate, string_resource);
-  o = v8::Utils::OpenHandle(*cachable_external_string.ToLocalChecked());
+  o = v8::Utils::OpenDirectHandle(*cachable_external_string.ToLocalChecked());
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK(Contains(props->brief, "\"abcde\""));
   CheckProp(*props->properties[5], "char16_t", "raw_characters",
@@ -354,13 +354,13 @@ TEST(GetObjectProperties) {
   // GetObjectProperties cannot read uncacheable external strings.
   auto external_string =
       v8::String::NewExternalTwoByte(isolate, new StringResource(false));
-  o = v8::Utils::OpenHandle(*external_string.ToLocalChecked());
+  o = v8::Utils::OpenDirectHandle(*external_string.ToLocalChecked());
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   CHECK_EQ(std::string(props->brief).find("\""), std::string::npos);
 
   // Build a basic JS object and get its properties.
   v = CompileRun("({a: 1, b: 2})");
-  o = v8::Utils::OpenHandle(*v);
+  o = v8::Utils::OpenDirectHandle(*v);
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
 
   // Objects constructed from literals get their properties placed inline, so
@@ -414,7 +414,7 @@ TEST(GetObjectProperties) {
   // Build a basic JS function and get its properties. This will allow us to
   // exercise bitfield functionality.
   v = CompileRun("(function () {})");
-  o = v8::Utils::OpenHandle(*v);
+  o = v8::Utils::OpenDirectHandle(*v);
   props = d::GetObjectProperties((*o).ptr(), &ReadMemory, heap_addresses);
   props = d::GetObjectProperties(
       ReadProp<i::Tagged_t>(*props, "shared_function_info"), &ReadMemory,
@@ -448,7 +448,7 @@ static void FrameIterationCheck(
     i::StackFrame* frame = iter.frame();
     CHECK(i != 0 || (frame->type() == i::StackFrame::EXIT));
     d::StackFrameResultPtr props = d::GetStackFrame(frame->fp(), &ReadMemory);
-    if (frame->is_java_script()) {
+    if (frame->is_javascript()) {
       JavaScriptFrame* js_frame = JavaScriptFrame::cast(frame);
       CHECK_EQ(props->num_properties, 5);
       auto js_function = js_frame->function();

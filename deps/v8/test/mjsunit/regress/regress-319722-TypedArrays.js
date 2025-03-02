@@ -31,8 +31,7 @@ let kArrayBufferByteLengthLimit = %ArrayBufferMaxByteLength() + 1;
 
 function TestArray(constr, elementSize) {
   assertEquals(elementSize, constr.BYTES_PER_ELEMENT);
-  assertEquals(kArrayBufferByteLengthLimit % elementSize, 0);
-  let ta_limit = kArrayBufferByteLengthLimit / elementSize;
+  let ta_limit = Math.ceil(kArrayBufferByteLengthLimit / elementSize);
 
   assertThrows(() => new constr(ta_limit), RangeError);
 

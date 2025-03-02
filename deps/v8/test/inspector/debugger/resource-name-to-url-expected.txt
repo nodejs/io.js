@@ -3,6 +3,7 @@ Check script with url:
 {
     method : Debugger.scriptParsed
     params : {
+        buildId : 
         embedderName : prefix://url
         endColumn : 16
         endLine : 0
@@ -14,7 +15,7 @@ Check script with url:
         length : 16
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : prefix://url
@@ -24,6 +25,7 @@ Check script with sourceURL comment:
 {
     method : Debugger.scriptParsed
     params : {
+        buildId : 
         embedderName : prefix://url
         endColumn : 37
         endLine : 0
@@ -35,7 +37,7 @@ Check script with sourceURL comment:
         length : 37
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : foo.js
@@ -45,6 +47,7 @@ Check script failed to parse:
 {
     method : Debugger.scriptFailedToParse
     params : {
+        buildId : 
         embedderName : prefix://url
         endColumn : 15
         endLine : 0
@@ -55,7 +58,7 @@ Check script failed to parse:
         length : 15
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : prefix://url
@@ -65,6 +68,7 @@ Check script failed to parse with sourceURL comment:
 {
     method : Debugger.scriptFailedToParse
     params : {
+        buildId : 
         embedderName : prefix://url
         endColumn : 36
         endLine : 0
@@ -75,7 +79,7 @@ Check script failed to parse with sourceURL comment:
         length : 36
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : foo.js
@@ -111,7 +115,7 @@ Test runtime stack trace:
                 }
                 [2] : {
                     columnNumber : 4
-                    functionName :
+                    functionName : 
                     lineNumber : 4
                     scriptId : <scriptId>
                     url : prefix://url
@@ -124,7 +128,7 @@ Test runtime stack trace:
 }
 Test debugger stack trace:
 [
-    [0] :
-    [1] :
-    [2] :
+    [0] : 
+    [1] : 
+    [2] : 
 ]

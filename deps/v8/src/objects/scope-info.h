@@ -76,7 +76,14 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   int ContextLength() const;
   int ContextHeaderLength() const;
 
+  // Returns true if the respective contexts have a context extension slot.
   bool HasContextExtensionSlot() const;
+
+  // Returns true if there is a context with created context extension
+  // (meaningful only for contexts that call sloppy eval, see
+  // SloppyEvalCanExtendVars()).
+  bool SomeContextHasExtension() const;
+  void mark_some_context_has_extension();
 
   // Does this scope declare a "this" binding?
   bool HasReceiver() const;
@@ -87,7 +94,7 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
 
   // Does this scope has class brand (for private methods)? If it's a class
   // scope, this indicates whether the class has a private brand. If it's a
-  // constructor scope, this indicates whther it needs to initialize the
+  // constructor scope, this indicates whether it needs to initialize the
   // brand.
   bool ClassScopeHasPrivateBrand() const;
 
@@ -113,8 +120,6 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
 
   // Does this scope belong to a function?
   bool HasPositionInfo() const;
-
-  bool IsHiddenCatchScope() const;
 
   bool IsWrappedFunctionScope() const;
 
@@ -152,8 +157,8 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   template <typename ScopeInfoPtr>
   class LocalNamesRange;
 
-  static inline LocalNamesRange<Handle<ScopeInfo>> IterateLocalNames(
-      Handle<ScopeInfo> scope_info);
+  static inline LocalNamesRange<DirectHandle<ScopeInfo>> IterateLocalNames(
+      DirectHandle<ScopeInfo> scope_info);
 
   static inline LocalNamesRange<Tagged<ScopeInfo>> IterateLocalNames(
       Tagged<ScopeInfo> scope_info, const DisallowGarbageCollection& no_gc);
@@ -188,8 +193,8 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   // returns a value < 0. The name must be an internalized string.
   // If the slot is present and mode != nullptr, sets *mode to the corresponding
   // mode for that variable.
-  int ContextSlotIndex(Handle<String> name);
-  int ContextSlotIndex(Handle<String> name,
+  int ContextSlotIndex(DirectHandle<String> name);
+  int ContextSlotIndex(DirectHandle<String> name,
                        VariableLookupResult* lookup_result);
 
   // Lookup metadata of a MODULE-allocated variable.  Return 0 if there is no
@@ -258,14 +263,15 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
 
   template <typename IsolateT>
   static Handle<ScopeInfo> Create(IsolateT* isolate, Zone* zone, Scope* scope,
-                                  MaybeHandle<ScopeInfo> outer_scope);
-  V8_EXPORT_PRIVATE static Handle<ScopeInfo> CreateForWithScope(
-      Isolate* isolate, MaybeHandle<ScopeInfo> outer_scope);
-  V8_EXPORT_PRIVATE static Handle<ScopeInfo> CreateForEmptyFunction(
+                                  MaybeDirectHandle<ScopeInfo> outer_scope);
+  V8_EXPORT_PRIVATE static DirectHandle<ScopeInfo> CreateForWithScope(
+      Isolate* isolate, MaybeDirectHandle<ScopeInfo> outer_scope);
+  V8_EXPORT_PRIVATE static DirectHandle<ScopeInfo> CreateForEmptyFunction(
       Isolate* isolate);
-  static Handle<ScopeInfo> CreateForNativeContext(Isolate* isolate);
-  static Handle<ScopeInfo> CreateForShadowRealmNativeContext(Isolate* isolate);
-  static Handle<ScopeInfo> CreateGlobalThisBinding(Isolate* isolate);
+  static DirectHandle<ScopeInfo> CreateForNativeContext(Isolate* isolate);
+  static DirectHandle<ScopeInfo> CreateForShadowRealmNativeContext(
+      Isolate* isolate);
+  static DirectHandle<ScopeInfo> CreateGlobalThisBinding(Isolate* isolate);
 
   // Serializes empty scope info.
   V8_EXPORT_PRIVATE static Tagged<ScopeInfo> Empty(Isolate* isolate);
@@ -285,6 +291,8 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
 
   static_assert(LanguageModeSize == 1 << LanguageModeBit::kSize);
   static_assert(FunctionKindBits::is_valid(FunctionKind::kLastFunctionKind));
+
+  inline Tagged<DependentCode> dependent_code() const;
 
   bool IsEmpty() const;
 
@@ -309,6 +317,7 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   int ModuleInfoIndex() const;
   int ModuleVariableCountIndex() const;
   int ModuleVariablesIndex() const;
+  int DependentCodeIndex() const;
 
   // Raw access by slot index. These functions rely on the fact that everything
   // in ScopeInfo is tagged. Each slot is tagged-pointer sized. Slot 0 is
@@ -341,8 +350,8 @@ class ScopeInfo : public TorqueGeneratedScopeInfo<ScopeInfo, HeapObject> {
   }
 
   enum class BootstrappingType { kScript, kFunction, kNative, kShadowRealm };
-  static Handle<ScopeInfo> CreateForBootstrapping(Isolate* isolate,
-                                                  BootstrappingType type);
+  static DirectHandle<ScopeInfo> CreateForBootstrapping(Isolate* isolate,
+                                                        BootstrappingType type);
 
   int Lookup(Handle<String> name, int start, int end, VariableMode* mode,
              VariableLocation* location, InitializationFlag* init_flag,

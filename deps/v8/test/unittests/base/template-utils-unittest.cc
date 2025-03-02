@@ -47,7 +47,7 @@ TEST(TemplateUtilsTest, MakeArrayConstexpr) {
 // Wrap into this helper struct, such that the type is printed on errors.
 template <typename T1, typename T2>
 struct CheckIsSame {
-  static_assert(std::is_same<T1, T2>::value, "test failure");
+  static_assert(std::is_same_v<T1, T2>, "test failure");
 };
 
 #define TEST_PASS_VALUE_OR_REF0(remove_extend, expected, given)               \
@@ -86,9 +86,9 @@ TEST_PASS_VALUE_OR_REF0(false, int, const int&);
 //////////////////////////////
 
 // Intrinsic types:
-static_assert(has_output_operator<int>::value, "int can be output");
-static_assert(has_output_operator<void*>::value, "void* can be output");
-static_assert(has_output_operator<uint64_t>::value, "int can be output");
+static_assert(has_output_operator<int>, "int can be output");
+static_assert(has_output_operator<void*>, "void* can be output");
+static_assert(has_output_operator<uint64_t>, "int can be output");
 
 // Classes:
 class TestClass1 {};
@@ -96,15 +96,14 @@ class TestClass2 {};
 extern std::ostream& operator<<(std::ostream& str, const TestClass2&);
 class TestClass3 {};
 extern std::ostream& operator<<(std::ostream& str, TestClass3);
-static_assert(!has_output_operator<TestClass1>::value,
-              "TestClass1 can not be output");
-static_assert(has_output_operator<TestClass2>::value,
+static_assert(!has_output_operator<TestClass1>, "TestClass1 can not be output");
+static_assert(has_output_operator<TestClass2>,
               "non-const TestClass2 can be output");
-static_assert(has_output_operator<const TestClass2>::value,
+static_assert(has_output_operator<const TestClass2>,
               "const TestClass2 can be output");
-static_assert(has_output_operator<TestClass3>::value,
+static_assert(has_output_operator<TestClass3>,
               "non-const TestClass3 can be output");
-static_assert(has_output_operator<const TestClass3>::value,
+static_assert(has_output_operator<const TestClass3>,
               "const TestClass3 can be output");
 
 }  // namespace template_utils_unittest

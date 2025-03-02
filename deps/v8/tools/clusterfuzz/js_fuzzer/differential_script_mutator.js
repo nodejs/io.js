@@ -14,6 +14,7 @@ const path = require('path');
 
 const common = require('./mutators/common.js');
 const random = require('./random.js');
+const runner = require('./runner.js');
 const sourceHelpers = require('./source_helpers.js');
 
 const { filterDifferentialFuzzFlags } = require('./exceptions.js');
@@ -22,7 +23,7 @@ const { DifferentialFuzzMutator, DifferentialFuzzSuppressions } = require(
 const { ScriptMutator } = require('./script_mutator.js');
 
 
-const USE_ORIGINAL_FLAGS_PROB = 0.2;
+const USE_ORIGINAL_FLAGS_PROB = 0.5;
 
 /**
  * Randomly chooses a configuration from experiments. The configuration
@@ -93,6 +94,15 @@ class DifferentialScriptMutator extends ScriptMutator {
     this.additionalFlags = loadJSONFromBuild('v8_fuzz_flags.json');
   }
 
+  get runnerClass() {
+    // Choose a setup with the Fuzzilli corpus in 1 of 3.
+    return random.single([
+        runner.RandomCorpusRunner,
+        runner.RandomCorpusRunner,
+        runner.RandomCorpusRunnerWithFuzzilli,
+    ]);
+  }
+
   /**
    * Performes the high-level mutation and afterwards adds flags for the
    * v8_foozzie.py harness.
@@ -124,7 +134,7 @@ class DifferentialScriptMutator extends ScriptMutator {
    * differential-fuzz mutators, adding extra printing and other substitutions.
    */
   mutateInputs(inputs) {
-    inputs.forEach(input => common.setOriginalPath(input, input.relPath));
+    inputs.forEach(input => common.setOriginalPath(input, input.diffFuzzPath));
 
     const result = super.mutateInputs(inputs);
     this.differential.forEach(mutator => mutator.mutate(result));

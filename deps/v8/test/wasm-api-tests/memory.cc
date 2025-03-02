@@ -33,7 +33,8 @@ TEST_F(WasmCapiTest, Memory) {
   uint8_t data[] = {0x1, 0x2, 0x3, 0x4};
   builder()->AddDataSegment(data, sizeof(data), 0x1000);
 
-  Instantiate(nullptr);
+  vec<Extern*> imports = vec<Extern*>::make_uninitialized();
+  Instantiate(imports);
 
   Memory* memory = GetExportedMemory(0);
   Func* size_func = GetExportedFunction(1);
@@ -49,10 +50,13 @@ TEST_F(WasmCapiTest, Memory) {
   EXPECT_EQ(0, memory->data()[0]);
   EXPECT_EQ(1, memory->data()[0x1000]);
   EXPECT_EQ(4, memory->data()[0x1003]);
-  Val args[2];
-  Val result[1];
+  vec<Val> args = vec<Val>::make_uninitialized(2);
+  vec<Val> result = vec<Val>::make_uninitialized(1);
   // size == 2
-  size_func->call(nullptr, result);
+  vec<Val> empty_args = vec<Val>::make_uninitialized();
+  vec<Val> empty_rets = vec<Val>::make_uninitialized();
+
+  size_func->call(empty_args, result);
   EXPECT_EQ(2, result[0].i32());
   // load(0) == 0
   args[0] = Val::i32(0x0);
@@ -79,10 +83,10 @@ TEST_F(WasmCapiTest, Memory) {
   memory->data()[0x1003] = 5;
   args[0] = Val::i32(0x1002);
   args[1] = Val::i32(6);
-  trap = store_func->call(args, nullptr);
+  trap = store_func->call(args, empty_rets);
   EXPECT_EQ(nullptr, trap.get());
   args[0] = Val::i32(0x20000);
-  trap = store_func->call(args, nullptr);
+  trap = store_func->call(args, empty_rets);
   EXPECT_NE(nullptr, trap.get());
   EXPECT_EQ(6, memory->data()[0x1002]);
   EXPECT_EQ(5, memory->data()[0x1003]);
@@ -101,12 +105,12 @@ TEST_F(WasmCapiTest, Memory) {
   trap = load_func->call(args, result);
   EXPECT_EQ(nullptr, trap.get());
   EXPECT_EQ(0, result[0].i32());
-  trap = store_func->call(args, nullptr);
+  trap = store_func->call(args, empty_rets);
   EXPECT_EQ(nullptr, trap.get());
   args[0] = Val::i32(0x30000);
   trap = load_func->call(args, result);
   EXPECT_NE(nullptr, trap.get());
-  trap = store_func->call(args, nullptr);
+  trap = store_func->call(args, empty_rets);
   EXPECT_NE(nullptr, trap.get());
   EXPECT_EQ(false, memory->grow(1));
   EXPECT_EQ(true, memory->grow(0));

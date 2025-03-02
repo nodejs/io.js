@@ -1,17 +1,18 @@
 #
 # V8 correctness failure
-# V8 correctness configs: x64,ignition:ia32,ignition_turbo
-# V8 correctness sources: f60
+# V8 correctness sources: f6
 # V8 correctness suppression: 
 #
 # CHECK
 #
-# Compared x64,ignition with ia32,ignition_turbo
+# Compared x64 with ia32
 #
-# Flags of x64,ignition:
---correctness-fuzzer-suppressions --expose-gc --fuzzing --allow-natives-for-differential-fuzzing --invoke-weak-callbacks --omit-quit --harmony --js-staging --wasm-staging --no-wasm-async-compilation --wasm-max-mem-pages=32767 --suppress-asm-messages --random-seed 12345 --turbo-filter=~ --no-turbofan --no-sparkplug --liftoff --no-wasm-tier-up --no-maglev
-# Flags of ia32,ignition_turbo:
---correctness-fuzzer-suppressions --expose-gc --fuzzing --allow-natives-for-differential-fuzzing --invoke-weak-callbacks --omit-quit --harmony --js-staging --wasm-staging --no-wasm-async-compilation --wasm-max-mem-pages=32767 --suppress-asm-messages --random-seed 12345 --very-bad-flag
+# Common flags:
+--correctness-fuzzer-suppressions --expose-gc --fuzzing --allow-natives-for-differential-fuzzing --invoke-weak-callbacks --omit-quit --harmony --js-staging --wasm-staging --no-wasm-async-compilation --wasm-max-mem-pages=32767 --suppress-asm-messages --random-seed 12345
+# Baseline flags:
+--turbo-filter=~ --no-turbofan --no-sparkplug --liftoff --no-wasm-tier-up --no-maglev
+# Comparison flags:
+--very-bad-flag
 #
 # Difference:
 + very bad behavior
@@ -19,32 +20,28 @@
 # Source file:
 name/to/file.js
 #
-### Start of configuration x64,ignition:
+### Start of baseline output:
 
 1
 v8-foozzie source: name/to/a/file.js
 2
 v8-foozzie source: name/to/file.js
-  weird error
-        ^
 3
 unknown
 
 
-### End of configuration x64,ignition
+### End of baseline output
 #
-### Start of configuration ia32,ignition_turbo:
+### Start of comparison output:
 
 1
 v8-foozzie source: name/to/a/file.js
 2
 v8-foozzie source: name/to/file.js
-  weird other error
-^
 3
 unknown
 
 very bad behavior
 
-### End of configuration ia32,ignition_turbo
+### End of comparison output
 

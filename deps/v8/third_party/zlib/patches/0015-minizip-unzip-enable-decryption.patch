@@ -18,17 +18,6 @@ diff --git a/third_party/zlib/contrib/minizip/unzip.c b/third_party/zlib/contrib
 index 82275d6c1775d..c8a01b23efd42 100644
 --- a/third_party/zlib/contrib/minizip/unzip.c
 +++ b/third_party/zlib/contrib/minizip/unzip.c
-@@ -68,10 +68,6 @@
- #include <stdlib.h>
- #include <string.h>
- 
--#ifndef NOUNCRYPT
--        #define NOUNCRYPT
--#endif
--
- #include "zlib.h"
- #include "unzip.h"
- 
 @@ -1502,6 +1498,7 @@ extern int ZEXPORT unzOpenCurrentFile3(unzFile file, int* method,
              zdecode(s->keys,s->pcrc_32_tab,source[i]);
  

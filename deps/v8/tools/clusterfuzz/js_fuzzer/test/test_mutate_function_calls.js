@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 /**
- * @fileoverview Tests for mutating funciton calls.
+ * @fileoverview Tests for mutating function calls.
  */
 
 'use strict';
@@ -22,7 +22,7 @@ function loadAndMutate(input_file) {
   const source = helpers.loadTestData(input_file);
 
   const settings = scriptMutator.defaultSettings();
-  settings['engine'] = 'V8';
+  settings['engine'] = 'v8';
   settings['MUTATE_FUNCTION_CALLS'] = 1.0;
 
   const mutator = new functionCallMutator.FunctionCallMutator(settings);

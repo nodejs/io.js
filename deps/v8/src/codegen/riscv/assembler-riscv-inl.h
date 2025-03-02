@@ -38,6 +38,10 @@
 #include "src/codegen/assembler-arch.h"
 #include "src/codegen/assembler.h"
 #include "src/debug/debug.h"
+#include "src/diagnostics/disasm.h"
+#include "src/diagnostics/disassembler.h"
+#include "src/heap/heap-layout-inl.h"
+#include "src/heap/heap-layout.h"
 #include "src/objects/objects-inl.h"
 
 namespace v8 {
@@ -59,14 +63,15 @@ void WritableRelocInfo::apply(intptr_t delta) {
     // Absolute code pointer inside code object moves with the code object.
     Assembler::RelocateInternalReference(rmode_, pc_, delta);
   } else {
-    DCHECK(IsRelativeCodeTarget(rmode_));
+    DCHECK(IsRelativeCodeTarget(rmode_) || IsNearBuiltinEntry(rmode_));
     Assembler::RelocateRelativeReference(rmode_, pc_, delta);
   }
 }
 
 Address RelocInfo::target_address() {
   DCHECK(IsCodeTargetMode(rmode_) || IsWasmCall(rmode_) ||
-         IsNearBuiltinEntry(rmode_) || IsWasmStubCall(rmode_));
+         IsNearBuiltinEntry(rmode_) || IsWasmStubCall(rmode_) ||
+         IsExternalReference(rmode_));
   return Assembler::target_address_at(pc_, constant_pool_);
 }
 
@@ -105,14 +110,42 @@ int RelocInfo::target_address_size() {
 
 void Assembler::set_target_compressed_address_at(
     Address pc, Address constant_pool, Tagged_t target,
-    ICacheFlushMode icache_flush_mode) {
-  Assembler::set_target_address_at(
-      pc, constant_pool, static_cast<Address>(target), icache_flush_mode);
+    WritableJitAllocation* jit_allocation, ICacheFlushMode icache_flush_mode) {
+  if (COMPRESS_POINTERS_BOOL) {
+    Assembler::set_uint32_constant_at(pc, constant_pool, target, jit_allocation,
+                                      icache_flush_mode);
+  } else {
+    UNREACHABLE();
+  }
 }
 
 Tagged_t Assembler::target_compressed_address_at(Address pc,
                                                  Address constant_pool) {
-  return static_cast<Tagged_t>(target_address_at(pc, constant_pool));
+  disasm::NameConverter converter;
+  disasm::Disassembler disasm(converter);
+  base::EmbeddedVector<char, 128> disasm_buffer;
+
+  disasm.InstructionDecode(disasm_buffer, reinterpret_cast<uint8_t*>(pc));
+  DEBUG_PRINTF("%s\n", disasm_buffer.begin());
+  disasm.InstructionDecode(disasm_buffer,
+                           reinterpret_cast<uint8_t*>(pc + kInstrSize));
+  DEBUG_PRINTF("%s\n", disasm_buffer.begin());
+
+  DEBUG_PRINTF("\t target_compressed_address_at %d\n",
+               uint32_constant_at(pc, constant_pool));
+  return static_cast<Tagged_t>(uint32_constant_at(pc, constant_pool));
+}
+
+WasmCodePointer RelocInfo::wasm_code_pointer_table_entry() const {
+  DCHECK(rmode_ == WASM_CODE_POINTER_TABLE_ENTRY);
+  return WasmCodePointer(Assembler::uint32_constant_at(pc_, constant_pool_));
+}
+
+void WritableRelocInfo::set_wasm_code_pointer_table_entry(
+    WasmCodePointer target, ICacheFlushMode icache_flush_mode) {
+  DCHECK(rmode_ == RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY);
+  Assembler::set_uint32_constant_at(pc_, constant_pool_, target.value(),
+                                    &jit_allocation_, icache_flush_mode);
 }
 
 Handle<Object> Assembler::code_target_object_handle_at(Address pc,
@@ -124,8 +157,54 @@ Handle<Object> Assembler::code_target_object_handle_at(Address pc,
 
 Handle<HeapObject> Assembler::compressed_embedded_object_handle_at(
     Address pc, Address const_pool) {
+  DEBUG_PRINTF("\tcompressed_embedded_object_handle_at: pc: 0x%" PRIxPTR " \t ",
+               pc);
   return GetEmbeddedObject(target_compressed_address_at(pc, const_pool));
 }
+
+Handle<HeapObject> Assembler::embedded_object_handle_at(Address pc) {
+  DEBUG_PRINTF("\tembedded_object_handle_at: pc: 0x%" PRIxPTR " \n", pc);
+  disasm::NameConverter converter;
+  disasm::Disassembler disasm(converter);
+  base::EmbeddedVector<char, 128> disasm_buffer;
+
+  disasm.InstructionDecode(disasm_buffer, reinterpret_cast<uint8_t*>(pc));
+  DEBUG_PRINTF("%s\n", disasm_buffer.begin());
+  disasm.InstructionDecode(disasm_buffer,
+                           reinterpret_cast<uint8_t*>(pc + kInstrSize));
+  DEBUG_PRINTF("%s\n", disasm_buffer.begin());
+#if V8_TARGET_ARCH_RISCV64
+  Instr instr1 = Assembler::instr_at(pc);
+  Instr instr2 = Assembler::instr_at(pc + kInstrSize);
+  DCHECK(IsAuipc(instr1));
+  DCHECK(IsLd(instr2));
+  int32_t embedded_target_offset = BrachlongOffset(instr1, instr2);
+  DEBUG_PRINTF("\tembedded_target_offset %d\n", embedded_target_offset);
+  static_assert(sizeof(EmbeddedObjectIndex) == sizeof(intptr_t));
+  DEBUG_PRINTF("\t EmbeddedObjectIndex %lu\n",
+               Memory<EmbeddedObjectIndex>(pc + embedded_target_offset));
+  return GetEmbeddedObject(
+      Memory<EmbeddedObjectIndex>(pc + embedded_target_offset));
+#else
+  DCHECK(IsLui(Assembler::instr_at(pc)));
+  DCHECK(IsAddi(Assembler::instr_at(pc + kInstrSize)));
+  auto target = target_address_at(pc, kNullAddress);
+  DEBUG_PRINTF("\ttarget %d\n", target);
+  return Handle<HeapObject>(reinterpret_cast<Address*>(target));
+#endif
+}
+
+#if V8_TARGET_ARCH_RISCV64
+void Assembler::set_embedded_object_index_referenced_from(
+    Address pc, EmbeddedObjectIndex data) {
+  Instr instr1 = Assembler::instr_at(pc);
+  Instr instr2 = Assembler::instr_at(pc + kInstrSize);
+  DCHECK(IsAuipc(instr1));
+  DCHECK(IsLd(instr2));
+  int32_t embedded_target_offset = BrachlongOffset(instr1, instr2);
+  Memory<EmbeddedObjectIndex>(pc + embedded_target_offset) = data;
+}
+#endif
 
 void Assembler::deserialization_set_special_target_at(
     Address instruction_payload, Tagged<Code> code, Address target) {
@@ -149,14 +228,9 @@ void Assembler::set_target_internal_reference_encoded_at(Address pc,
 }
 
 void Assembler::deserialization_set_target_internal_reference_at(
-    Address pc, Address target, RelocInfo::Mode mode) {
-  if (RelocInfo::IsInternalReferenceEncoded(mode)) {
-    DCHECK(IsLui(instr_at(pc)));
-    set_target_internal_reference_encoded_at(pc, target);
-  } else {
-    DCHECK(RelocInfo::IsInternalReference(mode));
-    Memory<Address>(pc) = target;
-  }
+    Address pc, Address target, WritableJitAllocation& jit_allocation,
+    RelocInfo::Mode mode) {
+  jit_allocation.WriteUnalignedValue<Address>(pc, target);
 }
 
 Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
@@ -172,15 +246,14 @@ Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
   }
 }
 
-Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
+DirectHandle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
   if (IsCodeTarget(rmode_)) {
     return Cast<HeapObject>(
         origin->code_target_object_handle_at(pc_, constant_pool_));
   } else if (IsCompressedEmbeddedObject(rmode_)) {
     return origin->compressed_embedded_object_handle_at(pc_, constant_pool_);
   } else if (IsFullEmbeddedObject(rmode_)) {
-    return Handle<HeapObject>(reinterpret_cast<Address*>(
-        Assembler::target_address_at(pc_, constant_pool_)));
+    return origin->embedded_object_handle_at(pc_);
   } else {
     DCHECK(IsRelativeCodeTarget(rmode_));
     return origin->relative_code_target_object_handle_at(pc_);
@@ -195,16 +268,17 @@ void WritableRelocInfo::set_target_object(Tagged<HeapObject> target,
     // We must not compress pointers to objects outside of the main pointer
     // compression cage as we wouldn't be able to decompress them with the
     // correct cage base.
-    DCHECK_IMPLIES(V8_ENABLE_SANDBOX_BOOL, !IsTrustedSpaceObject(target));
-    DCHECK_IMPLIES(V8_EXTERNAL_CODE_SPACE_BOOL, !IsCodeSpaceObject(target));
+    DCHECK_IMPLIES(V8_ENABLE_SANDBOX_BOOL, !HeapLayout::InTrustedSpace(target));
+    DCHECK_IMPLIES(V8_EXTERNAL_CODE_SPACE_BOOL,
+                   !HeapLayout::InCodeSpace(target));
     Assembler::set_target_compressed_address_at(
         pc_, constant_pool_,
-        V8HeapCompressionScheme::CompressObject(target.ptr()),
+        V8HeapCompressionScheme::CompressObject(target.ptr()), &jit_allocation_,
         icache_flush_mode);
   } else {
     DCHECK(IsFullEmbeddedObject(rmode_));
     Assembler::set_target_address_at(pc_, constant_pool_, target.ptr(),
-                                     icache_flush_mode);
+                                     &jit_allocation_, icache_flush_mode);
   }
 }
 
@@ -217,7 +291,7 @@ void WritableRelocInfo::set_target_external_reference(
     Address target, ICacheFlushMode icache_flush_mode) {
   DCHECK(rmode_ == RelocInfo::EXTERNAL_REFERENCE);
   Assembler::set_target_address_at(pc_, constant_pool_, target,
-                                   icache_flush_mode);
+                                   &jit_allocation_, icache_flush_mode);
 }
 
 Address RelocInfo::target_internal_reference() {
@@ -227,7 +301,7 @@ Address RelocInfo::target_internal_reference() {
     // Encoded internal references are j/jal instructions.
     DCHECK(IsInternalReferenceEncoded(rmode_));
     DCHECK(Assembler::IsLui(Assembler::instr_at(pc_ + 0 * kInstrSize)));
-    Address address = Assembler::target_address_at(pc_);
+    Address address = Assembler::target_constant_address_at(pc_);
     return address;
   }
 }
@@ -235,6 +309,11 @@ Address RelocInfo::target_internal_reference() {
 Address RelocInfo::target_internal_reference_address() {
   DCHECK(IsInternalReference(rmode_) || IsInternalReferenceEncoded(rmode_));
   return pc_;
+}
+
+JSDispatchHandle RelocInfo::js_dispatch_handle() {
+  DCHECK(rmode_ == JS_DISPATCH_HANDLE);
+  return JSDispatchHandle(Assembler::uint32_constant_at(pc_, constant_pool_));
 }
 
 Handle<Code> Assembler::relative_code_target_object_handle_at(
@@ -287,21 +366,22 @@ int32_t Assembler::target_constant32_at(Address pc) {
 }
 
 void Assembler::set_target_constant32_at(Address pc, uint32_t target,
+                                         WritableJitAllocation* jit_allocation,
                                          ICacheFlushMode icache_flush_mode) {
-  uint32_t* p = reinterpret_cast<uint32_t*>(pc);
-#ifdef DEBUG
-  // Check we have the result from a li macro-instruction.
   Instruction* instr0 = Instruction::At((unsigned char*)pc);
   Instruction* instr1 = Instruction::At((unsigned char*)(pc + 1 * kInstrSize));
+#ifdef DEBUG
+  // Check we have the result from a li macro-instruction.
   DCHECK(IsLui(*reinterpret_cast<Instr*>(instr0)) &&
          IsAddi(*reinterpret_cast<Instr*>(instr1)));
 #endif
-  int32_t high_20 = ((target + 0x800) >> 12);  // 20 bits
-  int32_t low_12 = target & 0xfff;             // 12 bits
-  *p = *p & 0xfff;
-  *p = *p | ((int32_t)high_20 << 12);
-  *(p + 1) = *(p + 1) & 0xfffff;
-  *(p + 1) = *(p + 1) | ((int32_t)low_12 << 20);
+  int32_t high_20 = (((int32_t)target + 0x800) >> 12);  // 20 bits
+  int32_t low_12 = (int32_t)target << 20 >> 20;         // 12 bits
+  instr_at_put(pc, SetHi20Offset(high_20, instr0->InstructionBits()),
+               jit_allocation);
+  instr_at_put(pc + 1 * kInstrSize,
+               SetLo12Offset(low_12, instr1->InstructionBits()),
+               jit_allocation);
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc, 2 * kInstrSize);
   }
@@ -317,12 +397,30 @@ uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
 }
 void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
                                        uint32_t new_constant,
+                                       WritableJitAllocation* jit_allocation,
                                        ICacheFlushMode icache_flush_mode) {
   Instruction* instr1 = reinterpret_cast<Instruction*>(pc);
   Instruction* instr2 = reinterpret_cast<Instruction*>(pc + 1 * kInstrSize);
   CHECK(IsLui(*reinterpret_cast<Instr*>(instr1)));
   CHECK(IsAddi(*reinterpret_cast<Instr*>(instr2)));
-  set_target_constant32_at(pc, new_constant, icache_flush_mode);
+  set_target_constant32_at(pc, new_constant, jit_allocation, icache_flush_mode);
+}
+
+[[nodiscard]] static inline Instr SetHi20Offset(int32_t hi20, Instr instr) {
+  DCHECK(Assembler::IsAuipc(instr) || Assembler::IsLui(instr));
+  DCHECK(is_int20(hi20));
+  instr = (instr & ~kImm31_12Mask) | ((hi20 & kImm19_0Mask) << 12);
+  return instr;
+}
+
+[[nodiscard]] static inline Instr SetLo12Offset(int32_t lo12, Instr instr) {
+  DCHECK(Assembler::IsJalr(instr) || Assembler::IsAddi(instr));
+  DCHECK(is_int12(lo12));
+  instr &= ~kImm12Mask;
+  int32_t imm12 = lo12 << kImm12Shift;
+  DCHECK(Assembler::IsJalr(instr | (imm12 & kImm12Mask)) ||
+         Assembler::IsAddi(instr | (imm12 & kImm12Mask)));
+  return instr | (imm12 & kImm12Mask);
 }
 
 }  // namespace internal

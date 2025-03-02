@@ -33,8 +33,8 @@ class EmbedderDataArray
   }
 
   // Returns a grown copy if the index is bigger than the array's length.
-  static Handle<EmbedderDataArray> EnsureCapacity(
-      Isolate* isolate, Handle<EmbedderDataArray> array, int index);
+  static DirectHandle<EmbedderDataArray> EnsureCapacity(
+      Isolate* isolate, DirectHandle<EmbedderDataArray> array, int index);
 
   // Code Generation support.
   static constexpr int OffsetOfElementAt(int index) { return SizeFor(index); }

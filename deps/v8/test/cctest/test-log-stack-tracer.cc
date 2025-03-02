@@ -79,7 +79,7 @@ static void construct_call(const v8::FunctionCallbackInfo<v8::Value>& info) {
     frame_iterator.Advance();
   }
   i::StackFrame* calling_frame = frame_iterator.frame();
-  CHECK(calling_frame->is_java_script());
+  CHECK(calling_frame->is_javascript());
 
   v8::Local<v8::Context> context = info.GetIsolate()->GetCurrentContext();
 #if defined(V8_HOST_ARCH_32_BIT)

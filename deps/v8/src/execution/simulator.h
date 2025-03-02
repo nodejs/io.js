@@ -26,7 +26,7 @@
 #include "src/execution/mips64/simulator-mips64.h"
 #elif V8_TARGET_ARCH_LOONG64
 #include "src/execution/loong64/simulator-loong64.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/execution/s390/simulator-s390.h"
 #elif V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
 #include "src/execution/riscv/simulator-riscv.h"
@@ -51,10 +51,12 @@ class SimulatorStack : public v8::internal::AllStatic {
     return Simulator::current(isolate)->StackLimit(c_limit);
   }
 
-  static inline base::Vector<uint8_t> GetCurrentStackView(
+#if V8_ENABLE_WEBASSEMBLY
+  static inline base::Vector<uint8_t> GetCentralStackView(
       v8::internal::Isolate* isolate) {
-    return Simulator::current(isolate)->GetCurrentStackView();
+    return Simulator::current(isolate)->GetCentralStackView();
   }
+#endif
 
   // When running on the simulator, we should leave the C stack limits alone
   // when switching stacks for Wasm.
@@ -90,14 +92,16 @@ class SimulatorStack : public v8::internal::AllStatic {
     return c_limit;
   }
 
-  static inline base::Vector<uint8_t> GetCurrentStackView(
+#if V8_ENABLE_WEBASSEMBLY
+  static inline base::Vector<uint8_t> GetCentralStackView(
       v8::internal::Isolate* isolate) {
-    uintptr_t limit = isolate->stack_guard()->real_jslimit();
-    uintptr_t stack_start = base::Stack::GetStackStart();
-    DCHECK_LE(limit, stack_start);
-    size_t size = stack_start - limit;
-    return base::VectorOf(reinterpret_cast<uint8_t*>(limit), size);
+    uintptr_t upper_bound = base::Stack::GetStackStart();
+    size_t size =
+        v8_flags.stack_size * KB + wasm::StackMemory::kJSLimitOffsetKB * KB;
+    uintptr_t lower_bound = upper_bound - size;
+    return base::VectorOf(reinterpret_cast<uint8_t*>(lower_bound), size);
   }
+#endif
 
   // When running on real hardware, we should also switch the C stack limit
   // when switching stacks for Wasm.

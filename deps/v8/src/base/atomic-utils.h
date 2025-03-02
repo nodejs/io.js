@@ -12,6 +12,7 @@
 
 #include "src/base/atomicops.h"
 #include "src/base/macros.h"
+#include "src/base/strong-alias.h"
 
 namespace v8 {
 namespace base {
@@ -162,7 +163,7 @@ class AsAtomicImpl {
   // Atomically sets bits selected by the mask to the given value.
   // Returns false if the bits are already set as needed.
   template <typename T>
-  static bool SetBits(T* addr, T bits, T mask) {
+  static bool Release_SetBits(T* addr, T bits, T mask) {
     static_assert(sizeof(T) <= sizeof(AtomicStorageType));
     DCHECK_EQ(bits & ~mask, static_cast<T>(0));
     T old_value = Relaxed_Load(addr);
@@ -172,6 +173,23 @@ class AsAtomicImpl {
       new_value = (old_value & ~mask) | bits;
       old_value_before_cas = old_value;
       old_value = Release_CompareAndSwap(addr, old_value, new_value);
+    } while (old_value != old_value_before_cas);
+    return true;
+  }
+
+  // Atomically sets bits selected by the mask to the given value.
+  // Returns false if the bits are already set as needed.
+  template <typename T>
+  static bool Relaxed_SetBits(T* addr, T bits, T mask) {
+    static_assert(sizeof(T) <= sizeof(AtomicStorageType));
+    DCHECK_EQ(bits & ~mask, static_cast<T>(0));
+    T old_value = Relaxed_Load(addr);
+    T new_value, old_value_before_cas;
+    do {
+      if ((old_value & mask) == bits) return false;
+      new_value = (old_value & ~mask) | bits;
+      old_value_before_cas = old_value;
+      old_value = Relaxed_CompareAndSwap(addr, old_value, new_value);
     } while (old_value != old_value_before_cas);
     return true;
   }
@@ -194,6 +212,15 @@ class AsAtomicImpl {
     }
     static U* to_return_type(AtomicStorageType value) {
       return reinterpret_cast<U*>(value);
+    }
+  };
+  template <typename T, typename U>
+  struct cast_helper<base::StrongAlias<T, U>> {
+    static AtomicStorageType to_storage_type(base::StrongAlias<T, U> value) {
+      return static_cast<AtomicStorageType>(value.value());
+    }
+    static base::StrongAlias<T, U> to_return_type(AtomicStorageType value) {
+      return base::StrongAlias<T, U>(static_cast<U>(value));
     }
   };
 
@@ -244,21 +271,23 @@ class AsAtomicPointerImpl : public AsAtomicImpl<TAtomicStorageType> {
 
 using AsAtomicPointer = AsAtomicPointerImpl<base::AtomicWord>;
 
-template <typename T,
-          typename = typename std::enable_if<std::is_unsigned<T>::value>::type>
+template <typename T>
 inline void CheckedIncrement(
     std::atomic<T>* number, T amount,
-    std::memory_order order = std::memory_order_seq_cst) {
+    std::memory_order order = std::memory_order_seq_cst)
+  requires std::is_unsigned<T>::value
+{
   const T old = number->fetch_add(amount, order);
   DCHECK_GE(old + amount, old);
   USE(old);
 }
 
-template <typename T,
-          typename = typename std::enable_if<std::is_unsigned<T>::value>::type>
+template <typename T>
 inline void CheckedDecrement(
     std::atomic<T>* number, T amount,
-    std::memory_order order = std::memory_order_seq_cst) {
+    std::memory_order order = std::memory_order_seq_cst)
+  requires std::is_unsigned<T>::value
+{
   const T old = number->fetch_sub(amount, order);
   DCHECK_GE(old, amount);
   USE(old);

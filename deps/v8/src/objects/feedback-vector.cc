@@ -7,6 +7,7 @@
 #include <bit>
 #include <optional>
 
+#include "src/base/platform/mutex.h"
 #include "src/common/globals.h"
 #include "src/deoptimizer/deoptimizer.h"
 #include "src/diagnostics/code-tracer.h"
@@ -41,7 +42,7 @@ static bool IsPropertyNameFeedback(Tagged<MaybeObject> feedback) {
   }
   if (!IsSymbol(heap_object)) return false;
   Tagged<Symbol> symbol = Cast<Symbol>(heap_object);
-  ReadOnlyRoots roots = symbol->GetReadOnlyRoots();
+  ReadOnlyRoots roots = GetReadOnlyRoots();
   return symbol != roots.uninitialized_symbol() &&
          symbol != roots.mega_dom_symbol() &&
          symbol != roots.megamorphic_symbol();
@@ -211,7 +212,7 @@ FeedbackSlotKind FeedbackVector::GetKind(FeedbackSlot slot,
 }
 
 // static
-Handle<ClosureFeedbackCellArray> ClosureFeedbackCellArray::New(
+DirectHandle<ClosureFeedbackCellArray> ClosureFeedbackCellArray::New(
     Isolate* isolate, DirectHandle<SharedFunctionInfo> shared,
     AllocationType allocation) {
   int length = shared->feedback_metadata()->create_closure_slot_count();
@@ -224,7 +225,7 @@ Handle<ClosureFeedbackCellArray> ClosureFeedbackCellArray::New(
   DirectHandleVector<FeedbackCell> cells(isolate);
   cells.reserve(length);
   for (int i = 0; i < length; i++) {
-    Handle<FeedbackCell> cell = isolate->factory()->NewNoClosuresCell();
+    DirectHandle<FeedbackCell> cell = isolate->factory()->NewNoClosuresCell();
 #ifdef V8_ENABLE_LEAPTIERING
     uint16_t parameter_count =
         shared->feedback_metadata()->GetCreateClosureParameterCount(i);
@@ -262,11 +263,13 @@ Handle<FeedbackVector> FeedbackVector::New(
   DCHECK_EQ(vector->length(), slot_count);
 
   DCHECK_EQ(vector->shared_function_info(), *shared);
+  DCHECK_EQ(vector->invocation_count(), 0);
+#ifndef V8_ENABLE_LEAPTIERING
   DCHECK_EQ(vector->tiering_state(), TieringState::kNone);
   DCHECK(!vector->maybe_has_maglev_code());
   DCHECK(!vector->maybe_has_turbofan_code());
-  DCHECK_EQ(vector->invocation_count(), 0);
   DCHECK(vector->maybe_optimized_code().IsCleared());
+#endif  // !V8_ENABLE_LEAPTIERING
 
   // Ensure we can skip the write barrier
   DirectHandle<Symbol> uninitialized_sentinel = UninitializedSentinel(isolate);
@@ -338,7 +341,7 @@ Handle<FeedbackVector> FeedbackVector::NewForTesting(
       FeedbackMetadata::New(isolate, spec);
   DirectHandle<SharedFunctionInfo> shared =
       isolate->factory()->NewSharedFunctionInfoForBuiltin(
-          isolate->factory()->empty_string(), Builtin::kIllegal);
+          isolate->factory()->empty_string(), Builtin::kIllegal, 0, kDontAdapt);
   // Set the raw feedback metadata to circumvent checks that we are not
   // overwriting existing metadata.
   shared->set_raw_outer_scope_info_or_feedback_metadata(*metadata);
@@ -378,6 +381,14 @@ void FeedbackVector::AddToVectorsForProfilingTools(
   list = ArrayList::Add(isolate, list, vector);
   isolate->SetFeedbackVectorsForProfilingTools(*list);
 }
+
+#ifdef V8_ENABLE_LEAPTIERING
+
+void FeedbackVector::set_tiering_in_progress(bool in_progress) {
+  set_flags(TieringInProgressBit::update(flags(), in_progress));
+}
+
+#else
 
 void FeedbackVector::SetOptimizedCode(IsolateForSandbox isolate,
                                       Tagged<Code> code) {
@@ -425,46 +436,6 @@ void FeedbackVector::ClearOptimizedCode() {
   set_maybe_has_turbofan_code(false);
 }
 
-void FeedbackVector::SetOptimizedOsrCode(Isolate* isolate, FeedbackSlot slot,
-                                         Tagged<Code> code) {
-  DCHECK(CodeKindIsOptimizedJSFunction(code->kind()));
-  DCHECK(!slot.IsInvalid());
-  auto current = GetOptimizedOsrCode(isolate, slot);
-  if (V8_UNLIKELY(current && current.value()->kind() > code->kind())) {
-    return;
-  }
-  Set(slot, MakeWeak(code->wrapper()));
-  set_maybe_has_optimized_osr_code(true, code->kind());
-}
-
-void FeedbackVector::reset_tiering_state() {
-  set_tiering_state(TieringState::kNone);
-}
-
-void FeedbackVector::set_tiering_state(TieringState state) {
-  int32_t new_flags = flags();
-  new_flags = TieringStateBits::update(new_flags, state);
-  set_flags(new_flags);
-}
-
-void FeedbackVector::reset_flags() {
-  set_flags(TieringStateBits::encode(TieringState::kNone) |
-            LogNextExecutionBit::encode(false) |
-            MaybeHasMaglevCodeBit::encode(false) |
-            MaybeHasTurbofanCodeBit::encode(false) |
-            OsrTieringInProgressBit::encode(false) |
-            MaybeHasMaglevOsrCodeBit::encode(false) |
-            MaybeHasTurbofanOsrCodeBit::encode(false));
-}
-
-bool FeedbackVector::osr_tiering_in_progress() {
-  return OsrTieringInProgressBit::decode(flags());
-}
-
-void FeedbackVector::set_osr_tiering_in_progress(bool osr_in_progress) {
-  set_flags(OsrTieringInProgressBit::update(flags(), osr_in_progress));
-}
-
 void FeedbackVector::EvictOptimizedCodeMarkedForDeoptimization(
     Isolate* isolate, Tagged<SharedFunctionInfo> shared, const char* reason) {
   Tagged<MaybeObject> slot = maybe_optimized_code();
@@ -479,6 +450,49 @@ void FeedbackVector::EvictOptimizedCodeMarkedForDeoptimization(
     Deoptimizer::TraceEvictFromOptimizedCodeCache(isolate, shared, reason);
     ClearOptimizedCode();
   }
+}
+
+void FeedbackVector::set_tiering_state(TieringState state) {
+  int32_t new_flags = flags();
+  new_flags = TieringStateBits::update(new_flags, state);
+  set_flags(new_flags);
+}
+
+#endif  // V8_ENABLE_LEAPTIERING
+
+void FeedbackVector::reset_flags() {
+  set_flags(
+#ifdef V8_ENABLE_LEAPTIERING
+      TieringInProgressBit::encode(false) |
+#else
+      TieringStateBits::encode(TieringState::kNone) |
+      LogNextExecutionBit::encode(false) |
+      MaybeHasMaglevCodeBit::encode(false) |
+      MaybeHasTurbofanCodeBit::encode(false) |
+#endif  // V8_ENABLE_LEAPTIERING
+      OsrTieringInProgressBit::encode(false) |
+      MaybeHasMaglevOsrCodeBit::encode(false) |
+      MaybeHasTurbofanOsrCodeBit::encode(false));
+}
+
+void FeedbackVector::SetOptimizedOsrCode(Isolate* isolate, FeedbackSlot slot,
+                                         Tagged<Code> code) {
+  DCHECK(CodeKindIsOptimizedJSFunction(code->kind()));
+  DCHECK(!slot.IsInvalid());
+  auto current = GetOptimizedOsrCode(isolate, slot);
+  if (V8_UNLIKELY(current && current.value()->kind() > code->kind())) {
+    return;
+  }
+  Set(slot, MakeWeak(code->wrapper()));
+  set_maybe_has_optimized_osr_code(true, code->kind());
+}
+
+bool FeedbackVector::osr_tiering_in_progress() {
+  return OsrTieringInProgressBit::decode(flags());
+}
+
+void FeedbackVector::set_osr_tiering_in_progress(bool osr_in_progress) {
+  set_flags(OsrTieringInProgressBit::update(flags(), osr_in_progress));
 }
 
 bool FeedbackVector::ClearSlots(Isolate* isolate, ClearBehavior behavior) {
@@ -538,15 +552,6 @@ MaybeObjectHandle NexusConfig::NewHandle(Tagged<MaybeObject> object) const {
   return handle(object, local_heap_);
 }
 
-template <typename T>
-Handle<T> NexusConfig::NewHandle(Tagged<T> object) const {
-  if (mode() == Mode::MainThread) {
-    return handle(object, isolate_);
-  }
-  DCHECK_EQ(mode(), Mode::BackgroundThread);
-  return handle(object, local_heap_);
-}
-
 void NexusConfig::SetFeedbackPair(Tagged<FeedbackVector> vector,
                                   FeedbackSlot start_slot,
                                   Tagged<MaybeObject> feedback,
@@ -555,8 +560,7 @@ void NexusConfig::SetFeedbackPair(Tagged<FeedbackVector> vector,
                                   WriteBarrierMode mode_extra) const {
   CHECK(can_write());
   CHECK_GT(vector->length(), start_slot.WithOffset(1).ToInt());
-  base::SharedMutexGuard<base::kExclusive> shared_mutex_guard(
-      isolate()->feedback_vector_access());
+  base::SpinningMutexGuard mutex_guard(isolate()->feedback_vector_access());
   vector->Set(start_slot, feedback, mode);
   vector->Set(start_slot.WithOffset(1), feedback_extra, mode_extra);
 }
@@ -564,8 +568,8 @@ void NexusConfig::SetFeedbackPair(Tagged<FeedbackVector> vector,
 std::pair<Tagged<MaybeObject>, Tagged<MaybeObject>>
 NexusConfig::GetFeedbackPair(Tagged<FeedbackVector> vector,
                              FeedbackSlot slot) const {
-  base::SharedMutexGuardIf<base::kShared> scope(
-      isolate()->feedback_vector_access(), mode() == BackgroundThread);
+  base::SpinningMutexGuardIf guard(isolate()->feedback_vector_access(),
+                                   mode() == BackgroundThread);
   Tagged<MaybeObject> feedback = vector->Get(slot);
   Tagged<MaybeObject> feedback_extra = vector->Get(slot.WithOffset(1));
   return std::make_pair(feedback, feedback_extra);
@@ -594,9 +598,9 @@ FeedbackNexus::FeedbackNexus(Handle<FeedbackVector> vector, FeedbackSlot slot,
       kind_(vector->GetKind(slot, kAcquireLoad)),
       config_(config) {}
 
-Handle<WeakFixedArray> FeedbackNexus::CreateArrayOfSize(int length) {
+DirectHandle<WeakFixedArray> FeedbackNexus::CreateArrayOfSize(int length) {
   DCHECK(config()->can_write());
-  Handle<WeakFixedArray> array =
+  DirectHandle<WeakFixedArray> array =
       config()->isolate()->factory()->NewWeakFixedArray(length);
   return array;
 }
@@ -708,7 +712,7 @@ bool FeedbackNexus::ConfigureMegamorphic() {
   return false;
 }
 
-void FeedbackNexus::ConfigureMegaDOM(const MaybeObjectHandle& handler) {
+void FeedbackNexus::ConfigureMegaDOM(const MaybeObjectDirectHandle& handler) {
   DisallowGarbageCollection no_gc;
   Tagged<MaybeObject> sentinel = MegaDOMSentinel();
 
@@ -957,7 +961,8 @@ bool FeedbackNexus::ConfigureLexicalVarMode(int script_context_index,
   return true;
 }
 
-void FeedbackNexus::ConfigureHandlerMode(const MaybeObjectHandle& handler) {
+void FeedbackNexus::ConfigureHandlerMode(
+    const MaybeObjectDirectHandle& handler) {
   DCHECK(IsGlobalICKind(kind()));
   DCHECK(IC::IsHandler(*handler));
   SetFeedback(ClearedValue(config()->isolate()), UPDATE_WRITE_BARRIER, *handler,
@@ -965,7 +970,7 @@ void FeedbackNexus::ConfigureHandlerMode(const MaybeObjectHandle& handler) {
 }
 
 void FeedbackNexus::ConfigureCloneObject(
-    Handle<Map> source_map, const MaybeObjectHandle& handler_handle) {
+    DirectHandle<Map> source_map, const MaybeObjectHandle& handler_handle) {
   // TODO(olivf): Introduce a CloneHandler to deal with all the logic of this
   // state machine which is now spread between Runtime_CloneObjectIC_Miss and
   // this method.
@@ -977,11 +982,11 @@ void FeedbackNexus::ConfigureCloneObject(
   };
   DCHECK(config()->can_write());
   Isolate* isolate = config()->isolate();
-  Handle<HeapObject> feedback;
+  DirectHandle<HeapObject> feedback;
   {
     Tagged<MaybeObject> maybe_feedback = GetFeedback();
     if (maybe_feedback.IsStrongOrWeak()) {
-      feedback = handle(maybe_feedback.GetHeapObject(), isolate);
+      feedback = direct_handle(maybe_feedback.GetHeapObject(), isolate);
     } else {
       DCHECK(maybe_feedback.IsCleared());
     }
@@ -1016,8 +1021,8 @@ void FeedbackNexus::ConfigureCloneObject(
       for (; i < array->length(); i += kCloneObjectPolymorphicEntrySize) {
         Tagged<MaybeObject> feedback_map = array->get(i);
         if (feedback_map.IsCleared()) break;
-        Handle<Map> cached_map(Cast<Map>(feedback_map.GetHeapObject()),
-                               isolate);
+        DirectHandle<Map> cached_map(Cast<Map>(feedback_map.GetHeapObject()),
+                                     isolate);
         if (cached_map.is_identical_to(source_map) ||
             cached_map->is_deprecated())
           break;
@@ -1103,9 +1108,9 @@ float FeedbackNexus::ComputeCallFrequency() {
   return static_cast<float>(call_count / invocation_count);
 }
 
-void FeedbackNexus::ConfigureMonomorphic(Handle<Name> name,
-                                         DirectHandle<Map> receiver_map,
-                                         const MaybeObjectHandle& handler) {
+void FeedbackNexus::ConfigureMonomorphic(
+    DirectHandle<Name> name, DirectHandle<Map> receiver_map,
+    const MaybeObjectDirectHandle& handler) {
   DCHECK(handler.is_null() || IC::IsHandler(*handler));
   if (kind() == FeedbackSlotKind::kDefineKeyedOwnPropertyInLiteral) {
     SetFeedback(MakeWeak(*receiver_map), UPDATE_WRITE_BARRIER, *name);
@@ -1122,7 +1127,7 @@ void FeedbackNexus::ConfigureMonomorphic(Handle<Name> name,
 }
 
 void FeedbackNexus::ConfigurePolymorphic(
-    Handle<Name> name, std::vector<MapAndHandler> const& maps_and_handlers) {
+    DirectHandle<Name> name, MapsAndHandlers const& maps_and_handlers) {
   int receiver_count = static_cast<int>(maps_and_handlers.size());
   DCHECK_GT(receiver_count, 1);
   DirectHandle<WeakFixedArray> array = CreateArrayOfSize(receiver_count * 2);
@@ -1130,7 +1135,7 @@ void FeedbackNexus::ConfigurePolymorphic(
   for (int current = 0; current < receiver_count; ++current) {
     DirectHandle<Map> map = maps_and_handlers[current].first;
     array->set(current * 2, MakeWeak(*map));
-    MaybeObjectHandle handler = maps_and_handlers[current].second;
+    MaybeObjectDirectHandle handler = maps_and_handlers[current].second;
     DCHECK(IC::IsHandler(*handler));
     array->set(current * 2 + 1, *handler);
   }
@@ -1154,26 +1159,6 @@ int FeedbackNexus::ExtractMaps(MapHandles* maps) const {
   return found;
 }
 
-int FeedbackNexus::ExtractMapsAndFeedback(
-    std::vector<MapAndFeedback>* maps_and_feedback) const {
-  DisallowGarbageCollection no_gc;
-  int found = 0;
-
-  for (FeedbackIterator it(this); !it.done(); it.Advance()) {
-    Handle<Map> map = config()->NewHandle(it.map());
-    Tagged<MaybeObject> maybe_handler = it.handler();
-    if (!maybe_handler.IsCleared()) {
-      DCHECK(IC::IsHandler(maybe_handler) ||
-             IsDefineKeyedOwnPropertyInLiteralKind(kind()));
-      MaybeObjectHandle handler = config()->NewHandle(maybe_handler);
-      maps_and_feedback->push_back(MapAndHandler(map, handler));
-      found++;
-    }
-  }
-
-  return found;
-}
-
 MaybeObjectHandle FeedbackNexus::ExtractMegaDOMHandler() {
   DCHECK(ic_state() == InlineCacheState::MEGADOM);
   DisallowGarbageCollection no_gc;
@@ -1188,9 +1173,8 @@ MaybeObjectHandle FeedbackNexus::ExtractMegaDOMHandler() {
   return MaybeObjectHandle();
 }
 
-int FeedbackNexus::ExtractMapsAndHandlers(
-    std::vector<MapAndHandler>* maps_and_handlers,
-    TryUpdateHandler map_handler) const {
+int FeedbackNexus::ExtractMapsAndHandlers(MapsAndHandlers* maps_and_handlers,
+                                          TryUpdateHandler map_handler) const {
   DCHECK(!IsDefineKeyedOwnPropertyInLiteralKind(kind()));
   DisallowGarbageCollection no_gc;
   int found = 0;
@@ -1212,7 +1196,7 @@ int FeedbackNexus::ExtractMapsAndHandlers(
   return found;
 }
 
-MaybeObjectHandle FeedbackNexus::FindHandlerForMap(
+MaybeObjectDirectHandle FeedbackNexus::FindHandlerForMap(
     DirectHandle<Map> map) const {
   DCHECK(!IsStoreInArrayLiteralICKind(kind()));
 
@@ -1221,7 +1205,7 @@ MaybeObjectHandle FeedbackNexus::FindHandlerForMap(
       return config()->NewHandle(it.handler());
     }
   }
-  return MaybeObjectHandle();
+  return MaybeObjectDirectHandle();
 }
 
 Tagged<Name> FeedbackNexus::GetName() const {
@@ -1248,7 +1232,7 @@ KeyedAccessLoadMode FeedbackNexus::GetKeyedAccessLoadMode() const {
   if (GetKeyType() == IcCheckType::kProperty) {
     return KeyedAccessLoadMode::kInBounds;
   }
-  std::vector<MapAndHandler> maps_and_handlers;
+  MapsAndHandlers maps_and_handlers;
   ExtractMapsAndHandlers(&maps_and_handlers);
   KeyedAccessLoadMode mode = KeyedAccessLoadMode::kInBounds;
   for (MapAndHandler map_and_handler : maps_and_handlers) {
@@ -1316,7 +1300,7 @@ KeyedAccessStoreMode FeedbackNexus::GetKeyedAccessStoreMode() const {
 
   if (GetKeyType() == IcCheckType::kProperty) return mode;
 
-  std::vector<MapAndHandler> maps_and_handlers;
+  MapsAndHandlers maps_and_handlers;
   ExtractMapsAndHandlers(&maps_and_handlers);
   for (const MapAndHandler& map_and_handler : maps_and_handlers) {
     const MaybeObjectHandle maybe_code_handler = map_and_handler.second;
@@ -1408,14 +1392,14 @@ ForInHint FeedbackNexus::GetForInFeedback() const {
   return ForInHintFromFeedback(static_cast<ForInFeedback>(feedback));
 }
 
-MaybeHandle<JSObject> FeedbackNexus::GetConstructorFeedback() const {
+MaybeDirectHandle<JSObject> FeedbackNexus::GetConstructorFeedback() const {
   DCHECK_EQ(kind(), FeedbackSlotKind::kInstanceOf);
   Tagged<MaybeObject> feedback = GetFeedback();
   Tagged<HeapObject> heap_object;
   if (feedback.GetHeapObjectIfWeak(&heap_object)) {
     return config()->NewHandle(Cast<JSObject>(heap_object));
   }
-  return MaybeHandle<JSObject>();
+  return MaybeDirectHandle<JSObject>();
 }
 
 FeedbackIterator::FeedbackIterator(const FeedbackNexus* nexus)

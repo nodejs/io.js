@@ -61,7 +61,7 @@ struct TorqueCompilationUnit {
 
 V8_EXPORT_PRIVATE TorqueCompilerResult
 CompileTorque(const std::string& source, TorqueCompilerOptions options);
-TorqueCompilerResult CompileTorque(std::vector<std::string> files,
+TorqueCompilerResult CompileTorque(const std::vector<std::string>& files,
                                    TorqueCompilerOptions options);
 V8_EXPORT_PRIVATE TorqueCompilerResult CompileTorqueForKythe(
     std::vector<TorqueCompilationUnit> units, TorqueCompilerOptions options,

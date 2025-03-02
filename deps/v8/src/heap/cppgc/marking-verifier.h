@@ -57,6 +57,11 @@ class V8_EXPORT_PRIVATE MarkingVerifierBase
   bool VisitLargePage(LargePage&);
   bool VisitHeapObjectHeader(HeapObjectHeader&);
 
+  void ReportDifferences(size_t) const;
+  void ReportNormalPage(const NormalPage&, size_t) const;
+  void ReportLargePage(const LargePage&, size_t) const;
+  void ReportHeapObjectHeader(const HeapObjectHeader&) const;
+
   VerificationState& verification_state_;
   std::unique_ptr<cppgc::Visitor> visitor_;
 

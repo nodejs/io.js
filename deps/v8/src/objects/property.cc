@@ -57,9 +57,10 @@ std::ostream& operator<<(std::ostream& os, PropertyConstness constness) {
 
 Descriptor::Descriptor() : details_(Smi::zero()) {}
 
-Descriptor::Descriptor(Handle<Name> key, const MaybeObjectHandle& value,
-                       PropertyKind kind, PropertyAttributes attributes,
-                       PropertyLocation location, PropertyConstness constness,
+Descriptor::Descriptor(DirectHandle<Name> key,
+                       const MaybeObjectDirectHandle& value, PropertyKind kind,
+                       PropertyAttributes attributes, PropertyLocation location,
+                       PropertyConstness constness,
                        Representation representation, int field_index)
     : key_(key),
       value_(value),
@@ -69,25 +70,26 @@ Descriptor::Descriptor(Handle<Name> key, const MaybeObjectHandle& value,
   DCHECK_IMPLIES(key->IsPrivate(), !details_.IsEnumerable());
 }
 
-Descriptor::Descriptor(Handle<Name> key, const MaybeObjectHandle& value,
+Descriptor::Descriptor(DirectHandle<Name> key,
+                       const MaybeObjectDirectHandle& value,
                        PropertyDetails details)
     : key_(key), value_(value), details_(details) {
   DCHECK(IsUniqueName(*key));
   DCHECK_IMPLIES(key->IsPrivate(), !details_.IsEnumerable());
 }
 
-Descriptor Descriptor::DataField(Isolate* isolate, Handle<Name> key,
+Descriptor Descriptor::DataField(Isolate* isolate, DirectHandle<Name> key,
                                  int field_index, PropertyAttributes attributes,
                                  Representation representation) {
   return DataField(key, field_index, attributes, PropertyConstness::kMutable,
-                   representation, MaybeObjectHandle(FieldType::Any(isolate)));
+                   representation,
+                   MaybeObjectDirectHandle(FieldType::Any(isolate)));
 }
 
-Descriptor Descriptor::DataField(Handle<Name> key, int field_index,
-                                 PropertyAttributes attributes,
-                                 PropertyConstness constness,
-                                 Representation representation,
-                                 const MaybeObjectHandle& wrapped_field_type) {
+Descriptor Descriptor::DataField(
+    DirectHandle<Name> key, int field_index, PropertyAttributes attributes,
+    PropertyConstness constness, Representation representation,
+    const MaybeObjectDirectHandle& wrapped_field_type) {
   DCHECK(IsSmi(*wrapped_field_type) || IsWeak(*wrapped_field_type));
   PropertyDetails details(PropertyKind::kData, attributes,
                           PropertyLocation::kField, constness, representation,
@@ -95,29 +97,31 @@ Descriptor Descriptor::DataField(Handle<Name> key, int field_index,
   return Descriptor(key, wrapped_field_type, details);
 }
 
-Descriptor Descriptor::DataConstant(Handle<Name> key, Handle<Object> value,
+Descriptor Descriptor::DataConstant(DirectHandle<Name> key,
+                                    DirectHandle<Object> value,
                                     PropertyAttributes attributes) {
   PtrComprCageBase cage_base = GetPtrComprCageBase(*key);
-  return Descriptor(key, MaybeObjectHandle(value), PropertyKind::kData,
+  return Descriptor(key, MaybeObjectDirectHandle(value), PropertyKind::kData,
                     attributes, PropertyLocation::kDescriptor,
                     PropertyConstness::kConst,
                     Object::OptimalRepresentation(*value, cage_base), 0);
 }
 
-Descriptor Descriptor::DataConstant(Isolate* isolate, Handle<Name> key,
+Descriptor Descriptor::DataConstant(Isolate* isolate, DirectHandle<Name> key,
                                     int field_index, DirectHandle<Object> value,
                                     PropertyAttributes attributes) {
-  MaybeObjectHandle any_type(FieldType::Any(), isolate);
+  MaybeObjectDirectHandle any_type(FieldType::Any(), isolate);
   return DataField(key, field_index, attributes, PropertyConstness::kConst,
                    Representation::Tagged(), any_type);
 }
 
-Descriptor Descriptor::AccessorConstant(Handle<Name> key,
-                                        Handle<Object> foreign,
+Descriptor Descriptor::AccessorConstant(DirectHandle<Name> key,
+                                        DirectHandle<Object> foreign,
                                         PropertyAttributes attributes) {
-  return Descriptor(key, MaybeObjectHandle(foreign), PropertyKind::kAccessor,
-                    attributes, PropertyLocation::kDescriptor,
-                    PropertyConstness::kConst, Representation::Tagged(), 0);
+  return Descriptor(key, MaybeObjectDirectHandle(foreign),
+                    PropertyKind::kAccessor, attributes,
+                    PropertyLocation::kDescriptor, PropertyConstness::kConst,
+                    Representation::Tagged(), 0);
 }
 
 // Outputs PropertyDetails as a dictionary details.

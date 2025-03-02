@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Flags: --harmony-set-methods
 
 (function TestDifferenceSetFirstShorter() {
   const firstSet = new Set();
@@ -367,4 +366,40 @@
   const differenceArray = Array.from(firstSet.difference(setLike));
 
   assertEquals(resultArray, differenceArray);
+})();
+
+(function TestDifferenceSetLikeWithModificationsOnSet() {
+  var first = true;
+  var log = [];
+
+  var setLike = {
+    size: 100,
+    has(v) {
+      log.push(`has(${v})`);
+      if (first) {
+        first = false;
+
+        // Remove all existing items.
+        set.clear();
+
+        // Add new keys 11 and 22.
+        set.add(11);
+        set.add(22);
+      }
+      return true;
+    },
+    keys() {
+      throw new Error('Unexpected call to |keys| method');
+    },
+  };
+
+  var set = new Set([1, 2, 3, 4]);
+
+  const resultSet = new Set();
+  const resultArray = Array.from(resultSet);
+
+  var differenceArray = Array.from(set.difference(setLike));
+
+  assertEquals(resultArray, differenceArray);
+  assertEquals(log, [`has(1)`,`has(2)`,`has(3)`,`has(4)`]);
 })();

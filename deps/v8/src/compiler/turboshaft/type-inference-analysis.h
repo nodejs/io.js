@@ -288,6 +288,14 @@ class TypeInferenceAnalysis {
   }
 
   void ProcessConstant(OpIndex index, const ConstantOp& constant) {
+    if (constant.kind == ConstantOp::Kind::kFloat64 &&
+        constant.float64().is_hole_nan()) {
+      // TODO(nicohartmann): figure out how to type Float64 NaN holes. Typing
+      // them simply as NaN is not always correct and can lead to replacing NaN
+      // holes with regular NaNs.
+      SetType(index, Type::Any());
+      return;
+    }
     Type type = Typer::TypeConstant(constant.kind, constant.storage);
     SetType(index, type);
   }

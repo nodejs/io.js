@@ -29,7 +29,7 @@ void DecodeNormally(const std::vector<uint8_t>& bytes,
 
 void DecodeUtf16(const std::vector<uint8_t>& bytes,
                  std::vector<unibrow::uchar>* output) {
-  auto utf8_data = base::Vector<const uint8_t>::cast(base::VectorOf(bytes));
+  auto utf8_data = base::VectorOf(bytes);
   Utf8Decoder decoder(utf8_data);
 
   std::vector<uint16_t> utf16(decoder.utf16_length());
@@ -513,10 +513,10 @@ class UnicodeWithGCTest : public TestWithHeapInternals {};
                 reinterpret_cast<const uint8_t*>(buf), len))                  \
             .ToHandleChecked();                                               \
     if (v8_flags.single_generation) {                                         \
-      CHECK(!Heap::InYoungGeneration(*main_string));                          \
+      CHECK(!HeapLayout::InYoungGeneration(*main_string));                    \
       SimulateFullSpace(heap()->old_space());                                 \
     } else {                                                                  \
-      CHECK(Heap::InYoungGeneration(*main_string));                           \
+      CHECK(HeapLayout::InYoungGeneration(*main_string));                     \
       SimulateFullSpace(heap()->new_space());                                 \
     }                                                                         \
     /* Offset by two to check substring-ing. */                               \

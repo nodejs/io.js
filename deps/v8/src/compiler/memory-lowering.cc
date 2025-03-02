@@ -477,8 +477,18 @@ Reduction MemoryLowering::ReduceLoadExternalPointerField(Node* node) {
                         Internals::kExternalPointerTableBasePointerOffset);
   Node* pointer =
       __ Load(MachineType::Pointer(), table, __ ChangeUint32ToUint64(offset));
-  pointer = __ WordAnd(pointer, __ IntPtrConstant(~tag));
-  return Replace(pointer);
+  Node* actual_tag =
+      __ WordAnd(pointer, __ IntPtrConstant(kExternalPointerTagMask));
+  actual_tag = __ TruncateInt64ToInt32(
+      __ WordShr(actual_tag, __ IntPtrConstant(kExternalPointerTagShift)));
+  Node* expected_tag = __ Int32Constant(tag);
+  pointer =
+      __ Word64And(pointer, __ IntPtrConstant(kExternalPointerPayloadMask));
+  auto done = __ MakeLabel(MachineRepresentation::kWord64);
+  __ GotoIf(__ WordEqual(actual_tag, expected_tag), &done, pointer);
+  __ Goto(&done, __ IntPtrConstant(0));
+  __ Bind(&done);
+  return Replace(done.PhiAt(0));
 #else
   NodeProperties::ChangeOp(node, machine()->Load(access.machine_type));
   return Changed(node);

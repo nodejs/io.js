@@ -204,7 +204,7 @@ DEF_COMPARE(GreaterThanOrEqual)
     Return(result);                                                         \
     BIND(&if_exception);                                                    \
     {                                                                       \
-      auto feedback_vector = LoadFeedbackVectorFromBaseline();              \
+      feedback_vector = LoadFeedbackVectorFromBaseline();                   \
       UpdateFeedback(var_type_feedback.value(), feedback_vector, slot);     \
       CallRuntime(Runtime::kReThrow, LoadContextFromBaseline(),             \
                   var_exception.value());                                   \
@@ -276,7 +276,7 @@ TF_BUILTIN(Equal_Baseline, CodeStubAssembler) {
 
   BIND(&if_exception);
   {
-    auto feedback_vector = LoadFeedbackVectorFromBaseline();
+    feedback_vector = LoadFeedbackVectorFromBaseline();
     UpdateFeedback(var_type_feedback.value(), feedback_vector, slot);
     CallRuntime(Runtime::kReThrow, LoadContextFromBaseline(),
                 var_exception.value());

@@ -34,9 +34,7 @@ assert.strictEqual(URL.canParse('https://example.org'), true);
 
   if (common.isDebug) {
     const { getV8FastApiCallCount } = internalBinding('debug');
-    // TODO: the counts should be 1. The function is optimized, but the fast
-    // API is not called.
-    assert.strictEqual(getV8FastApiCallCount('url.canParse'), 0);
-    assert.strictEqual(getV8FastApiCallCount('url.canParse.withBase'), 0);
+    assert.strictEqual(getV8FastApiCallCount('url.canParse'), 1);
+    assert.strictEqual(getV8FastApiCallCount('url.canParse.withBase'), 1);
   }
 }

@@ -25,7 +25,7 @@ void Test(v8::Isolate* isolate, i::DirectHandle<i::JSRegExp> regexp,
   v8::TryCatch try_catch(isolate);
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
   // Exceptions will be swallowed by the try/catch above.
-  USE(i::RegExp::Exec(i_isolate, regexp, subject, 0, results_array));
+  USE(i::RegExp::Exec_Single(i_isolate, regexp, subject, 0, results_array));
 }
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
@@ -42,8 +42,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
   CHECK(!i_isolate->has_exception());
   if (size > INT_MAX) return 0;
-  i::MaybeHandle<i::String> maybe_source = factory->NewStringFromOneByte(
-      v8::base::Vector<const uint8_t>(data, static_cast<int>(size)));
+  i::MaybeHandle<i::String> maybe_source =
+      factory->NewStringFromOneByte(v8::base::VectorOf(data, size));
   i::Handle<i::String> source;
   if (!maybe_source.ToHandle(&source)) {
     i_isolate->clear_exception();
@@ -72,7 +72,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
               v8::base::Vector<const v8::base::uc16>(two_byte_array, 6))
           .ToHandleChecked();
 
-  i::Handle<i::JSRegExp> regexp;
+  i::DirectHandle<i::JSRegExp> regexp;
   {
     CHECK(!i_isolate->has_exception());
     v8::TryCatch try_catch_inner(isolate);
@@ -80,7 +80,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     std::string str = std::string(reinterpret_cast<const char*>(data), size);
     i::JSRegExp::Flags flag = static_cast<i::JSRegExp::Flags>(
         std::hash<std::string>()(str) % (kAllFlags + 1));
-    i::MaybeHandle<i::JSRegExp> maybe_regexp =
+    i::MaybeDirectHandle<i::JSRegExp> maybe_regexp =
         i::JSRegExp::New(i_isolate, source, flag);
     if (!maybe_regexp.ToHandle(&regexp)) {
       i_isolate->clear_exception();

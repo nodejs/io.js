@@ -12,11 +12,11 @@ LoadElement<FixedArray, Object>(
   return elements.objects[index];
 }
 
-LoadElement<FixedDoubleArray, float64_or_hole>(
+LoadElement<FixedDoubleArray, float64_or_undefined_or_hole>(
     implicit context: Context)(elements: FixedArrayBase,
-    index: Smi): float64_or_hole {
+    index: Smi): float64_or_undefined_or_hole {
   const elements: FixedDoubleArray = UnsafeCast<FixedDoubleArray>(elements);
-  return elements.floats[index];
+  return elements.values[index];
 }
 
 macro StoreElement<Elements : type extends FixedArrayBase, T: type>(
@@ -30,11 +30,11 @@ StoreElement<FixedArray, Object>(
   elements.objects[index] = value;
 }
 
-StoreElement<FixedDoubleArray, float64_or_hole>(
+StoreElement<FixedDoubleArray, float64_or_undefined_or_hole>(
     implicit context: Context)(elements: FixedArrayBase, index: Smi,
-    value: float64_or_hole): void {
+    value: float64_or_undefined_or_hole): void {
   const elems: FixedDoubleArray = UnsafeCast<FixedDoubleArray>(elements);
-  elems.floats[index] = value;
+  elems.values[index] = value;
 }
 
 // Fast-path for all PACKED_* elements kinds. These do not need to check
@@ -137,7 +137,7 @@ macro TryFastPackedArrayReverse(implicit context: Context)(receiver: JSAny):
     array::EnsureWriteableFastElements(array);
     FastArrayReverse<FixedArray, Object>(array.elements, array.length);
   } else if (kind == ElementsKind::PACKED_DOUBLE_ELEMENTS) {
-    FastArrayReverse<FixedDoubleArray, float64_or_hole>(
+    FastArrayReverse<FixedDoubleArray, float64_or_undefined_or_hole>(
         array.elements, array.length);
   } else {
     if (!IsPrototypeInitialArrayPrototype(array.map)) goto Slow;
@@ -148,7 +148,7 @@ macro TryFastPackedArrayReverse(implicit context: Context)(receiver: JSAny):
       array::EnsureWriteableFastElements(array);
       FastArrayReverse<FixedArray, Object>(array.elements, array.length);
     } else if (kind == ElementsKind::HOLEY_DOUBLE_ELEMENTS) {
-      FastArrayReverse<FixedDoubleArray, float64_or_hole>(
+      FastArrayReverse<FixedDoubleArray, float64_or_undefined_or_hole>(
           array.elements, array.length);
     } else {
       goto Slow;

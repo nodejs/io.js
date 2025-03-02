@@ -3,8 +3,8 @@ Tests debug command for wasm
 Running test: test
 Waiting for wasm scripts to be parsed.
 Ignoring script with url v8://test/instantiate
-Got wasm script: wasm://wasm/7d022e0e
+Got wasm script: wasm://wasm/fd1bd682
 paused No 1
-Script wasm://wasm/7d022e0e byte offset 35: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/fd1bd682 byte offset 35: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.resume
 exports.main returned!

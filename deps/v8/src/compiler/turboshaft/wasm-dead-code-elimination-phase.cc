@@ -8,6 +8,7 @@
 #include "src/compiler/turboshaft/copying-phase.h"
 #include "src/compiler/turboshaft/dead-code-elimination-reducer.h"
 #include "src/compiler/turboshaft/duplication-optimization-reducer.h"
+#include "src/compiler/turboshaft/growable-stacks-reducer.h"
 #include "src/compiler/turboshaft/instruction-selection-normalization-reducer.h"
 #include "src/compiler/turboshaft/load-store-simplification-reducer.h"
 #include "src/compiler/turboshaft/phase.h"
@@ -22,7 +23,7 @@ void WasmDeadCodeEliminationPhase::Run(PipelineData* data, Zone* temp_zone) {
   // The value numbering ensures that load with similar patterns in the complex
   // loads can share those calculations.
   CopyingPhase<DeadCodeEliminationReducer, StackCheckLoweringReducer,
-               LoadStoreSimplificationReducer,
+               GrowableStacksReducer, LoadStoreSimplificationReducer,
                // We make sure that DuplicationOptimizationReducer runs after
                // LoadStoreSimplificationReducer, so that it can optimize
                // Loads/Stores produced by LoadStoreSimplificationReducer

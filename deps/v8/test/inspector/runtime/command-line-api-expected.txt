@@ -677,6 +677,17 @@ Running test: testClear
             }
         ]
         executionContextId : <executionContextId>
+        stackTrace : {
+            callFrames : [
+                [0] : {
+                    columnNumber : 0
+                    functionName : 
+                    lineNumber : 0
+                    scriptId : <scriptId>
+                    url : 
+                }
+            ]
+        }
         timestamp : <timestamp>
         type : clear
     }
@@ -691,6 +702,17 @@ Running test: testClear
             }
         ]
         executionContextId : <executionContextId>
+        stackTrace : {
+            callFrames : [
+                [0] : {
+                    columnNumber : 5
+                    functionName : 
+                    lineNumber : 0
+                    scriptId : <scriptId>
+                    url : 
+                }
+            ]
+        }
         timestamp : <timestamp>
         type : clear
     }

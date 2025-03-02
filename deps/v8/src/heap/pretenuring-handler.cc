@@ -91,7 +91,7 @@ inline bool DigestPretenuringFeedback(
         new_space_capacity_was_above_pretenuring_threshold, new_space_capacity);
   }
 
-  if (v8_flags.trace_pretenuring_statistics) {
+  if (V8_UNLIKELY(v8_flags.trace_pretenuring_statistics)) {
     PrintIsolate(isolate,
                  "pretenuring: AllocationSite(%p): (created, found, ratio) "
                  "(%d, %d, %f) %s => %s\n",
@@ -167,7 +167,7 @@ void PretenuringHandler::RemoveAllocationSitePretenuringFeedback(
 }
 
 void PretenuringHandler::ProcessPretenuringFeedback(
-    size_t new_space_capacity_before_gc) {
+    size_t new_space_capacity_target_capacity) {
   // The minimum new space capacity from which allocation sites can be
   // pretenured. A too small capacity means frequent GCs. Objects thus don't get
   // a chance to die before being promoted, which may lead to wrong pretenuring
@@ -200,8 +200,9 @@ void PretenuringHandler::ProcessPretenuringFeedback(
   // tenure state. When we switched to a large enough new space size we
   // deoptimize the code that belongs to the allocation site and derive the
   // lifetime of the allocation site.
-  bool new_space_was_above_pretenuring_threshold =
-      new_space_capacity_before_gc >= min_new_space_capacity_for_pretenuring;
+  const bool new_space_was_above_pretenuring_threshold =
+      new_space_capacity_target_capacity >=
+      min_new_space_capacity_for_pretenuring;
 
   for (auto& site_and_count : global_pretenuring_feedback_) {
     allocation_sites++;
@@ -218,7 +219,7 @@ void PretenuringHandler::ProcessPretenuringFeedback(
       allocation_mementos_found += found_count;
       if (DigestPretenuringFeedback(heap_->isolate(), site,
                                     new_space_was_above_pretenuring_threshold,
-                                    new_space_capacity_before_gc)) {
+                                    new_space_capacity_target_capacity)) {
         trigger_deoptimization = true;
       }
       if (site->GetAllocationType() == AllocationType::kOld) {
@@ -263,7 +264,7 @@ void PretenuringHandler::ProcessPretenuringFeedback(
     heap_->isolate()->stack_guard()->RequestDeoptMarkedAllocationSites();
   }
 
-  if (v8_flags.trace_pretenuring_statistics &&
+  if (V8_UNLIKELY(v8_flags.trace_pretenuring_statistics) &&
       (allocation_mementos_found > 0 || tenure_decisions > 0 ||
        dont_tenure_decisions > 0)) {
     PrintIsolate(
@@ -271,7 +272,7 @@ void PretenuringHandler::ProcessPretenuringFeedback(
         "pretenuring: threshold=%.2f deopt_maybe_tenured=%d visited_sites=%d "
         "active_sites=%d "
         "mementos=%d tenured=%d not_tenured=%d\n",
-        GetPretenuringRatioThreshold(new_space_capacity_before_gc),
+        GetPretenuringRatioThreshold(new_space_capacity_target_capacity),
         deopt_maybe_tenured ? 1 : 0, allocation_sites, active_allocation_sites,
         allocation_mementos_found, tenure_decisions, dont_tenure_decisions);
   }

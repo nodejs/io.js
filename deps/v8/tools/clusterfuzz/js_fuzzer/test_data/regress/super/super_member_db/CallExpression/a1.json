@@ -1,0 +1,7 @@
+{
+  "type":"CallExpression",
+  "source":"super.baz()",
+  "isStatement":true,
+  "originalPath":"foo",
+  "needsSuper":true
+}

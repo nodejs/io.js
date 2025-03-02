@@ -24,7 +24,7 @@ extern shape JSStrictArgumentsObject extends JSArgumentsObject {
   length: JSAny;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 class SloppyArgumentsElements extends FixedArrayBase {
   context: Context;
   arguments: FixedArray|NumberDictionary;

@@ -371,12 +371,13 @@ bool Operand::NeedsRelocation(const Assembler* assembler) const {
 }
 
 // Assembler
-Assembler::Assembler(const AssemblerOptions& options,
+Assembler::Assembler(const MaybeAssemblerZone& zone,
+                     const AssemblerOptions& options,
                      std::unique_ptr<AssemblerBuffer> buffer)
     : AssemblerBase(options, std::move(buffer)),
-      unresolved_branches_(),
+      zone_(zone),
+      unresolved_branches_(zone_.get()),
       constpool_(this) {
-  veneer_pool_blocked_nesting_ = 0;
   Reset();
 
 #if defined(V8_OS_WIN)
@@ -554,7 +555,7 @@ void Assembler::RemoveBranchFromLabelLinkChain(Instruction* branch,
     // The branch is the last (but not also the first) instruction in the chain.
     //
     // Label -> 1+ branches -> this branch -> start
-    prev_link->SetImmPCOffsetTarget(options(), prev_link);
+    prev_link->SetImmPCOffsetTarget(zone(), options(), prev_link);
     branch_link_chain_back_edge_.erase(
         static_cast<int>(InstructionOffset(branch)));
   } else {
@@ -572,17 +573,17 @@ void Assembler::RemoveBranchFromLabelLinkChain(Instruction* branch,
     }
 
     if (prev_link->IsTargetInImmPCOffsetRange(next_link)) {
-      prev_link->SetImmPCOffsetTarget(options(), next_link);
+      prev_link->SetImmPCOffsetTarget(zone(), options(), next_link);
     } else if (label_veneer != nullptr) {
       // Use the veneer for all previous links in the chain.
-      prev_link->SetImmPCOffsetTarget(options(), prev_link);
+      prev_link->SetImmPCOffsetTarget(zone(), options(), prev_link);
 
       bool end_of_chain = false;
       link = next_link;
       while (!end_of_chain) {
         next_link = link->ImmPCOffsetTarget();
         end_of_chain = (link == next_link);
-        link->SetImmPCOffsetTarget(options(), label_veneer);
+        link->SetImmPCOffsetTarget(zone(), options(), label_veneer);
         // {link} is now resolved; remove it from {unresolved_branches_} so
         // we won't later try to process it again, which would fail because
         // by walking the chain of its label's unresolved branch instructions,
@@ -674,7 +675,7 @@ void Assembler::bind(Label* label) {
       internal_reference_positions_.push_back(linkoffset);
       memcpy(link, &pc_, kSystemPointerSize);
     } else {
-      link->SetImmPCOffsetTarget(options(),
+      link->SetImmPCOffsetTarget(zone(), options(),
                                  reinterpret_cast<Instruction*>(pc_));
 
       // Discard back edge data for this link.
@@ -4649,7 +4650,7 @@ void ConstantPool::SetLoadOffsetToConstPoolEntry(int load_offset,
   Instruction* instr = assm_->InstructionAt(load_offset);
   // Instruction to patch must be 'ldr rd, [pc, #offset]' with offset == 0.
   DCHECK(instr->IsLdrLiteral() && instr->ImmLLiteral() == 0);
-  instr->SetImmPCOffsetTarget(assm_->options(), entry_offset);
+  instr->SetImmPCOffsetTarget(assm_->zone(), assm_->options(), entry_offset);
 }
 
 void ConstantPool::Check(Emission force_emit, Jump require_jump,
@@ -4778,7 +4779,7 @@ void Assembler::EmitVeneers(bool force_emit, bool need_protection,
       Instruction* veneer = reinterpret_cast<Instruction*>(pc_);
       Instruction* branch = InstructionAt(pc_offset);
       RemoveBranchFromLabelLinkChain(branch, label, veneer);
-      branch->SetImmPCOffsetTarget(options(), veneer);
+      branch->SetImmPCOffsetTarget(zone(), options(), veneer);
       b(label);  // This may end up pointing at yet another veneer later on.
       DCHECK_EQ(SizeOfCodeGeneratedSince(&veneer_size_check),
                 static_cast<uint64_t>(kVeneerCodeSize));

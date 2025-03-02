@@ -83,6 +83,12 @@ TF_BUILTIN(DebugBreakTrampoline, CodeStubAssembler) {
   auto new_target = Parameter<Object>(Descriptor::kJSNewTarget);
   auto arg_count =
       UncheckedParameter<Int32T>(Descriptor::kJSActualArgumentsCount);
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+  auto dispatch_handle =
+      UncheckedParameter<JSDispatchHandleT>(Descriptor::kJSDispatchHandle);
+#else
+  auto dispatch_handle = InvalidDispatchHandleConstant();
+#endif
   auto function = Parameter<JSFunction>(Descriptor::kJSTarget);
 
   // Check break-at-entry flag on the debug info.
@@ -103,8 +109,11 @@ TF_BUILTIN(DebugBreakTrampoline, CodeStubAssembler) {
 
   BIND(&tailcall_to_shared);
   // Tail call into code object on the SharedFunctionInfo.
+  // TODO(saelo): this is not safe. We either need to validate the parameter
+  // count here or obtain the code from the dispatch table.
   TNode<Code> code = GetSharedFunctionInfoCode(shared);
-  TailCallJSCode(code, context, function, new_target, arg_count);
+  TailCallJSCode(code, context, function, new_target, arg_count,
+                 dispatch_handle);
 }
 
 class WriteBarrierCodeStubAssembler : public CodeStubAssembler {
@@ -157,9 +166,14 @@ class WriteBarrierCodeStubAssembler : public CodeStubAssembler {
     // Load address of SlotSet
     TNode<IntPtrT> slot_set = LoadSlotSet(page, &slow_path);
     TNode<IntPtrT> slot_offset = IntPtrSub(slot, chunk);
+    TNode<IntPtrT> num_buckets_address =
+        IntPtrSub(slot_set, IntPtrConstant(SlotSet::kNumBucketsSize));
+    TNode<IntPtrT> num_buckets = UncheckedCast<IntPtrT>(
+        Load(MachineType::Pointer(), num_buckets_address, IntPtrConstant(0)));
 
     // Load bucket
-    TNode<IntPtrT> bucket = LoadBucket(slot_set, slot_offset, &slow_path);
+    TNode<IntPtrT> bucket =
+        LoadBucket(slot_set, slot_offset, num_buckets, &slow_path);
 
     // Update cell
     SetBitInCell(bucket, slot_offset);
@@ -182,15 +196,17 @@ class WriteBarrierCodeStubAssembler : public CodeStubAssembler {
   TNode<IntPtrT> LoadSlotSet(TNode<IntPtrT> page, Label* slow_path) {
     TNode<IntPtrT> slot_set = UncheckedCast<IntPtrT>(
         Load(MachineType::Pointer(), page,
-             IntPtrConstant(MutablePageMetadata::kOldToNewSlotSetOffset)));
+             IntPtrConstant(MutablePageMetadata::SlotSetOffset(
+                 RememberedSetType::OLD_TO_NEW))));
     GotoIf(WordEqual(slot_set, IntPtrConstant(0)), slow_path);
     return slot_set;
   }
 
   TNode<IntPtrT> LoadBucket(TNode<IntPtrT> slot_set, TNode<WordT> slot_offset,
-                            Label* slow_path) {
+                            TNode<IntPtrT> num_buckets, Label* slow_path) {
     TNode<WordT> bucket_index =
         WordShr(slot_offset, SlotSet::kBitsPerBucketLog2 + kTaggedSizeLog2);
+    CSA_CHECK(this, IntPtrLessThan(bucket_index, num_buckets));
     TNode<IntPtrT> bucket = UncheckedCast<IntPtrT>(
         Load(MachineType::Pointer(), slot_set,
              WordShl(bucket_index, kSystemPointerSizeLog2)));
@@ -1225,57 +1241,68 @@ TF_BUILTIN(SameValueNumbersOnly, CodeStubAssembler) {
   Return(FalseConstant());
 }
 
-TF_BUILTIN(AdaptorWithBuiltinExitFrame, CodeStubAssembler) {
+class CppBuiltinsAdaptorAssembler : public CodeStubAssembler {
+ public:
+  using Descriptor = CppBuiltinAdaptorDescriptor;
+
+  explicit CppBuiltinsAdaptorAssembler(compiler::CodeAssemblerState* state)
+      : CodeStubAssembler(state) {}
+
+  void GenerateAdaptor(int formal_parameter_count);
+};
+
+void CppBuiltinsAdaptorAssembler::GenerateAdaptor(int formal_parameter_count) {
+  auto context = Parameter<Context>(Descriptor::kContext);
   auto target = Parameter<JSFunction>(Descriptor::kTarget);
   auto new_target = Parameter<Object>(Descriptor::kNewTarget);
   auto c_function = UncheckedParameter<WordT>(Descriptor::kCFunction);
+  auto actual_argc =
+      UncheckedParameter<Int32T>(Descriptor::kActualArgumentsCount);
 
   // The logic contained here is mirrored for TurboFan inlining in
   // JSTypedLowering::ReduceJSCall{Function,Construct}. Keep these in sync.
 
-  // Make sure we operate in the context of the called function (for example
-  // ConstructStubs implemented in C++ will be run in the context of the caller
-  // instead of the callee, due to the way that [[Construct]] is defined for
-  // ordinary functions).
-  TNode<Context> context = LoadJSFunctionContext(target);
+  // Make sure we operate in the context of the called function.
+  CSA_DCHECK(this, TaggedEqual(context, LoadJSFunctionContext(target)));
 
-  auto actual_argc =
-      UncheckedParameter<Int32T>(Descriptor::kActualArgumentsCount);
-  CodeStubArguments args(this, actual_argc);
+  static_assert(kDontAdaptArgumentsSentinel == 0);
+  // The code below relies on |actual_argc| to include receiver.
+  static_assert(i::JSParameterCount(0) == 1);
+  TVARIABLE(Int32T, pushed_argc, actual_argc);
 
-  TVARIABLE(Int32T, pushed_argc,
-            TruncateIntPtrToInt32(args.GetLengthWithReceiver()));
+  // It's guaranteed that the receiver is pushed to the stack, thus both
+  // kDontAdaptArgumentsSentinel and JSParameterCount(0) cases don't require
+  // arguments adaptation. Just use the latter version for consistency.
+  DCHECK_NE(kDontAdaptArgumentsSentinel, formal_parameter_count);
+  if (formal_parameter_count > i::JSParameterCount(0)) {
+    TNode<Int32T> formal_count = Int32Constant(formal_parameter_count);
 
-  TNode<SharedFunctionInfo> shared = LoadJSFunctionSharedFunctionInfo(target);
-
-  TNode<Int32T> formal_count = UncheckedCast<Int32T>(
-      LoadSharedFunctionInfoFormalParameterCountWithReceiver(shared));
-
-  // The number of arguments pushed is the maximum of actual arguments count
-  // and formal parameters count. Except when the formal parameters count is
-  // the sentinel.
-  Label check_argc(this), update_argc(this), done_argc(this);
-
-  Branch(IsSharedFunctionInfoDontAdaptArguments(shared), &done_argc,
-         &check_argc);
-  BIND(&check_argc);
-  Branch(Int32GreaterThan(formal_count, pushed_argc.value()), &update_argc,
-         &done_argc);
-  BIND(&update_argc);
-  pushed_argc = formal_count;
-  Goto(&done_argc);
-  BIND(&done_argc);
+    // The number of arguments pushed is the maximum of actual arguments count
+    // and formal parameters count.
+    Label done_argc(this);
+    GotoIf(Int32GreaterThanOrEqual(pushed_argc.value(), formal_count),
+           &done_argc);
+    // Update pushed args.
+    pushed_argc = formal_count;
+    Goto(&done_argc);
+    BIND(&done_argc);
+  }
 
   // Update arguments count for CEntry to contain the number of arguments
   // including the receiver and the extra arguments.
-  TNode<Int32T> argc = Int32Add(
-      pushed_argc.value(),
-      Int32Constant(BuiltinExitFrameConstants::kNumExtraArgsWithoutReceiver));
+  TNode<Int32T> argc =
+      Int32Add(pushed_argc.value(),
+               Int32Constant(BuiltinExitFrameConstants::kNumExtraArgs));
 
   const bool builtin_exit_frame = true;
   const bool switch_to_central_stack = false;
   Builtin centry = Builtins::CEntry(1, ArgvMode::kStack, builtin_exit_frame,
                                     switch_to_central_stack);
+
+  static_assert(BuiltinArguments::kNewTargetIndex == 0);
+  static_assert(BuiltinArguments::kTargetIndex == 1);
+  static_assert(BuiltinArguments::kArgcIndex == 2);
+  static_assert(BuiltinArguments::kPaddingIndex == 3);
 
   // Unconditionally push argc, target and new target as extra stack arguments.
   // They will be used by stack frame iterators when constructing stack trace.
@@ -1285,6 +1312,30 @@ TF_BUILTIN(AdaptorWithBuiltinExitFrame, CodeStubAssembler) {
                   SmiFromInt32(argc),  // additional stack argument 2
                   target,              // additional stack argument 3
                   new_target);         // additional stack argument 4
+}
+
+TF_BUILTIN(AdaptorWithBuiltinExitFrame0, CppBuiltinsAdaptorAssembler) {
+  GenerateAdaptor(i::JSParameterCount(0));
+}
+
+TF_BUILTIN(AdaptorWithBuiltinExitFrame1, CppBuiltinsAdaptorAssembler) {
+  GenerateAdaptor(i::JSParameterCount(1));
+}
+
+TF_BUILTIN(AdaptorWithBuiltinExitFrame2, CppBuiltinsAdaptorAssembler) {
+  GenerateAdaptor(i::JSParameterCount(2));
+}
+
+TF_BUILTIN(AdaptorWithBuiltinExitFrame3, CppBuiltinsAdaptorAssembler) {
+  GenerateAdaptor(i::JSParameterCount(3));
+}
+
+TF_BUILTIN(AdaptorWithBuiltinExitFrame4, CppBuiltinsAdaptorAssembler) {
+  GenerateAdaptor(i::JSParameterCount(4));
+}
+
+TF_BUILTIN(AdaptorWithBuiltinExitFrame5, CppBuiltinsAdaptorAssembler) {
+  GenerateAdaptor(i::JSParameterCount(5));
 }
 
 TF_BUILTIN(NewHeapNumber, CodeStubAssembler) {
@@ -1398,18 +1449,7 @@ void Builtins::Generate_BaselineLeaveFrame(MacroAssembler* masm) {
 #endif  // V8_ENABLE_SPARKPLUG
 }
 
-// TODO(v8:11421): Remove #if once the Maglev compiler is ported to other
-// architectures.
-#ifndef V8_TARGET_ARCH_X64
-void Builtins::Generate_MaglevOnStackReplacement(MacroAssembler* masm) {
-  using D =
-      i::CallInterfaceDescriptorFor<Builtin::kMaglevOnStackReplacement>::type;
-  static_assert(D::kParameterCount == 1);
-  masm->Trap();
-}
-#endif  // V8_TARGET_ARCH_X64
-
-#ifdef V8_ENABLE_MAGLEV
+#if defined(V8_ENABLE_MAGLEV) && !defined(V8_ENABLE_LEAPTIERING)
 void Builtins::Generate_MaglevOptimizeCodeOrTailCallOptimizedCodeSlot(
     MacroAssembler* masm) {
   using D = MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor;
@@ -1421,16 +1461,19 @@ void Builtins::Generate_MaglevOptimizeCodeOrTailCallOptimizedCodeSlot(
   masm->Trap();
 }
 #else
+void Builtins::Generate_MaglevOptimizeCodeOrTailCallOptimizedCodeSlot(
+    MacroAssembler* masm) {
+  masm->Trap();
+}
+#endif  // V8_ENABLE_MAGLEV && !V8_ENABLE_LEAPTIERING
+
+#ifndef V8_ENABLE_MAGLEV
 // static
 void Builtins::Generate_MaglevFunctionEntryStackCheck(MacroAssembler* masm,
                                                       bool save_new_target) {
   masm->Trap();
 }
-void Builtins::Generate_MaglevOptimizeCodeOrTailCallOptimizedCodeSlot(
-    MacroAssembler* masm) {
-  masm->Trap();
-}
-#endif  // V8_ENABLE_MAGLEV
+#endif  // !V8_ENABLE_MAGLEV
 
 void Builtins::Generate_MaglevFunctionEntryStackCheck_WithoutNewTarget(
     MacroAssembler* masm) {
@@ -1598,14 +1641,27 @@ TF_BUILTIN(CreateDataProperty, CodeStubAssembler) {
 
 TF_BUILTIN(InstantiateAsmJs, CodeStubAssembler) {
   Label tailcall_to_function(this);
+  auto function = Parameter<JSFunction>(Descriptor::kTarget);
   auto context = Parameter<Context>(Descriptor::kContext);
   auto new_target = Parameter<Object>(Descriptor::kNewTarget);
   auto arg_count =
       UncheckedParameter<Int32T>(Descriptor::kActualArgumentsCount);
-  auto function = Parameter<JSFunction>(Descriptor::kTarget);
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+  auto dispatch_handle =
+      UncheckedParameter<JSDispatchHandleT>(Descriptor::kDispatchHandle);
+#elif defined(V8_ENABLE_LEAPTIERING)
+  TNode<JSDispatchHandleT> dispatch_handle = ReinterpretCast<JSDispatchHandleT>(
+      LoadJSFunctionDispatchHandle(function));
+#else
+  auto dispatch_handle = InvalidDispatchHandleConstant();
+#endif
+
+  // This builtin is used on functions with different parameter counts.
+  SetSupportsDynamicParameterCount(function, dispatch_handle);
 
   // Retrieve arguments from caller (stdlib, foreign, heap).
   CodeStubArguments args(this, arg_count);
+
   TNode<Object> stdlib = args.GetOptionalArgumentValue(0);
   TNode<Object> foreign = args.GetOptionalArgumentValue(1);
   TNode<Object> heap = args.GetOptionalArgumentValue(2);
@@ -1615,20 +1671,6 @@ TF_BUILTIN(InstantiateAsmJs, CodeStubAssembler) {
   TNode<Object> maybe_result_or_smi_zero = CallRuntime(
       Runtime::kInstantiateAsmJs, context, function, stdlib, foreign, heap);
   GotoIf(TaggedIsSmi(maybe_result_or_smi_zero), &tailcall_to_function);
-
-  TNode<SharedFunctionInfo> shared = LoadJSFunctionSharedFunctionInfo(function);
-  TNode<Int32T> parameter_count = UncheckedCast<Int32T>(
-      LoadSharedFunctionInfoFormalParameterCountWithReceiver(shared));
-  // This builtin intercepts a call to {function}, where the number of arguments
-  // pushed is the maximum of actual arguments count and formal parameters
-  // count.
-  Label argc_lt_param_count(this), argc_ge_param_count(this);
-  Branch(IntPtrLessThan(args.GetLengthWithReceiver(),
-                        ChangeInt32ToIntPtr(parameter_count)),
-         &argc_lt_param_count, &argc_ge_param_count);
-  BIND(&argc_lt_param_count);
-  PopAndReturn(parameter_count, maybe_result_or_smi_zero);
-  BIND(&argc_ge_param_count);
   args.PopAndReturn(maybe_result_or_smi_zero);
 
   BIND(&tailcall_to_function);
@@ -1636,7 +1678,8 @@ TF_BUILTIN(InstantiateAsmJs, CodeStubAssembler) {
   // function which has been reset to the compile lazy builtin.
 
   TNode<Code> code = LoadJSFunctionCode(function);
-  TailCallJSCode(code, context, function, new_target, arg_count);
+  TailCallJSCode(code, context, function, new_target, arg_count,
+                 dispatch_handle);
 }
 
 TF_BUILTIN(FindNonDefaultConstructorOrConstruct, CodeStubAssembler) {

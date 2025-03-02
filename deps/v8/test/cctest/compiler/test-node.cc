@@ -4,9 +4,9 @@
 
 #include <functional>
 
-#include "src/compiler/graph.h"
 #include "src/compiler/node.h"
 #include "src/compiler/operator.h"
+#include "src/compiler/turbofan-graph.h"
 #include "test/cctest/cctest.h"
 
 namespace v8 {

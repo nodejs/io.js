@@ -28,6 +28,15 @@ namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace container_internal {
 
+template <class Policy, class = void>
+struct policy_trait_element_is_owner : std::false_type {};
+
+template <class Policy>
+struct policy_trait_element_is_owner<
+    Policy,
+    std::enable_if_t<!std::is_void<typename Policy::element_is_owner>::value>>
+    : Policy::element_is_owner {};
+
 // Defines how slots are initialized/destroyed/moved.
 template <class Policy, class = void>
 struct common_policy_traits {

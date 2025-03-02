@@ -4,9 +4,9 @@
 
 #include "src/compiler/decompression-optimizer.h"
 
-#include "src/compiler/graph.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/node-properties.h"
+#include "src/compiler/turbofan-graph.h"
 
 namespace v8 {
 namespace internal {

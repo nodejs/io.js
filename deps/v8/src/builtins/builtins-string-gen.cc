@@ -547,7 +547,7 @@ TNode<String> StringBuiltinsAssembler::StringAdd(
                        Int32Constant(kTwoByteStringTag)),
            &two_byte);
     // One-byte sequential string case
-    result = AllocateSeqOneByteString(new_length);
+    result = AllocateNonEmptySeqOneByteString(new_length);
     CopyStringCharacters(var_left.value(), result.value(), IntPtrConstant(0),
                          IntPtrConstant(0), word_left_length,
                          String::ONE_BYTE_ENCODING, String::ONE_BYTE_ENCODING);
@@ -559,7 +559,7 @@ TNode<String> StringBuiltinsAssembler::StringAdd(
     BIND(&two_byte);
     {
       // Two-byte sequential string case
-      result = AllocateSeqTwoByteString(new_length);
+      result = AllocateNonEmptySeqTwoByteString(new_length);
       CopyStringCharacters(var_left.value(), result.value(), IntPtrConstant(0),
                            IntPtrConstant(0), word_left_length,
                            String::TWO_BYTE_ENCODING,
@@ -1144,7 +1144,7 @@ void StringBuiltinsAssembler::MaybeCallFunctionAtSymbol(
   BIND(&out);
 }
 
-const TNode<Smi> StringBuiltinsAssembler::IndexOfDollarChar(
+TNode<Smi> StringBuiltinsAssembler::IndexOfDollarChar(
     const TNode<Context> context, const TNode<String> string) {
   const TNode<String> dollar_string = HeapConstantNoHole(
       isolate()->factory()->LookupSingleCharacterStringFromCode('$'));
@@ -1171,7 +1171,7 @@ TNode<String> StringBuiltinsAssembler::GetSubstitution(
   // TODO(jgruber): Possibly extend this in the future to handle more complex
   // cases without runtime calls.
 
-  const TNode<Smi> dollar_index = IndexOfDollarChar(context, replace_string);
+  TNode<Smi> dollar_index = IndexOfDollarChar(context, replace_string);
   Branch(SmiIsNegative(dollar_index), &out, &runtime);
 
   BIND(&runtime);
@@ -1864,10 +1864,13 @@ void StringBuiltinsAssembler::CopyStringCharacters(
 // given character range using CopyStringCharacters.
 // |from_string| must be a sequential string.
 // 0 <= |from_index| <= |from_index| + |character_count| < from_string.length.
+// |character_count| > 0.
 template <typename T>
 TNode<String> StringBuiltinsAssembler::AllocAndCopyStringCharacters(
     TNode<T> from, TNode<BoolT> from_is_one_byte, TNode<IntPtrT> from_index,
     TNode<IntPtrT> character_count) {
+  CSA_DCHECK(this, IntPtrGreaterThan(character_count, IntPtrConstant(0)));
+
   Label end(this), one_byte_sequential(this), two_byte_sequential(this);
   TVARIABLE(String, var_result);
 
@@ -1876,7 +1879,7 @@ TNode<String> StringBuiltinsAssembler::AllocAndCopyStringCharacters(
   // The subject string is a sequential one-byte string.
   BIND(&one_byte_sequential);
   {
-    TNode<String> result = AllocateSeqOneByteString(
+    TNode<String> result = AllocateNonEmptySeqOneByteString(
         Unsigned(TruncateIntPtrToInt32(character_count)));
     CopyStringCharacters<T>(from, result, from_index, IntPtrConstant(0),
                             character_count, String::ONE_BYTE_ENCODING,
@@ -1950,7 +1953,7 @@ TNode<String> StringBuiltinsAssembler::AllocAndCopyStringCharacters(
     GotoIf(Uint32GreaterThan(var_bits.value(), Uint32Constant(0xFF)), &twobyte);
     // Fallthrough: only one-byte characters in the to-be-copied range.
     {
-      TNode<String> result = AllocateSeqOneByteString(
+      TNode<String> result = AllocateNonEmptySeqOneByteString(
           Unsigned(TruncateIntPtrToInt32(character_count)));
       CopyStringCharacters<T>(from, result, from_index, IntPtrConstant(0),
                               character_count, String::TWO_BYTE_ENCODING,
@@ -1961,7 +1964,7 @@ TNode<String> StringBuiltinsAssembler::AllocAndCopyStringCharacters(
 
     BIND(&twobyte);
     {
-      TNode<String> result = AllocateSeqTwoByteString(
+      TNode<String> result = AllocateNonEmptySeqTwoByteString(
           Unsigned(TruncateIntPtrToInt32(character_count)));
       CopyStringCharacters<T>(from, result, from_index, IntPtrConstant(0),
                               character_count, String::TWO_BYTE_ENCODING,

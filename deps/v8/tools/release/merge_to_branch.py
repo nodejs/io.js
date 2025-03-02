@@ -143,8 +143,6 @@ class CreateCommitMessage(Step):
       # gerrit. Keep BUG= for now for backwards-compatibility.
       msg_pieces.append("BUG=%s\n" % bug_aggregate)
 
-    msg_pieces.append("NOTRY=true\nNOPRESUBMIT=true\nNOTREECHECKS=true\n")
-
     self["new_commit_msg"] = "".join(msg_pieces)
 
 

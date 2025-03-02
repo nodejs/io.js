@@ -8,12 +8,12 @@ namespace v8 {
 namespace internal {
 namespace wasm {
 
-using ::wasm::I32;
-using ::wasm::I64;
+using ::wasm::ValKind::I32;
+using ::wasm::ValKind::I64;
 
 namespace {
 
-own<Trap> Callback(const Val args[], Val results[]) {
+own<Trap> Callback(const vec<Val>& args, vec<Val>& results) {
   results[0] = args[3].copy();
   results[1] = args[1].copy();
   results[2] = args[2].copy();
@@ -39,12 +39,13 @@ TEST_F(WasmCapiTest, MultiReturn) {
   own<FuncType> func_type =
       FuncType::make(types.deep_copy(), types.deep_copy());
   own<Func> callback = Func::make(store(), func_type.get(), Callback);
-  Extern* imports[] = {callback.get()};
+  vec<Extern*> imports = vec<Extern*>::make(callback.get());
   Instantiate(imports);
 
   Func* run_func = GetExportedFunction(0);
-  Val args[] = {Val::i32(1), Val::i64(2), Val::i64(3), Val::i32(4)};
-  Val results[4];
+  vec<Val> args =
+      vec<Val>::make(Val::i32(1), Val::i64(2), Val::i64(3), Val::i32(4));
+  vec<Val> results = vec<Val>::make_uninitialized(4);
   own<Trap> trap = run_func->call(args, results);
   EXPECT_EQ(nullptr, trap);
   EXPECT_EQ(4, results[0].i32());

@@ -6,7 +6,7 @@
 
 (function TestParameterLimit() {
   var src = '(function f(a,';
-  for (var i = 0; i < 65534 - 2; i++) {
+  for (var i = 0; i < 65525 - 2; i++) {
     src += 'b' + i + ',';
   }
   src += 'c) { return a + c })';

@@ -142,6 +142,7 @@ absl_test("flat_hash_set_test") {
   deps = [
     ":container_memory",
     ":flat_hash_set",
+    ":hash_container_defaults",
     ":hash_generator_testing",
     ":test_allocator",
     ":unordered_set_constructor_test",
@@ -149,6 +150,7 @@ absl_test("flat_hash_set_test") {
     ":unordered_set_members_test",
     ":unordered_set_modifiers_test",
     "//third_party/abseil-cpp/absl/base:config",
+    "//third_party/abseil-cpp/absl/hash",
     "//third_party/abseil-cpp/absl/log:check",
     "//third_party/abseil-cpp/absl/memory",
     "//third_party/abseil-cpp/absl/strings",
@@ -385,6 +387,7 @@ absl_source_set("raw_hash_set") {
   public = [ "internal/raw_hash_set.h" ]
   deps = [
     ":common",
+    ":common_policy_traits",
     ":compressed_tuple",
     ":container_memory",
     ":hash_function_defaults",

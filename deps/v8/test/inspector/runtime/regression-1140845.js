@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 let {session, contextGroup, Protocol} =
-    InspectorTest.start('Regression test for crbug.com/1140845. Check that a "then" gettter on the object prototype does not crash V8');
+    InspectorTest.start('Regression test for crbug.com/1140845. Check that a "then" getter on the object prototype does not crash V8');
 
 const setupScript = `
   let obj = Object.prototype;

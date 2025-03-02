@@ -1,17 +1,18 @@
 #
 # V8 correctness failure
-# V8 correctness configs: x64,ignition:x64,ignition_turbo
-# V8 correctness sources: f60
+# V8 correctness sources: f6
 # V8 correctness suppression: 
 #
 # CHECK
 #
-# Compared x64,ignition with x64,ignition_turbo
+# Compared x64 with x64
 #
-# Flags of x64,ignition:
---correctness-fuzzer-suppressions --expose-gc --fuzzing --allow-natives-for-differential-fuzzing --invoke-weak-callbacks --omit-quit --harmony --js-staging --wasm-staging --no-wasm-async-compilation --wasm-max-mem-pages=32767 --suppress-asm-messages --random-seed 12345 --turbo-filter=~ --no-turbofan --no-sparkplug --liftoff --no-wasm-tier-up --no-maglev --flag1 --flag2=0
-# Flags of x64,ignition_turbo:
---correctness-fuzzer-suppressions --expose-gc --fuzzing --allow-natives-for-differential-fuzzing --invoke-weak-callbacks --omit-quit --harmony --js-staging --wasm-staging --no-wasm-async-compilation --wasm-max-mem-pages=32767 --suppress-asm-messages --random-seed 12345 --flag3
+# Common flags:
+--correctness-fuzzer-suppressions --expose-gc --fuzzing --allow-natives-for-differential-fuzzing --invoke-weak-callbacks --omit-quit --harmony --js-staging --wasm-staging --no-wasm-async-compilation --wasm-max-mem-pages=32767 --suppress-asm-messages --random-seed 12345
+# Baseline flags:
+--turbo-filter=~ --no-turbofan --no-sparkplug --liftoff --no-wasm-tier-up --no-maglev --flag1 --flag2=0
+# Comparison flags:
+--flag3
 #
 # Difference:
 - unknown
@@ -20,31 +21,27 @@
 # Source file:
 name/to/file.js
 #
-### Start of configuration x64,ignition:
+### Start of baseline output:
 
 1
 v8-foozzie source: name/to/a/file.js
 2
 v8-foozzie source: name/to/file.js
-  weird error
-        ^
 3
 unknown
 
 
-### End of configuration x64,ignition
+### End of baseline output
 #
-### Start of configuration x64,ignition_turbo:
+### Start of comparison output:
 
 1
 v8-foozzie source: name/to/a/file.js
 2
 v8-foozzie source: name/to/file.js
-  weird other error
-^
 3
 not unknown
 
 
-### End of configuration x64,ignition_turbo
+### End of comparison output
 

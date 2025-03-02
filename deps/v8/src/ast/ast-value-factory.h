@@ -86,7 +86,7 @@ class AstRawString final : public ZoneObject {
   }
 
   // This function can be called after internalizing.
-  V8_INLINE Handle<String> string() const {
+  V8_INLINE IndirectHandle<String> string() const {
     DCHECK(has_string_);
     return string_;
   }
@@ -117,7 +117,7 @@ class AstRawString final : public ZoneObject {
     return &next_;
   }
 
-  void set_string(Handle<String> string) {
+  void set_string(IndirectHandle<String> string) {
     DCHECK(!string.is_null());
     DCHECK(!has_string_);
     string_ = string;
@@ -128,7 +128,7 @@ class AstRawString final : public ZoneObject {
 
   union {
     AstRawString* next_;
-    Handle<String> string_;
+    IndirectHandle<String> string_;
   };
 
   base::Vector<const uint8_t> literal_bytes_;  // Memory owned by Zone.
@@ -168,7 +168,7 @@ class AstConsString final : public ZoneObject {
   }
 
   template <typename IsolateT>
-  Handle<String> GetString(IsolateT* isolate) {
+  IndirectHandle<String> GetString(IsolateT* isolate) {
     if (string_.is_null()) {
       string_ = Allocate(isolate);
     }
@@ -181,6 +181,8 @@ class AstConsString final : public ZoneObject {
 
   std::forward_list<const AstRawString*> ToRawStrings() const;
 
+  const AstRawString* last() const { return segment_.string; }
+
  private:
   friend class AstValueFactory;
   friend Zone;
@@ -191,7 +193,7 @@ class AstConsString final : public ZoneObject {
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
   Handle<String> Allocate(IsolateT* isolate) const;
 
-  Handle<String> string_;
+  IndirectHandle<String> string_;
 
   // A linked list of AstRawStrings of the contents of this AstConsString.
   // This list has several properties:

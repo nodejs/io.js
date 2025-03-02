@@ -103,12 +103,15 @@ namespace compiler {
   V(Arm64S128AndNot)                    \
   V(Arm64Ssra)                          \
   V(Arm64Usra)                          \
+  V(Arm64S64x2UnzipLeft)                \
+  V(Arm64S64x2UnzipRight)               \
   V(Arm64S32x4ZipLeft)                  \
   V(Arm64S32x4ZipRight)                 \
   V(Arm64S32x4UnzipLeft)                \
   V(Arm64S32x4UnzipRight)               \
   V(Arm64S32x4TransposeLeft)            \
   V(Arm64S32x4TransposeRight)           \
+  V(Arm64S64x2Shuffle)                  \
   V(Arm64S32x4Shuffle)                  \
   V(Arm64S16x8ZipLeft)                  \
   V(Arm64S16x8ZipRight)                 \
@@ -348,6 +351,8 @@ namespace compiler {
   V(Arm64Float64SilenceNaN)                          \
   V(Arm64Float32ToFloat64)                           \
   V(Arm64Float64ToFloat32)                           \
+  V(Arm64Float64ToFloat16RawBits)                    \
+  V(Arm64Float16RawBitsToFloat64)                    \
   V(Arm64Float32ToInt32)                             \
   V(Arm64Float64ToInt32)                             \
   V(Arm64Float32ToUint32)                            \

@@ -8,7 +8,7 @@
 #include <cstdint>
 
 #include "include/v8-internal.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/logging.h"
 #include "src/codegen/machine-type.h"
 #include "src/compiler/turboshaft/utils.h"
@@ -312,6 +312,25 @@ class RegisterRepresentation : public MaybeRegisterRepresentation {
 
   static constexpr RegisterRepresentation FromMachineType(MachineType type) {
     return FromMachineRepresentation(type.representation());
+  }
+
+  static constexpr RegisterRepresentation FromCTypeInfo(
+      CTypeInfo t, CFunctionInfo::Int64Representation int64_repr) {
+    if (t.GetType() == CTypeInfo::Type::kVoid ||
+        t.GetType() == CTypeInfo::Type::kPointer) {
+      return RegisterRepresentation::Tagged();
+    } else if (t.GetType() == CTypeInfo::Type::kInt64 ||
+               t.GetType() == CTypeInfo::Type::kUint64) {
+      if (int64_repr == CFunctionInfo::Int64Representation::kBigInt) {
+        return RegisterRepresentation::Word64();
+      } else {
+        DCHECK_EQ(int64_repr, CFunctionInfo::Int64Representation::kNumber);
+        return RegisterRepresentation::Float64();
+      }
+    } else {
+      return RegisterRepresentation::FromMachineType(
+          MachineType::TypeForCType(t));
+    }
   }
 
   constexpr bool AllowImplicitRepresentationChangeTo(

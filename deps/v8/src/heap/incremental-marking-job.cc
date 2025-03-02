@@ -53,7 +53,7 @@ IncrementalMarkingJob::IncrementalMarkingJob(Heap* heap)
 }
 
 void IncrementalMarkingJob::ScheduleTask(TaskPriority priority) {
-  base::MutexGuard guard(&mutex_);
+  base::SpinningMutexGuard guard(&mutex_);
 
   if (pending_task_ || heap_->IsTearingDown()) {
     return;
@@ -99,7 +99,7 @@ void IncrementalMarkingJob::Task::RunInternal() {
   Heap* heap = isolate()->heap();
 
   {
-    base::MutexGuard guard(&job_->mutex_);
+    base::SpinningMutexGuard guard(&job_->mutex_);
     heap->tracer()->RecordTimeToIncrementalMarkingTask(
         v8::base::TimeTicks::Now() - job_->scheduled_time_);
     job_->scheduled_time_ = v8::base::TimeTicks();
@@ -123,7 +123,7 @@ void IncrementalMarkingJob::Task::RunInternal() {
   // Clear this flag after StartIncrementalMarking() call to avoid scheduling a
   // new task when starting incremental marking from a task.
   {
-    base::MutexGuard guard(&job_->mutex_);
+    base::SpinningMutexGuard guard(&job_->mutex_);
     if (V8_UNLIKELY(v8_flags.trace_incremental_marking)) {
       job_->heap_->isolate()->PrintWithTimestamp(
           "[IncrementalMarking] Job: Run\n");

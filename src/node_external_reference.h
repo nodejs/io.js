@@ -43,19 +43,21 @@ using CFunctionCallbackWithStrings =
              const v8::FastOneByteString& base);
 using CFunctionCallbackWithTwoUint8Arrays =
     int32_t (*)(v8::Local<v8::Value>,
-                const v8::FastApiTypedArray<uint8_t>&,
-                const v8::FastApiTypedArray<uint8_t>&);
+                v8::Local<v8::Value>,
+                v8::Local<v8::Value>,
+                v8::FastApiCallbackOptions&);
 using CFunctionCallbackWithTwoUint8ArraysFallback =
     bool (*)(v8::Local<v8::Value>,
-             const v8::FastApiTypedArray<uint8_t>&,
-             const v8::FastApiTypedArray<uint8_t>&,
+             v8::Local<v8::Value>,
+             v8::Local<v8::Value>,
              v8::FastApiCallbackOptions&);
 using CFunctionCallbackWithUint8ArrayUint32Int64Bool =
     int32_t (*)(v8::Local<v8::Value>,
-                const v8::FastApiTypedArray<uint8_t>&,
+                v8::Local<v8::Value>,
                 uint32_t,
                 int64_t,
-                bool);
+                bool,
+                v8::FastApiCallbackOptions&);
 using CFunctionWithUint32 = uint32_t (*)(v8::Local<v8::Value>,
                                          const uint32_t input);
 using CFunctionWithDoubleReturnDouble = double (*)(v8::Local<v8::Value>,
@@ -69,20 +71,20 @@ using CFunctionWithBool = void (*)(v8::Local<v8::Value>,
                                    v8::Local<v8::Value>,
                                    bool);
 
-using CFunctionWriteString =
-    uint32_t (*)(v8::Local<v8::Value> receiver,
-                 const v8::FastApiTypedArray<uint8_t>& dst,
-                 const v8::FastOneByteString& src,
-                 uint32_t offset,
-                 uint32_t max_length);
+using CFunctionWriteString = uint32_t (*)(v8::Local<v8::Value>,
+                                          v8::Local<v8::Value>,
+                                          const v8::FastOneByteString&,
+                                          uint32_t,
+                                          uint32_t,
+                                          v8::FastApiCallbackOptions&);
 
-using CFunctionBufferCopy =
-    uint32_t (*)(v8::Local<v8::Value> receiver,
-                 const v8::FastApiTypedArray<uint8_t>& source,
-                 const v8::FastApiTypedArray<uint8_t>& target,
-                 uint32_t target_start,
-                 uint32_t source_start,
-                 uint32_t to_copy);
+using CFunctionBufferCopy = uint32_t (*)(v8::Local<v8::Value>,
+                                         v8::Local<v8::Value>,
+                                         v8::Local<v8::Value>,
+                                         uint32_t,
+                                         uint32_t,
+                                         uint32_t,
+                                         v8::FastApiCallbackOptions&);
 
 // This class manages the external references from the V8 heap
 // to the C++ addresses in Node.js.

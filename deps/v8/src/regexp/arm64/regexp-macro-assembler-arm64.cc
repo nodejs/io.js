@@ -109,7 +109,7 @@ RegExpMacroAssemblerARM64::RegExpMacroAssemblerARM64(Isolate* isolate,
                                                      int registers_to_save)
     : NativeRegExpMacroAssembler(isolate, zone),
       masm_(std::make_unique<MacroAssembler>(
-          isolate, CodeObjectRequired::kYes,
+          isolate, zone, CodeObjectRequired::kYes,
           NewAssemblerBuffer(kInitialBufferSize))),
       no_root_array_scope_(masm_.get()),
       mode_(mode),
@@ -144,10 +144,9 @@ void RegExpMacroAssemblerARM64::AbortedCodeGeneration() {
   fallback_label_.Unuse();
 }
 
-int RegExpMacroAssemblerARM64::stack_limit_slack()  {
-  return RegExpStack::kStackLimitSlack;
+int RegExpMacroAssemblerARM64::stack_limit_slack_slot_count() {
+  return RegExpStack::kStackLimitSlackSlotCount;
 }
-
 
 void RegExpMacroAssemblerARM64::AdvanceCurrentPosition(int by) {
   if (by != 0) {
@@ -630,9 +629,10 @@ void RegExpMacroAssemblerARM64::CheckBitInTable(
   __ Mov(x11, Operand(table));
   if ((mode_ != LATIN1) || (kTableMask != String::kMaxOneByteCharCode)) {
     __ And(w10, current_character(), kTableMask);
-    __ Add(w10, w10, ByteArray::kHeaderSize - kHeapObjectTag);
+    __ Add(w10, w10, OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag);
   } else {
-    __ Add(w10, current_character(), ByteArray::kHeaderSize - kHeapObjectTag);
+    __ Add(w10, current_character(),
+           OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag);
   }
   __ Ldrb(w11, MemOperand(x11, w10, UXTW));
   CompareAndBranchOrBacktrack(w11, 0, ne, on_bit_set);
@@ -662,7 +662,7 @@ void RegExpMacroAssemblerARM64::SkipUntilBitInTable(
     // BoyerMooreLookahead::GetSkipTable in regexp-compiler.cc.
     VRegister nibble_table = v0;
     __ Mov(x8, Operand(nibble_table_array));
-    __ Add(x8, x8, ByteArray::kHeaderSize - kHeapObjectTag);
+    __ Add(x8, x8, OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag);
     __ Ld1(nibble_table.V16B(), MemOperand(x8));
     VRegister nibble_mask = v1;
     const uint64_t nibble_mask_imm = 0x0f0f0f0f'0f0f0f0f;
@@ -744,9 +744,10 @@ void RegExpMacroAssemblerARM64::SkipUntilBitInTable(
   Register index = w10;
   if ((mode_ != LATIN1) || (kTableMask != String::kMaxOneByteCharCode)) {
     __ And(index, current_character(), kTableMask);
-    __ Add(index, index, ByteArray::kHeaderSize - kHeapObjectTag);
+    __ Add(index, index, OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag);
   } else {
-    __ Add(index, current_character(), ByteArray::kHeaderSize - kHeapObjectTag);
+    __ Add(index, current_character(),
+           OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag);
   }
   Register found_in_table = w11;
   __ Ldrb(found_in_table, MemOperand(table_reg, index, UXTW));
@@ -906,7 +907,8 @@ void RegExpMacroAssemblerARM64::PopRegExpBasePointer(Register stack_pointer_out,
   StoreRegExpStackPointerToMemory(stack_pointer_out, scratch);
 }
 
-Handle<HeapObject> RegExpMacroAssemblerARM64::GetCode(Handle<String> source) {
+Handle<HeapObject> RegExpMacroAssemblerARM64::GetCode(Handle<String> source,
+                                                      RegExpFlags flags) {
   Label return_w0;
   // Finalize code - write the entry point code now we know how many
   // registers we need.
@@ -1101,8 +1103,7 @@ Handle<HeapObject> RegExpMacroAssemblerARM64::GetCode(Handle<String> source) {
       }
 
       // Copy the results to the output array from the cached registers first.
-      for (int i = 0;
-           (i < num_saved_registers_) && (i < kNumCachedRegisters);
+      for (int i = 0; (i < num_saved_registers_) && (i < kNumCachedRegisters);
            i += 2) {
         __ Mov(capture_start.X(), GetCachedRegister(i));
         __ Lsr(capture_end.X(), capture_start.X(), kWRegSizeInBits);
@@ -1146,8 +1147,7 @@ Handle<HeapObject> RegExpMacroAssemblerARM64::GetCode(Handle<String> source) {
                    MemOperand(base, -kSystemPointerSize, PostIndex));
             // Offsets need to be relative to the start of the string.
             if (mode_ == UC16) {
-              __ Add(capture_start,
-                     input_length,
+              __ Add(capture_start, input_length,
                      Operand(capture_start, ASR, 1));
               __ Add(capture_end, input_length, Operand(capture_end, ASR, 1));
             } else {
@@ -1315,10 +1315,9 @@ Handle<HeapObject> RegExpMacroAssemblerARM64::GetCode(Handle<String> source) {
           .set_empty_source_position_table()
           .Build();
   PROFILE(masm_->isolate(),
-          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source, flags));
   return Cast<HeapObject>(code);
 }
-
 
 void RegExpMacroAssemblerARM64::GoTo(Label* to) {
   BranchOrBacktrack(al, to);
@@ -1381,6 +1380,7 @@ void RegExpMacroAssemblerARM64::PushBacktrack(Label* label) {
 
 void RegExpMacroAssemblerARM64::PushCurrentPosition() {
   Push(current_input_offset());
+  CheckStackLimit();
 }
 
 
@@ -1388,7 +1388,11 @@ void RegExpMacroAssemblerARM64::PushRegister(int register_index,
                                              StackCheckFlag check_stack_limit) {
   Register to_push = GetRegister(register_index, w10);
   Push(to_push);
-  if (check_stack_limit) CheckStackLimit();
+  if (check_stack_limit) {
+    CheckStackLimit();
+  } else if (V8_UNLIKELY(v8_flags.slow_debug_code)) {
+    AssertAboveStackLimitMinusSlack();
+  }
 }
 
 
@@ -1697,6 +1701,19 @@ void RegExpMacroAssemblerARM64::CheckStackLimit() {
   CallIf(&stack_overflow_label_, ls);
 }
 
+void RegExpMacroAssemblerARM64::AssertAboveStackLimitMinusSlack() {
+  DCHECK(v8_flags.slow_debug_code);
+  Label no_stack_overflow;
+  ASM_CODE_COMMENT_STRING(masm_.get(), "AssertAboveStackLimitMinusSlack");
+  auto l = ExternalReference::address_of_regexp_stack_limit_address(isolate());
+  __ Mov(x10, l);
+  __ Ldr(x10, MemOperand(x10));
+  __ Sub(x10, x10, RegExpStack::kStackLimitSlackSize);
+  __ Cmp(backtrack_stackpointer(), x10);
+  __ B(hi, &no_stack_overflow);
+  __ DebugBreak();
+  __ bind(&no_stack_overflow);
+}
 
 void RegExpMacroAssemblerARM64::Push(Register source) {
   DCHECK(source.Is32Bits());

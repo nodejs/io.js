@@ -1122,7 +1122,7 @@ bool Signature::HasSameTypesAs(const Signature& other,
 }
 
 namespace {
-bool FirstTypeIsContext(const std::vector<const Type*> parameter_types) {
+bool FirstTypeIsContext(const std::vector<const Type*>& parameter_types) {
   return !parameter_types.empty() &&
          (parameter_types[0] == TypeOracle::GetContextType() ||
           parameter_types[0] == TypeOracle::GetNoContextType());
@@ -1274,7 +1274,7 @@ size_t AbstractType::AlignmentLog2() const {
 }
 
 size_t StructType::AlignmentLog2() const {
-  if (this == TypeOracle::GetFloat64OrHoleType()) {
+  if (this == TypeOracle::GetFloat64OrUndefinedOrHoleType()) {
     return TypeOracle::GetFloat64Type()->AlignmentLog2();
   }
   size_t alignment_log_2 = 0;
@@ -1288,7 +1288,8 @@ size_t StructType::AlignmentLog2() const {
 void Field::ValidateAlignment(ResidueClass at_offset) const {
   const Type* type = name_and_type.type;
   std::optional<const StructType*> struct_type = type->StructSupertype();
-  if (struct_type && struct_type != TypeOracle::GetFloat64OrHoleType()) {
+  if (struct_type &&
+      struct_type != TypeOracle::GetFloat64OrUndefinedOrHoleType()) {
     for (const Field& field : (*struct_type)->fields()) {
       field.ValidateAlignment(at_offset);
       size_t field_size = std::get<0>(field.GetFieldSizeInformation());
@@ -1356,7 +1357,7 @@ std::optional<std::tuple<size_t, std::string>> SizeOf(const Type* type) {
     size = TargetArchitecture::RawPtrSize();
     size_string = "kIntptrSize";
   } else if (auto struct_type = type->StructSupertype()) {
-    if (type == TypeOracle::GetFloat64OrHoleType()) {
+    if (type == TypeOracle::GetFloat64OrUndefinedOrHoleType()) {
       size = kDoubleSize;
       size_string = "kDoubleSize";
     } else {

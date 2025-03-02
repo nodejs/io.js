@@ -19,10 +19,8 @@
 #include <cstring>
 #include <string>
 
-#include "absl/base/attributes.h"
 #include "absl/base/config.h"
 #include "absl/base/nullability.h"
-#include "absl/base/optimization.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -177,10 +175,17 @@ constexpr bool AsciiInAZRange(unsigned char c) {
   return static_cast<signed char>(u) < threshold;
 }
 
-// Force-inline so the compiler won't merge the short and long implementations.
 template <bool ToUpper>
-ABSL_ATTRIBUTE_ALWAYS_INLINE inline constexpr void AsciiStrCaseFoldImpl(
-    absl::Nonnull<char*> dst, absl::Nonnull<const char*> src, size_t size) {
+constexpr bool AsciiInAZRangeNaive(unsigned char c) {
+  constexpr unsigned char a = (ToUpper ? 'a' : 'A');
+  constexpr unsigned char z = (ToUpper ? 'z' : 'Z');
+  return a <= c && c <= z;
+}
+
+template <bool ToUpper, bool Naive>
+constexpr void AsciiStrCaseFoldImpl(absl::Nonnull<char*> dst,
+                                    absl::Nullable<const char*> src,
+                                    size_t size) {
   // The upper- and lowercase versions of ASCII characters differ by only 1 bit.
   // When we need to flip the case, we can xor with this bit to achieve the
   // desired result. Note that the choice of 'a' and 'A' here is arbitrary. We
@@ -190,37 +195,34 @@ ABSL_ATTRIBUTE_ALWAYS_INLINE inline constexpr void AsciiStrCaseFoldImpl(
 
   for (size_t i = 0; i < size; ++i) {
     unsigned char v = static_cast<unsigned char>(src[i]);
-    v ^= AsciiInAZRange<ToUpper>(v) ? kAsciiCaseBitFlip : 0;
+    if ABSL_INTERNAL_CONSTEXPR_SINCE_CXX17 (Naive) {
+      v ^= AsciiInAZRangeNaive<ToUpper>(v) ? kAsciiCaseBitFlip : 0;
+    } else {
+      v ^= AsciiInAZRange<ToUpper>(v) ? kAsciiCaseBitFlip : 0;
+    }
     dst[i] = static_cast<char>(v);
   }
 }
 
-// The string size threshold for starting using the long string version.
-constexpr size_t kCaseFoldThreshold = 16;
-
-// No-inline so the compiler won't merge the short and long implementations.
-template <bool ToUpper>
-ABSL_ATTRIBUTE_NOINLINE constexpr void AsciiStrCaseFoldLong(
-    absl::Nonnull<char*> dst, absl::Nonnull<const char*> src, size_t size) {
-  ABSL_ASSUME(size >= kCaseFoldThreshold);
-  AsciiStrCaseFoldImpl<ToUpper>(dst, src, size);
-}
-
 // Splitting to short and long strings to allow vectorization decisions
 // to be made separately in the long and short cases.
+// Using slightly different implementations so the compiler won't optimize them
+// into the same code (the non-naive version is needed for SIMD, so for short
+// strings it's not important).
+// `src` may be null iff `size` is zero.
 template <bool ToUpper>
 constexpr void AsciiStrCaseFold(absl::Nonnull<char*> dst,
-                                absl::Nonnull<const char*> src, size_t size) {
-  size < kCaseFoldThreshold ? AsciiStrCaseFoldImpl<ToUpper>(dst, src, size)
-                            : AsciiStrCaseFoldLong<ToUpper>(dst, src, size);
+                                absl::Nullable<const char*> src, size_t size) {
+  size < 16 ? AsciiStrCaseFoldImpl<ToUpper, /*Naive=*/true>(dst, src, size)
+            : AsciiStrCaseFoldImpl<ToUpper, /*Naive=*/false>(dst, src, size);
 }
 
-void AsciiStrToLower(absl::Nonnull<char*> dst, absl::Nonnull<const char*> src,
+void AsciiStrToLower(absl::Nonnull<char*> dst, absl::Nullable<const char*> src,
                      size_t n) {
   return AsciiStrCaseFold<false>(dst, src, n);
 }
 
-void AsciiStrToUpper(absl::Nonnull<char*> dst, absl::Nonnull<const char*> src,
+void AsciiStrToUpper(absl::Nonnull<char*> dst, absl::Nullable<const char*> src,
                      size_t n) {
   return AsciiStrCaseFold<true>(dst, src, n);
 }

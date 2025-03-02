@@ -5,6 +5,7 @@
 #include "src/codegen/assembler-inl.h"
 #include "src/codegen/reloc-info.h"
 #include "src/heap/evacuation-verifier-inl.h"
+#include "src/heap/visit-object.h"
 #include "src/objects/map-inl.h"
 
 namespace v8 {
@@ -78,7 +79,7 @@ void EvacuationVerifier::VerifyEvacuationOnPage(Address start, Address end) {
   while (current < end) {
     Tagged<HeapObject> object = HeapObject::FromAddress(current);
     if (!IsFreeSpaceOrFiller(object, cage_base())) {
-      object->Iterate(cage_base(), this);
+      VisitObject(heap_->isolate(), object, this);
     }
     current += ALIGN_TO_ALLOCATION_ALIGNMENT(object->Size(cage_base()));
   }

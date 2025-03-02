@@ -89,6 +89,9 @@ class StringBuiltinsAssembler : public CodeStubAssembler {
       const TNode<RawPtrT> subject_ptr, const TNode<IntPtrT> subject_length,
       const TNode<RawPtrT> search_ptr, const TNode<IntPtrT> start_position);
 
+  TNode<Smi> IndexOfDollarChar(const TNode<Context> context,
+                               const TNode<String> string);
+
  protected:
   enum class StringComparison {
     kLessThan,
@@ -122,9 +125,6 @@ class StringBuiltinsAssembler : public CodeStubAssembler {
   void GenerateStringRelationalComparison(TNode<String> left,
                                           TNode<String> right,
                                           StringComparison op);
-
-  const TNode<Smi> IndexOfDollarChar(const TNode<Context> context,
-                                     const TNode<String> string);
 
   TNode<JSArray> StringToArray(TNode<NativeContext> context,
                                TNode<String> subject_string,

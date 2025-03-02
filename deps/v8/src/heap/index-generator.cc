@@ -11,12 +11,12 @@ namespace internal {
 
 IndexGenerator::IndexGenerator(size_t size) : first_use_(size > 0) {
   if (size == 0) return;
-  base::MutexGuard guard(&lock_);
+  base::SpinningMutexGuard guard(&lock_);
   ranges_to_split_.emplace(0, size);
 }
 
 std::optional<size_t> IndexGenerator::GetNext() {
-  base::MutexGuard guard(&lock_);
+  base::SpinningMutexGuard guard(&lock_);
   if (first_use_) {
     first_use_ = false;
     return 0;

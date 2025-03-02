@@ -85,6 +85,7 @@ class DeclarationVisitor {
   static Builtin* CreateBuiltin(BuiltinDeclaration* decl,
                                 std::string external_name,
                                 std::string readable_name, Signature signature,
+                                std::optional<std::string> use_counter_name,
                                 std::optional<Statement*> body);
 
   static void Visit(ExternalBuiltinDeclaration* decl);

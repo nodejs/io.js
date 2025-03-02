@@ -375,12 +375,12 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // GenericJSToWasmInterpreterWrapperFrame:
   // fp-N     Args/retvals array for Wasm call
   // ...       ...
-  // fp-0x58  (to align to 16 bytes)
-  // fp-0x50  SignatureData
-  // fp-0x48  CurrentIndex
-  // fp-0x40  ArgRetsIsArgs
-  // fp-0x38  ArgRetsAddress
-  // fp-0x30  ValueTypesArray
+  // fp-0x58  SignatureData
+  // fp-0x50  CurrentIndex
+  // fp-0x48  ArgRetsIsArgs
+  // fp-0x40  ArgRetsAddress
+  // fp-0x38  ValueTypesArray
+  // fp-0x30  SigReps
   // fp-0x28  ReturnCount
   // fp-0x20  ParamCount
   // fp-0x18  InParamCount
@@ -400,6 +400,8 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
       BuiltinWasmInterpreterWrapperConstants::kParamCountOffset;
   constexpr int kReturnCountOffset =
       BuiltinWasmInterpreterWrapperConstants::kReturnCountOffset;
+  constexpr int kSigRepsOffset =
+      BuiltinWasmInterpreterWrapperConstants::kSigRepsOffset;
   constexpr int kValueTypesArrayStartOffset =
       BuiltinWasmInterpreterWrapperConstants::kValueTypesArrayStartOffset;
   // Array for arguments and return values. They will be scanned by GC.
@@ -472,6 +474,7 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
   // top of the stack.
   __ Str(param_count, MemOperand(fp, kParamCountOffset));
   __ Str(return_count, MemOperand(fp, kReturnCountOffset));
+  __ Str(valuetypes_array_ptr, MemOperand(fp, kSigRepsOffset));
   __ Str(valuetypes_array_ptr, MemOperand(fp, kValueTypesArrayStartOffset));
 
   // -------------------------------------------
@@ -918,7 +921,8 @@ void Builtins::Generate_GenericJSToWasmInterpreterWrapper(
 
   // Store result in JSArray
   DEFINE_REG(array_items);
-  __ Add(array_items, fixed_array, FixedArray::kHeaderSize - kHeapObjectTag);
+  __ Add(array_items, fixed_array,
+         OFFSET_OF_DATA_START(FixedArray) - kHeapObjectTag);
   __ StoreTaggedField(return_value, MemOperand(array_items, result_index, LSL,
                                                kTaggedSizeLog2));
 
@@ -1101,7 +1105,7 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // ...       ...                           | Tagged
   // ...       JS arg n-1                    | objects
   // ...       (padding if num args is odd)  |
-  // ...       context                       |
+  // fp-0x60   context                       |
   // fp-0x58   callable                      v
   // -------------------------------------------
   // fp-0x50   current_param_offset/current_result_offset
@@ -1114,16 +1118,16 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // fp-0x28   return_count
   //
   // fp-0x20   packed_array
-  // fp-0x18   GC_SP
+  // fp-0x18   GC_SP (not used on arm64)
   //
-  // fp-0x10   GCScanSlotCount
+  // fp-0x10   GCScanSlotLimit
   // fp-0x08   Marker(StackFrame::WASM_TO_JS)
   //
   // fp        Old fp
   // fp+0x08   return address
 
   static_assert(WasmToJSInterpreterFrameConstants::kGCSPOffset ==
-                WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset -
+                WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset -
                     kSystemPointerSize);
   constexpr int kPackedArrayOffset =
       WasmToJSInterpreterFrameConstants::kGCSPOffset - kSystemPointerSize;
@@ -1139,27 +1143,24 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
       kValueTypesArrayStartOffset - kSystemPointerSize;
   // Reuse this slot when iterating over return values.
   constexpr int kCurrentResultOffset = kCurrentParamOffset;
+  constexpr int kCallableOffset = kCurrentParamOffset - kSystemPointerSize;
+  constexpr int kContextOffset = kCallableOffset - kSystemPointerSize;
   constexpr int kNumSpillSlots =
-      (WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset -
+      (WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset -
        kCurrentParamOffset) /
       kSystemPointerSize;
   static_assert((kNumSpillSlots % 2) == 0);  // 16-bytes aligned.
-
-  constexpr int kCallableOffset = kCurrentParamOffset - kSystemPointerSize;
 
   __ Sub(sp, sp, Immediate(kNumSpillSlots * kSystemPointerSize));
 
   __ Str(packed_args, MemOperand(fp, kPackedArrayOffset));
 
-  // Store null into the stack slot that will contain sp to be used in GCs that
-  // happen during the JS function call. See WasmToJsFrame::Iterate.
+  // Not used on arm64.
   __ Str(xzr, MemOperand(fp, WasmToJSInterpreterFrameConstants::kGCSPOffset));
 
-  // Count the number of tagged objects at the top of the stack that need to be
-  // visited during GC.
   __ Str(xzr,
          MemOperand(fp,
-                    WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
+                    WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset));
 
   DEFINE_REG(shared_function_info);
   __ LoadTaggedField(
@@ -1203,24 +1204,24 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ Str(param_count, MemOperand(fp, kParamCountOffset));
   FREE_REG(shared_function_info);
 
-  // Store callable and context.
-  __ Push(callable, context);
-
   // Make room to pass the args and the receiver.
   DEFINE_REG(array_size);
   DEFINE_REG(scratch);
+
+  // Points to the end of the stack frame area that contains tagged objects
+  // that need to be visited during GC.
+  __ Mov(scratch, sp);
+  __ Str(scratch,
+         MemOperand(fp,
+                    WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset));
+
+  // Store callable and context.
+  __ Push(callable, cp);
   __ Add(array_size, param_count, Immediate(1));
   // Ensure that the array is 16-bytes aligned.
   __ Add(scratch, array_size, Immediate(1));
   __ And(array_size, scratch, Immediate(-2));
   __ Sub(sp, sp, Operand(array_size, LSL, kSystemPointerSizeLog2));
-
-  // The number of arguments at the top of the stack that need to be visited
-  // during GC, also counting callable and context.
-  __ Add(scratch, array_size, Immediate(2));
-  __ Str(scratch,
-         MemOperand(fp,
-                    WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
 
   // Make sure that the padding slot (if present) is reset to zero. The other
   // slots will be initialized with the arguments.
@@ -1500,16 +1501,6 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // x0: number of arguments + 1 (receiver)
   // x1: target (JSFunction|JSBoundFunction|...)
 
-  // We are calling Call_ReceiverIsAny which can call
-  // AdaptorWithBuiltinExitFrame, which adds
-  // BuiltinExitFrameConstants::kNumExtraArgsWithoutReceiver additional tagged
-  // arguments to the stack. We must also scan these additional args in case of
-  // GC. We store the current stack pointer to be able to detect when this
-  // happens.
-  __ Mov(scratch, sp);
-  __ Str(scratch,
-         MemOperand(fp, WasmToJSInterpreterFrameConstants::kGCSPOffset));
-
   // x0: Receiver.
   __ Ldr(x0, MemOperand(fp, kParamCountOffset));
   __ Add(x0, x0, 1);  // Add 1 to count receiver.
@@ -1520,18 +1511,16 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ Call(BUILTIN_CODE(masm->isolate(), Call_ReceiverIsAny),
           RelocInfo::CODE_TARGET);
 
-  // After the call sp points to the saved context.
-  __ Ldr(cp, MemOperand(sp, 0));
+  __ Ldr(cp, MemOperand(fp, kContextOffset));
 
   // The JS function returns its result in register x0.
   Register return_reg = kReturnRegister0;
 
   // No slots to visit during GC.
-  __ Str(xzr,
+  __ Mov(scratch, sp);
+  __ Str(scratch,
          MemOperand(fp,
-                    WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
-
-  __ Str(xzr, MemOperand(fp, WasmToJSInterpreterFrameConstants::kGCSPOffset));
+                    WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset));
 
   // -------------------------------------------
   // Return handling.
@@ -1566,11 +1555,12 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   // x27 (cp): context.
   __ Ldr(x1, MemOperand(fp, kReturnCountOffset));
   __ Add(x1, x1, x1);
+
   // One tagged object at the top of the stack (the context).
-  __ Mov(scratch, Immediate(1));
+  __ Add(scratch, sp, Immediate(kSystemPointerSize));
   __ Str(scratch,
          MemOperand(fp,
-                    WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
+                    WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset));
 
   __ Call(BUILTIN_CODE(masm->isolate(), IterableToFixedArrayForWasm),
           RelocInfo::CODE_TARGET);
@@ -1578,10 +1568,10 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
 
   // Store fixed_array at the second top of the stack (in place of callable).
   __ Str(fixed_array, MemOperand(sp, kSystemPointerSize));
-  __ Mov(scratch, Immediate(2));
+  __ Add(scratch, sp, Immediate(2 * kSystemPointerSize));
   __ Str(scratch,
          MemOperand(fp,
-                    WasmToJSInterpreterFrameConstants::kGCScanSlotCountOffset));
+                    WasmToJSInterpreterFrameConstants::kGCScanSlotLimitOffset));
 
   __ Ldr(return_count, MemOperand(fp, kReturnCountOffset));
   __ Ldr(packed_args, MemOperand(fp, kPackedArrayOffset));
@@ -1591,7 +1581,8 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ Mov(result_index, xzr);
   __ Mov(current_result_offset, xzr);
 
-  __ Add(scratch, fixed_array, FixedArray::kHeaderSize - kHeapObjectTag);
+  __ Add(scratch, fixed_array,
+         OFFSET_OF_DATA_START(FixedArray) - kHeapObjectTag);
   __ LoadTaggedField(return_reg,
                      MemOperand(scratch, result_index, LSL, kTaggedSizeLog2));
 
@@ -1710,7 +1701,8 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ cmp(result_index, scratch);  // result_index == return_count?
   __ B(&loop_copy_return_refs, ge);
 
-  __ Add(scratch, fixed_array, FixedArray::kHeaderSize - kHeapObjectTag);
+  __ Add(scratch, fixed_array,
+         OFFSET_OF_DATA_START(FixedArray) - kHeapObjectTag);
   __ LoadTaggedField(return_reg,
                      MemOperand(scratch, result_index, LSL, kTaggedSizeLog2));
   __ jmp(&convert_return);
@@ -1775,7 +1767,8 @@ void Builtins::Generate_GenericWasmToJSInterpreterWrapper(
   __ jmp(&done_copy_return_ref);
 
   __ bind(&copy_return_ref);
-  __ Add(scratch, fixed_array, FixedArray::kHeaderSize - kHeapObjectTag);
+  __ Add(scratch, fixed_array,
+         OFFSET_OF_DATA_START(FixedArray) - kHeapObjectTag);
   __ LoadTaggedField(return_reg,
                      MemOperand(scratch, result_index, LSL, kTaggedSizeLog2));
   __ Str(return_reg, MemOperand(packed_args, current_result_offset));

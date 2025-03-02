@@ -25,6 +25,7 @@ absl_cc_library(
   DEPS
     absl::base
     absl::config
+    absl::optional
 )
 
 # Internal-only target, do not depend on directly.

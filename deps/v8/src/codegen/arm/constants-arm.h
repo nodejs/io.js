@@ -9,6 +9,7 @@
 
 #include "src/base/logging.h"
 #include "src/base/macros.h"
+#include "src/common/code-memory-access.h"
 #include "src/common/globals.h"
 #include "src/utils/boxed-float.h"
 #include "src/utils/utils.h"
@@ -469,9 +470,8 @@ class Instruction {
   }
 
   // Set the raw instruction bits to value.
-  inline void SetInstructionBits(Instr value) {
-    *reinterpret_cast<Instr*>(this) = value;
-  }
+  V8_EXPORT_PRIVATE void SetInstructionBits(
+      Instr value, WritableJitAllocation* jit_allocation = nullptr);
 
   // Extract a single bit from the instruction bits and return it as bit 0 in
   // the result.
@@ -603,13 +603,15 @@ class Instruction {
     return SImmed24Value() * kInstrSize;
   }
 
-  void SetBranchOffset(int32_t branch_offset) {
+  inline void SetBranchOffset(int32_t branch_offset,
+                              WritableJitAllocation* jit_allocation) {
     DCHECK(IsBranch());
     DCHECK_EQ(branch_offset % kInstrSize, 0);
     int32_t new_imm24 = branch_offset / kInstrSize;
     CHECK(is_int24(new_imm24));
-    SetInstructionBits((InstructionBits() & ~(kImm24Mask)) |
-                       (new_imm24 & kImm24Mask));
+    SetInstructionBits(
+        (InstructionBits() & ~(kImm24Mask)) | (new_imm24 & kImm24Mask),
+        jit_allocation);
   }
 
   // Fields used in Software interrupt instructions

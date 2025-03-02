@@ -503,10 +503,11 @@ using swap_internal::Swap;
 // remove the condition.
 //
 // Clang on all platforms fails to detect that a type with a user-provided
-// move-assignment operator is not trivially relocatable. So in fact we
-// opt out of Clang altogether, for now.
+// move-assignment operator is not trivially relocatable so we also check for
+// is_trivially_move_assignable for Clang.
 //
-// TODO(b/325479096): Remove the opt-out once Clang's behavior is fixed.
+// TODO(b/325479096): Remove the Clang is_trivially_move_assignable version once
+// Clang's behavior is fixed.
 //
 // According to https://github.com/abseil/abseil-cpp/issues/1479, this does not
 // work with NVCC either.
@@ -516,6 +517,15 @@ using swap_internal::Swap;
 template <class T>
 struct is_trivially_relocatable
     : std::integral_constant<bool, __is_trivially_relocatable(T)> {};
+#elif ABSL_HAVE_BUILTIN(__is_trivially_relocatable) && defined(__clang__) && \
+    !(defined(_WIN32) || defined(_WIN64)) && !defined(__APPLE__) &&          \
+    !defined(__NVCC__)
+template <class T>
+struct is_trivially_relocatable
+    : std::integral_constant<
+          bool, std::is_trivially_copyable<T>::value ||
+                    (__is_trivially_relocatable(T) &&
+                     std::is_trivially_move_assignable<T>::value)> {};
 #else
 // Otherwise we use a fallback that detects only those types we can feasibly
 // detect. Any type that is trivially copyable is by definition trivially
@@ -648,9 +658,9 @@ struct IsView<std::span<T>> : std::true_type {};
 // Until then, we consider an assignment from an "owner" (such as std::string)
 // to a "view" (such as std::string_view) to be a lifetime-bound assignment.
 template <typename T, typename U>
-using IsLifetimeBoundAssignment =
-    std::integral_constant<bool, IsView<absl::remove_cvref_t<T>>::value &&
-                                     IsOwner<absl::remove_cvref_t<U>>::value>;
+using IsLifetimeBoundAssignment = absl::conjunction<
+    std::integral_constant<bool, !std::is_lvalue_reference<U>::value>,
+    IsOwner<absl::remove_cvref_t<U>>, IsView<absl::remove_cvref_t<T>>>;
 
 }  // namespace type_traits_internal
 

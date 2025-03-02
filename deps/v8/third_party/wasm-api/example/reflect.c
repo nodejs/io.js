@@ -25,7 +25,7 @@ void print_valtype(const wasm_valtype_t* type) {
     case WASM_I64: printf("i64"); break;
     case WASM_F32: printf("f32"); break;
     case WASM_F64: printf("f64"); break;
-    case WASM_ANYREF: printf("anyref"); break;
+    case WASM_EXTERNREF: printf("externref"); break;
     case WASM_FUNCREF: printf("funcref"); break;
   }
 }
@@ -90,7 +90,7 @@ int main(int argc, const char* argv[]) {
 
   // Load binary.
   printf("Loading binary...\n");
-  FILE* file = fopen("reflect.wasm", "r");
+  FILE* file = fopen("reflect.wasm", "rb");
   if (!file) {
     printf("> Error loading module!\n");
     return 1;
@@ -118,7 +118,9 @@ int main(int argc, const char* argv[]) {
 
   // Instantiate.
   printf("Instantiating module...\n");
-  own wasm_instance_t* instance = wasm_instance_new(store, module, NULL, NULL);
+  wasm_extern_vec_t imports = WASM_EMPTY_VEC;
+  own wasm_instance_t* instance =
+    wasm_instance_new(store, module, &imports, NULL);
   if (!instance) {
     printf("> Error instantiating module!\n");
     return 1;

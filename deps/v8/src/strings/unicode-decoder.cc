@@ -8,7 +8,7 @@
 #include "src/utils/memcopy.h"
 
 #if V8_ENABLE_WEBASSEMBLY
-#include "src/third_party/utf8-decoder/generalized-utf8-decoder.h"
+#include "third_party/utf8-decoder/generalized-utf8-decoder.h"
 #endif
 
 namespace v8 {

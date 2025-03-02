@@ -6,7 +6,7 @@ Building wasm module with sentinel 1.
 Running fib with increasing input until it shows up in the profile.
 Found expected functions in profile.
 Wasm script id is set.
-Wasm position: wasm://wasm/6b211e7e@0:47
+Wasm position: wasm://wasm/ed5627ce@0:47
 
 Running test: testEnableProfilerLate
 Compiling wasm.
@@ -14,7 +14,7 @@ Building wasm module with sentinel 2.
 Running fib with increasing input until it shows up in the profile.
 Found expected functions in profile.
 Wasm script id is set.
-Wasm position: wasm://wasm/d6029ed6@0:47
+Wasm position: wasm://wasm/def0f3f2@0:47
 
 Running test: testEnableProfilerAfterDebugger
 Compiling wasm.
@@ -22,7 +22,7 @@ Building wasm module with sentinel 3.
 Running fib with increasing input until it shows up in the profile.
 Found expected functions in profile.
 Wasm script id is set.
-Wasm position: wasm://wasm/6df1c11a@0:47
+Wasm position: wasm://wasm/e950bb4a@0:47
 
 Running test: testEnableProfilerBeforeDebugger
 Compiling wasm.
@@ -30,7 +30,7 @@ Building wasm module with sentinel 4.
 Running fib with increasing input until it shows up in the profile.
 Found expected functions in profile.
 Wasm script id is set.
-Wasm position: wasm://wasm/07da49be@0:47
+Wasm position: wasm://wasm/d8d4f97a@0:47
 
 Running test: testRunningCodeInDifferentIsolate
 Building wasm module with sentinel 5.
@@ -43,5 +43,5 @@ Running in the debugged isolate.
 Running fib with increasing input until it shows up in the profile.
 Found expected functions in profile.
 Wasm script id is set.
-Wasm position: wasm://wasm/ba5e5b4e@0:47
+Wasm position: wasm://wasm/8ffda0ce@0:47
 Disabling profiler.

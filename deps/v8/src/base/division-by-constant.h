@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 
+#include <concepts>
 #include <tuple>
 #include <type_traits>
 
@@ -36,11 +37,13 @@ struct EXPORT_TEMPLATE_DECLARE(V8_BASE_EXPORT) MagicNumbersForDivision {
 
 // Calculate the multiplier and shift for signed division via multiplication.
 // The divisor must not be -1, 0 or 1 when interpreted as a signed value.
-template <class T, std::enable_if_t<std::is_unsigned_v<T>, bool> = true>
+template <typename T>
+  requires std::unsigned_integral<T>
 EXPORT_TEMPLATE_DECLARE(V8_BASE_EXPORT)
-MagicNumbersForDivision<T> SignedDivisionByConstant(T d);
+    MagicNumbersForDivision<T> SignedDivisionByConstant(T d);
 
-template <class T, std::enable_if_t<std::is_signed_v<T>, bool> = true>
+template <typename T>
+  requires std::signed_integral<T>
 MagicNumbersForDivision<T> SignedDivisionByConstant(T d) {
   using Unsigned = std::make_unsigned_t<T>;
   MagicNumbersForDivision<Unsigned> magic =

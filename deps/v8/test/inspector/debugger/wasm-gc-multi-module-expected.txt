@@ -22,14 +22,14 @@ Setting breakpoint
     scriptId : <scriptId>
 }
 Paused:
-Script wasm://wasm/f0d3cad2 byte offset 72: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/493c7026 byte offset 72: Wasm opcode 0x01 (kExprNop)
 Scope:
 at $main (0:72):
  - scope (wasm-expression-stack):
    stack:
  - scope (local):
-   $var0: Array ((ref $type0))
-   $var1: Struct ((ref $type0))
+   $var0: Array ((ref $canon6))
+   $var1: Struct ((ref $canon3))
  - scope (module):
    instance: exports: "createStruct" (Function), "main" (Function)
    module: Module
@@ -39,14 +39,14 @@ at (anonymous) (0:18):
    -- skipped globals
 
 Paused:
-Script wasm://wasm/699aa072 byte offset 108: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/b9d0fb8a byte offset 108: Wasm opcode 0x01 (kExprNop)
 Scope:
 at $main (0:108):
  - scope (wasm-expression-stack):
    stack:
  - scope (local):
-   $var0: Array ((ref $type0))
-   $var1: Struct ((ref $type0))
+   $var0: Array ((ref $canon6))
+   $var1: Struct ((ref $canon3))
  - scope (module):
    instance: exports: "createStruct" (Function), "createArray" (Function), "main" (Function)
    module: Module

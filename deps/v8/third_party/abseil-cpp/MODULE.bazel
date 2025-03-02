@@ -20,23 +20,27 @@ module(
     compatibility_level = 1,
 )
 
-cc_configure = use_extension("@bazel_tools//tools/cpp:cc_configure.bzl", "cc_configure_extension")
+cc_configure = use_extension("@rules_cc//cc:extensions.bzl",
+                             "cc_configure_extension",
+                             dev_dependency = True)
 use_repo(cc_configure, "local_config_cc")
 
 # Only direct dependencies need to be listed below.
 # Please keep the versions in sync with the versions in the WORKSPACE file.
 
-bazel_dep(name = "bazel_skylib",
-          version = "1.5.0")
+bazel_dep(name = "rules_cc", version = "0.0.17")
+bazel_dep(name = "bazel_skylib", version = "1.7.1")
+bazel_dep(name = "platforms", version = "0.0.10")
 
-bazel_dep(name = "google_benchmark",
-          version = "1.8.3",
-          repo_name = "com_github_google_benchmark",
-          dev_dependency = True)
+bazel_dep(
+    name = "google_benchmark",
+    version = "1.8.5",
+    dev_dependency = True,
+)
 
-bazel_dep(name = "googletest",
-          version = "1.15.2",
-          repo_name = "com_google_googletest")
-
-bazel_dep(name = "platforms",
-          version = "0.0.10")
+# Note: Googletest is NOT a dev_dependency. Some Abseil test utilities
+# intended to be used by Abseil users depend on GoogleTest.
+bazel_dep(
+    name = "googletest",
+    version = "1.15.2",
+)

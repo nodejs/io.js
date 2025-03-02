@@ -7,6 +7,7 @@
 #include "src/compiler/js-heap-broker.h"
 #include "src/compiler/turboshaft/branch-elimination-reducer.h"
 #include "src/compiler/turboshaft/dead-code-elimination-reducer.h"
+#include "src/compiler/turboshaft/float16-lowering-reducer.h"
 #include "src/compiler/turboshaft/late-escape-analysis-reducer.h"
 #include "src/compiler/turboshaft/late-load-elimination-reducer.h"
 #include "src/compiler/turboshaft/loop-unrolling-reducer.h"
@@ -24,8 +25,8 @@ namespace v8::internal::compiler::turboshaft {
 
 void CsaEarlyMachineOptimizationPhase::Run(PipelineData* data,
                                            Zone* temp_zone) {
-  CopyingPhase<MachineOptimizationReducer, ValueNumberingReducer>::Run(
-      data, temp_zone);
+  CopyingPhase<Float16LoweringReducer, MachineOptimizationReducer,
+               ValueNumberingReducer>::Run(data, temp_zone);
 }
 
 void CsaLoadEliminationPhase::Run(PipelineData* data, Zone* temp_zone) {

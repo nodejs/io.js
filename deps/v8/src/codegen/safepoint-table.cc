@@ -22,12 +22,16 @@ namespace internal {
 
 SafepointTable::SafepointTable(Isolate* isolate, Address pc, Tagged<Code> code)
     : SafepointTable(code->InstructionStart(isolate, pc),
-                     code->safepoint_table_address()) {}
+                     code->safepoint_table_address()) {
+  DCHECK(code->is_turbofanned());
+}
 
 SafepointTable::SafepointTable(Isolate* isolate, Address pc,
                                Tagged<GcSafeCode> code)
     : SafepointTable(code->InstructionStart(isolate, pc),
-                     code->safepoint_table_address()) {}
+                     code->safepoint_table_address()) {
+  DCHECK(code->is_turbofanned());
+}
 
 #if V8_ENABLE_WEBASSEMBLY
 SafepointTable::SafepointTable(const wasm::WasmCode* code)
@@ -40,6 +44,8 @@ SafepointTable::SafepointTable(Address instruction_start,
                                Address safepoint_table_address)
     : instruction_start_(instruction_start),
       safepoint_table_address_(safepoint_table_address),
+      stack_slots_(base::Memory<SafepointTableStackSlotsField_t>(
+          safepoint_table_address + kStackSlotsOffset)),
       length_(base::Memory<int>(safepoint_table_address + kLengthOffset)),
       entry_configuration_(base::Memory<uint32_t>(safepoint_table_address +
                                                   kEntryConfigurationOffset)) {}
@@ -92,8 +98,8 @@ SafepointEntry SafepointTable::FindEntry(Isolate* isolate,
 }
 
 void SafepointTable::Print(std::ostream& os) const {
-  os << "Safepoints (entries = " << length_ << ", byte size = " << byte_size()
-     << ")\n";
+  os << "Safepoints (stack slots = " << stack_slots_
+     << ", entries = " << length_ << ", byte size = " << byte_size() << ")\n";
 
   for (int index = 0; index < length_; index++) {
     SafepointEntry entry = GetEntry(index);
@@ -102,10 +108,17 @@ void SafepointTable::Print(std::ostream& os) const {
 
     if (!entry.tagged_slots().empty()) {
       os << "  slots (sp->fp): ";
+      uint32_t i = 0;
       for (uint8_t bits : entry.tagged_slots()) {
-        for (int bit = 0; bit < kBitsPerByte; ++bit) {
+        for (int bit = 0; bit < kBitsPerByte && i < stack_slots_; ++bit, ++i) {
           os << ((bits >> bit) & 1);
         }
+      }
+      // The tagged slots bitfield ends at the min stack slot (rounded up to the
+      // nearest byte) -- we might have some slots left over in the stack frame
+      // before the fp, so print zeros for those.
+      for (; i < stack_slots_; ++i) {
+        os << 0;
       }
     }
 
@@ -149,8 +162,8 @@ int SafepointTableBuilder::UpdateDeoptimizationInfo(int pc, int trampoline,
   return index;
 }
 
-void SafepointTableBuilder::Emit(Assembler* assembler, int tagged_slots_size) {
-  DCHECK_LT(max_stack_index_, tagged_slots_size);
+void SafepointTableBuilder::Emit(Assembler* assembler, int stack_slot_count) {
+  DCHECK_LT(max_stack_index_, stack_slot_count);
 
 #ifdef DEBUG
   int last_pc = -1;
@@ -175,7 +188,7 @@ void SafepointTableBuilder::Emit(Assembler* assembler, int tagged_slots_size) {
 
   // The encoding is compacted by translating stack slot indices s.t. they
   // start at 0. See also below.
-  tagged_slots_size -= min_stack_index();
+  int tagged_slots_size = stack_slot_count - min_stack_index();
 
 #if V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_ARM64
   // We cannot emit a const pool within the safepoint table.
@@ -235,10 +248,12 @@ void SafepointTableBuilder::Emit(Assembler* assembler, int tagged_slots_size) {
       SafepointTable::TaggedSlotsBytesField::encode(tagged_slots_bytes);
 
   // Emit the table header.
-  static_assert(SafepointTable::kLengthOffset == 0 * kIntSize);
-  static_assert(SafepointTable::kEntryConfigurationOffset == 1 * kIntSize);
-  static_assert(SafepointTable::kHeaderSize == 2 * kIntSize);
+  static_assert(SafepointTable::kStackSlotsOffset == 0 * kIntSize);
+  static_assert(SafepointTable::kLengthOffset == 1 * kIntSize);
+  static_assert(SafepointTable::kEntryConfigurationOffset == 2 * kIntSize);
+  static_assert(SafepointTable::kHeaderSize == 3 * kIntSize);
   int length = static_cast<int>(entries_.size());
+  assembler->dd(stack_slot_count);
   assembler->dd(length);
   assembler->dd(entry_configuration);
 

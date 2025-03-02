@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --js-float16array
+// Flags: --js-staging
 
 let BigIntCtors = [BigInt64Array, BigUint64Array];
 let NonBigIntCtors = [Int8Array,

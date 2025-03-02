@@ -27,6 +27,16 @@ namespace v8::internal::compiler::turboshaft {
 
 #include "src/compiler/turboshaft/define-assembler-macros.inc"
 
+#ifdef DEBUG
+#define TRACE(x)                                    \
+  do {                                              \
+    if (v8_flags.turboshaft_trace_load_elimination) \
+      StdoutStream() << x << std::endl;             \
+  } while (false)
+#else
+#define TRACE(x)
+#endif
+
 // Design doc:
 // https://docs.google.com/document/d/1AEl4dATNLu8GlLyUBQFXJoCxoAT5BeG7RCWxoEtIBJE/edit?usp=sharing
 
@@ -195,6 +205,7 @@ struct MemoryAddress {
                       mem.element_size_log2, mem.size);
   }
 };
+std::ostream& operator<<(std::ostream& os, const MemoryAddress& mem);
 
 inline size_t hash_value(MemoryAddress const& mem) {
   return fast_hash_combine(mem.base, mem.index, mem.offset,
@@ -335,9 +346,12 @@ class MemoryContentTable
   }
 
   void Invalidate(OpIndex base, OptionalOpIndex index, int32_t offset) {
+    TRACE("> MemoryContentTable: Invalidating based on "
+          << base << ", " << index << ", " << offset);
     base = ResolveBase(base);
 
     if (non_aliasing_objects_.Get(base)) {
+      TRACE(">> base is non-aliasing");
       // Since {base} is non-aliasing, it's enough to just iterate the values at
       // this base.
       auto base_keys = base_keys_.find(base);
@@ -350,6 +364,7 @@ class MemoryContentTable
         if (index.valid() || offset == key.data().mem.offset) {
           // Overwrites {key}.
           it = base_keys->second.with_offsets.RemoveAt(it);
+          TRACE(">>> invalidating " << key.data().mem);
           Set(key, OpIndex::Invalid());
         } else {
           ++it;
@@ -364,9 +379,11 @@ class MemoryContentTable
         Set(key, OpIndex::Invalid());
       }
     } else {
+      TRACE(">> base is maybe-aliasing");
       // {base} could alias with other things, so we iterate the whole state.
       if (index.valid()) {
         // {index} could be anything, so we invalidate everything.
+        TRACE(">> Invalidating everything because of valid index");
         return InvalidateMaybeAliasing();
       }
 
@@ -383,15 +400,18 @@ class MemoryContentTable
       for (auto it = index_keys_.begin(); it != index_keys_.end();) {
         Key key = *it;
         it = index_keys_.RemoveAt(it);
+        TRACE(">>> Invalidating indexed memory " << key.data().mem);
         Set(key, OpIndex::Invalid());
       }
 
+      TRACE(">>> Invalidating everything maybe-aliasing at offset " << offset);
       InvalidateAtOffset(offset, base);
     }
   }
 
   // Invalidates all Keys that are not known as non-aliasing.
   void InvalidateMaybeAliasing() {
+    TRACE(">> InvalidateMaybeAliasing");
     // We find current active keys through {base_keys_} so that we can bail out
     // for whole buckets non-aliasing bases (if we had gone through
     // {offset_keys_} instead, then for each key we would've had to check
@@ -406,12 +426,14 @@ class MemoryContentTable
         // invalid, otherwise OnKeyChange will remove {key} from {base_keys},
         // which will invalidate {it}.
         it = base_keys.second.with_offsets.RemoveAt(it);
+        TRACE(">>> Invalidating " << key.data().mem);
         Set(key, OpIndex::Invalid());
       }
       for (auto it = base_keys.second.with_indices.begin();
            it != base_keys.second.with_indices.end();) {
         Key key = *it;
         it = base_keys.second.with_indices.RemoveAt(it);
+        TRACE(">>> Invalidating " << key.data().mem);
         Set(key, OpIndex::Invalid());
       }
     }
@@ -493,13 +515,19 @@ class MemoryContentTable
     DCHECK_EQ(base, ResolveBase(base));
 
     MemoryAddress mem{base, index, offset, element_size_log2, size};
+    TRACE("> MemoryContentTable: will insert " << mem
+                                               << " with value=" << value);
     auto existing_key = all_keys_.find(mem);
     if (existing_key != all_keys_.end()) {
+      TRACE(">> Reusing existing key");
       Set(existing_key->second, value);
       return;
     }
 
-    if (all_keys_.size() > kMaxKeys) return;
+    if (all_keys_.size() > kMaxKeys) {
+      TRACE(">> Bailing out because too many keys");
+      return;
+    }
 
     // Creating a new key.
     Key key = NewKey({mem});
@@ -512,13 +540,19 @@ class MemoryContentTable
     DCHECK_EQ(base, ResolveBase(base));
 
     MemoryAddress mem{base, index, offset, element_size_log2, size};
+    TRACE("> MemoryContentTable: will insert immutable "
+          << mem << " with value=" << value);
     auto existing_key = all_keys_.find(mem);
     if (existing_key != all_keys_.end()) {
+      TRACE(">> Reusing existing key");
       SetNoNotify(existing_key->second, value);
       return;
     }
 
-    if (all_keys_.size() > kMaxKeys) return;
+    if (all_keys_.size() > kMaxKeys) {
+      TRACE(">> Bailing out because too many keys");
+      return;
+    }
 
     // Creating a new key.
     Key key = NewKey({mem});
@@ -546,10 +580,13 @@ class MemoryContentTable
                                    : object_maps_.Get(key.data().mem.base);
       if (!is_empty(base_maps) && !is_empty(this_maps) &&
           !CouldHaveSameMap(base_maps, this_maps)) {
+        TRACE(">>>> InvalidateAtOffset: not invalidating thanks for maps: "
+              << key.data().mem);
         ++it;
         continue;
       }
       it = offset_keys->second.RemoveAt(it);
+      TRACE(">>>> InvalidateAtOffset: invalidating " << key.data().mem);
       Set(key, OpIndex::Invalid());
     }
   }
@@ -829,6 +866,8 @@ class V8_EXPORT_PRIVATE LateLoadEliminationReducer : public Next {
                                         __ phase_zone(), __ data()->broker(),
                                         raw_base_assumption_};
 };
+
+#undef TRACE
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"
 

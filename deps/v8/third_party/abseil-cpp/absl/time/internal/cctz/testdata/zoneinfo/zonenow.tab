@@ -5,7 +5,7 @@
 # From Paul Eggert (2023-12-18):
 # This file contains a table where each row stands for a timezone
 # where civil timestamps are predicted to agree from now on.
-# This file is like zone1970.tab (see zone1970.tab's coments),
+# This file is like zone1970.tab (see zone1970.tab's comments),
 # but with the following changes:
 #
 # 1.  Each timezone corresponds to a set of clocks that are planned
@@ -97,9 +97,6 @@ XX	+1828-06954	America/Santo_Domingo	Atlantic Standard ("AST") - eastern Caribbe
 # -04/-03 (Chile DST)
 XX	-3327-07040	America/Santiago	most of Chile
 #
-# -04/-03 (Paraguay DST)
-XX	-2516-05740	America/Asuncion	Paraguay
-#
 # -04/-03 - AST/ADT (North America DST)
 XX	+4439-06336	America/Halifax	Atlantic ("AST/ADT") - Canada; Bermuda
 #
@@ -123,8 +120,6 @@ XX	+1455-02331	Atlantic/Cape_Verde	Cape Verde
 #
 # -01/+00 (EU DST)
 XX	+3744-02540	Atlantic/Azores	Azores
-# -01/+00 (EU DST) until 2024-03-31; then -02/-01 (EU DST)
-XX	+7029-02158	America/Scoresbysund	Ittoqqortoormiit
 #
 # +00 - GMT
 XX	+0519-00402	Africa/Abidjan	far western Africa; Iceland ("GMT")
@@ -199,7 +194,7 @@ XX	+2518+05518	Asia/Dubai	Russia; Caucasus; Persian Gulf; Seychelles; Réunion
 XX	+3431+06912	Asia/Kabul	Afghanistan
 #
 # +05
-XX	+4120+06918	Asia/Tashkent	Russia; west Kazakhstan; Tajikistan; Turkmenistan; Uzbekistan; Maldives
+XX	+4120+06918	Asia/Tashkent	Russia; Kazakhstan; Tajikistan; Turkmenistan; Uzbekistan; Maldives
 #
 # +05 - PKT
 XX	+2452+06703	Asia/Karachi	Pakistan ("PKT")
@@ -215,8 +210,6 @@ XX	+2743+08519	Asia/Kathmandu	Nepal
 #
 # +06
 XX	+2343+09025	Asia/Dhaka	Russia; Kyrgyzstan; Bhutan; Bangladesh; Chagos
-# +06 until 2024-03-01; then +05
-XX	+4315+07657	Asia/Almaty	Kazakhstan (except western areas)
 #
 # +06:30
 XX	+1647+09610	Asia/Yangon	Myanmar; Cocos
@@ -228,7 +221,7 @@ XX	+1345+10031	Asia/Bangkok	Russia; Indochina; Christmas Island
 XX	-0610+10648	Asia/Jakarta	Indonesia ("WIB")
 #
 # +08
-XX	+0117+10351	Asia/Singapore	Russia; Brunei; Malaysia; Singapore
+XX	+0117+10351	Asia/Singapore	Russia; Brunei; Malaysia; Singapore; Concordia
 #
 # +08 - AWST
 XX	-3157+11551	Australia/Perth	Western Australia ("AWST")
@@ -240,7 +233,7 @@ XX	+3114+12128	Asia/Shanghai	China ("CST")
 XX	+2217+11409	Asia/Hong_Kong	Hong Kong ("HKT")
 #
 # +08 - PHT
-XX	+1435+12100	Asia/Manila	Philippines ("PHT")
+XX	+143512+1205804	Asia/Manila	Philippines ("PHT")
 #
 # +08 - WITA
 XX	-0507+11924	Asia/Makassar	Indonesia ("WITA")
@@ -252,7 +245,7 @@ XX	-3143+12852	Australia/Eucla	Eucla
 XX	+5203+11328	Asia/Chita	Russia; Palau; East Timor
 #
 # +09 - JST
-XX	+353916+1394441	Asia/Tokyo	Japan ("JST")
+XX	+353916+1394441	Asia/Tokyo	Japan ("JST"); Eyre Bird Observatory
 #
 # +09 - KST
 XX	+3733+12658	Asia/Seoul	Korea ("KST")

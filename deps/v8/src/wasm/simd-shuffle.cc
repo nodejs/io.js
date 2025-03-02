@@ -12,6 +12,80 @@ namespace v8 {
 namespace internal {
 namespace wasm {
 
+// Take a lane-wise shuffle and expand to a 16 byte-wise shuffle.
+template <size_t N>
+constexpr const SimdShuffle::ShuffleArray expand(
+    const std::array<uint8_t, N> in) {
+  SimdShuffle::ShuffleArray res{};
+  constexpr size_t lane_bytes = 16 / N;
+  for (unsigned i = 0; i < N; ++i) {
+    for (unsigned j = 0; j < lane_bytes; ++j) {
+      res[i * lane_bytes + j] = lane_bytes * in[i] + j;
+    }
+  }
+  return res;
+}
+
+SimdShuffle::CanonicalShuffle SimdShuffle::TryMatchCanonical(
+    const ShuffleArray& shuffle) {
+  using CanonicalShuffleList =
+      std::array<std::pair<const ShuffleArray, const CanonicalShuffle>,
+                 static_cast<size_t>(CanonicalShuffle::kMaxShuffles) - 1>;
+
+  static constexpr CanonicalShuffleList canonical_shuffle_list = {{
+      {expand<2>({0, 1}), CanonicalShuffle::kIdentity},
+      {expand<2>({0, 2}), CanonicalShuffle::kS64x2Even},
+      {expand<2>({1, 3}), CanonicalShuffle::kS64x2Odd},
+      {expand<2>({1, 0}), CanonicalShuffle::kS64x2Reverse},
+      {expand<4>({0, 2, 4, 6}), CanonicalShuffle::kS32x4InterleaveEven},
+      {expand<4>({1, 3, 5, 7}), CanonicalShuffle::kS32x4InterleaveOdd},
+      {expand<4>({0, 4, 1, 5}), CanonicalShuffle::kS32x4InterleaveLowHalves},
+      {expand<4>({2, 6, 3, 7}), CanonicalShuffle::kS32x4InterleaveHighHalves},
+      {expand<4>({3, 2, 1, 0}), CanonicalShuffle::kS32x4Reverse},
+      {expand<4>({0, 4, 2, 6}), CanonicalShuffle::kS32x4TransposeEven},
+      {expand<4>({1, 5, 3, 7}), CanonicalShuffle::kS32x4TransposeOdd},
+      {expand<4>({1, 0, 3, 2}), CanonicalShuffle::kS32x2Reverse},
+      {expand<8>({0, 2, 4, 6, 8, 10, 12, 14}),
+       CanonicalShuffle::kS16x8InterleaveEven},
+      {expand<8>({1, 3, 5, 7, 9, 11, 13, 15}),
+       CanonicalShuffle::kS16x8InterleaveOdd},
+      {expand<8>({0, 8, 1, 9, 2, 10, 3, 11}),
+       CanonicalShuffle::kS16x8InterleaveLowHalves},
+      {expand<8>({4, 12, 5, 13, 6, 14, 7, 15}),
+       CanonicalShuffle::kS16x8InterleaveHighHalves},
+      {expand<8>({0, 8, 2, 10, 4, 12, 6, 14}),
+       CanonicalShuffle::kS16x8TransposeEven},
+      {expand<8>({1, 9, 3, 11, 5, 13, 7, 15}),
+       CanonicalShuffle::kS16x8TransposeOdd},
+      {expand<8>({1, 0, 3, 2, 5, 4, 7, 6}), CanonicalShuffle::kS16x2Reverse},
+      {expand<8>({3, 2, 1, 0, 7, 6, 5, 4}), CanonicalShuffle::kS16x4Reverse},
+      {{7, 6, 5, 4, 3, 2, 1, 0, 15, 14, 13, 12, 11, 10, 9, 8},
+       CanonicalShuffle::kS64x2ReverseBytes},
+      {{3, 2, 1, 0, 7, 6, 5, 4, 11, 10, 9, 8, 15, 14, 13, 12},
+       CanonicalShuffle::kS32x4ReverseBytes},
+      {{1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14},
+       CanonicalShuffle::kS16x8ReverseBytes},
+      {{0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23},
+       CanonicalShuffle::kS8x16InterleaveLowHalves},
+      {{8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31},
+       CanonicalShuffle::kS8x16InterleaveHighHalves},
+      {{0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30},
+       CanonicalShuffle::kS8x16InterleaveEven},
+      {{1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31},
+       CanonicalShuffle::kS8x16InterleaveOdd},
+      {{0, 16, 2, 18, 4, 20, 6, 22, 8, 24, 10, 26, 12, 28, 14, 30},
+       CanonicalShuffle::kS8x16TransposeEven},
+      {{1, 17, 3, 19, 5, 21, 7, 23, 9, 25, 11, 27, 13, 29, 15, 31},
+       CanonicalShuffle::kS8x16TransposeOdd},
+  }};
+  for (auto& [lanes, canonical] : canonical_shuffle_list) {
+    if (std::equal(lanes.begin(), lanes.end(), shuffle.begin())) {
+      return canonical;
+    }
+  }
+  return CanonicalShuffle::kUnknown;
+}
+
 bool SimdShuffle::TryMatchIdentity(const uint8_t* shuffle) {
   for (int i = 0; i < kSimd128Size; ++i) {
     if (shuffle[i] != i) return false;
@@ -84,29 +158,25 @@ bool SimdShuffle::TryMatch32x4OneLaneSwizzle(const uint8_t* shuffle32x4,
 
 bool SimdShuffle::TryMatch64x2Shuffle(const uint8_t* shuffle,
                                       uint8_t* shuffle64x2) {
-  constexpr std::array<uint64_t, 2> element_patterns = {
-      0x0706050403020100,  // 0
-      0x0f0e0d0c0b0a0908   // 1
-  };
-  uint64_t low_shuffle = reinterpret_cast<const uint64_t*>(shuffle)[0];
-  uint64_t high_shuffle = reinterpret_cast<const uint64_t*>(shuffle)[1];
-#ifdef V8_TARGET_BIG_ENDIAN
-  low_shuffle = base::bits::ReverseBytes(low_shuffle);
-  high_shuffle = base::bits::ReverseBytes(high_shuffle);
-#endif
-  if (element_patterns[0] == low_shuffle) {
-    shuffle64x2[0] = 0;
-  } else if (element_patterns[1] == low_shuffle) {
-    shuffle64x2[0] = 1;
-  } else {
-    return false;
-  }
-  if (element_patterns[0] == high_shuffle) {
-    shuffle64x2[1] = 0;
-  } else if (element_patterns[1] == high_shuffle) {
-    shuffle64x2[1] = 1;
-  } else {
-    return false;
+  constexpr std::array<std::array<uint8_t, 8>, 4> element_patterns = {
+      {{0, 1, 2, 3, 4, 5, 6, 7},
+       {8, 9, 10, 11, 12, 13, 14, 15},
+       {16, 17, 18, 19, 20, 21, 22, 23},
+       {24, 25, 26, 27, 28, 29, 30, 31}}};
+
+  for (unsigned i = 0; i < 2; ++i) {
+    uint64_t element = *reinterpret_cast<const uint64_t*>(&shuffle[i * 8]);
+    for (unsigned j = 0; j < 4; ++j) {
+      uint64_t pattern =
+          *reinterpret_cast<const uint64_t*>(element_patterns[j].data());
+      if (pattern == element) {
+        shuffle64x2[i] = j;
+        break;
+      }
+      if (j == 3) {
+        return false;
+      }
+    }
   }
   return true;
 }
@@ -294,6 +364,15 @@ uint8_t SimdShuffle::PackBlend4(const uint8_t* shuffle32x4) {
   int8_t result = 0;
   for (int i = 0; i < 4; ++i) {
     result |= (shuffle32x4[i] >= 4 ? 0x3 : 0) << (i * 2);
+  }
+  return result;
+}
+
+int32_t SimdShuffle::Pack2Lanes(const std::array<uint8_t, 2>& shuffle) {
+  int32_t result = 0;
+  for (int i = 1; i >= 0; --i) {
+    result <<= 8;
+    result |= shuffle[i];
   }
   return result;
 }

@@ -22,6 +22,7 @@
 #include <ostream>
 #include <type_traits>
 
+#include "absl/base/config.h"
 #include "absl/random/internal/iostream_state_saver.h"
 #include "absl/random/internal/traits.h"
 #include "absl/random/uniform_real_distribution.h"
@@ -57,8 +58,8 @@ class zipf_distribution {
    public:
     using distribution_type = zipf_distribution;
 
-    // Preconditions: k > 0, v > 0, q > 1
-    // The precondidtions are validated when NDEBUG is not defined via
+    // Preconditions: k >= 0, v > 0, q > 1
+    // The preconditions are validated when NDEBUG is not defined via
     // a pair of assert() directives.
     // If NDEBUG is defined and either or both of these parameters take invalid
     // values, the behavior of the class is undefined.
@@ -152,7 +153,7 @@ zipf_distribution<IntType>::param_type::param_type(
     : k_(k), q_(q), v_(v), one_minus_q_(1 - q) {
   assert(q > 1);
   assert(v > 0);
-  assert(k > 0);
+  assert(k >= 0);
   one_minus_q_inv_ = 1 / one_minus_q_;
 
   // Setup for the ZRI algorithm (pg 17 of the paper).
@@ -221,7 +222,7 @@ zipf_distribution<IntType>::operator()(
     const double v = uniform_double(g);
     const double u = p.hxm_ + v * p.hx0_minus_hxm_;
     const double x = p.hinv(u);
-    k = rint(x);              // std::floor(x + 0.5);
+    k = rint(x);                                   // std::floor(x + 0.5);
     if (k > static_cast<double>(p.k())) continue;  // reject k > max_k
     if (k - x <= p.s_) break;
     const double h = p.h(k + 0.5);

@@ -15,14 +15,18 @@ namespace internal {
 
 #define __ masm.
 
+const char* ErrorMessage(const char* msg) {
 // If we are running on android and the output is not redirected (i.e. ends up
 // in the android log) then we cannot find the error message in the output. This
 // macro just returns the empty string in that case.
 #if defined(ANDROID) && !defined(V8_ANDROID_LOG_STDOUT)
-#define ERROR_MESSAGE(msg) ""
+  return "";
 #else
-#define ERROR_MESSAGE(msg) msg
+  // We only print the abort reason if debug code is enabled. Otherwise we just
+  // stop execution. Return an empty string in that case.
+  return v8_flags.debug_code ? msg : "";
 #endif
+}
 
 // Test the x64 assembler by compiling some simple functions into
 // a buffer and executing them.  These tests do not initialize the
@@ -45,7 +49,7 @@ TEST_F(MacroAssemblerTest, TestHardAbort) {
   // We need an isolate here to execute in the simulator.
   auto f = GeneratedCode<void>::FromBuffer(isolate(), buffer->start());
 
-  ASSERT_DEATH_IF_SUPPORTED({ f.Call(); }, ERROR_MESSAGE("abort: no reason"));
+  ASSERT_DEATH_IF_SUPPORTED({ f.Call(); }, ErrorMessage("abort: no reason"));
 }
 
 TEST_F(MacroAssemblerTest, TestCheck) {
@@ -69,7 +73,7 @@ TEST_F(MacroAssemblerTest, TestCheck) {
 
   f.Call(0);
   f.Call(18);
-  ASSERT_DEATH_IF_SUPPORTED({ f.Call(17); }, ERROR_MESSAGE("abort: no reason"));
+  ASSERT_DEATH_IF_SUPPORTED({ f.Call(17); }, ErrorMessage("abort: no reason"));
 }
 
 struct MoveObjectAndSlotTestCase {
@@ -184,7 +188,6 @@ INSTANTIATE_TEST_SUITE_P(MacroAssemblerTest,
                          ::testing::ValuesIn(kMoveObjectAndSlotTestCases));
 
 #undef __
-#undef ERROR_MESSAGE
 
 }  // namespace internal
 }  // namespace v8

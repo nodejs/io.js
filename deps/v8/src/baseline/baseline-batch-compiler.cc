@@ -6,6 +6,7 @@
 
 #include <algorithm>
 
+#include "src/base/fpu.h"
 #include "src/baseline/baseline-compiler.h"
 #include "src/codegen/compiler.h"
 #include "src/execution/isolate.h"
@@ -79,17 +80,17 @@ class BaselineCompilerTask {
     if (IsScript(shared_function_info_->script())) {
       Compiler::LogFunctionCompilation(
           isolate, LogEventListener::CodeTag::kFunction,
-          handle(Cast<Script>(shared_function_info_->script()), isolate),
-          shared_function_info_, Handle<FeedbackVector>(),
+          direct_handle(Cast<Script>(shared_function_info_->script()), isolate),
+          shared_function_info_, DirectHandle<FeedbackVector>(),
           Cast<AbstractCode>(code), CodeKind::BASELINE,
           time_taken_.InMillisecondsF());
     }
   }
 
  private:
-  Handle<SharedFunctionInfo> shared_function_info_;
-  Handle<BytecodeArray> bytecode_;
-  MaybeHandle<Code> maybe_code_;
+  IndirectHandle<SharedFunctionInfo> shared_function_info_;
+  IndirectHandle<BytecodeArray> bytecode_;
+  MaybeIndirectHandle<Code> maybe_code_;
   base::TimeDelta time_taken_;
 };
 
@@ -157,6 +158,8 @@ class ConcurrentBaselineCompiler {
           outgoing_queue_(outcoming_queue) {}
 
     void Run(JobDelegate* delegate) override {
+      base::FlushDenormalsScope flush_denormals_scope(
+          isolate_->flush_denormals());
       LocalIsolate local_isolate(isolate_, ThreadKind::kBackground);
       UnparkedScope unparked_scope(&local_isolate);
       LocalHandleScope handle_scope(&local_isolate);
@@ -279,7 +282,7 @@ void BaselineBatchCompiler::EnqueueSFI(Tagged<SharedFunctionInfo> shared) {
   if (ShouldCompileBatch(shared)) {
     CompileBatchConcurrent(shared);
   } else {
-    Enqueue(Handle<SharedFunctionInfo>(shared, isolate_));
+    Enqueue(DirectHandle<SharedFunctionInfo>(shared, isolate_));
   }
 }
 
@@ -326,7 +329,7 @@ void BaselineBatchCompiler::CompileBatch(DirectHandle<JSFunction> function) {
 
 void BaselineBatchCompiler::CompileBatchConcurrent(
     Tagged<SharedFunctionInfo> shared) {
-  Enqueue(Handle<SharedFunctionInfo>(shared, isolate_));
+  Enqueue(DirectHandle<SharedFunctionInfo>(shared, isolate_));
   concurrent_compiler_->CompileBatch(compilation_queue_, last_index_);
   ClearBatch();
 }

@@ -321,12 +321,17 @@ uintptr_t Simulator::StackLimit(uintptr_t c_limit) const {
   return stack_limit_ + kAdditionalStackMargin;
 }
 
-base::Vector<uint8_t> Simulator::GetCurrentStackView() const {
+void Simulator::SetStackLimit(uintptr_t limit) {
+  stack_limit_ = static_cast<uintptr_t>(limit - kAdditionalStackMargin);
+}
+
+base::Vector<uint8_t> Simulator::GetCentralStackView() const {
   // We do not add an additional safety margin as above in
   // Simulator::StackLimit, as users of this method are expected to add their
   // own margin.
-  return base::VectorOf(reinterpret_cast<uint8_t*>(stack_limit_),
-                        UsableStackSize());
+  return base::VectorOf(
+      reinterpret_cast<uint8_t*>(stack_ + kStackProtectionSize),
+      UsableStackSize());
 }
 
 void Simulator::SetRedirectInstruction(Instruction* instruction) {
@@ -382,6 +387,12 @@ void Simulator::Init(FILE* stream) {
   // instruction, so we create a dedicated decoder.
   disassembler_decoder_ = new Decoder<DispatchingDecoderVisitor>();
   disassembler_decoder_->AppendVisitor(print_disasm_);
+
+  global_monitor_ = GlobalMonitor::Get();
+  global_monitor_->PrependProcessor(&global_monitor_processor_);
+
+  // Enabling deadlock detection while simulating is too slow.
+  SetMutexDeadlockDetectionMode(absl::OnDeadlockCycle::kIgnore);
 }
 
 void Simulator::ResetState() {
@@ -409,7 +420,7 @@ void Simulator::ResetState() {
 }
 
 Simulator::~Simulator() {
-  GlobalMonitor::Get()->RemoveProcessor(&global_monitor_processor_);
+  global_monitor_->RemoveProcessor(&global_monitor_processor_);
   delete[] reinterpret_cast<uint8_t*>(stack_);
   delete disassembler_decoder_;
   delete print_disasm_;
@@ -471,6 +482,7 @@ using SimulatorRuntimeCompareCall = int64_t (*)(double arg1, double arg2);
 using SimulatorRuntimeFPFPCall = double (*)(double arg1, double arg2);
 using SimulatorRuntimeFPCall = double (*)(double arg1);
 using SimulatorRuntimeFPIntCall = double (*)(double arg1, int32_t arg2);
+using SimulatorRuntimeIntFPCall = int32_t (*)(double darg0);
 // Define four args for future flexibility; at the time of this writing only
 // one is ever used.
 using SimulatorRuntimeFPTaggedCall = double (*)(int64_t arg0, int64_t arg1,
@@ -898,6 +910,21 @@ void Simulator::DoRuntimeCall(Instruction* instr) {
       break;
     }
 
+    case ExternalReference::BUILTIN_INT_FP_CALL: {
+      // int f(double)
+      TraceSim("Type: BUILTIN_INT_FP_CALL\n");
+      SimulatorRuntimeIntFPCall target =
+          reinterpret_cast<SimulatorRuntimeIntFPCall>(external);
+      TraceSim("Argument: %f", dreg(0));
+      int32_t result = target(dreg(0));
+      TraceSim("Returned: %d\n", result);
+#ifdef DEBUG
+      CorruptAllCallerSavedCPURegisters();
+#endif
+      set_xreg(0, result);
+      break;
+    }
+
     case ExternalReference::BUILTIN_FP_POINTER_CALL: {
       // double f(Address tagged_ptr)
       TraceSim("Type: BUILTIN_FP_POINTER_CALL\n");
@@ -1094,7 +1121,7 @@ int Simulator::CodeFromName(const char* name) {
 template <typename T>
 T Simulator::AddWithCarry(bool set_flags, T left, T right, int carry_in) {
   // Use unsigned types to avoid implementation-defined overflow behaviour.
-  static_assert(std::is_unsigned<T>::value, "operands must be unsigned");
+  static_assert(std::is_unsigned_v<T>, "operands must be unsigned");
   static_assert((sizeof(T) == kWRegSize) || (sizeof(T) == kXRegSize),
                 "Only W- or X-sized operands are tested");
 
@@ -1125,7 +1152,7 @@ T Simulator::AddWithCarry(bool set_flags, T left, T right, int carry_in) {
 template <typename T>
 void Simulator::AddSubWithCarry(Instruction* instr) {
   // Use unsigned types to avoid implementation-defined overflow behaviour.
-  static_assert(std::is_unsigned<T>::value, "operands must be unsigned");
+  static_assert(std::is_unsigned_v<T>, "operands must be unsigned");
 
   T op2 = reg<T>(instr->Rm());
   T new_val;
@@ -1168,7 +1195,7 @@ sim_uint128_t Simulator::Eor128(sim_uint128_t x, sim_uint128_t y) const {
 
 template <typename T>
 T Simulator::ShiftOperand(T value, Shift shift_type, unsigned amount) {
-  using unsignedT = typename std::make_unsigned<T>::type;
+  using unsignedT = std::make_unsigned_t<T>;
 
   if (amount == 0) {
     return value;
@@ -1199,7 +1226,7 @@ T Simulator::ExtendValue(T value, Extend extend_type, unsigned left_shift) {
   const unsigned kSignExtendBShift = (sizeof(T) - 1) * 8;
   const unsigned kSignExtendHShift = (sizeof(T) - 2) * 8;
   const unsigned kSignExtendWShift = (sizeof(T) - 4) * 8;
-  using unsignedT = typename std::make_unsigned<T>::type;
+  using unsignedT = std::make_unsigned_t<T>;
 
   switch (extend_type) {
     case UXTB:
@@ -1870,7 +1897,7 @@ void Simulator::VisitCompareBranch(Instruction* instr) {
 template <typename T>
 void Simulator::AddSubHelper(Instruction* instr, T op2) {
   // Use unsigned types to avoid implementation-defined overflow behaviour.
-  static_assert(std::is_unsigned<T>::value, "operands must be unsigned");
+  static_assert(std::is_unsigned_v<T>, "operands must be unsigned");
 
   bool set_flags = instr->FlagsUpdate();
   T new_val = 0;
@@ -2016,7 +2043,7 @@ void Simulator::VisitConditionalCompareImmediate(Instruction* instr) {
 template <typename T>
 void Simulator::ConditionalCompareHelper(Instruction* instr, T op2) {
   // Use unsigned types to avoid implementation-defined overflow behaviour.
-  static_assert(std::is_unsigned<T>::value, "operands must be unsigned");
+  static_assert(std::is_unsigned_v<T>, "operands must be unsigned");
 
   T op1 = reg<T>(instr->Rn());
 
@@ -2074,12 +2101,12 @@ void Simulator::LoadStoreHelper(Instruction* instr, int64_t offset,
   if (!ProbeMemory(address, access_size)) return;
 
   {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     if (instr->IsLoad()) {
       local_monitor_.NotifyLoad();
     } else {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
     }
   }
 
@@ -2237,12 +2264,12 @@ void Simulator::LoadStorePairHelper(Instruction* instr, AddrMode addrmode) {
   uintptr_t stack = 0;
 
   {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     if (instr->IsLoad()) {
       local_monitor_.NotifyLoad();
     } else {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
     }
   }
 
@@ -2388,7 +2415,7 @@ void Simulator::VisitLoadLiteral(Instruction* instr) {
   unsigned rt = instr->Rt();
 
   {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     local_monitor_.NotifyLoad();
   }
 
@@ -2520,12 +2547,13 @@ void Simulator::VisitLoadStoreAcquireRelease(Instruction* instr) {
   DCHECK_EQ(address % access_size, 0);
   // First, check whether the memory is accessible (for wasm trap handling).
   if (!ProbeMemory(address, access_size)) return;
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
+
   if (is_load != 0) {
     if (is_exclusive) {
       local_monitor_.NotifyLoadExcl(address, get_transaction_size(access_size));
-      GlobalMonitor::Get()->NotifyLoadExcl_Locked(address,
-                                                  &global_monitor_processor_);
+      global_monitor_->NotifyLoadExcl_Locked(address,
+                                             &global_monitor_processor_);
     } else {
       local_monitor_.NotifyLoad();
     }
@@ -2557,8 +2585,8 @@ void Simulator::VisitLoadStoreAcquireRelease(Instruction* instr) {
       DCHECK_NE(rs, rn);
       if (local_monitor_.NotifyStoreExcl(address,
                                          get_transaction_size(access_size)) &&
-          GlobalMonitor::Get()->NotifyStoreExcl_Locked(
-              address, &global_monitor_processor_)) {
+          global_monitor_->NotifyStoreExcl_Locked(address,
+                                                  &global_monitor_processor_)) {
         switch (op) {
           case STLXR_b:
             MemoryWrite<uint8_t>(address, wreg(rt));
@@ -2582,7 +2610,7 @@ void Simulator::VisitLoadStoreAcquireRelease(Instruction* instr) {
       }
     } else {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
       switch (op) {
         case STLR_b:
           MemoryWrite<uint8_t>(address, wreg(rt));
@@ -2632,11 +2660,11 @@ void Simulator::CompareAndSwapHelper(const Instruction* instr) {
   }
 
   if (data == comparevalue) {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
 
     if (is_release) {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
       // Approximate store-release by issuing a full barrier before the store.
       std::atomic_thread_fence(std::memory_order_seq_cst);
     }
@@ -2690,11 +2718,11 @@ void Simulator::CompareAndSwapPairHelper(const Instruction* instr) {
   bool same =
       (data_high == comparevalue_high) && (data_low == comparevalue_low);
   if (same) {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
 
     if (is_release) {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
       // Approximate store-release by issuing a full barrier before the store.
       std::atomic_thread_fence(std::memory_order_seq_cst);
     }
@@ -2773,9 +2801,9 @@ void Simulator::AtomicMemorySimpleHelper(const Instruction* instr) {
   }
 
   if (is_release) {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     local_monitor_.NotifyStore();
-    GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+    global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
     // Approximate store-release by issuing a full barrier before the store.
     std::atomic_thread_fence(std::memory_order_seq_cst);
   }
@@ -2812,9 +2840,9 @@ void Simulator::AtomicMemorySwapHelper(const Instruction* instr) {
   }
 
   if (is_release) {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     local_monitor_.NotifyStore();
-    GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+    global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
     // Approximate store-release by issuing a full barrier before the store.
     std::atomic_thread_fence(std::memory_order_seq_cst);
   }
@@ -3070,7 +3098,7 @@ void Simulator::DataProcessing2Source(Instruction* instr) {
     }
     case UDIV_w:
     case UDIV_x: {
-      using unsignedT = typename std::make_unsigned<T>::type;
+      using unsignedT = std::make_unsigned_t<T>;
       unsignedT rn = static_cast<unsignedT>(reg<T>(instr->Rn()));
       unsignedT rm = static_cast<unsignedT>(reg<T>(instr->Rm()));
       if (rm == 0) {
@@ -3178,7 +3206,7 @@ void Simulator::VisitDataProcessing3Source(Instruction* instr) {
 
 template <typename T>
 void Simulator::BitfieldHelper(Instruction* instr) {
-  using unsignedT = typename std::make_unsigned<T>::type;
+  using unsignedT = std::make_unsigned_t<T>;
   T reg_size = sizeof(T) * 8;
   T R = instr->ImmR();
   T S = instr->ImmS();
@@ -5424,12 +5452,12 @@ void Simulator::NEONLoadStoreMultiStructHelper(const Instruction* instr,
   }
 
   {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     if (log_read) {
       local_monitor_.NotifyLoad();
     } else {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
     }
   }
 
@@ -5678,12 +5706,12 @@ void Simulator::NEONLoadStoreSingleStructHelper(const Instruction* instr,
   }
 
   {
-    base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+    GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
     if (do_load) {
       local_monitor_.NotifyLoad();
     } else {
       local_monitor_.NotifyStore();
-      GlobalMonitor::Get()->NotifyStore_Locked(&global_monitor_processor_);
+      global_monitor_->NotifyStore_Locked(&global_monitor_processor_);
     }
   }
 
@@ -6531,7 +6559,7 @@ void Simulator::DoSwitchStackLimit(Instruction* instr) {
   // So without adjusting back incoming value by safety gap
   // {stack_limit_} will be shortened by kAdditionalStackMargin yielding
   // positive feedback loop.
-  stack_limit_ = static_cast<uintptr_t>(stack_limit - kAdditionalStackMargin);
+  SetStackLimit(stack_limit);
 }
 
 void Simulator::DoPrintf(Instruction* instr) {
@@ -6772,7 +6800,6 @@ bool Simulator::GlobalMonitor::Processor::NotifyStoreExcl_Locked(
 void Simulator::GlobalMonitor::NotifyLoadExcl_Locked(uintptr_t addr,
                                                      Processor* processor) {
   processor->NotifyLoadExcl_Locked(addr);
-  PrependProcessor_Locked(processor);
 }
 
 void Simulator::GlobalMonitor::NotifyStore_Locked(Processor* processor) {
@@ -6785,7 +6812,6 @@ void Simulator::GlobalMonitor::NotifyStore_Locked(Processor* processor) {
 
 bool Simulator::GlobalMonitor::NotifyStoreExcl_Locked(uintptr_t addr,
                                                       Processor* processor) {
-  DCHECK(IsProcessorInLinkedList_Locked(processor));
   if (processor->NotifyStoreExcl_Locked(addr, true)) {
     // Notify the other processors that this StoreExcl succeeded.
     for (Processor* iter = head_; iter; iter = iter->next_) {
@@ -6799,30 +6825,19 @@ bool Simulator::GlobalMonitor::NotifyStoreExcl_Locked(uintptr_t addr,
   }
 }
 
-bool Simulator::GlobalMonitor::IsProcessorInLinkedList_Locked(
-    Processor* processor) const {
-  return head_ == processor || processor->next_ || processor->prev_;
-}
-
-void Simulator::GlobalMonitor::PrependProcessor_Locked(Processor* processor) {
-  if (IsProcessorInLinkedList_Locked(processor)) {
-    return;
-  }
-
+void Simulator::GlobalMonitor::PrependProcessor(Processor* processor) {
+  base::MutexGuard lock_guard(&mutex_);
   if (head_) {
     head_->prev_ = processor;
   }
   processor->prev_ = nullptr;
   processor->next_ = head_;
   head_ = processor;
+  num_processors_++;
 }
 
 void Simulator::GlobalMonitor::RemoveProcessor(Processor* processor) {
-  base::MutexGuard lock_guard(&mutex);
-  if (!IsProcessorInLinkedList_Locked(processor)) {
-    return;
-  }
-
+  base::MutexGuard lock_guard(&mutex_);
   if (processor->prev_) {
     processor->prev_->next_ = processor->next_;
   } else {
@@ -6833,6 +6848,7 @@ void Simulator::GlobalMonitor::RemoveProcessor(Processor* processor) {
   }
   processor->prev_ = nullptr;
   processor->next_ = nullptr;
+  num_processors_--;
 }
 
 #undef SScanF

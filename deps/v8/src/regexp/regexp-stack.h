@@ -40,16 +40,27 @@ class RegExpStack final {
   RegExpStack(const RegExpStack&) = delete;
   RegExpStack& operator=(const RegExpStack&) = delete;
 
+#if defined(V8_TARGET_ARCH_PPC64) || defined(V8_TARGET_ARCH_S390X)
+  static constexpr int kSlotSize = kSystemPointerSize;
+#else
+  static constexpr int kSlotSize = kInt32Size;
+#endif
   // Number of allocated locations on the stack below the limit. No sequence of
   // pushes must be longer than this without doing a stack-limit check.
-  static constexpr int kStackLimitSlack = 32;
+  static constexpr int kStackLimitSlackSlotCount = 32;
+  static constexpr int kStackLimitSlackSize =
+      kStackLimitSlackSlotCount * kSlotSize;
 
-  Address memory_top() const {
+  Address begin() const {
+    return reinterpret_cast<Address>(thread_local_.memory_);
+  }
+  Address end() const {
     DCHECK_NE(0, thread_local_.memory_size_);
     DCHECK_EQ(thread_local_.memory_top_,
               thread_local_.memory_ + thread_local_.memory_size_);
     return reinterpret_cast<Address>(thread_local_.memory_top_);
   }
+  Address memory_top() const { return end(); }
 
   Address stack_pointer() const {
     return reinterpret_cast<Address>(thread_local_.stack_pointer_);
@@ -84,20 +95,21 @@ class RegExpStack final {
   static const Address kMemoryTop =
       static_cast<Address>(static_cast<uintptr_t>(-1));
 
-  // Minimal size of dynamically-allocated stack area.
-  static constexpr size_t kMinimumDynamicStackSize = 1 * KB;
-
   // In addition to dynamically-allocated, variable-sized stacks, we also have
   // a statically allocated and sized area that is used whenever no dynamic
   // stack is allocated. This guarantees that a stack is always available and
   // we can skip availability-checks later on.
-  // It's double the slack size to ensure that we have a bit of breathing room
-  // before NativeRegExpMacroAssembler::GrowStack must be called.
-  static constexpr size_t kStaticStackSize =
-      2 * kStackLimitSlack * kSystemPointerSize;
+  static constexpr size_t kStaticStackSize = 1 * KB;
+  // It's at least double the slack size to ensure that we have a bit of
+  // breathing room before NativeRegExpMacroAssembler::GrowStack must be
+  // called.
+  static_assert(kStaticStackSize >= 2 * kStackLimitSlackSize);
+  static_assert(kStaticStackSize <= kMaximumStackSize);
   uint8_t static_stack_[kStaticStackSize] = {0};
 
-  static_assert(kStaticStackSize <= kMaximumStackSize);
+  // Minimal size of dynamically-allocated stack area.
+  static constexpr size_t kMinimumDynamicStackSize = 2 * KB;
+  static_assert(kMinimumDynamicStackSize == 2 * kStaticStackSize);
 
   // Structure holding the allocated memory, size and limit. Thread switching
   // archives and restores this struct.

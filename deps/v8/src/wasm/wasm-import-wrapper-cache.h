@@ -20,27 +20,24 @@ namespace v8::internal::wasm {
 class WasmCode;
 class WasmEngine;
 
-using FunctionSig = Signature<ValueType>;
-
 // Implements a cache for import wrappers.
 class WasmImportWrapperCache {
  public:
   struct CacheKey {
-    CacheKey(ImportCallKind kind, uint32_t canonical_type_index,
+    CacheKey(ImportCallKind kind, CanonicalTypeIndex type_index,
              int expected_arity, Suspend suspend)
         : kind(kind),
-          canonical_type_index(canonical_type_index),
+          type_index(type_index),
           expected_arity(expected_arity),
           suspend(suspend) {}
 
     bool operator==(const CacheKey& rhs) const {
-      return kind == rhs.kind &&
-             canonical_type_index == rhs.canonical_type_index &&
+      return kind == rhs.kind && type_index == rhs.type_index &&
              expected_arity == rhs.expected_arity && suspend == rhs.suspend;
     }
 
     ImportCallKind kind;
-    uint32_t canonical_type_index;
+    CanonicalTypeIndex type_index;
     int expected_arity;
     Suspend suspend;
   };
@@ -49,7 +46,7 @@ class WasmImportWrapperCache {
    public:
     size_t operator()(const CacheKey& key) const {
       return base::hash_combine(static_cast<uint8_t>(key.kind),
-                                key.canonical_type_index, key.expected_arity);
+                                key.type_index.index, key.expected_arity);
     }
   };
 
@@ -62,11 +59,11 @@ class WasmImportWrapperCache {
     V8_EXPORT_PRIVATE WasmCode* operator[](const CacheKey& key);
 
     WasmCode* AddWrapper(const CacheKey& key, WasmCompilationResult result,
-                         WasmCode::Kind kind);
+                         WasmCode::Kind kind, uint64_t signature_hash);
 
    private:
     WasmImportWrapperCache* const cache_;
-    base::MutexGuard guard_;
+    base::SpinningMutexGuard guard_;
   };
 
   WasmImportWrapperCache() = default;
@@ -79,7 +76,7 @@ class WasmImportWrapperCache {
   // Thread-safe. Returns nullptr if the key doesn't exist in the map.
   // Adds the returned code to the surrounding WasmCodeRefScope.
   V8_EXPORT_PRIVATE WasmCode* MaybeGet(ImportCallKind kind,
-                                       uint32_t canonical_type_index,
+                                       CanonicalTypeIndex type_index,
                                        int expected_arity,
                                        Suspend suspend) const;
 
@@ -90,17 +87,17 @@ class WasmImportWrapperCache {
   size_t EstimateCurrentMemoryConsumption() const;
 
   // Returns nullptr if {call_target} doesn't belong to a known wrapper.
-  WasmCode* FindWrapper(Address call_target) {
-    if (call_target == kNullAddress) return nullptr;
-    base::MutexGuard lock(&mutex_);
-    auto iter = codes_.find(call_target);
-    if (iter == codes_.end()) return nullptr;
-    return iter->second;
-  }
+  V8_EXPORT_PRIVATE WasmCode* FindWrapper(WasmCodePointer call_target);
+
+  WasmCode* CompileWasmImportCallWrapper(Isolate* isolate, ImportCallKind kind,
+                                         const CanonicalSig* sig,
+                                         CanonicalTypeIndex sig_index,
+                                         bool source_positions,
+                                         int expected_arity, Suspend suspend);
 
  private:
   std::unique_ptr<WasmCodeAllocator> code_allocator_;
-  mutable base::Mutex mutex_;
+  mutable base::SpinningMutex mutex_;
   std::unordered_map<CacheKey, WasmCode*, CacheKeyHash> entry_map_;
   // Lookup support. The map key is the instruction start address.
   std::map<Address, WasmCode*> codes_;

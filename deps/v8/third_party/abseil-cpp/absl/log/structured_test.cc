@@ -51,11 +51,10 @@ TEST(StreamingFormatTest, LogAsLiteral) {
 
   absl::ScopedMockLog sink;
 
-  EXPECT_CALL(sink,
-              Send(AllOf(TextMessage(MatchesOstream(stream)),
-                         TextMessage(Eq("hello world")),
-                         ENCODED_MESSAGE(HasValues(ElementsAre(
-                             EqualsProto(R"pb(literal: "hello world")pb")))))));
+  EXPECT_CALL(sink, Send(AllOf(TextMessage(MatchesOstream(stream)),
+                               TextMessage(Eq("hello world")),
+                               ENCODED_MESSAGE(HasValues(ElementsAre(
+                                   ValueWithLiteral(Eq("hello world"))))))));
 
   sink.StartCapturingLogs();
   LOG(INFO) << absl::LogAsLiteral(not_a_literal);

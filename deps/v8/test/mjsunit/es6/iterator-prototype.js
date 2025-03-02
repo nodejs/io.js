@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-iterator-helpers
 
 var arrayIteratorPrototype = [].entries().__proto__;
 var iteratorPrototype = arrayIteratorPrototype.__proto__;

@@ -80,7 +80,8 @@ bool Name::Equals(Tagged<Name> other) {
   return Cast<String>(this)->SlowEquals(Cast<String>(other));
 }
 
-bool Name::Equals(Isolate* isolate, Handle<Name> one, Handle<Name> two) {
+bool Name::Equals(Isolate* isolate, DirectHandle<Name> one,
+                  DirectHandle<Name> two) {
   if (one.is_identical_to(two)) return true;
   if ((IsInternalizedString(*one) && IsInternalizedString(*two)) ||
       IsSymbol(*one) || IsSymbol(*two)) {
@@ -164,7 +165,7 @@ bool Name::HasExternalForwardingIndex(AcquireLoadTag) const {
 uint32_t Name::GetRawHashFromForwardingTable(uint32_t raw_hash) const {
   DCHECK(IsForwardingIndex(raw_hash));
   // TODO(pthier): Add parameter for isolate so we don't need to calculate it.
-  Isolate* isolate = GetIsolateFromWritableObject(this);
+  Isolate* isolate = Isolate::Current();
   const int index = ForwardingIndexValueBits::decode(raw_hash);
   return isolate->string_forwarding_table()->GetRawHash(isolate, index);
 }
@@ -268,6 +269,11 @@ bool Name::IsPrivateBrand() {
       IsSymbol(this) && Cast<Symbol>(this)->is_private_brand();
   DCHECK_IMPLIES(is_private_brand, IsPrivateName());
   return is_private_brand;
+}
+
+bool Name::IsArrayIndex() {
+  uint32_t index;
+  return AsArrayIndex(&index);
 }
 
 bool Name::AsArrayIndex(uint32_t* index) {

@@ -487,11 +487,40 @@ def clean_test_output(output):
   """Substitute line number patterns for files except gcmole-test.cc, as
   otherwise unrelated code changes require a rebaseline of test expectations.
   """
-  return re.sub(
-      r'(?<!gcmole-test\.cc):\d*:\d*:',
-      ':<number>:<number>:',
-      output)
 
+  def clean_block(m):
+    # For blocks whose filename is gcmole-test.cc, leave the block unchanged.
+    if m.group("file").endswith("gcmole-test.cc"):
+      return m.group(0)
+
+    # Otherwise, clear the line numbers both from the main message, and from the
+    # individually printed line numbers from the printed source. That is, change
+    #
+    #   ./src/heap/heap.h:934:21: note: GC call here.
+    #      934 |   V8_EXPORT_PRIVATE void CollectGarbage(
+    #          |                     ^
+    #
+    # into
+    #
+    #   ./src/heap/heap.h:<number>:<number>: note: GC call here.
+    #          |   V8_EXPORT_PRIVATE void CollectGarbage(
+    #          |                     ^
+    block = m.group("block")
+
+    def clear_line_number(m):
+      return f"{m.group(1)}{' ' * len(m.group(2))} |{m.group(3)}"
+
+    block = re.sub(r'(\s*)(\d+) \|(.*)', clear_line_number, block)
+
+    return f"{m.group('file')}:<number>:<number>:{m.group('msg')}\n{block}"
+
+  # Substitute within blocks of the form:
+  #   ./src/heap/heap.h:934:21: note: GC call here.
+  #      934 |   V8_EXPORT_PRIVATE void CollectGarbage(
+  #          |           ^
+  return re.sub(
+      r'(?P<file>\S+):(?P<pos>\d+:\d+):(?P<msg>.*)\n(?P<block>(\s*\d* \|.*\n)*)',
+      clean_block, output)
 
 def has_unexpected_errors(options, errors_found, file_io):
   """Returns True if error state isn't as expected, False otherwise.
@@ -810,7 +839,7 @@ def verify_clang_plugin(parser, options):
 
 def prepare_gcmole_files(options):
   cmd = [
-      "ninja", "-C", options.v8_build_dir, "v8_gcmole_files",
+      "autoninja", "-C", options.v8_build_dir, "v8_gcmole_files",
       "v8_dump_build_config"
   ]
   cmd = list(map(str, cmd))

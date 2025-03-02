@@ -749,6 +749,8 @@ TEST_F(ZipTest, UnzipMixedPaths) {
       "Space→",  //
 #else
       " ",                        //
+      "...",                      // Disappears on Windows
+      "....",                     // Disappears on Windows
       "AUX",                      // Disappears on Windows
       "COM1",                     // Disappears on Windows
       "COM2",                     // Disappears on Windows
@@ -1114,9 +1116,9 @@ TEST_F(ZipTest, UnzipFilesWithIncorrectSize) {
     SCOPED_TRACE(base::StringPrintf("Processing %d.txt", i));
     base::FilePath file_path =
         temp_dir.AppendASCII(base::StringPrintf("%d.txt", i));
-    int64_t file_size = -1;
-    EXPECT_TRUE(base::GetFileSize(file_path, &file_size));
-    EXPECT_EQ(static_cast<int64_t>(i), file_size);
+    std::optional<int64_t> file_size = base::GetFileSize(file_path);
+    EXPECT_TRUE(file_size.has_value());
+    EXPECT_EQ(static_cast<int64_t>(i), file_size.value());
   }
 }
 
@@ -1307,10 +1309,10 @@ TEST_F(ZipTest, Compressed) {
 
   // Since the source files compress well, the destination ZIP file should be
   // smaller than the source files.
-  int64_t dest_file_size;
-  ASSERT_TRUE(base::GetFileSize(dest_file, &dest_file_size));
-  EXPECT_GT(dest_file_size, 300);
-  EXPECT_LT(dest_file_size, 1000);
+  std::optional<int64_t> dest_file_size = base::GetFileSize(dest_file);
+  ASSERT_TRUE(dest_file_size.has_value());
+  EXPECT_GT(dest_file_size.value(), 300);
+  EXPECT_LT(dest_file_size.value(), 1000);
 }
 
 // Tests that a ZIP put inside a ZIP is simply stored instead of being
@@ -1339,10 +1341,10 @@ TEST_F(ZipTest, NestedZip) {
   // Since the dummy source (inner) ZIP file should simply be stored in the
   // destination (outer) ZIP file, the destination file should be bigger than
   // the source file, but not much bigger.
-  int64_t dest_file_size;
-  ASSERT_TRUE(base::GetFileSize(dest_file, &dest_file_size));
-  EXPECT_GT(dest_file_size, src_size + 100);
-  EXPECT_LT(dest_file_size, src_size + 300);
+  std::optional<int64_t> dest_file_size = base::GetFileSize(dest_file);
+  ASSERT_TRUE(dest_file_size.has_value());
+  EXPECT_GT(dest_file_size.value(), src_size + 100);
+  EXPECT_LT(dest_file_size.value(), src_size + 300);
 }
 
 // Tests that there is no 2GB or 4GB limits. Tests that big files can be zipped
@@ -1403,10 +1405,10 @@ TEST_F(ZipTest, BigFile) {
   // Since the dummy source (inner) ZIP file should simply be stored in the
   // destination (outer) ZIP file, the destination file should be bigger than
   // the source file, but not much bigger.
-  int64_t dest_file_size;
-  ASSERT_TRUE(base::GetFileSize(dest_file, &dest_file_size));
-  EXPECT_GT(dest_file_size, src_size + 100);
-  EXPECT_LT(dest_file_size, src_size + 300);
+  std::optional<int64_t> dest_file_size = base::GetFileSize(dest_file);
+  ASSERT_TRUE(dest_file_size.has_value());
+  EXPECT_GT(dest_file_size.value(), src_size + 100);
+  EXPECT_LT(dest_file_size.value(), src_size + 300);
 
   LOG(INFO) << "Reading big ZIP " << dest_file;
   zip::ZipReader reader;

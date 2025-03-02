@@ -77,11 +77,7 @@ class V8_EXPORT AgeTable final {
         __builtin_ctz(static_cast<uint32_t>(kCardSizeInBytes));
 #else   //! V8_HAS_BUILTIN_CTZ
         // Hardcode and check with assert.
-#if defined(CPPGC_2GB_CAGE)
-        11;
-#else   // !defined(CPPGC_2GB_CAGE)
         12;
-#endif  // !defined(CPPGC_2GB_CAGE)
 #endif  // !V8_HAS_BUILTIN_CTZ
     static_assert((1 << kGranularityBits) == kCardSizeInBytes);
     const size_t entry = offset >> kGranularityBits;

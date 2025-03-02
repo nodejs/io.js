@@ -25,7 +25,7 @@
 #define TZDEFRULES "posixrules"
 #endif /* !defined TZDEFRULES */
 
-/* See Internet RFC 8536 for more details about the following format.  */
+/* See Internet RFC 9636 for more details about the following format.  */
 
 /*
 ** Each file begins with. . .
@@ -75,14 +75,16 @@ struct tzhead {
 ** If tzh_version is '2' or greater, the above is followed by a second instance
 ** of tzhead and a second instance of the data in which each coded transition
 ** time uses 8 rather than 4 chars,
-** then a POSIX-TZ-environment-variable-style string for use in handling
+** then a POSIX.1-2017 proleptic TZ string for use in handling
 ** instants after the last transition time stored in the file
 ** (with nothing between the newlines if there is no POSIX.1-2017
 ** representation for such instants).
 **
-** If tz_version is '3' or greater, the above is extended as follows.
+** If tz_version is '3' or greater, the TZ string can be any POSIX.1-2024
+** proleptic TZ string, which means the above is extended as follows.
 ** First, the TZ string's hour offset may range from -167
-** through 167 as compared to the POSIX-required 0 through 24.
+** through 167 as compared to the range 0 through 24 required
+** by POSIX.1-2017 and earlier.
 ** Second, its DST start time may be January 1 at 00:00 and its stop
 ** time December 31 at 24:00 plus the difference between DST and
 ** standard time, indicating DST all year.

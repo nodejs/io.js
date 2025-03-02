@@ -9,3 +9,6 @@
 monorail {
   component: "Blink>JavaScript>Runtime"
 }
+buganizer_public: {
+  component_id: 1456800
+}

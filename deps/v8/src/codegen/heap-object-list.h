@@ -12,31 +12,33 @@
 #define BUILTINS_WITH_SFI_OBJECT_LIST(V) \
   BUILTINS_WITH_SFI_LIST_GENERATOR(BUILTINS_WITH_SFI_OBJECT_LIST_ADAPTER, V)
 
-#define HEAP_MUTABLE_IMMOVABLE_OBJECT_LIST(V)                                  \
-  V(ArrayIteratorProtector, array_iterator_protector, ArrayIteratorProtector)  \
-  V(ArraySpeciesProtector, array_species_protector, ArraySpeciesProtector)     \
-  V(IsConcatSpreadableProtector, is_concat_spreadable_protector,               \
-    IsConcatSpreadableProtector)                                               \
-  V(MapIteratorProtector, map_iterator_protector, MapIteratorProtector)        \
-  V(NoElementsProtector, no_elements_protector, NoElementsProtector)           \
-  V(MegaDOMProtector, mega_dom_protector, MegaDOMProtector)                    \
-  V(NumberStringCache, number_string_cache, NumberStringCache)                 \
-  V(NumberStringNotRegexpLikeProtector,                                        \
-    number_string_not_regexp_like_protector,                                   \
-    NumberStringNotRegexpLikeProtector)                                        \
-  V(PromiseResolveProtector, promise_resolve_protector,                        \
-    PromiseResolveProtector)                                                   \
-  V(PromiseSpeciesProtector, promise_species_protector,                        \
-    PromiseSpeciesProtector)                                                   \
-  V(PromiseThenProtector, promise_then_protector, PromiseThenProtector)        \
-  V(RegExpSpeciesProtector, regexp_species_protector, RegExpSpeciesProtector)  \
-  V(SetIteratorProtector, set_iterator_protector, SetIteratorProtector)        \
-  V(StringIteratorProtector, string_iterator_protector,                        \
-    StringIteratorProtector)                                                   \
-  V(StringWrapperToPrimitiveProtector, string_wrapper_to_primitive_protector,  \
-    StringWrapperToPrimitiveProtector)                                         \
-  V(TypedArraySpeciesProtector, typed_array_species_protector,                 \
-    TypedArraySpeciesProtector)                                                \
+#define HEAP_MUTABLE_IMMOVABLE_OBJECT_LIST(V)                                 \
+  V(ArrayIteratorProtector, array_iterator_protector, ArrayIteratorProtector) \
+  V(ArraySpeciesProtector, array_species_protector, ArraySpeciesProtector)    \
+  V(IsConcatSpreadableProtector, is_concat_spreadable_protector,              \
+    IsConcatSpreadableProtector)                                              \
+  V(MapIteratorProtector, map_iterator_protector, MapIteratorProtector)       \
+  V(NoElementsProtector, no_elements_protector, NoElementsProtector)          \
+  V(MegaDOMProtector, mega_dom_protector, MegaDOMProtector)                   \
+  V(NumberStringCache, number_string_cache, NumberStringCache)                \
+  V(NumberStringNotRegexpLikeProtector,                                       \
+    number_string_not_regexp_like_protector,                                  \
+    NumberStringNotRegexpLikeProtector)                                       \
+  V(PromiseResolveProtector, promise_resolve_protector,                       \
+    PromiseResolveProtector)                                                  \
+  V(PromiseSpeciesProtector, promise_species_protector,                       \
+    PromiseSpeciesProtector)                                                  \
+  V(PromiseThenProtector, promise_then_protector, PromiseThenProtector)       \
+  V(RegExpSpeciesProtector, regexp_species_protector, RegExpSpeciesProtector) \
+  V(SetIteratorProtector, set_iterator_protector, SetIteratorProtector)       \
+  V(StringIteratorProtector, string_iterator_protector,                       \
+    StringIteratorProtector)                                                  \
+  V(StringWrapperToPrimitiveProtector, string_wrapper_to_primitive_protector, \
+    StringWrapperToPrimitiveProtector)                                        \
+  V(TypedArrayLengthProtector, typed_array_length_protector,                  \
+    TypedArrayLengthProtector)                                                \
+  V(TypedArraySpeciesProtector, typed_array_species_protector,                \
+    TypedArraySpeciesProtector)                                               \
   BUILTINS_WITH_SFI_OBJECT_LIST(V)
 
 #define UNIQUE_INSTANCE_TYPE_IMMUTABLE_IMMOVABLE_MAP_ADAPTER( \
@@ -157,8 +159,8 @@
   V(UndefinedValue, undefined_value, Undefined)                              \
   V(uninitialized_symbol, uninitialized_symbol, UninitializedSymbol)         \
   V(valueOf_string, valueOf_string, ValueOfString)                           \
-  V(wasm_wrapped_object_symbol, wasm_wrapped_object_symbol,                  \
-    WasmWrappedObjectSymbol)                                                 \
+  V(wasm_cross_instance_call_symbol, wasm_cross_instance_call_symbol,        \
+    WasmCrossInstanceCallSymbol)                                             \
   V(zero_string, zero_string, ZeroString)                                    \
   UNIQUE_INSTANCE_TYPE_MAP_LIST_GENERATOR(                                   \
       UNIQUE_INSTANCE_TYPE_IMMUTABLE_IMMOVABLE_MAP_ADAPTER, V)

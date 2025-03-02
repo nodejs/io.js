@@ -34,7 +34,7 @@ bool BytecodeArrayRandomIterator::IsValid() const {
 
 void BytecodeArrayRandomIterator::UpdateOffsetFromIndex() {
   if (IsValid()) {
-    SetOffset(offsets_[current_index_]);
+    SetOffsetUnchecked(offsets_[current_index_]);
   }
 }
 

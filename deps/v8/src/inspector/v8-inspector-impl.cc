@@ -55,15 +55,6 @@
 
 namespace v8_inspector {
 
-void V8InspectorClient::consoleTime(v8::Isolate* isolate,
-                                    v8::Local<v8::String> label) {}
-
-void V8InspectorClient::consoleTimeEnd(v8::Isolate* isolate,
-                                       v8::Local<v8::String> label) {}
-
-void V8InspectorClient::consoleTimeStamp(v8::Isolate* isolate,
-                                         v8::Local<v8::String> label) {}
-
 std::unique_ptr<V8Inspector> V8Inspector::create(v8::Isolate* isolate,
                                                  V8InspectorClient* client) {
   return std::unique_ptr<V8Inspector>(new V8InspectorImpl(isolate, client));
@@ -452,7 +443,7 @@ V8InspectorImpl::EvaluateScope::EvaluateScope(
     : m_scope(scope), m_isolate(scope.inspector()->isolate()) {}
 
 struct V8InspectorImpl::EvaluateScope::CancelToken {
-  v8::base::Mutex m_mutex;
+  v8::base::SpinningMutex m_mutex;
   bool m_canceled = false;
 };
 
@@ -461,7 +452,7 @@ V8InspectorImpl::EvaluateScope::~EvaluateScope() {
     m_scope.inspector()->debugger()->reportTermination();
   }
   if (m_cancelToken) {
-    v8::base::MutexGuard lock(&m_cancelToken->m_mutex);
+    v8::base::SpinningMutexGuard lock(&m_cancelToken->m_mutex);
     m_cancelToken->m_canceled = true;
     m_isolate->CancelTerminateExecution();
   }
@@ -475,7 +466,7 @@ class V8InspectorImpl::EvaluateScope::TerminateTask : public v8::Task {
   void Run() override {
     // CancelToken contains m_canceled bool which may be changed from main
     // thread, so lock mutex first.
-    v8::base::MutexGuard lock(&m_token->m_mutex);
+    v8::base::SpinningMutexGuard lock(&m_token->m_mutex);
     if (m_token->m_canceled) return;
     m_isolate->TerminateExecution();
   }
@@ -490,7 +481,8 @@ protocol::Response V8InspectorImpl::EvaluateScope::setTimeout(double timeout) {
     return protocol::Response::ServerError("Execution was terminated");
   }
   m_cancelToken.reset(new CancelToken());
-  v8::debug::GetCurrentPlatform()->CallDelayedOnWorkerThread(
+  v8::debug::GetCurrentPlatform()->PostDelayedTaskOnWorkerThread(
+      v8::TaskPriority::kUserVisible,
       std::make_unique<TerminateTask>(m_isolate, m_cancelToken), timeout);
   return protocol::Response::Success();
 }

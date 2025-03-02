@@ -11,7 +11,7 @@
 
 #include "src/base/atomic-utils.h"
 #include "src/base/flags.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/common/globals.h"
 #include "src/flags/flags.h"
 #include "src/heap/marking.h"
@@ -22,6 +22,10 @@
 
 namespace v8 {
 namespace internal {
+
+namespace debug_helper_internal {
+class ReadStringVisitor;
+}  // namespace  debug_helper_internal
 
 class BaseSpace;
 
@@ -80,6 +84,8 @@ class MemoryChunkMetadata {
     return !Chunk()->InReadOnlySpace() || heap_ != nullptr;
   }
 
+  bool IsMutablePageMetadata() const { return owner() != nullptr; }
+
   bool Contains(Address addr) const {
     return addr >= area_start() && addr < area_end();
   }
@@ -120,6 +126,15 @@ class MemoryChunkMetadata {
   }
 
  protected:
+#ifdef THREAD_SANITIZER
+  // Perform a dummy acquire load to tell TSAN that there is no data race in
+  // mark-bit initialization. See MutablePageMetadata::Initialize for the
+  // corresponding release store.
+  void SynchronizedHeapLoad() const;
+  void SynchronizedHeapStore();
+  friend class MemoryChunk;
+#endif
+
   // If the chunk needs to remember its memory reservation, it is stored here.
   VirtualMemory reservation_;
 
@@ -138,13 +153,11 @@ class MemoryChunkMetadata {
 
   Address area_end_;
 
-  // TODO(sroettger): the following fields are accessed most often (AFAICT) and
-  // are moved to the end to occupy the same cache line as the slot set array.
-  // Without this change, there was a 0.5% performance impact after cache line
-  // aligning the metadata on x64 (before, the metadata started at offset 0x10).
-  // After reordering, the impact is still 0.1%/0.2% on jetstream2/speedometer3,
-  // so there should be some more optimization potential here.
+  // The most accessed fields start at heap_ and end at
+  // MutablePageMetadata::slot_set_. See
+  // MutablePageMetadata::MutablePageMetadata() for details.
 
+  // The heap this chunk belongs to. May be null for read-only chunks.
   Heap* heap_;
 
   // Start and end of allocatable memory on this chunk.
@@ -153,22 +166,20 @@ class MemoryChunkMetadata {
   // The space owning this memory chunk.
   std::atomic<BaseSpace*> owner_;
 
-#ifdef THREAD_SANITIZER
-  // Perform a dummy acquire load to tell TSAN that there is no data race in
-  // mark-bit initialization. See MutablePageMetadata::Initialize for the
-  // corresponding release store.
-  void SynchronizedHeapLoad() const;
-  void SynchronizedHeapStore();
-  friend class MemoryChunk;
-#endif
+ private:
+  static constexpr intptr_t HeapOffset() {
+    return offsetof(MemoryChunkMetadata, heap_);
+  }
 
-  friend class AtomicMarkingState;
-  friend class ConcurrentMarkingState;
-  friend class MarkingState;
-  friend class MemoryAllocator;
-  friend class MemoryChunkValidator;
-  friend class NonAtomicMarkingState;
-  friend class PagedSpace;
+  static constexpr intptr_t AreaStartOffset() {
+    return offsetof(MemoryChunkMetadata, area_start_);
+  }
+
+  // For HeapOffset().
+  friend class debug_helper_internal::ReadStringVisitor;
+  // For AreaStartOffset().
+  friend class CodeStubAssembler;
+  friend class MacroAssembler;
 };
 
 }  // namespace internal

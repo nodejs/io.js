@@ -157,8 +157,7 @@ class DelayedTasksPlatform final : public Platform {
 
     if (!delayed_runner) {
       // Create a new {DelayedTaskRunner} and keep a weak reference in our map.
-      delayed_runner.reset(new DelayedTaskRunner(runner, this),
-                           DelayedTaskRunnerDeleter{});
+      delayed_runner = std::make_shared<DelayedTaskRunner>(runner, this);
       weak_delayed_runner = delayed_runner;
     }
 
@@ -172,14 +171,15 @@ class DelayedTasksPlatform final : public Platform {
   void PostTaskOnWorkerThreadImpl(TaskPriority priority,
                                   std::unique_ptr<Task> task,
                                   const SourceLocation& location) override {
-    platform_->CallOnWorkerThread(MakeDelayedTask(std::move(task)), location);
+    platform_->PostTaskOnWorkerThread(
+        priority, MakeDelayedTask(std::move(task)), location);
   }
 
   void PostDelayedTaskOnWorkerThreadImpl(
       TaskPriority priority, std::unique_ptr<Task> task,
       double delay_in_seconds, const SourceLocation& location) override {
-    platform_->CallDelayedOnWorkerThread(MakeDelayedTask(std::move(task)),
-                                         delay_in_seconds, location);
+    platform_->PostDelayedTaskOnWorkerThread(
+        priority, MakeDelayedTask(std::move(task)), delay_in_seconds, location);
   }
 
   bool IdleTasksEnabled(Isolate* isolate) override {
@@ -206,12 +206,19 @@ class DelayedTasksPlatform final : public Platform {
   }
 
  private:
-  class DelayedTaskRunnerDeleter;
   class DelayedTaskRunner final : public TaskRunner {
    public:
     DelayedTaskRunner(std::shared_ptr<TaskRunner> task_runner,
                       DelayedTasksPlatform* platform)
         : task_runner_(task_runner), platform_(platform) {}
+
+    ~DelayedTaskRunner() {
+      TaskRunner* original_runner = task_runner_.get();
+      base::MutexGuard lock_guard(&platform_->mutex_);
+      auto& delayed_task_runners = platform_->delayed_task_runners_;
+      DCHECK_EQ(1, delayed_task_runners.count(original_runner));
+      delayed_task_runners.erase(original_runner);
+    }
 
     bool IdleTasksEnabled() final { return task_runner_->IdleTasksEnabled(); }
 
@@ -246,20 +253,8 @@ class DelayedTasksPlatform final : public Platform {
     }
 
    private:
-    friend class DelayedTaskRunnerDeleter;
     std::shared_ptr<TaskRunner> task_runner_;
     DelayedTasksPlatform* platform_;
-  };
-
-  class DelayedTaskRunnerDeleter {
-   public:
-    void operator()(DelayedTaskRunner* runner) const {
-      TaskRunner* original_runner = runner->task_runner_.get();
-      base::MutexGuard lock_guard(&runner->platform_->mutex_);
-      auto& delayed_task_runners = runner->platform_->delayed_task_runners_;
-      DCHECK_EQ(1, delayed_task_runners.count(original_runner));
-      delayed_task_runners.erase(original_runner);
-    }
   };
 
   class DelayedTask final : public Task {

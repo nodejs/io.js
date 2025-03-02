@@ -192,7 +192,7 @@ class RegisterConfig {
         kDefaultCodeEntrypointTag,          // tag
         target_type,                        // target MachineType
         target_loc,                         // target location
-        locations.Build(),                  // location_sig
+        locations.Get(),                    // location_sig
         stack_param_count,                  // stack_parameter_count
         compiler::Operator::kNoProperties,  // properties
         kCalleeSaveRegisters,               // callee-saved registers
@@ -260,8 +260,8 @@ Handle<Code> CompileGraph(const char* name, CallDescriptor* call_descriptor,
   return code;
 }
 
-Handle<Code> WrapWithCFunction(Isolate* isolate, Handle<Code> inner,
-                               CallDescriptor* call_descriptor) {
+DirectHandle<Code> WrapWithCFunction(Isolate* isolate, Handle<Code> inner,
+                                     CallDescriptor* call_descriptor) {
   Zone zone(isolate->allocator(), ZONE_NAME, kCompressGraphZone);
   int param_count = static_cast<int>(call_descriptor->ParameterCount());
   GraphAndBuilders caller(&zone);
@@ -1036,7 +1036,7 @@ void MixedParamTest(int start) {
     MachineSignature::Builder builder(&zone, 1, num_params);
     builder.AddReturn(params[which]);
     for (int j = 0; j < num_params; j++) builder.AddParam(params[j]);
-    MachineSignature* sig = builder.Build();
+    MachineSignature* sig = builder.Get();
     CallDescriptor* desc = config.Create(&zone, sig);
 
     Handle<Code> select;
@@ -1153,7 +1153,7 @@ void TestStackSlot(MachineType slot_type, T expected) {
   }
   builder.AddParam(slot_type);
   builder.AddParam(MachineType::Pointer());
-  MachineSignature* sig = builder.Build();
+  MachineSignature* sig = builder.Get();
   CallDescriptor* desc = config.Create(&zone, sig);
 
   // Create inner function g. g has lots of parameters so that they are passed

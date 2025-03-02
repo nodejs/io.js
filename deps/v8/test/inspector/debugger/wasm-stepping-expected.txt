@@ -2,121 +2,121 @@ Tests stepping through wasm scripts by byte offsets
 
 Running test: test
 Setting up global instance variable.
-Got wasm script: wasm://wasm/4efe91f2
-Got wasm script: wasm://wasm/f60b267e
-Got wasm script: wasm://wasm/e72d7ac6
-Blackbox wasm script: wasm://wasm/f60b267e
-Setting breakpoint on offset 103 (should be propagated to 104, the offset of the call), url wasm://wasm/e72d7ac6
+Got wasm script: wasm://wasm/521360e6
+Got wasm script: wasm://wasm/dfd65932
+Got wasm script: wasm://wasm/7322d8a2
+Blackbox wasm script: wasm://wasm/dfd65932
+Setting breakpoint on offset 103 (should be propagated to 104, the offset of the call), url wasm://wasm/7322d8a2
 {
     columnNumber : 104
     lineNumber : 0
     scriptId : <scriptId>
 }
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepInto called
 Function: $wasm_A
-Script wasm://wasm/e72d7ac6 byte offset 83: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/7322d8a2 byte offset 83: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOver called
 Function: $wasm_A
-Script wasm://wasm/e72d7ac6 byte offset 84: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/7322d8a2 byte offset 84: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOut called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepOut called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepOver called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepInto called
 Function: $not_ignored
-Script wasm://wasm/4efe91f2 byte offset 40: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/521360e6 byte offset 40: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOver called
 Function: $not_ignored
-Script wasm://wasm/4efe91f2 byte offset 41: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/521360e6 byte offset 41: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOut called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 108: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/7322d8a2 byte offset 108: Wasm opcode 0x0c (kExprBr)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 90: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/7322d8a2 byte offset 90: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.resume called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepInto called
 Function: $wasm_A
-Script wasm://wasm/e72d7ac6 byte offset 83: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/7322d8a2 byte offset 83: Wasm opcode 0x01 (kExprNop)
 Debugger.stepOut called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepOver called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 108: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/7322d8a2 byte offset 108: Wasm opcode 0x0c (kExprBr)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 90: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/7322d8a2 byte offset 90: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 92: Wasm opcode 0x04 (kExprIf)
+Script wasm://wasm/7322d8a2 byte offset 92: Wasm opcode 0x04 (kExprIf)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 94: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/7322d8a2 byte offset 94: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 96: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/7322d8a2 byte offset 96: Wasm opcode 0x41 (kExprI32Const)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 98: Wasm opcode 0x6b (kExprI32Sub)
+Script wasm://wasm/7322d8a2 byte offset 98: Wasm opcode 0x6b (kExprI32Sub)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 99: Wasm opcode 0x21 (kExprLocalSet)
+Script wasm://wasm/7322d8a2 byte offset 99: Wasm opcode 0x21 (kExprLocalSet)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 101: Wasm opcode 0x41 (kExprI32Const)
+Script wasm://wasm/7322d8a2 byte offset 101: Wasm opcode 0x41 (kExprI32Const)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 104: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepInto called
 Function: $wasm_A
-Script wasm://wasm/e72d7ac6 byte offset 83: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/7322d8a2 byte offset 83: Wasm opcode 0x01 (kExprNop)
 Debugger.stepInto called
 Function: $wasm_A
-Script wasm://wasm/e72d7ac6 byte offset 84: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/7322d8a2 byte offset 84: Wasm opcode 0x01 (kExprNop)
 Debugger.stepInto called
 Function: $wasm_A
-Script wasm://wasm/e72d7ac6 byte offset 85: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/7322d8a2 byte offset 85: Wasm opcode 0x0b (kExprEnd)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 106: Wasm opcode 0x10 (kExprCallFunction)
 Debugger.stepInto called
 Function: $not_ignored
-Script wasm://wasm/4efe91f2 byte offset 40: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/521360e6 byte offset 40: Wasm opcode 0x01 (kExprNop)
 Debugger.stepInto called
 Function: $not_ignored
-Script wasm://wasm/4efe91f2 byte offset 41: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/521360e6 byte offset 41: Wasm opcode 0x01 (kExprNop)
 Debugger.stepInto called
 Function: $not_ignored
-Script wasm://wasm/4efe91f2 byte offset 42: Wasm opcode 0x0b (kExprEnd)
+Script wasm://wasm/521360e6 byte offset 42: Wasm opcode 0x0b (kExprEnd)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 108: Wasm opcode 0x0c (kExprBr)
+Script wasm://wasm/7322d8a2 byte offset 108: Wasm opcode 0x0c (kExprBr)
 Debugger.stepInto called
 Function: $wasm_B
-Script wasm://wasm/e72d7ac6 byte offset 90: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/7322d8a2 byte offset 90: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.resume called
 exports.main returned!
 Test stepping over a recursive call
-Setting breakpoint on the recursive call instruction @+126, url wasm://wasm/e72d7ac6
+Setting breakpoint on the recursive call instruction @+126, url wasm://wasm/7322d8a2
 {
     columnNumber : 126
     lineNumber : 0
     scriptId : <scriptId>
 }
 Function: $fact
-Script wasm://wasm/e72d7ac6 byte offset 126: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/7322d8a2 byte offset 126: Wasm opcode 0x10 (kExprCallFunction)
 Removing breakpoint
 Debugger.stepOver called
 Function: $fact
-Script wasm://wasm/e72d7ac6 byte offset 128: Wasm opcode 0x20 (kExprLocalGet)
+Script wasm://wasm/7322d8a2 byte offset 128: Wasm opcode 0x20 (kExprLocalGet)
 Debugger.resume called

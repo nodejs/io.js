@@ -5,8 +5,6 @@
 #include "src/codegen/tick-counter.h"
 #include "src/compiler/access-builder.h"
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph-visualizer.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/js-operator.h"
 #include "src/compiler/loop-analysis.h"
@@ -16,6 +14,8 @@
 #include "src/compiler/schedule.h"
 #include "src/compiler/scheduler.h"
 #include "src/compiler/simplified-operator.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/compiler/verifier.h"
 #include "test/cctest/cctest.h"
 

@@ -267,6 +267,8 @@ constexpr Register kRootRegister = s6;
 constexpr Register cp = s7;
 constexpr Register kScratchReg = s3;
 constexpr Register kScratchReg2 = s4;
+constexpr Register kStackPointerRegister = sp;
+constexpr Register padreg = t6;
 
 constexpr DoubleRegister kScratchDoubleReg = ft0;
 
@@ -299,6 +301,8 @@ constexpr Register kJavaScriptCallCodeStartRegister = a2;
 constexpr Register kJavaScriptCallTargetRegister = kJSFunctionRegister;
 constexpr Register kJavaScriptCallNewTargetRegister = a3;
 constexpr Register kJavaScriptCallExtraArg1Register = a2;
+// Leaptiering is not currently available on riscv64.
+constexpr Register kJavaScriptCallDispatchHandleRegister = no_reg;
 
 constexpr Register kRuntimeCallFunctionRegister = a1;
 constexpr Register kRuntimeCallArgCountRegister = a0;
@@ -308,6 +312,12 @@ constexpr Register kWasmCompileLazyFuncIndexRegister = t0;
 constexpr Register kWasmTrapHandlerFaultAddressRegister = t6;
 
 constexpr DoubleRegister kFPReturnRegister0 = fa0;
+
+constexpr Register kSimulatorBreakArgument = t6;
+
+constexpr Register kMaglevFlagsRegister = t6;
+constexpr Register kMaglevExtraScratchRegister = t2;
+
 constexpr VRegister kSimd128ScratchReg = v24;
 constexpr VRegister kSimd128ScratchReg2 = v23;
 constexpr VRegister kSimd128ScratchReg3 = v8;

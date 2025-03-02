@@ -172,7 +172,7 @@ constexpr Register MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::
 // static
 constexpr Register
 MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor::TemporaryRegister() {
-  return x4;
+  return x5;
 }
 
 // static

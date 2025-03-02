@@ -366,9 +366,6 @@ class V8_EXPORT_PRIVATE TypedSlotSet : public TypedSlots {
   // Asserts that there are no recorded slots in the specified ranges.
   void AssertNoInvalidSlots(const FreeRangesMap& invalid_ranges);
 
-  // Frees empty chunks accumulated by PREFREE_EMPTY_CHUNKS.
-  void FreeToBeFreedChunks();
-
  private:
   template <typename Callback>
   void IterateSlotsInRanges(Callback callback,

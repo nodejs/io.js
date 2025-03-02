@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --turboshaft-wasm --no-wasm-loop-unrolling --no-wasm-loop-peeling
+// Flags: --no-wasm-loop-unrolling --no-wasm-loop-peeling
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 

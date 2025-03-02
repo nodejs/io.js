@@ -548,7 +548,8 @@ void RevecTest::TestLoadSplat(
                                 offset, start, start);
 
   Node* loadSplat = graph()->NewNode(
-      machine()->LoadTransform(MemoryAccessKind::kProtected, load_transform),
+      machine()->LoadTransform(MemoryAccessKind::kProtectedByTrapHandler,
+                               load_transform),
       base, a, base, start);
 
   LoadRepresentation load_rep(MachineType::Simd128());

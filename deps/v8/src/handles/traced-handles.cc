@@ -14,6 +14,7 @@
 #include "src/common/globals.h"
 #include "src/handles/handles.h"
 #include "src/handles/traced-handles-inl.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/objects/objects.h"
 #include "src/objects/slots.h"
@@ -230,7 +231,7 @@ void TracedHandles::Move(TracedNode& from_node, Address** from, Address** to) {
   } else if (auto* cpp_heap = GetCppHeapIfUnifiedYoungGC(isolate_)) {
     const bool object_is_young_and_not_yet_recorded =
         !from_node.has_old_host() &&
-        ObjectInYoungGeneration(from_node.object());
+        HeapLayout::InYoungGeneration(from_node.object());
     if (object_is_young_and_not_yet_recorded &&
         IsCppGCHostOld(*cpp_heap, reinterpret_cast<Address>(to))) {
       DCHECK(from_node.is_in_young_list());
@@ -276,7 +277,7 @@ void TracedHandles::UpdateListOfYoungNodes() {
     for (auto* node : *block) {
       if (!node->is_in_young_list()) continue;
       DCHECK(node->is_in_use());
-      if (ObjectInYoungGeneration(node->object())) {
+      if (HeapLayout::InYoungGeneration(node->object())) {
         contains_young_node = true;
         // The node was discovered through a cppgc object, which will be
         // immediately promoted. Remember the object.
@@ -360,27 +361,6 @@ void TracedHandles::ResetYoungDeadNodes(
   }
 }
 
-namespace {
-void ComputeWeaknessForYoungObject(
-    EmbedderRootsHandler* handler, TracedNode* node,
-    bool should_call_is_root_for_default_traced_reference) {
-  DCHECK(!node->is_weak());
-  bool is_unmodified_api_object =
-      JSObject::IsUnmodifiedApiObject(node->location());
-  if (is_unmodified_api_object) {
-    FullObjectSlot slot = node->location();
-    START_ALLOW_USE_DEPRECATED();
-    const bool is_weak =
-        node->is_droppable() ||
-        (should_call_is_root_for_default_traced_reference &&
-         !handler->IsRoot(
-             *reinterpret_cast<v8::TracedReference<v8::Value>*>(&slot)));
-    END_ALLOW_USE_DEPRECATED();
-    node->set_weak(is_weak);
-  }
-}
-}  // namespace
-
 void TracedHandles::ComputeWeaknessForYoungObjects() {
   if (!v8_flags.reclaim_unmodified_wrappers) return;
 
@@ -392,17 +372,16 @@ void TracedHandles::ComputeWeaknessForYoungObjects() {
   auto* const handler = isolate_->heap()->GetEmbedderRootsHandler();
   if (!handler) return;
 
-  const bool should_call_is_root_for_default_traced_reference =
-      handler->default_traced_reference_handling_ ==
-      EmbedderRootsHandler::RootHandling::
-          kQueryEmbedderForNonDroppableReferences;
   for (auto* block : young_blocks_) {
     DCHECK(block->InYoungList());
     for (auto* node : *block) {
       if (!node->is_in_young_list()) continue;
       DCHECK(node->is_in_use());
-      ComputeWeaknessForYoungObject(
-          handler, node, should_call_is_root_for_default_traced_reference);
+      DCHECK(!node->is_weak());
+      if (node->is_droppable() &&
+          JSObject::IsUnmodifiedApiObject(node->location())) {
+        node->set_weak(true);
+      }
     }
   }
 }
@@ -513,7 +492,7 @@ void TracedHandles::IterateAndMarkYoungRootsWithOldHosts(RootVisitor* visitor) {
       if (node->is_weak()) continue;
 
       node->set_markbit();
-      CHECK(ObjectInYoungGeneration(node->object()));
+      CHECK(HeapLayout::InYoungGeneration(node->object()));
       visitor->VisitRootPointer(Root::kTracedHandles, nullptr,
                                 node->location());
     }
@@ -584,7 +563,7 @@ Tagged<Object> MarkObject(Tagged<Object> obj, TracedNode& node,
   // Being in the young list, the node may still point to an old object, in
   // which case we want to keep the node marked, but not follow the reference.
   if (mark_mode == TracedHandles::MarkMode::kOnlyYoung &&
-      !ObjectInYoungGeneration(obj))
+      !HeapLayout::InYoungGeneration(obj))
     return Smi::zero();
   return obj;
 }

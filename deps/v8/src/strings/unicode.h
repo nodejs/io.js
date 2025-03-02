@@ -10,7 +10,7 @@
 #include "src/base/bit-field.h"
 #include "src/base/vector.h"
 #include "src/common/globals.h"
-#include "src/third_party/utf8-decoder/utf8-decoder.h"
+#include "third_party/utf8-decoder/utf8-decoder.h"
 /**
  * \file
  * Definitions and convenience functions for working with unicode.
@@ -162,7 +162,8 @@ class V8_EXPORT_PRIVATE Utf8 {
  public:
   using State = Utf8DfaDecoder::State;
 
-  static inline uchar Length(uchar chr, int previous);
+  static inline unsigned LengthOneByte(uint8_t chr);
+  static inline unsigned Length(uchar chr, int previous);
   static inline unsigned EncodeOneByte(char* out, uint8_t c);
   static inline unsigned Encode(char* out, uchar c, int previous,
                                 bool replace_invalid = false);
@@ -210,6 +211,16 @@ class V8_EXPORT_PRIVATE Utf8 {
   // - absence of surrogates,
   // - valid code point range.
   static bool ValidateEncoding(const uint8_t* str, size_t length);
+
+  // Encode the given characters as Utf8 into the provided output buffer.
+  struct EncodingResult {
+    size_t bytes_written;
+    size_t characters_processed;
+  };
+  template <typename Char>
+  static EncodingResult Encode(v8::base::Vector<const Char> string,
+                               char* buffer, size_t capacity, bool write_null,
+                               bool replace_invalid_utf8);
 };
 
 #if V8_ENABLE_WEBASSEMBLY

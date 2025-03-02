@@ -350,6 +350,8 @@ absl_cc_test(
     absl::config
     absl::container_memory
     absl::flat_hash_set
+    absl::hash
+    absl::hash_container_defaults
     absl::hash_generator_testing
     absl::memory
     absl::strings
@@ -747,6 +749,7 @@ absl_cc_library(
     ${ABSL_DEFAULT_COPTS}
   DEPS
     absl::bits
+    absl::common_policy_traits
     absl::compressed_tuple
     absl::config
     absl::container_common

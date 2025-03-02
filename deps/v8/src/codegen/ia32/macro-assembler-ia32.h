@@ -162,6 +162,11 @@ class V8_EXPORT_PRIVATE MacroAssembler
   void CallBuiltin(Builtin builtin);
   void TailCallBuiltin(Builtin builtin);
 
+#ifdef V8_ENABLE_LEAPTIERING
+  void LoadEntrypointFromJSDispatchTable(Register destination,
+                                         Register dispatch_handle);
+#endif  // V8_ENABLE_LEAPTIERING
+
   // Load the code entry point from the Code object.
   void LoadCodeInstructionStart(Register destination, Register code_object,
                                 CodeEntrypointTag = kDefaultCodeEntrypointTag);
@@ -170,9 +175,14 @@ class V8_EXPORT_PRIVATE MacroAssembler
                       JumpMode jump_mode = JumpMode::kJump);
 
   // Convenience functions to call/jmp to the code of a JSFunction object.
-  void CallJSFunction(Register function_object);
+  void CallJSFunction(Register function_object, uint16_t argument_count);
   void JumpJSFunction(Register function_object,
                       JumpMode jump_mode = JumpMode::kJump);
+#ifdef V8_ENABLE_WEBASSEMBLY
+  void ResolveWasmCodePointer(Register target);
+  void CallWasmCodePointer(Register target,
+                           CallJumpMode call_jump_mode = CallJumpMode::kCall);
+#endif
 
   void Jump(const ExternalReference& reference);
   void Jump(Handle<Code> code_object, RelocInfo::Mode rmode);
@@ -681,8 +691,7 @@ class V8_EXPORT_PRIVATE MacroAssembler
  private:
   // Helper functions for generating invokes.
   void InvokePrologue(Register expected_parameter_count,
-                      Register actual_parameter_count, Label* done,
-                      InvokeType type);
+                      Register actual_parameter_count, InvokeType type);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MacroAssembler);
 };

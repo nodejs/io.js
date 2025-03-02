@@ -4,10 +4,9 @@
 
 #include "src/regexp/experimental/experimental-compiler.h"
 
-#include "src/base/strings.h"
 #include "src/flags/flags.h"
 #include "src/regexp/experimental/experimental.h"
-#include "src/regexp/regexp-flags.h"
+#include "src/regexp/regexp-ast.h"
 #include "src/zone/zone-containers.h"
 #include "src/zone/zone-list-inl.h"
 
@@ -158,13 +157,7 @@ class CanBeHandledVisitor final : private RegExpVisitor {
   }
 
   void* VisitCapture(RegExpCapture* node, void*) override {
-    if (inside_positive_lookbehind_) {
-      // Positive lookbehinds with capture groups are not currently supported
-      result_ = false;
-    } else {
-      node->body()->Accept(this, nullptr);
-    }
-
+    node->body()->Accept(this, nullptr);
     return nullptr;
   }
 
@@ -187,19 +180,21 @@ class CanBeHandledVisitor final : private RegExpVisitor {
   }
 
   void* VisitLookaround(RegExpLookaround* node, void*) override {
-    bool parent_is_positive_lookbehind = inside_positive_lookbehind_;
-    inside_positive_lookbehind_ = node->is_positive();
-
-    // The current lookbehind implementation does not support sticky or global
-    // flags.
-    if (node->type() == RegExpLookaround::Type::LOOKAHEAD ||
-        IsGlobal(flags()) || IsSticky(flags())) {
+    if (IsGlobal(flags()) || IsSticky(flags())) {
       result_ = false;
-    } else {
-      node->body()->Accept(this, nullptr);
+      return nullptr;
     }
 
-    inside_positive_lookbehind_ = parent_is_positive_lookbehind;
+    // If `experimental_regexp_engine_capture_group_opt` is false, reject all
+    // lookaheads or capturing lookbehinds.
+    if (!v8_flags.experimental_regexp_engine_capture_group_opt &&
+        (node->type() == RegExpLookaround::LOOKAHEAD ||
+         node->capture_count() > 0)) {
+      result_ = false;
+      return nullptr;
+    }
+
+    node->body()->Accept(this, nullptr);
     return nullptr;
   }
 
@@ -216,10 +211,6 @@ class CanBeHandledVisitor final : private RegExpVisitor {
 
   // See comment in `VisitQuantifier`:
   int replication_factor_ = 1;
-
-  // The current implementation does not support capture groups in positive
-  // lookbehinds.
-  bool inside_positive_lookbehind_ = false;
 
   bool result_ = true;
   RegExpFlags flags_;
@@ -290,6 +281,10 @@ class BytecodeAssembler {
     code_.Add(RegExpInstruction::ConsumeAnyChar(), zone_);
   }
 
+  void RangeCount(int32_t num_ranges) {
+    code_.Add(RegExpInstruction::RangeCount(num_ranges), zone_);
+  }
+
   void Fork(Label& target) {
     LabelledInstrImpl(RegExpInstruction::Opcode::FORK, target);
   }
@@ -306,12 +301,23 @@ class BytecodeAssembler {
 
   void EndLoop() { code_.Add(RegExpInstruction::EndLoop(), zone_); }
 
-  void WriteLookTable(int index) {
+  void StartLookaround(int lookaround_index, bool is_positive,
+                       RegExpLookaround::Type type) {
+    code_.Add(
+        RegExpInstruction::StartLookaround(lookaround_index, is_positive, type),
+        zone_);
+  }
+
+  void EndLookaround() { code_.Add(RegExpInstruction::EndLookaround(), zone_); }
+
+  void WriteLookaroundTable(int index) {
     code_.Add(RegExpInstruction::WriteLookTable(index), zone_);
   }
 
-  void ReadLookTable(int index, bool is_positive) {
-    code_.Add(RegExpInstruction::ReadLookTable(index, is_positive), zone_);
+  void ReadLookaroundTable(int index, bool is_positive,
+                           RegExpLookaround::Type type) {
+    code_.Add(RegExpInstruction::ReadLookTable(index, is_positive, type),
+              zone_);
   }
 
   void SetQuantifierToClock(int32_t quantifier_id) {
@@ -324,6 +330,10 @@ class BytecodeAssembler {
 
   void FilterGroup(int32_t group_id) {
     code_.Add(RegExpInstruction::FilterGroup(group_id), zone_);
+  }
+
+  void FilterLookaround(int32_t lookaround_id) {
+    code_.Add(RegExpInstruction::FilterLookaround(lookaround_id), zone_);
   }
 
   void FilterChild(Label& target) {
@@ -379,7 +389,8 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
  public:
   static void CompileFilter(Zone* zone, RegExpTree* tree,
                             BytecodeAssembler& assembler,
-                            const ZoneMap<int, int>& quantifier_id_remapping) {
+                            const ZoneMap<int, int>& quantifier_id_remapping,
+                            const ZoneMap<int, int>& lookaround_id_remapping) {
     /* To filter out groups that were not matched in the last iteration of a
      * quantifier, the regexp's AST is compiled using a special sets of
      * instructions: `FILTER_GROUP`, `FILTER_QUANTIFIER` and `FILTER_CHILD`.
@@ -393,8 +404,8 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
      * The regexp's AST is traversed in breadth-first mode, compiling one node
      * at a time, while saving its children in a queue. */
 
-    FilterGroupsCompileVisitor visitor(assembler, zone,
-                                       quantifier_id_remapping);
+    FilterGroupsCompileVisitor visitor(assembler, zone, quantifier_id_remapping,
+                                       lookaround_id_remapping);
 
     tree->Accept(&visitor, nullptr);
 
@@ -402,7 +413,7 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
       auto& entry = visitor.nodes_.front();
 
       visitor.assembler_.Bind(entry.label);
-      visitor.compile_capture_or_quant_ = true;
+      visitor.can_compile_node_ = true;
       entry.node->Accept(&visitor, nullptr);
 
       visitor.nodes_.pop_front();
@@ -411,12 +422,14 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
 
  private:
   FilterGroupsCompileVisitor(BytecodeAssembler& assembler, Zone* zone,
-                             const ZoneMap<int, int>& quantifier_id_remapping)
+                             const ZoneMap<int, int>& quantifier_id_remapping,
+                             const ZoneMap<int, int>& lookaround_id_remapping)
       : zone_(zone),
         assembler_(assembler),
         nodes_(zone_),
+        can_compile_node_(false),
         quantifier_id_remapping_(quantifier_id_remapping),
-        compile_capture_or_quant_(false) {}
+        lookaround_id_remapping_(lookaround_id_remapping) {}
 
   void* VisitDisjunction(RegExpDisjunction* node, void*) override {
     for (RegExpTree* alt : *node->alternatives()) {
@@ -454,9 +467,9 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
   void* VisitText(RegExpText* node, void*) override { return nullptr; }
 
   void* VisitQuantifier(RegExpQuantifier* node, void*) override {
-    if (compile_capture_or_quant_) {
+    if (can_compile_node_) {
       assembler_.FilterQuantifier(quantifier_id_remapping_.at(node->index()));
-      compile_capture_or_quant_ = false;
+      can_compile_node_ = false;
       node->body()->Accept(this, nullptr);
     } else {
       if (node->CaptureRegisters().is_empty()) {
@@ -471,9 +484,9 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
   }
 
   void* VisitCapture(RegExpCapture* node, void*) override {
-    if (compile_capture_or_quant_) {
+    if (can_compile_node_) {
       assembler_.FilterGroup(node->index());
-      compile_capture_or_quant_ = false;
+      can_compile_node_ = false;
       node->body()->Accept(this, nullptr);
     } else {
       nodes_.emplace_back(node);
@@ -489,6 +502,19 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
   }
 
   void* VisitLookaround(RegExpLookaround* node, void*) override {
+    if (can_compile_node_) {
+      assembler_.FilterLookaround(lookaround_id_remapping_.at(node->index()));
+      can_compile_node_ = false;
+      node->body()->Accept(this, nullptr);
+    } else {
+      if (node->CaptureRegisters().is_empty()) {
+        return nullptr;
+      }
+
+      nodes_.emplace_back(node);
+      assembler_.FilterChild(nodes_.back().label);
+    }
+
     return nullptr;
   }
 
@@ -499,8 +525,6 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
   void* VisitEmpty(RegExpEmpty* node, void*) override { return nullptr; }
 
  private:
-  // Entry in the nodes queue. Contains the node to compile and a label to bind
-  // at the start of its bytecode.
   class BFEntry {
    public:
     explicit BFEntry(RegExpTree* node) : label(), node(node) {}
@@ -514,13 +538,16 @@ class FilterGroupsCompileVisitor final : private RegExpVisitor {
   BytecodeAssembler& assembler_;
   ZoneLinkedList<BFEntry> nodes_;
 
+  // Whether we can compile a node or we should add it to `nodes_`. This is
+  // set to true after popping an element from the queue, and false after
+  // having compiled one.
+  bool can_compile_node_;
+
   const ZoneMap<int, int>& quantifier_id_remapping_;
 
-  // Whether we can compile a capture group or quantifier. This is set to true
-  // after popping an element from the queue, and false after having compiled
-  // one. When false, encountered capture groups and quantifiers are pushed on
-  // the queue.
-  bool compile_capture_or_quant_;
+  // The lookarounds ids are remapped to be contiguous. This may not already be
+  // the case, since parts of the AST may be optimized out during parsing.
+  const ZoneMap<int, int>& lookaround_id_remapping_;
 };
 
 class CompileVisitor : private RegExpVisitor {
@@ -542,18 +569,29 @@ class CompileVisitor : private RegExpVisitor {
     compiler.assembler_.SetRegisterToCp(1);
     compiler.assembler_.Accept();
 
-    if (v8_flags.experimental_regexp_engine_capture_group_opt) {
-      FilterGroupsCompileVisitor::CompileFilter(
-          zone, tree, compiler.assembler_,
-          compiler.quantifier_id_remapping_.value());
-    }
-
-    // To handle captureless lookbehinds, we run independent automata for each
-    // lookbehind in lockstep with the main expression. To do so, we compile
-    // each lookbehind to a separate bytecode that we append to the main
-    // expression bytecode. At the end of each lookbehind, we add a
-    // WriteLookTable instruction, writing to a truth table that the lookbehind
-    // holds at the current position.
+    // Each lookaround is compiled as two different bytecode sections: a
+    // reverse, captureless automaton and a capturing one. The indexes are
+    // remapped to avoid holes in the lookaround table, which would occur when
+    // lookarounds are optimized out of the AST. The resulting indexes have the
+    // following order: lookarounds can only depend on ones with a higher index.
+    //
+    // During the compilation of the main expression, lookarounds are not
+    // immediately compiled, and are instead pushed at the back of a queue.
+    // After compiling the filtering instructions, the queue is emptied and
+    // each lookaround body is compiled into two sections:
+    //
+    // 1. A non-capturing automaton, which is reversed if it is a lookahead.
+    // 2. A capturing automaton, reversed if it is a lookbehind. Since it is
+    //    only used for capturing, it can be empty if the lookaround does
+    //    not contain any captures.
+    //
+    // See the comment on `NfaInterpreter` in experimental-interpreter.cc for
+    // detailed explanation on the reversal's reasons. The sections are
+    // delimited by `START_LOOKAROUND` and `END_LOOKAROUND`, and the separation
+    // occurs right after `WRITE_LOOKAROUND_TABLE`.
+    //
+    // If another lookaround is encountered during this phase, it is added
+    // at the back of the queue.
     //
     // This approach prevents the use of the sticky or global flags. In both
     // cases, when resuming the search, it starts at a non null index, while the
@@ -561,19 +599,17 @@ class CompileVisitor : private RegExpVisitor {
     // implementation for the global flag may store the active lookbehind
     // threads in the regexp to resume the execution of the lookbehinds
     // automata.
-    compiler.inside_lookaround_ = true;
-    while (!compiler.lookbehinds_.empty()) {
-      auto node = compiler.lookbehinds_.front();
+    while (!compiler.lookarounds_.empty()) {
+      auto node = compiler.lookarounds_.front();
+      compiler.CompileLookaround(node);
+      compiler.lookarounds_.pop_front();
+    }
 
-      // Lookbehinds are never anchored, i.e. may start at any input position,
-      // so we emit a preamble corresponding to /.*?/.  This skips an arbitrary
-      // prefix in the input.
-      compiler.CompileNonGreedyStar(
-          [&]() { compiler.assembler_.ConsumeAnyChar(); });
-
-      node->body()->Accept(&compiler, nullptr);
-      compiler.assembler_.WriteLookTable(node->index());
-      compiler.lookbehinds_.pop_front();
+    if (v8_flags.experimental_regexp_engine_capture_group_opt) {
+      FilterGroupsCompileVisitor::CompileFilter(
+          zone, tree, compiler.assembler_,
+          compiler.quantifier_id_remapping_.value(),
+          compiler.lookaround_id_remapping_);
     }
 
     return std::move(compiler.assembler_).IntoCode();
@@ -582,18 +618,57 @@ class CompileVisitor : private RegExpVisitor {
  private:
   explicit CompileVisitor(Zone* zone)
       : zone_(zone),
-        lookbehinds_(zone),
+        lookarounds_(zone),
         quantifier_id_remapping_({}),
+        lookaround_id_remapping_(zone),
         assembler_(zone),
-        inside_lookaround_(false) {
+        reverse_(false),
+        ignore_captures_(false),
+        ignore_lookarounds_(false) {
     if (v8_flags.experimental_regexp_engine_capture_group_opt) {
       quantifier_id_remapping_.emplace(zone_);
     }
   }
 
-  // Generate a disjunction of code fragments compiled by a function `alt_gen`.
-  // `alt_gen` is called repeatedly with argument `int i = 0, 1, ..., alt_num -
-  // 1` and should build code corresponding to the ith alternative.
+  // Generate all the instructions to match and capture a lookaround.
+  void CompileLookaround(RegExpLookaround* lookaround) {
+    // Generate the first section, reversed in the case of a lookahead.
+    assembler_.StartLookaround(RemapLookaround(lookaround->index()),
+                               lookaround->is_positive(), lookaround->type());
+
+    // If the lookaround is not anchored, we add a /.*?/ at its start, such
+    // that the resulting automaton will run over the whole input.
+    if ((lookaround->type() == RegExpLookaround::LOOKAHEAD &&
+         !lookaround->body()->IsAnchoredAtEnd()) ||
+        (lookaround->type() == RegExpLookaround::LOOKBEHIND &&
+         !lookaround->body()->IsAnchoredAtStart())) {
+      CompileNonGreedyStar([&]() { assembler_.ConsumeAnyChar(); });
+    }
+
+    reverse_ = lookaround->type() == RegExpLookaround::LOOKAHEAD;
+
+    ignore_captures_ = true;
+    lookaround->body()->Accept(this, nullptr);
+    ignore_captures_ = false;
+
+    assembler_.WriteLookaroundTable(RemapLookaround(lookaround->index()));
+
+    // Generate the second sections, reversed in the case of a lookbehind.
+    if (lookaround->capture_count() > 0 && lookaround->is_positive()) {
+      reverse_ = lookaround->type() == RegExpLookaround::LOOKBEHIND;
+
+      ignore_lookarounds_ = true;
+      lookaround->body()->Accept(this, nullptr);
+      ignore_lookarounds_ = false;
+    }
+
+    assembler_.EndLookaround();
+  }
+
+  // Generate a disjunction of code fragments compiled by a function
+  // `alt_gen`. `alt_gen` is called repeatedly with argument `int i = 0, 1,
+  // ..., alt_num - 1` and should build code corresponding to the ith
+  // alternative.
   template <class F>
   void CompileDisjunction(int alt_num, F&& gen_alt) {
     // An alternative a1 | ... | an is compiled into
@@ -647,8 +722,15 @@ class CompileVisitor : private RegExpVisitor {
   }
 
   void* VisitAlternative(RegExpAlternative* node, void*) override {
-    for (RegExpTree* child : *node->nodes()) {
-      child->Accept(this, nullptr);
+    if (reverse_) {
+      ZoneList<RegExpTree*>* children = node->nodes();
+      for (int i = children->length() - 1; i >= 0; --i) {
+        children->at(i)->Accept(this, nullptr);
+      }
+    } else {
+      for (RegExpTree* child : *node->nodes()) {
+        child->Accept(this, nullptr);
+      }
     }
     return nullptr;
   }
@@ -659,19 +741,32 @@ class CompileVisitor : private RegExpVisitor {
   }
 
   void CompileCharacterRanges(ZoneList<CharacterRange>* ranges, bool negated) {
-    // A character class is compiled as Disjunction over its `CharacterRange`s.
+    // A character class is compiled as disjoint character ranges.
+    // A single range is represented by a single `CONSUME_RANGE` instruction.
+    // Disjoint ranges are represented by a `RANGE_COUNT` instruction followed
+    // by `CONSUME_RANGE` instructions.
     CharacterRange::Canonicalize(ranges);
     if (negated) {
       // The complement of a disjoint, non-adjacent (i.e. `Canonicalize`d)
       // union of k intervals is a union of at most k + 1 intervals.
-      ZoneList<CharacterRange>* negated =
+      ZoneList<CharacterRange>* negated_ranges =
           zone_->New<ZoneList<CharacterRange>>(ranges->length() + 1, zone_);
-      CharacterRange::Negate(ranges, negated, zone_);
-      DCHECK_LE(negated->length(), ranges->length() + 1);
-      ranges = negated;
+      CharacterRange::Negate(ranges, negated_ranges, zone_);
+      DCHECK_LE(negated_ranges->length(), ranges->length() + 1);
+      ranges = negated_ranges;
     }
 
-    CompileDisjunction(ranges->length(), [&](int i) {
+    if (ranges->length() == 0) {
+      assembler_.Fail();
+      return;
+    }
+
+    if (ranges->length() > 1) {
+      // In the case of a multiple ranges, we need a RANGE_COUNT instruction.
+      assembler_.RangeCount(ranges->length());
+    }
+
+    for (int i = 0; i < ranges->length(); ++i) {
       // We don't support utf16 for now, so only ranges that can be specified
       // by (complements of) ranges with base::uc16 bounds.
       static_assert(kMaxSupportedCodepoint <=
@@ -687,7 +782,7 @@ class CompileVisitor : private RegExpVisitor {
           static_cast<base::uc16>(std::min(to, kMaxSupportedCodepoint));
 
       assembler_.ConsumeRange(from_uc16, to_uc16);
-    });
+    }
   }
 
   void* VisitClassRanges(RegExpClassRanges* node, void*) override {
@@ -709,8 +804,15 @@ class CompileVisitor : private RegExpVisitor {
   }
 
   void* VisitAtom(RegExpAtom* node, void*) override {
-    for (base::uc16 c : node->data()) {
-      assembler_.ConsumeRange(c, c);
+    if (reverse_) {
+      base::Vector<const base::uc16> data = node->data();
+      for (int i = data.length() - 1; i >= 0; --i) {
+        assembler_.ConsumeRange(data.at(i), data.at(i));
+      }
+    } else {
+      for (base::uc16 c : node->data()) {
+        assembler_.ConsumeRange(c, c);
+      }
     }
     return nullptr;
   }
@@ -1021,18 +1123,17 @@ class CompileVisitor : private RegExpVisitor {
   }
 
   void* VisitCapture(RegExpCapture* node, void*) override {
-    // Only negative lookbehinds contain captures (enforced by the
-    // `CanBeHandled` visitor). Capture groups inside negative lookarounds
-    // always yield undefined, so we can avoid the SetRegister instructions.
-    if (inside_lookaround_) {
+    if (ignore_captures_) {
+      // Skips the `SET_REGISTER_TO_CP` instructions.
       node->body()->Accept(this, nullptr);
     } else {
       int index = node->index();
       int start_register = RegExpCapture::StartRegister(index);
       int end_register = RegExpCapture::EndRegister(index);
-      assembler_.SetRegisterToCp(start_register);
+
+      assembler_.SetRegisterToCp(reverse_ ? end_register : start_register);
       node->body()->Accept(this, nullptr);
-      assembler_.SetRegisterToCp(end_register);
+      assembler_.SetRegisterToCp(reverse_ ? start_register : end_register);
     }
 
     return nullptr;
@@ -1044,10 +1145,13 @@ class CompileVisitor : private RegExpVisitor {
   }
 
   void* VisitLookaround(RegExpLookaround* node, void*) override {
-    assembler_.ReadLookTable(node->index(), node->is_positive());
+    assembler_.ReadLookaroundTable(RemapLookaround(node->index()),
+                                   node->is_positive(), node->type());
 
     // Add the lookbehind to the queue of lookbehinds to be compiled.
-    lookbehinds_.push_back(node);
+    if (!ignore_lookarounds_) {
+      lookarounds_.push_back(node);
+    }
 
     return nullptr;
   }
@@ -1059,8 +1163,15 @@ class CompileVisitor : private RegExpVisitor {
   void* VisitEmpty(RegExpEmpty* node, void*) override { return nullptr; }
 
   void* VisitText(RegExpText* node, void*) override {
-    for (TextElement& text_el : *node->elements()) {
-      text_el.tree()->Accept(this, nullptr);
+    if (reverse_) {
+      ZoneList<TextElement>* elements = node->elements();
+      for (int i = elements->length() - 1; i >= 0; --i) {
+        elements->at(i).tree()->Accept(this, nullptr);
+      }
+    } else {
+      for (TextElement& text_el : *node->elements()) {
+        text_el.tree()->Accept(this, nullptr);
+      }
     }
     return nullptr;
   }
@@ -1077,17 +1188,38 @@ class CompileVisitor : private RegExpVisitor {
     return map[id];
   }
 
+  int RemapLookaround(int id) {
+    if (!lookaround_id_remapping_.contains(id)) {
+      lookaround_id_remapping_[id] =
+          static_cast<int>(lookaround_id_remapping_.size());
+    }
+
+    return lookaround_id_remapping_[id];
+  }
+
  private:
   Zone* zone_;
 
   // Stores the AST of the lookbehinds encountered in a queue. They are compiled
   // after the main expression, in breadth-first order.
-  ZoneLinkedList<RegExpLookaround*> lookbehinds_;
+  ZoneLinkedList<RegExpLookaround*> lookarounds_;
 
   std::optional<ZoneMap<int, int>> quantifier_id_remapping_;
+  ZoneMap<int, int> lookaround_id_remapping_;
 
   BytecodeAssembler assembler_;
-  bool inside_lookaround_;
+  bool reverse_;
+
+  // Do not produce `SET_REGISTER_TO_CP` instructions. Used when compiling
+  // the lookarounds' matching automata, since the capture results will be never
+  // be used.
+  bool ignore_captures_;
+
+  // Indicates whether the encountered lookarounds should be pushed into the
+  // queue. Set when compiling the lookarounds' capturing automata, as the
+  // children lookarounds where already pushed while compiling the matching
+  // automata.
+  bool ignore_lookarounds_;
 };
 
 }  // namespace

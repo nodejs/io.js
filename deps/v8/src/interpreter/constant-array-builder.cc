@@ -10,7 +10,7 @@
 
 #include "src/ast/ast-value-factory.h"
 #include "src/ast/scopes.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/execution/isolate.h"
 #include "src/handles/handles.h"
 #include "src/heap/local-factory-inl.h"
@@ -72,6 +72,7 @@ void ConstantArrayBuilder::ConstantArraySlice::CheckAllElementsAreUnique(
   std::set<Tagged<Smi>> smis;
   std::set<double> heap_numbers;
   std::set<const AstRawString*> strings;
+  std::set<const AstConsString*> cons_strings;
   std::set<const char*> bigints;
   std::set<const Scope*> scopes;
   std::set<Tagged<Object>, Object::Comparer> deferred_objects;
@@ -86,6 +87,9 @@ void ConstantArrayBuilder::ConstantArraySlice::CheckAllElementsAreUnique(
         break;
       case Entry::Tag::kRawString:
         duplicate = !strings.insert(entry.raw_string_).second;
+        break;
+      case Entry::Tag::kConsString:
+        duplicate = !cons_strings.insert(entry.cons_string_).second;
         break;
       case Entry::Tag::kBigInt:
         duplicate = !bigints.insert(entry.bigint_.c_str()).second;
@@ -252,6 +256,15 @@ size_t ConstantArrayBuilder::Insert(const AstRawString* raw_string) {
       ->value;
 }
 
+size_t ConstantArrayBuilder::Insert(const AstConsString* cons_string) {
+  const AstRawString* last = cons_string->last();
+  uint32_t hash = last == nullptr ? 0 : last->Hash();
+  return constants_map_
+      .LookupOrInsert(reinterpret_cast<intptr_t>(cons_string), hash,
+                      [&]() { return AllocateIndex(Entry(cons_string)); })
+      ->value;
+}
+
 size_t ConstantArrayBuilder::Insert(AstBigInt bigint) {
   return constants_map_
       .LookupOrInsert(reinterpret_cast<intptr_t>(bigint.c_str()),
@@ -395,6 +408,8 @@ Handle<Object> ConstantArrayBuilder::Entry::ToHandle(IsolateT* isolate) const {
       return isolate->factory()->the_hole_value();
     case Tag::kRawString:
       return raw_string_->string();
+    case Tag::kConsString:
+      return cons_string_->AllocateFlat(isolate);
     case Tag::kHeapNumber:
       return isolate->factory()->template NewNumber<AllocationType::kOld>(
           heap_number_);

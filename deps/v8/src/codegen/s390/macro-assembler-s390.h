@@ -140,6 +140,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void Ret() { b(r14); }
   void Ret(Condition cond) { b(cond, r14); }
 
+  // TODO(olivf, 42204201) Rename this to AssertNotDeoptimized once
+  // non-leaptiering is removed from the codebase.
   void BailoutIfDeoptimized(Register scratch);
   void CallForDeoptimization(Builtin target, int deopt_id, Label* exit,
                              DeoptimizeKind kind, Label* ret,
@@ -161,6 +163,12 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void LoadEntryFromBuiltinIndex(Register builtin_index, Register target);
   void LoadEntryFromBuiltin(Builtin builtin, Register destination);
   MemOperand EntryFromBuiltinAsOperand(Builtin builtin);
+
+#ifdef V8_ENABLE_LEAPTIERING
+  void LoadEntrypointFromJSDispatchTable(Register destination,
+                                         Register dispatch_handle,
+                                         Register scratch);
+#endif  // V8_ENABLE_LEAPTIERING
 
   // Load the code entry point from the Code object.
   void LoadCodeInstructionStart(
@@ -626,18 +634,10 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void Not64(Register dst, Register src = no_reg);
   void NotP(Register dst, Register src = no_reg);
 
-#ifdef V8_TARGET_ARCH_S390X
   void Popcnt64(Register dst, Register src);
-#endif
 
   void mov(Register dst, const Operand& src);
   void mov(Register dst, Register src);
-
-  void CleanUInt32(Register x) {
-#ifdef V8_TARGET_ARCH_S390X
-    llgfr(x, x);
-#endif
-  }
 
   void push(DoubleRegister src) {
     lay(sp, MemOperand(sp, -kSystemPointerSize));
@@ -918,14 +918,6 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
                    Simd128Register scratch);
   void SwapSimd128(MemOperand src, MemOperand dst, Simd128Register scratch);
 
-  // Cleanse pointer address on 31bit by zero out top  bit.
-  // This is a NOP on 64-bit.
-  void CleanseP(Register src) {
-#if (V8_HOST_ARCH_S390 && !(V8_TARGET_ARCH_S390X))
-    nilh(src, Operand(0x7FFF));
-#endif
-  }
-
   // ---------------------------------------------------------------------------
   // Runtime calls
 
@@ -1035,15 +1027,10 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
       else if (dst != src)  // If we didn't shift, we might need to copy
         mov(dst, src);
       int width = rangeStart - rangeEnd + 1;
-#if V8_TARGET_ARCH_S390X
       uint64_t mask = (static_cast<uint64_t>(1) << width) - 1;
       nihf(dst, Operand(mask >> 32));
       nilf(dst, Operand(mask & 0xFFFFFFFF));
       ltgr(dst, dst);
-#else
-      uint32_t mask = (1 << width) - 1;
-      AndP(dst, Operand(mask));
-#endif
     }
   }
 
@@ -1180,9 +1167,19 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
   void BindExceptionHandler(Label* label) { bind(label); }
 
   // Convenience functions to call/jmp to the code of a JSFunction object.
-  void CallJSFunction(Register function_object);
+  void CallJSFunction(Register function_object, uint16_t argument_count);
   void JumpJSFunction(Register function_object,
                       JumpMode jump_mode = JumpMode::kJump);
+#ifdef V8_ENABLE_LEAPTIERING
+  void CallJSDispatchEntry(JSDispatchHandle dispatch_handle,
+                           uint16_t argument_count);
+#endif
+#ifdef V8_ENABLE_WEBASSEMBLY
+  void ResolveWasmCodePointer(Register target);
+  void CallWasmCodePointer(Register target,
+                           CallJumpMode call_jump_mode = CallJumpMode::kCall);
+  void LoadWasmCodePointer(Register dst, MemOperand src);
+#endif
 
   // Generates an instruction sequence s.t. the return address points to the
   // instruction following the call.
@@ -1541,7 +1538,8 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
                        const Register& scratch = no_reg);
   void LoadTaggedSignedField(Register destination, MemOperand field_operand);
   void LoadTaggedFieldWithoutDecompressing(const Register& destination,
-                                           const MemOperand& field_operand);
+                                           const MemOperand& field_operand,
+                                           const Register& scratch = no_reg);
 
   // Loads a field containing smi value and untags it.
   void SmiUntagField(Register dst, const MemOperand& src);
@@ -1907,8 +1905,7 @@ class V8_EXPORT_PRIVATE MacroAssembler : public MacroAssemblerBase {
 
   // Helper functions for generating invokes.
   void InvokePrologue(Register expected_parameter_count,
-                      Register actual_parameter_count, Label* done,
-                      InvokeType type);
+                      Register actual_parameter_count, InvokeType type);
 
   DISALLOW_IMPLICIT_CONSTRUCTORS(MacroAssembler);
 };

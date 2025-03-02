@@ -12,8 +12,11 @@ javascript builtin FunctionPrototypeHasInstance(
   return OrdinaryHasInstance(context, receiver, value);
 }
 
-extern transitioning builtin FunctionPrototypeBind(
-    implicit context: Context)(JSFunction, JSAny, int32): JSAny;
+// These are technically all js-implicit parameters, but we don't currently
+// support supplying these in tail calls (where we have to supply them).
+extern transitioning javascript builtin FunctionPrototypeBind(
+    js-implicit context: Context)(JSFunction, JSAny, int32,
+    DispatchHandle): JSAny;
 
 const kLengthDescriptorIndex: constexpr int32
     generates 'JSFunctionOrBoundFunctionOrWrappedFunction::kLengthDescriptorIndex'
@@ -108,7 +111,8 @@ transitioning javascript builtin FastFunctionPrototypeBind(
     }
   } label Slow {
     tail FunctionPrototypeBind(
-        LoadTargetFromFrame(), newTarget, Convert<int32>(argc));
+        LoadTargetFromFrame(), newTarget, Convert<int32>(argc),
+        kInvalidDispatchHandle);
   }
 }
 }  // namespace function

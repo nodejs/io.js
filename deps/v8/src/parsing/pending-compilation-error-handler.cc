@@ -52,7 +52,7 @@ void PendingCompilationErrorHandler::MessageDetails::Prepare(
   }
 }
 
-Handle<String> PendingCompilationErrorHandler::MessageDetails::ArgString(
+DirectHandle<String> PendingCompilationErrorHandler::MessageDetails::ArgString(
     Isolate* isolate, int index) const {
   // `index` may be >= argc; in that case we return a default value to pass on
   // elsewhere.
@@ -149,9 +149,8 @@ void PendingCompilationErrorHandler::ReportWarnings(
     MessageLocation location = warning.GetLocation(script);
     DirectHandle<String> argument = warning.ArgString(isolate, 0);
     DCHECK_LT(warning.ArgCount(), 2);  // Arg1 is only used for errors.
-    DirectHandle<JSMessageObject> message =
-        MessageHandler::MakeMessageObject(isolate, warning.message(), &location,
-                                          argument, Handle<FixedArray>::null());
+    DirectHandle<JSMessageObject> message = MessageHandler::MakeMessageObject(
+        isolate, warning.message(), &location, argument);
     message->set_error_level(v8::Isolate::kMessageWarning);
     MessageHandler::ReportMessage(isolate, &location, message);
   }
@@ -198,12 +197,12 @@ void PendingCompilationErrorHandler::ThrowPendingError(
   isolate->debug()->OnCompileError(script);
 
   Factory* factory = isolate->factory();
-  Handle<JSObject> error = factory->NewSyntaxError(
+  DirectHandle<JSObject> error = factory->NewSyntaxError(
       error_details_.message(), base::VectorOf(args, num_args));
   isolate->ThrowAt(error, &location);
 }
 
-Handle<String> PendingCompilationErrorHandler::FormatErrorMessageForTest(
+DirectHandle<String> PendingCompilationErrorHandler::FormatErrorMessageForTest(
     Isolate* isolate) {
   error_details_.Prepare(isolate);
   int num_args = 0;

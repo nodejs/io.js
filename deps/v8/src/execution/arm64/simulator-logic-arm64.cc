@@ -4032,7 +4032,7 @@ inline uint64_t Bits(uint64_t val, int start_bit, int end_bit) {
 
 template <typename T>
 T Simulator::FPRecipSqrtEstimate(T op) {
-  static_assert(std::is_same<float, T>::value || std::is_same<double, T>::value,
+  static_assert(std::is_same_v<float, T> || std::is_same_v<double, T>,
                 "T must be a float or double");
 
   if (std::isnan(op)) {
@@ -4119,7 +4119,7 @@ LogicVRegister Simulator::frsqrte(VectorFormat vform, LogicVRegister dst,
 
 template <typename T>
 T Simulator::FPRecipEstimate(T op, FPRounding rounding) {
-  static_assert(std::is_same<float, T>::value || std::is_same<double, T>::value,
+  static_assert(std::is_same_v<float, T> || std::is_same_v<double, T>,
                 "T must be a float or double");
   uint32_t sign;
 

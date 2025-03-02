@@ -42,13 +42,17 @@ function rec(a,b,c,d,e,f,g,h,i,j,k,l,m,n) {
 assertThrows(function() { rec(1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4) },
              RangeError);
 
+// Invalidate elements protector to force slow-path.
+// The fast-path of JSON.stringify is iterative and won't throw.
+Array.prototype[2] = 'foo';
 
 var depth = 10000;
-var deepArray = [];
+var deepArray = [,];
 for (var i = 0; i < depth; i++) deepArray = [deepArray];
 assertThrows(function() { JSON.stringify(deepArray); }, RangeError);
 
 
 var deepObject = {};
 for (var i = 0; i < depth; i++) deepObject = { next: deepObject };
+deepObject[2] = 'foo';  // Force slow-path.
 assertThrows(function() { JSON.stringify(deepObject); }, RangeError);

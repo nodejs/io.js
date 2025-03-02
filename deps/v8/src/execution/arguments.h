@@ -44,7 +44,7 @@ class Arguments {
 
    private:
     Address* location_;
-    Handle<Object> old_value_;
+    DirectHandle<Object> old_value_;
   };
 
   Arguments(int length, Address* arguments)

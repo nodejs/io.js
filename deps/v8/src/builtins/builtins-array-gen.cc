@@ -16,6 +16,7 @@
 #include "src/codegen/code-stub-assembler-inl.h"
 #include "src/codegen/interface-descriptors-inl.h"
 #include "src/codegen/tnode.h"
+#include "src/common/globals.h"
 #include "src/execution/frame-constants.h"
 #include "src/heap/factory-inl.h"
 #include "src/objects/allocation-site-inl.h"
@@ -355,8 +356,8 @@ TF_BUILTIN(ArrayPrototypePop, CodeStubAssembler) {
     // from the current frame here in order to reduce register pressure on the
     // fast path.
     TNode<JSFunction> target = LoadTargetFromFrame();
-    TailCallBuiltin(Builtin::kArrayPop, context, target, UndefinedConstant(),
-                    argc);
+    TailCallJSBuiltin(Builtin::kArrayPop, context, target, UndefinedConstant(),
+                      argc, InvalidDispatchHandleConstant());
   }
 }
 
@@ -480,8 +481,8 @@ TF_BUILTIN(ArrayPrototypePush, CodeStubAssembler) {
     // from the current frame here in order to reduce register pressure on the
     // fast path.
     TNode<JSFunction> target = LoadTargetFromFrame();
-    TailCallBuiltin(Builtin::kArrayPush, context, target, UndefinedConstant(),
-                    argc);
+    TailCallJSBuiltin(Builtin::kArrayPush, context, target, UndefinedConstant(),
+                      argc, InvalidDispatchHandleConstant());
   }
 }
 
@@ -1142,7 +1143,7 @@ void ArrayIncludesIndexofAssembler::GenerateHoleyDoubles(
   Goto(&not_nan_case);
 
   BIND(&search_notnan);
-  if (variant == kIncludes) {
+  if (variant == kIncludes || V8_EXPERIMENTAL_UNDEFINED_DOUBLE_BOOL) {
     GotoIf(IsUndefined(search_element), &hole_loop);
   }
   GotoIfNot(IsHeapNumber(CAST(search_element)), &return_not_found);
@@ -1212,14 +1213,23 @@ void ArrayIncludesIndexofAssembler::GenerateHoleyDoubles(
   }
 
   // Array.p.includes treats the hole as undefined.
-  if (variant == kIncludes) {
+  if (variant == kIncludes || V8_EXPERIMENTAL_UNDEFINED_DOUBLE_BOOL) {
     BIND(&hole_loop);
     GotoIfNot(UintPtrLessThan(index_var.value(), array_length_untagged),
               &return_not_found);
 
-    // Check if the element is a double hole, but don't load it.
+    // Try to find undefined. If we find an explicit double encoded undefined,
+    // go to `return_found`. For double holes, go to `return_found` only if we
+    // check for existance of undefined. When computing the index, holes are
+    // ignored (we don't pass a label).
+#ifdef V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE
+    LoadFixedDoubleArrayElementWithUndefinedCheck(
+        elements, index_var.value(), &return_found,
+        (variant == kIncludes ? &return_found : nullptr), MachineType::None());
+#else
     LoadFixedDoubleArrayElement(elements, index_var.value(), &return_found,
                                 MachineType::None());
+#endif  // V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE
 
     Increment(&index_var);
     Goto(&hole_loop);
@@ -2227,11 +2237,10 @@ TF_BUILTIN(CreateObjectFromSlowBoilerplateHelper,
     TNode<FixedArrayBase> elements = LoadElements(object);
     GotoIf(IsEmptyFixedArray(elements), &done_with_elements);
 
-    TNode<Int32T> elements_kind = LoadElementsKind(object);
     // Object elements are never COW and never SMI_ELEMENTS etc.
     CloneElementsOfFixedArray(elements, LoadFixedArrayBaseLength(elements),
-                              elements_kind, current_allocation_site, context,
-                              &done_with_elements, &bailout);
+                              LoadElementsKind(object), current_allocation_site,
+                              context, &done_with_elements, &bailout);
     BIND(&done_with_elements);
   }
 

@@ -9,16 +9,14 @@ const int N_THREADS = 10;
 const int N_REPS = 3;
 
 // A function to be called from Wasm code.
-auto callback(
-  void* env, const wasm::Val args[], wasm::Val results[]
-) -> wasm::own<wasm::Trap> {
-  assert(args[0].kind() == wasm::I32);
-  std::lock_guard<std::mutex>(*reinterpret_cast<std::mutex*>(env));
+auto callback(void* env, const wasm::vec<wasm::Val>& args,
+              wasm::vec<wasm::Val>& results) -> wasm::own<wasm::Trap> {
+  assert(args[0].kind() == wasm::ValKind::I32);
+  std::lock_guard<std::mutex> lock(*reinterpret_cast<std::mutex*>(env));
   std::cout << "Thread " << args[0].i32() << " running..." << std::endl;
   std::cout.flush();
   return nullptr;
 }
-
 
 void run(
   wasm::Engine* engine, const wasm::Shared<wasm::Module>* shared,
@@ -41,19 +39,19 @@ void run(
     std::this_thread::sleep_for(std::chrono::nanoseconds(100000));
 
     // Create imports.
-    auto func_type = wasm::FuncType::make(
-      wasm::ownvec<wasm::ValType>::make(wasm::ValType::make(wasm::I32)),
-      wasm::ownvec<wasm::ValType>::make()
-    );
+    auto func_type =
+        wasm::FuncType::make(wasm::ownvec<wasm::ValType>::make(
+                                 wasm::ValType::make(wasm::ValKind::I32)),
+                             wasm::ownvec<wasm::ValType>::make());
     auto func = wasm::Func::make(store, func_type.get(), callback, mutex);
 
     auto global_type = wasm::GlobalType::make(
-      wasm::ValType::make(wasm::I32), wasm::CONST);
+        wasm::ValType::make(wasm::ValKind::I32), wasm::Mutability::CONST);
     auto global = wasm::Global::make(
       store, global_type.get(), wasm::Val::i32(i));
 
     // Instantiate.
-    wasm::Extern* imports[] = {func.get(), global.get()};
+    auto imports = wasm::vec<wasm::Extern*>::make(func.get(), global.get());
     auto instance = wasm::Instance::make(store, module.get(), imports);
     if (!instance) {
       std::lock_guard<std::mutex> lock(*mutex);
@@ -63,7 +61,8 @@ void run(
 
     // Extract export.
     auto exports = instance->exports();
-    if (exports.size() == 0 || exports[0]->kind() != wasm::EXTERN_FUNC || !exports[0]->func()) {
+    if (exports.size() == 0 || exports[0]->kind() != wasm::ExternKind::FUNC ||
+        !exports[0]->func()) {
       std::lock_guard<std::mutex> lock(*mutex);
       std::cout << "> Error accessing export!" << std::endl;
       exit(1);
@@ -71,7 +70,8 @@ void run(
     auto run_func = exports[0]->func();
 
     // Call.
-    run_func->call();
+    auto empty = wasm::vec<wasm::Val>::make();
+    run_func->call(empty, empty);
   }
 }
 

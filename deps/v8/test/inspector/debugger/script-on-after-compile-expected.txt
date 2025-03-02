@@ -4,7 +4,8 @@ scriptParsed
     scriptSource : function foo1(){}//# sourceURL=oneline.js<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 1
     executionContextId : <executionContextId>
@@ -15,7 +16,7 @@ scriptParsed
     length : 42
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : oneline.js
@@ -25,7 +26,8 @@ scriptParsed
     scriptSource : function foo2(){}//# sourceURL=oneline-without-nl.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 52
     endLine : 0
     executionContextId : <executionContextId>
@@ -36,7 +38,7 @@ scriptParsed
     length : 52
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : oneline-without-nl.js
@@ -46,7 +48,8 @@ scriptParsed
     scriptSource : function foo3(){}<nl>//# sourceURL=twoline.js<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 2
     executionContextId : <executionContextId>
@@ -57,7 +60,7 @@ scriptParsed
     length : 43
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : twoline.js
@@ -67,7 +70,8 @@ scriptParsed
     scriptSource : function foo4(){}<nl><nl>//# sourceURL=threeline.js<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 3
     executionContextId : <executionContextId>
@@ -78,7 +82,7 @@ scriptParsed
     length : 46
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : threeline.js
@@ -88,7 +92,8 @@ scriptParsed
     scriptSource : function foo5(){}//# sourceMappingURL=oneline-map<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 1
     executionContextId : <executionContextId>
@@ -102,14 +107,15 @@ scriptParsed
     sourceMapURL : oneline-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo6(){}//# sourceMappingURL=oneline-without-nl-map
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 60
     endLine : 0
     executionContextId : <executionContextId>
@@ -123,14 +129,15 @@ scriptParsed
     sourceMapURL : oneline-without-nl-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo7(){}<nl>//# sourceMappingURL=twoline-map<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 2
     executionContextId : <executionContextId>
@@ -144,14 +151,15 @@ scriptParsed
     sourceMapURL : twoline-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo8(){}<nl><nl>//# sourceMappingURL=threeline-map<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 3
     executionContextId : <executionContextId>
@@ -165,14 +173,15 @@ scriptParsed
     sourceMapURL : threeline-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo9(){}//# sourceMappingURL=source-mapping-url-map<nl>//# sourceURL=source-url.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 27
     endLine : 1
     executionContextId : <executionContextId>
@@ -193,7 +202,8 @@ scriptParsed
     scriptSource : function foo10(){}//# sourceURL=source-url.js<nl>//# sourceMappingURL=source-mapping-url-map
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 43
     endLine : 1
     executionContextId : <executionContextId>
@@ -214,7 +224,8 @@ scriptParsed
     scriptSource : function foo11(){}<nl>//# sourceURL=end1.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 21
     endLine : 1
     executionContextId : <executionContextId>
@@ -225,17 +236,18 @@ scriptParsed
     length : 40
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : end1.js
 }
 scriptParsed
 {
-    scriptSource : function foo12(){}<nl>//# sourceURL=end2.js
+    scriptSource : function foo12(){}<nl>//# sourceURL=end2.js 
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 22
     endLine : 1
     executionContextId : <executionContextId>
@@ -246,7 +258,7 @@ scriptParsed
     length : 41
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : end2.js
@@ -256,7 +268,8 @@ scriptParsed
     scriptSource : function foo13(){}
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 18
     endLine : 0
     executionContextId : <executionContextId>
@@ -267,17 +280,18 @@ scriptParsed
     length : 18
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo15(){}; eval("function foo14(){}//# sourceURL=eval.js")//# sourceURL=eval-wrapper.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 96
     endLine : 0
     executionContextId : <executionContextId>
@@ -288,7 +302,7 @@ scriptParsed
     length : 96
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : eval-wrapper.js
@@ -298,7 +312,8 @@ scriptParsed
     scriptSource : function foo14(){}//# sourceURL=eval.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 39
     endLine : 0
     executionContextId : <executionContextId>
@@ -309,7 +324,7 @@ scriptParsed
     length : 39
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : eval.js
@@ -319,7 +334,8 @@ scriptParsed
     scriptSource : function foo16(){}<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 1
     executionContextId : <executionContextId>
@@ -330,17 +346,18 @@ scriptParsed
     length : 19
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo17(){}<nl><nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 2
     executionContextId : <executionContextId>
@@ -351,17 +368,18 @@ scriptParsed
     length : 20
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo18(){}<nl><nl><nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 3
     executionContextId : <executionContextId>
@@ -372,17 +390,18 @@ scriptParsed
     length : 21
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo19(){}<nl><nl><nl><nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 4
     executionContextId : <executionContextId>
@@ -393,17 +412,18 @@ scriptParsed
     length : 22
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo1(){}//# sourceURL=oneline.js<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 1
     executionContextId : <executionContextId>
@@ -414,7 +434,7 @@ scriptParsed
     length : 42
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : oneline.js
@@ -424,7 +444,8 @@ scriptParsed
     scriptSource : function foo2(){}//# sourceURL=oneline-without-nl.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 52
     endLine : 0
     executionContextId : <executionContextId>
@@ -435,7 +456,7 @@ scriptParsed
     length : 52
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : oneline-without-nl.js
@@ -445,7 +466,8 @@ scriptParsed
     scriptSource : function foo3(){}<nl>//# sourceURL=twoline.js<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 2
     executionContextId : <executionContextId>
@@ -456,7 +478,7 @@ scriptParsed
     length : 43
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : twoline.js
@@ -466,7 +488,8 @@ scriptParsed
     scriptSource : function foo4(){}<nl><nl>//# sourceURL=threeline.js<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 3
     executionContextId : <executionContextId>
@@ -477,7 +500,7 @@ scriptParsed
     length : 46
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : threeline.js
@@ -487,7 +510,8 @@ scriptParsed
     scriptSource : function foo5(){}//# sourceMappingURL=oneline-map<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 1
     executionContextId : <executionContextId>
@@ -501,14 +525,15 @@ scriptParsed
     sourceMapURL : oneline-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo6(){}//# sourceMappingURL=oneline-without-nl-map
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 60
     endLine : 0
     executionContextId : <executionContextId>
@@ -522,14 +547,15 @@ scriptParsed
     sourceMapURL : oneline-without-nl-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo7(){}<nl>//# sourceMappingURL=twoline-map<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 2
     executionContextId : <executionContextId>
@@ -543,14 +569,15 @@ scriptParsed
     sourceMapURL : twoline-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo8(){}<nl><nl>//# sourceMappingURL=threeline-map<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 3
     executionContextId : <executionContextId>
@@ -564,14 +591,15 @@ scriptParsed
     sourceMapURL : threeline-map
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo9(){}//# sourceMappingURL=source-mapping-url-map<nl>//# sourceURL=source-url.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 27
     endLine : 1
     executionContextId : <executionContextId>
@@ -592,7 +620,8 @@ scriptParsed
     scriptSource : function foo10(){}//# sourceURL=source-url.js<nl>//# sourceMappingURL=source-mapping-url-map
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 43
     endLine : 1
     executionContextId : <executionContextId>
@@ -613,7 +642,8 @@ scriptParsed
     scriptSource : function foo11(){}<nl>//# sourceURL=end1.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 21
     endLine : 1
     executionContextId : <executionContextId>
@@ -624,17 +654,18 @@ scriptParsed
     length : 40
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : end1.js
 }
 scriptParsed
 {
-    scriptSource : function foo12(){}<nl>//# sourceURL=end2.js
+    scriptSource : function foo12(){}<nl>//# sourceURL=end2.js 
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 22
     endLine : 1
     executionContextId : <executionContextId>
@@ -645,7 +676,7 @@ scriptParsed
     length : 41
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : end2.js
@@ -655,7 +686,8 @@ scriptParsed
     scriptSource : function foo13(){}
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 18
     endLine : 0
     executionContextId : <executionContextId>
@@ -666,17 +698,18 @@ scriptParsed
     length : 18
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo15(){}; eval("function foo14(){}//# sourceURL=eval.js")//# sourceURL=eval-wrapper.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 96
     endLine : 0
     executionContextId : <executionContextId>
@@ -687,7 +720,7 @@ scriptParsed
     length : 96
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : eval-wrapper.js
@@ -697,7 +730,8 @@ scriptParsed
     scriptSource : function foo14(){}//# sourceURL=eval.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 39
     endLine : 0
     executionContextId : <executionContextId>
@@ -708,12 +742,12 @@ scriptParsed
     length : 39
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     stackTrace : {
         callFrames : [
             [0] : {
                 columnNumber : 20
-                functionName :
+                functionName : 
                 lineNumber : 0
                 scriptId : <scriptId>
                 url : eval-wrapper.js
@@ -729,7 +763,8 @@ scriptFailedToParse
     scriptSource : {a:2:<nl>//# sourceURL=http://a.js
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 25
     endLine : 1
     executionContextId : <executionContextId>
@@ -739,7 +774,7 @@ scriptFailedToParse
     length : 31
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
     url : http://a.js
@@ -749,7 +784,8 @@ scriptFailedToParse
     scriptSource : }//# sourceURL=failed.js<nl>//# sourceMappingURL=failed-map
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 31
     endLine : 1
     executionContextId : <executionContextId>
@@ -769,7 +805,8 @@ scriptParsed
     scriptSource : function foo16(){}<nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 1
     executionContextId : <executionContextId>
@@ -780,17 +817,18 @@ scriptParsed
     length : 19
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo17(){}<nl><nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 2
     executionContextId : <executionContextId>
@@ -801,17 +839,18 @@ scriptParsed
     length : 20
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo18(){}<nl><nl><nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 3
     executionContextId : <executionContextId>
@@ -822,17 +861,18 @@ scriptParsed
     length : 21
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 scriptParsed
 {
     scriptSource : function foo19(){}<nl><nl><nl><nl>
 }
 {
-    embedderName :
+    buildId : 
+    embedderName : 
     endColumn : 0
     endLine : 4
     executionContextId : <executionContextId>
@@ -843,9 +883,9 @@ scriptParsed
     length : 22
     scriptId : <scriptId>
     scriptLanguage : JavaScript
-    sourceMapURL :
+    sourceMapURL : 
     startColumn : 0
     startLine : 0
-    url :
+    url : 
 }
 Remove script references and re-enable debugger.

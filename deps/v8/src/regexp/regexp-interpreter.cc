@@ -15,6 +15,7 @@
 #include "src/regexp/regexp-bytecodes.h"
 #include "src/regexp/regexp-macro-assembler.h"
 #include "src/regexp/regexp-stack.h"  // For kMaximumStackSize.
+#include "src/regexp/regexp-utils.h"
 #include "src/regexp/regexp.h"
 #include "src/strings/unicode.h"
 #include "src/utils/memcopy.h"
@@ -286,14 +287,14 @@ IrregexpInterpreter::Result HandleInterrupts(
     DCHECK(call_origin == RegExp::CallOrigin::kFromRuntime);
     // Prepare for possible GC.
     HandleScope handles(isolate);
-    Handle<TrustedByteArray> code_handle(*code_array_out, isolate);
-    Handle<String> subject_handle(*subject_string_out, isolate);
+    DirectHandle<TrustedByteArray> code_handle(*code_array_out, isolate);
+    DirectHandle<String> subject_handle(*subject_string_out, isolate);
 
     if (js_has_overflowed) {
       return ThrowStackOverflow(isolate, call_origin);
     } else if (check.InterruptRequested()) {
       const bool was_one_byte =
-          String::IsOneByteRepresentationUnderneath(*subject_string_out);
+          (*subject_string_out)->IsOneByteRepresentation();
       Tagged<Object> result;
       {
         AllowGarbageCollection yes_gc;
@@ -306,8 +307,7 @@ IrregexpInterpreter::Result HandleInterrupts(
       // If we changed between a LATIN1 and a UC16 string, we need to
       // restart regexp matching with the appropriate template instantiation of
       // RawMatch.
-      if (String::IsOneByteRepresentationUnderneath(*subject_handle) !=
-          was_one_byte) {
+      if (subject_handle->IsOneByteRepresentation() != was_one_byte) {
         return IrregexpInterpreter::RETRY;
       }
 
@@ -393,8 +393,8 @@ bool IndexIsInBounds(int index, int length) {
 
 template <typename Char>
 IrregexpInterpreter::Result RawMatch(
-    Isolate* isolate, Tagged<TrustedByteArray> code_array,
-    Tagged<String> subject_string, base::Vector<const Char> subject,
+    Isolate* isolate, Tagged<TrustedByteArray>* code_array,
+    Tagged<String>* subject_string, base::Vector<const Char> subject,
     int* output_registers, int output_register_count, int total_register_count,
     int current, uint32_t current_char, RegExp::CallOrigin call_origin,
     const uint32_t backtrack_limit) {
@@ -448,7 +448,7 @@ IrregexpInterpreter::Result RawMatch(
 
 #endif  // V8_USE_COMPUTED_GOTO
 
-  const uint8_t* pc = code_array->begin();
+  const uint8_t* pc = (*code_array)->begin();
   const uint8_t* code_base = pc;
 
   InterpreterRegisters registers(total_register_count, output_registers,
@@ -540,7 +540,7 @@ IrregexpInterpreter::Result RawMatch(
       }
 
       IrregexpInterpreter::Result return_code =
-          HandleInterrupts(isolate, call_origin, &code_array, &subject_string,
+          HandleInterrupts(isolate, call_origin, code_array, subject_string,
                            &code_base, &subject, &pc);
       if (return_code != IrregexpInterpreter::SUCCESS) return return_code;
 
@@ -1064,29 +1064,78 @@ IrregexpInterpreter::Result RawMatch(
 }  // namespace
 
 // static
-IrregexpInterpreter::Result IrregexpInterpreter::Match(
-    Isolate* isolate, Tagged<IrRegExpData> regexp_data,
-    Tagged<String> subject_string, int* output_registers,
-    int output_register_count, int start_position,
-    RegExp::CallOrigin call_origin) {
+int IrregexpInterpreter::Match(Isolate* isolate,
+                               Tagged<IrRegExpData> regexp_data,
+                               Tagged<String> subject_string,
+                               int* output_registers, int output_register_count,
+                               int start_position,
+                               RegExp::CallOrigin call_origin) {
   if (v8_flags.regexp_tier_up) regexp_data->TierUpTick();
 
-  bool is_one_byte = String::IsOneByteRepresentationUnderneath(subject_string);
+  bool is_any_unicode =
+      IsEitherUnicode(JSRegExp::AsRegExpFlags(regexp_data->flags()));
+  bool is_one_byte = subject_string->IsOneByteRepresentation();
   Tagged<TrustedByteArray> code_array = regexp_data->bytecode(is_one_byte);
   int total_register_count = regexp_data->max_register_count();
 
-  return MatchInternal(isolate, code_array, subject_string, output_registers,
-                       output_register_count, total_register_count,
-                       start_position, call_origin,
-                       regexp_data->backtrack_limit());
+  // MatchInternal only supports returning a single match per call. In global
+  // mode, i.e. when output_registers has space for more than one match, we
+  // need to keep running until all matches are filled in.
+  int registers_per_match =
+      JSRegExp::RegistersForCaptureCount(regexp_data->capture_count());
+  DCHECK_LE(registers_per_match, output_register_count);
+  int number_of_matches_in_output_registers =
+      output_register_count / registers_per_match;
+
+  int backtrack_limit = regexp_data->backtrack_limit();
+
+  int num_matches = 0;
+  int* current_output_registers = output_registers;
+  for (int i = 0; i < number_of_matches_in_output_registers; i++) {
+    auto current_result = MatchInternal(
+        isolate, &code_array, &subject_string, current_output_registers,
+        registers_per_match, total_register_count, start_position, call_origin,
+        backtrack_limit);
+
+    if (current_result == SUCCESS) {
+      // Fall through.
+    } else if (current_result == FAILURE) {
+      break;
+    } else {
+      DCHECK(current_result == EXCEPTION ||
+             current_result == FALLBACK_TO_EXPERIMENTAL ||
+             current_result == RETRY);
+      return current_result;
+    }
+
+    // Found a match. Advance the index.
+
+    num_matches++;
+
+    int next_start_position = current_output_registers[1];
+    if (next_start_position == current_output_registers[0]) {
+      // Zero-length matches.
+      // TODO(jgruber): Use AdvanceStringIndex based on flat contents instead.
+      next_start_position = static_cast<int>(RegExpUtils::AdvanceStringIndex(
+          subject_string, next_start_position, is_any_unicode));
+      if (next_start_position > static_cast<int>(subject_string->length())) {
+        break;
+      }
+    }
+
+    start_position = next_start_position;
+    current_output_registers += registers_per_match;
+  }
+
+  return num_matches;
 }
 
 IrregexpInterpreter::Result IrregexpInterpreter::MatchInternal(
-    Isolate* isolate, Tagged<TrustedByteArray> code_array,
-    Tagged<String> subject_string, int* output_registers,
+    Isolate* isolate, Tagged<TrustedByteArray>* code_array,
+    Tagged<String>* subject_string, int* output_registers,
     int output_register_count, int total_register_count, int start_position,
     RegExp::CallOrigin call_origin, uint32_t backtrack_limit) {
-  DCHECK(subject_string->IsFlat());
+  DCHECK((*subject_string)->IsFlat());
 
   // Note: Heap allocation *is* allowed in two situations if calling from
   // Runtime:
@@ -1097,7 +1146,8 @@ IrregexpInterpreter::Result IrregexpInterpreter::MatchInternal(
   DisallowGarbageCollection no_gc;
 
   base::uc16 previous_char = '\n';
-  String::FlatContent subject_content = subject_string->GetFlatContent(no_gc);
+  String::FlatContent subject_content =
+      (*subject_string)->GetFlatContent(no_gc);
   // Because interrupts can result in GC and string content relocation, the
   // checksum verification in FlatContent may fail even though this code is
   // safe. See (2) above.
@@ -1126,7 +1176,7 @@ IrregexpInterpreter::Result IrregexpInterpreter::MatchInternal(
 
 // This method is called through an external reference from RegExpExecInternal
 // builtin.
-IrregexpInterpreter::Result IrregexpInterpreter::MatchForCallFromJs(
+int IrregexpInterpreter::MatchForCallFromJs(
     Address subject, int32_t start_position, Address, Address,
     int* output_registers, int32_t output_register_count,
     RegExp::CallOrigin call_origin, Isolate* isolate, Address regexp_data) {
@@ -1155,7 +1205,7 @@ IrregexpInterpreter::Result IrregexpInterpreter::MatchForCallFromJs(
 
 #endif  // !COMPILING_IRREGEXP_FOR_EXTERNAL_EMBEDDER
 
-IrregexpInterpreter::Result IrregexpInterpreter::MatchForCallFromRuntime(
+int IrregexpInterpreter::MatchForCallFromRuntime(
     Isolate* isolate, DirectHandle<IrRegExpData> regexp_data,
     DirectHandle<String> subject_string, int* output_registers,
     int output_register_count, int start_position) {

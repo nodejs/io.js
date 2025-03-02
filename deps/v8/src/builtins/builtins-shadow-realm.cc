@@ -20,8 +20,8 @@ BUILTIN(ShadowRealmConstructor) {
                               isolate->factory()->ShadowRealm_string()));
   }
   // [[Construct]]
-  Handle<JSFunction> target = args.target();
-  Handle<JSReceiver> new_target = Cast<JSReceiver>(args.new_target());
+  DirectHandle<JSFunction> target = args.target();
+  DirectHandle<JSReceiver> new_target = Cast<JSReceiver>(args.new_target());
 
   // 3. Let realmRec be CreateRealm().
   // 5. Let context be a new execution context.
@@ -35,17 +35,16 @@ BUILTIN(ShadowRealmConstructor) {
   // Isolate::RunHostCreateShadowRealmContextCallback and Context::New.
   // The host operation is hoisted for not creating a half-initialized
   // ShadowRealm object, which can fail the heap verification.
-  Handle<NativeContext> native_context;
+  DirectHandle<NativeContext> native_context;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, native_context,
       isolate->RunHostCreateShadowRealmContextCallback());
 
   // 2. Let O be ? OrdinaryCreateFromConstructor(NewTarget,
   // "%ShadowRealm.prototype%", « [[ShadowRealm]], [[ExecutionContext]] »).
-  Handle<JSObject> result;
-  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
-      isolate, result,
-      JSObject::New(target, new_target, Handle<AllocationSite>::null()));
+  DirectHandle<JSObject> result;
+  ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, result,
+                                     JSObject::New(target, new_target, {}));
   auto O = Cast<JSShadowRealm>(result);
 
   // 4. Set O.[[ShadowRealm]] to realmRec.
@@ -59,7 +58,7 @@ BUILTIN(ShadowRealmConstructor) {
 namespace {
 
 // https://tc39.es/proposal-shadowrealm/#sec-getwrappedvalue
-MaybeHandle<Object> GetWrappedValue(
+MaybeDirectHandle<Object> GetWrappedValue(
     Isolate* isolate, DirectHandle<NativeContext> creation_context,
     Handle<Object> value) {
   // 1. If Type(value) is Object, then
@@ -73,9 +72,9 @@ MaybeHandle<Object> GetWrappedValue(
     // constructor instead of the executing Realm's.
     THROW_NEW_ERROR_RETURN_VALUE(
         isolate,
-        NewError(Handle<JSFunction>(creation_context->type_error_function(),
-                                    isolate),
-                 MessageTemplate::kNotCallable, value),
+        NewError(
+            direct_handle(creation_context->type_error_function(), isolate),
+            MessageTemplate::kNotCallable, value),
         {});
   }
   // 1b. Return ? WrappedFunctionCreate(callerRealm, value).
@@ -91,7 +90,7 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
 
   Handle<Object> source_text = args.atOrUndefined(isolate, 1);
   // 1. Let O be this value.
-  Handle<Object> receiver = args.receiver();
+  DirectHandle<Object> receiver = args.receiver();
 
   Factory* factory = isolate->factory();
 
@@ -113,15 +112,15 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
   DirectHandle<NativeContext> caller_context = isolate->native_context();
 
   // 5. Let evalRealm be O.[[ShadowRealm]].
-  Handle<NativeContext> eval_context =
-      Handle<NativeContext>(shadow_realm->native_context(), isolate);
+  DirectHandle<NativeContext> eval_context(shadow_realm->native_context(),
+                                           isolate);
   // 6. Return ? PerformShadowRealmEval(sourceText, callerRealm, evalRealm).
 
   // PerformShadowRealmEval
   // https://tc39.es/proposal-shadowrealm/#sec-performshadowrealmeval
   // 1. Perform ? HostEnsureCanCompileStrings(callerRealm, evalRealm).
   // Run embedder pre-checks before executing the source code.
-  MaybeHandle<String> validated_source;
+  MaybeDirectHandle<String> validated_source;
   bool unhandled_object;
   std::tie(validated_source, unhandled_object) =
       Compiler::ValidateDynamicCompilationSource(isolate, eval_context,
@@ -132,7 +131,8 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
         NewTypeError(MessageTemplate::kInvalidShadowRealmEvaluateSourceText));
   }
 
-  Handle<JSObject> eval_global_proxy(eval_context->global_proxy(), isolate);
+  DirectHandle<JSObject> eval_global_proxy(eval_context->global_proxy(),
+                                           isolate);
   MaybeHandle<Object> result;
   bool is_parse_failed = false;
   {
@@ -164,8 +164,8 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
     // 5. Let lexEnv be NewDeclarativeEnvironment(evalRealm.[[GlobalEnv]]).
     // 6. Let varEnv be evalRealm.[[GlobalEnv]].
     // 7. If strictEval is true, set varEnv to lexEnv.
-    Handle<JSFunction> function;
-    MaybeHandle<JSFunction> maybe_function =
+    DirectHandle<JSFunction> function;
+    MaybeDirectHandle<JSFunction> maybe_function =
         Compiler::GetFunctionFromValidatedString(eval_context, validated_source,
                                                  NO_PARSE_RESTRICTION,
                                                  kNoSourcePosition);
@@ -180,8 +180,7 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
       // 18a. a. Set result to Completion(Evaluation of body).
       // 19. If result.[[Type]] is normal and result.[[Value]] is empty, then
       // 19a. Set result to NormalCompletion(undefined).
-      result =
-          Execution::Call(isolate, function, eval_global_proxy, 0, nullptr);
+      result = Execution::Call(isolate, function, eval_global_proxy, {});
 
       // 20. Suspend evalContext and remove it from the execution context stack.
       // 21. Resume the context that is now on the top of the execution context
@@ -212,7 +211,7 @@ BUILTIN(ShadowRealmPrototypeEvaluate) {
             exception, MessageTemplate::kCallShadowRealmEvaluateThrew, string));
   }
   // 23. Return ? GetWrappedValue(callerRealm, result.[[Value]]).
-  Handle<Object> wrapped_result;
+  DirectHandle<Object> wrapped_result;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, wrapped_result,
       GetWrappedValue(isolate, caller_context, result.ToHandleChecked()));

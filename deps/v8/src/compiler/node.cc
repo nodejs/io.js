@@ -358,11 +358,11 @@ void PrintNode(const Node* node, std::ostream& os, int depth,
     os << "  ";
   }
   if (node) {
-    os << *node;
+    os << *node << std::endl;
   } else {
-    os << "(NULL)";
+    os << "(NULL)" << std::endl;
+    return;
   }
-  os << std::endl;
   if (depth <= 0) return;
   for (Node* input : node->inputs()) {
     PrintNode(input, os, depth - 1, indentation + 1);

@@ -17,7 +17,7 @@
 #include "src/codegen/loong64/constants-loong64.h"
 #elif V8_TARGET_ARCH_PPC64
 #include "src/codegen/ppc/constants-ppc.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/codegen/s390/constants-s390.h"
 #elif V8_TARGET_ARCH_X64
 #include "src/codegen/x64/constants-x64.h"

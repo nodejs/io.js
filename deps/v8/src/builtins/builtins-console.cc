@@ -66,7 +66,7 @@ bool Formatter(Isolate* isolate, BuiltinArguments& args, int index) {
     return true;
   }
   struct State {
-    Handle<String> str;
+    IndirectHandle<String> str;
     int off;
   };
   std::stack<State> states;
@@ -76,32 +76,33 @@ bool Formatter(Isolate* isolate, BuiltinArguments& args, int index) {
   while (!states.empty() && index < args.length()) {
     State& state = states.top();
     state.off = String::IndexOf(isolate, state.str, percent, state.off);
-    if (state.off < 0 || state.off == state.str->length() - 1) {
+    if (state.off < 0 ||
+        state.off == static_cast<int>(state.str->length()) - 1) {
       states.pop();
       continue;
     }
-    Handle<Object> current = args.at(index);
+    IndirectHandle<Object> current = args.at(index);
     uint16_t specifier = state.str->Get(state.off + 1, isolate);
     if (specifier == 'd' || specifier == 'f' || specifier == 'i') {
       if (IsSymbol(*current)) {
         current = isolate->factory()->nan_value();
       } else {
-        Handle<Object> params[] = {current,
-                                   isolate->factory()->NewNumberFromInt(10)};
+        DirectHandle<Object> params[] = {
+            current, isolate->factory()->NewNumberFromInt(10)};
         auto builtin = specifier == 'f' ? isolate->global_parse_float_fun()
                                         : isolate->global_parse_int_fun();
         if (!Execution::CallBuiltin(isolate, builtin,
                                     isolate->factory()->undefined_value(),
-                                    arraysize(params), params)
+                                    base::VectorOf(params))
                  .ToHandle(&current)) {
           return false;
         }
       }
     } else if (specifier == 's') {
-      Handle<Object> params[] = {current};
+      DirectHandle<Object> params[] = {current};
       if (!Execution::CallBuiltin(isolate, isolate->string_function(),
                                   isolate->factory()->undefined_value(),
-                                  arraysize(params), params)
+                                  base::VectorOf(params))
                .ToHandle(&current)) {
         return false;
       }
@@ -157,13 +158,13 @@ void ConsoleCall(
   if (!isolate->console_delegate()) return;
   HandleScope scope(isolate);
   int context_id = 0;
-  Handle<String> context_name = isolate->factory()->anonymous_string();
+  DirectHandle<String> context_name = isolate->factory()->anonymous_string();
   if (!IsNativeContext(args.target()->context())) {
     DirectHandle<Context> context(args.target()->context(), isolate);
     CHECK_EQ(CONSOLE_CONTEXT_SLOTS, context->length());
     context_id = Cast<Smi>(context->get(CONSOLE_CONTEXT_ID_INDEX)).value();
-    context_name =
-        handle(Cast<String>(context->get(CONSOLE_CONTEXT_NAME_INDEX)), isolate);
+    context_name = direct_handle(
+        Cast<String>(context->get(CONSOLE_CONTEXT_NAME_INDEX)), isolate);
   }
   (isolate->console_delegate()->*func)(
       debug::ConsoleCallArguments(isolate, args),
@@ -236,21 +237,20 @@ BUILTIN(ConsoleTimeStamp) {
 
 namespace {
 
-void InstallContextFunction(Isolate* isolate, Handle<JSObject> target,
+void InstallContextFunction(Isolate* isolate, DirectHandle<JSObject> target,
                             const char* name, Builtin builtin,
-                            Handle<Context> context) {
+                            DirectHandle<Context> context) {
   Factory* const factory = isolate->factory();
 
-  Handle<Map> map = isolate->sloppy_function_without_prototype_map();
+  DirectHandle<Map> map = isolate->sloppy_function_without_prototype_map();
 
-  Handle<String> name_string = factory->InternalizeUtf8String(name);
+  DirectHandle<String> name_string = factory->InternalizeUtf8String(name);
 
-  Handle<SharedFunctionInfo> info =
-      factory->NewSharedFunctionInfoForBuiltin(name_string, builtin);
+  DirectHandle<SharedFunctionInfo> info =
+      factory->NewSharedFunctionInfoForBuiltin(name_string, builtin, 1,
+                                               kDontAdapt);
   info->set_language_mode(LanguageMode::kSloppy);
   info->set_native(true);
-  info->DontAdaptArguments();
-  info->set_length(1);
 
   DirectHandle<JSFunction> fun =
       Factory::JSFunctionBuilder{isolate, info, context}.set_map(map).Build();
@@ -269,7 +269,7 @@ BUILTIN(ConsoleContext) {
   // Generate a unique ID for the new `console.context`
   // and convert the parameter to a string (defaults to
   // 'anonymous' if unspecified).
-  Handle<String> context_name = factory->anonymous_string();
+  DirectHandle<String> context_name = factory->anonymous_string();
   if (args.length() > 1) {
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, context_name,
                                        Object::ToString(isolate, args.at(1)));
@@ -277,22 +277,25 @@ BUILTIN(ConsoleContext) {
   int context_id = isolate->last_console_context_id() + 1;
   isolate->set_last_console_context_id(context_id);
 
-  Handle<SharedFunctionInfo> info = factory->NewSharedFunctionInfoForBuiltin(
-      factory->InternalizeUtf8String("Context"), Builtin::kIllegal);
+  DirectHandle<SharedFunctionInfo> info =
+      factory->NewSharedFunctionInfoForBuiltin(
+          factory->InternalizeUtf8String("Context"), Builtin::kIllegal, 0,
+          kDontAdapt);
   info->set_language_mode(LanguageMode::kSloppy);
 
-  Handle<JSFunction> cons =
+  DirectHandle<JSFunction> cons =
       Factory::JSFunctionBuilder{isolate, info, isolate->native_context()}
           .Build();
 
-  Handle<JSObject> prototype = factory->NewJSObject(isolate->object_function());
+  DirectHandle<JSObject> prototype =
+      factory->NewJSObject(isolate->object_function());
   JSFunction::SetPrototype(cons, prototype);
 
-  Handle<JSObject> console_context =
+  DirectHandle<JSObject> console_context =
       factory->NewJSObject(cons, AllocationType::kOld);
   DCHECK(IsJSObject(*console_context));
 
-  Handle<Context> context = factory->NewBuiltinContext(
+  DirectHandle<Context> context = factory->NewBuiltinContext(
       isolate->native_context(), CONSOLE_CONTEXT_SLOTS);
   context->set(CONSOLE_CONTEXT_ID_INDEX, Smi::FromInt(context_id));
   context->set(CONSOLE_CONTEXT_NAME_INDEX, *context_name);

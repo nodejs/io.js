@@ -17,14 +17,6 @@ namespace v8 {
 using SignalAndMutexTest = TestWithContext;
 namespace sampler {
 
-// There seem to be problems with pthread_rwlock_t and signal handling on
-// Mac, see https://crbug.com/v8/11399 and
-// https://stackoverflow.com/questions/22643374/deadlock-with-pthread-rwlock-t-and-signals
-// This test reproduces it, and can be used to test if this problem is fixed in
-// future Mac releases.
-// Note: For now, we fall back to using pthread_mutex_t to implement SharedMutex
-// on Mac, so this test succeeds.
-
 #ifdef USE_SIGNALS
 
 void HandleProfilerSignal(int signal, siginfo_t*, void*) {
@@ -45,7 +37,7 @@ static void RestoreSignalHandler() {
   sigaction(SIGPROF, &old_signal_handler, nullptr);
 }
 
-TEST_F(SignalAndMutexTest, SignalsPlusSharedMutexes) {
+TEST_F(SignalAndMutexTest, SignalsPlusMutexes) {
   static constexpr int kNumMutexes = 1024;
   // 10us * 10000 = 100ms
   static constexpr auto kSleepBetweenSamples =
@@ -97,12 +89,12 @@ TEST_F(SignalAndMutexTest, SignalsPlusSharedMutexes) {
 
   // These threads repeatedly lock and unlock a shared mutex, both in shared and
   // exclusive mode. This should not deadlock.
-  class SharedMutexTestThread : public base::Thread {
+  class MutexTestThread : public base::Thread {
    public:
-    SharedMutexTestThread(
-        base::SharedMutex* mutexes, std::atomic<size_t>* remaining_samples,
-        int64_t rng_seed, std::function<void(pthread_t)> add_thread_to_sample,
-        std::function<void(pthread_t)> remove_thread_to_sample)
+    MutexTestThread(base::SpinningMutex* mutexes,
+                    std::atomic<size_t>* remaining_samples, int64_t rng_seed,
+                    std::function<void(pthread_t)> add_thread_to_sample,
+                    std::function<void(pthread_t)> remove_thread_to_sample)
         : Thread(Thread::Options{"SharedMutexTestThread"}),
           mutexes_(mutexes),
           remaining_samples_(remaining_samples),
@@ -114,18 +106,14 @@ TEST_F(SignalAndMutexTest, SignalsPlusSharedMutexes) {
       add_thread_to_sample_(pthread_self());
       while (remaining_samples_->load(std::memory_order_relaxed) > 0) {
         size_t idx = rng_.NextInt(kNumMutexes);
-        base::SharedMutex* mutex = &mutexes_[idx];
-        if (rng_.NextBool()) {
-          base::SharedMutexGuard<base::kShared> guard{mutex};
-        } else {
-          base::SharedMutexGuard<base::kExclusive> guard{mutex};
-        }
+        base::SpinningMutex* mutex = &mutexes_[idx];
+        base::SpinningMutexGuard guard{mutex};
       }
       remove_thread_to_sample_(pthread_self());
     }
 
    private:
-    base::SharedMutex* mutexes_;
+    base::SpinningMutex* mutexes_;
     std::atomic<size_t>* remaining_samples_;
     base::RandomNumberGenerator rng_;
     std::function<void(pthread_t)> add_thread_to_sample_;
@@ -133,16 +121,16 @@ TEST_F(SignalAndMutexTest, SignalsPlusSharedMutexes) {
   };
 
   std::atomic<size_t> remaining_samples{kNumSamples};
-  base::SharedMutex mutexes[kNumMutexes];
+  base::SpinningMutex mutexes[kNumMutexes];
 
   InstallSignalHandler();
 
   auto* rng = i_isolate()->random_number_generator();
 
   // First start the mutex threads, then the sampling thread.
-  std::vector<std::unique_ptr<SharedMutexTestThread>> threads(4);
+  std::vector<std::unique_ptr<MutexTestThread>> threads(4);
   for (auto& thread : threads) {
-    thread = std::make_unique<SharedMutexTestThread>(
+    thread = std::make_unique<MutexTestThread>(
         mutexes, &remaining_samples, rng->NextInt64(), AddThreadToSample,
         RemoveThreadToSample);
     CHECK(thread->Start());

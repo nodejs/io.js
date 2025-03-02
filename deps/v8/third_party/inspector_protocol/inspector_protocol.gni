@@ -2,11 +2,6 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-declare_args() {
-  # Where jinja2 is located, in chromium it is //third_party.
-  jinja_dir = "//third_party"
-}
-
 # This template will generate inspector protocol source code. The code will
 # not be compiled, use get_target_outputs(<name>) to compile them.
 #
@@ -24,6 +19,9 @@ declare_args() {
 #
 #   inputs  (optional)
 #       Extra inputs specified by the config file.
+#
+#   jinja_dir (optional)
+#       Custom path to jinja (defaults to "//third_party").
 template("inspector_protocol_generate") {
   assert(defined(invoker.config_file))
   assert(defined(invoker.out_dir))
@@ -32,6 +30,12 @@ template("inspector_protocol_generate") {
   inspector_protocol_dir = invoker.inspector_protocol_dir
   use_embedder_types =
       defined(invoker.use_embedder_types) && invoker.use_embedder_types
+
+  if (defined(invoker.jinja_dir)) {
+    jinja_dir = invoker.jinja_dir
+  } else {
+    jinja_dir = "//third_party"
+  }
   action(target_name) {
     script = "$inspector_protocol_dir/code_generator.py"
 

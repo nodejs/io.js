@@ -26,42 +26,43 @@ class V8_EXPORT_PRIVATE Descriptor final {
  public:
   Descriptor();
 
-  Handle<Name> GetKey() const { return key_; }
-  MaybeObjectHandle GetValue() const { return value_; }
+  DirectHandle<Name> GetKey() const { return key_; }
+  MaybeObjectDirectHandle GetValue() const { return value_; }
   PropertyDetails GetDetails() const { return details_; }
 
   void SetSortedKeyIndex(int index) { details_ = details_.set_pointer(index); }
 
-  static Descriptor DataField(Isolate* isolate, Handle<Name> key,
+  static Descriptor DataField(Isolate* isolate, DirectHandle<Name> key,
                               int field_index, PropertyAttributes attributes,
                               Representation representation);
 
-  static Descriptor DataField(Handle<Name> key, int field_index,
-                              PropertyAttributes attributes,
-                              PropertyConstness constness,
-                              Representation representation,
-                              const MaybeObjectHandle& wrapped_field_type);
+  static Descriptor DataField(
+      DirectHandle<Name> key, int field_index, PropertyAttributes attributes,
+      PropertyConstness constness, Representation representation,
+      const MaybeObjectDirectHandle& wrapped_field_type);
 
-  static Descriptor DataConstant(Handle<Name> key, Handle<Object> value,
+  static Descriptor DataConstant(DirectHandle<Name> key,
+                                 DirectHandle<Object> value,
                                  PropertyAttributes attributes);
 
-  static Descriptor DataConstant(Isolate* isolate, Handle<Name> key,
+  static Descriptor DataConstant(Isolate* isolate, DirectHandle<Name> key,
                                  int field_index, DirectHandle<Object> value,
                                  PropertyAttributes attributes);
 
-  static Descriptor AccessorConstant(Handle<Name> key, Handle<Object> foreign,
+  static Descriptor AccessorConstant(DirectHandle<Name> key,
+                                     DirectHandle<Object> foreign,
                                      PropertyAttributes attributes);
 
  private:
-  Handle<Name> key_;
-  MaybeObjectHandle value_;
+  DirectHandle<Name> key_;
+  MaybeObjectDirectHandle value_;
   PropertyDetails details_;
 
  protected:
-  Descriptor(Handle<Name> key, const MaybeObjectHandle& value,
+  Descriptor(DirectHandle<Name> key, const MaybeObjectDirectHandle& value,
              PropertyDetails details);
 
-  Descriptor(Handle<Name> key, const MaybeObjectHandle& value,
+  Descriptor(DirectHandle<Name> key, const MaybeObjectDirectHandle& value,
              PropertyKind kind, PropertyAttributes attributes,
              PropertyLocation location, PropertyConstness constness,
              Representation representation, int field_index);

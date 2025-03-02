@@ -38,19 +38,20 @@ class V8_EXPORT_PRIVATE MemoryController : public AllStatic {
   static size_t MinimumAllocationLimitGrowingStep(
       Heap::HeapGrowingMode growing_mode);
 
-  static double GrowingFactor(Heap* heap, size_t max_heap_size, double gc_speed,
+  static double GrowingFactor(Heap* heap, size_t max_heap_size,
+                              std::optional<double> gc_speed,
                               double mutator_speed,
                               Heap::HeapGrowingMode growing_mode);
 
   static size_t BoundAllocationLimit(Heap* heap, size_t current_size,
-                                     size_t limit, size_t min_size,
+                                     uint64_t limit, size_t min_size,
                                      size_t max_size, size_t new_space_capacity,
                                      Heap::HeapGrowingMode growing_mode);
 
  private:
   static double MaxGrowingFactor(size_t max_heap_size);
-  static double DynamicGrowingFactor(double gc_speed, double mutator_speed,
-                                     double max_factor);
+  static double DynamicGrowingFactor(std::optional<double> gc_speed,
+                                     double mutator_speed, double max_factor);
 
   FRIEND_TEST(MemoryControllerTest, HeapGrowingFactor);
   FRIEND_TEST(MemoryControllerTest, MaxHeapGrowingFactor);

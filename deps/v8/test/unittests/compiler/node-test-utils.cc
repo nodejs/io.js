@@ -21,7 +21,8 @@ using testing::StringMatchResultListener;
 namespace v8 {
 namespace internal {
 
-bool operator==(Handle<HeapObject> const& lhs, Handle<HeapObject> const& rhs) {
+bool operator==(DirectHandle<HeapObject> const& lhs,
+                DirectHandle<HeapObject> const& rhs) {
   return lhs.is_identical_to(rhs);
 }
 

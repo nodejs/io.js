@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 // Flags: --no-always-turbofan
 
 function A() { this.x = 42; return 42; }
@@ -27,8 +27,9 @@ assertOptimized(create);
 // Triggering deopt (before the construction) by changing the target.
 let new_A_called = false;
 A = function() { new_A_called = true; }
-let o3 = create();
 assertUnoptimized(create);
+%DeoptimizeFunction(create);
+let o3 = create();
 assertTrue(new_A_called);
 
 // Falling back to generic Construct call.

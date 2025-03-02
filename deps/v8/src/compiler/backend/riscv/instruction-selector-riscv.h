@@ -516,7 +516,8 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitLoadTransform(node_t node) {
 template <>
 void InstructionSelectorT<TurbofanAdapter>::VisitLoadTransform(Node* node) {
   LoadTransformParameters params = LoadTransformParametersOf(node->op());
-  bool is_protected = (params.kind == MemoryAccessKind::kProtected);
+  bool is_protected =
+      (params.kind == MemoryAccessKind::kProtectedByTrapHandler);
   InstructionCode opcode = kArchNop;
   switch (params.transformation) {
     case LoadTransformation::kS128Load8Splat:
@@ -610,35 +611,37 @@ void InstructionSelectorT<TurbofanAdapter>::VisitLoadTransform(Node* node) {
 
 // Shared routine for multiple compare operations.
 template <typename Adapter>
-static void VisitCompare(InstructionSelectorT<Adapter>* selector,
-                         InstructionCode opcode, InstructionOperand left,
-                         InstructionOperand right,
-                         FlagsContinuationT<Adapter>* cont) {
+static Instruction* VisitCompare(InstructionSelectorT<Adapter>* selector,
+                                 InstructionCode opcode,
+                                 InstructionOperand left,
+                                 InstructionOperand right,
+                                 FlagsContinuationT<Adapter>* cont) {
 #ifdef V8_COMPRESS_POINTERS
   if (opcode == kRiscvCmp32) {
     RiscvOperandGeneratorT<Adapter> g(selector);
     InstructionOperand inputs[] = {left, right};
     if (right.IsImmediate()) {
       InstructionOperand temps[1] = {g.TempRegister()};
-      selector->EmitWithContinuation(opcode, 0, nullptr, arraysize(inputs),
-                                     inputs, arraysize(temps), temps, cont);
+      return selector->EmitWithContinuation(opcode, 0, nullptr,
+                                            arraysize(inputs), inputs,
+                                            arraysize(temps), temps, cont);
     } else {
       InstructionOperand temps[2] = {g.TempRegister(), g.TempRegister()};
-      selector->EmitWithContinuation(opcode, 0, nullptr, arraysize(inputs),
-                                     inputs, arraysize(temps), temps, cont);
+      return selector->EmitWithContinuation(opcode, 0, nullptr,
+                                            arraysize(inputs), inputs,
+                                            arraysize(temps), temps, cont);
     }
-    return;
   }
 #endif
-  selector->EmitWithContinuation(opcode, left, right, cont);
+  return selector->EmitWithContinuation(opcode, left, right, cont);
 }
 
 // Shared routine for multiple compare operations.
 template <typename Adapter>
-static void VisitWordCompareZero(InstructionSelectorT<Adapter>* selector,
-                                 InstructionOperand value,
-                                 FlagsContinuationT<Adapter>* cont) {
-  selector->EmitWithContinuation(kRiscvCmpZero, value, cont);
+static Instruction* VisitWordCompareZero(
+    InstructionSelectorT<Adapter>* selector, InstructionOperand value,
+    FlagsContinuationT<Adapter>* cont) {
+  return selector->EmitWithContinuation(kRiscvCmpZero, value, cont);
 }
 
 // Shared routine for multiple float32 compare operations.
@@ -712,9 +715,11 @@ void VisitFloat64Compare(InstructionSelectorT<Adapter>* selector,
 
 // Shared routine for multiple word compare operations.
 template <typename Adapter>
-void VisitWordCompare(InstructionSelectorT<Adapter>* selector,
-                      typename Adapter::node_t node, InstructionCode opcode,
-                      FlagsContinuationT<Adapter>* cont, bool commutative) {
+Instruction* VisitWordCompare(InstructionSelectorT<Adapter>* selector,
+                              typename Adapter::node_t node,
+                              InstructionCode opcode,
+                              FlagsContinuationT<Adapter>* cont,
+                              bool commutative) {
   RiscvOperandGeneratorT<Adapter> g(selector);
   DCHECK_EQ(selector->value_input_count(node), 2);
   auto left = selector->input_at(node, 0);
@@ -734,31 +739,31 @@ void VisitWordCompare(InstructionSelectorT<Adapter>* selector,
       if constexpr (Adapter::IsTurbofan) {
         if (selector->opcode(left) ==
             Adapter::opcode_t::kTruncateInt64ToInt32) {
-          VisitCompare(selector, opcode,
-                       g.UseRegister(selector->input_at(left, 0)),
-                       g.UseImmediate(right), cont);
+          return VisitCompare(selector, opcode,
+                              g.UseRegister(selector->input_at(left, 0)),
+                              g.UseImmediate(right), cont);
         } else {
-          VisitCompare(selector, opcode, g.UseRegister(left),
-                       g.UseImmediate(right), cont);
+          return VisitCompare(selector, opcode, g.UseRegister(left),
+                              g.UseImmediate(right), cont);
         }
       } else {
-        VisitCompare(selector, opcode, g.UseRegister(left),
-                     g.UseImmediate(right), cont);
+        return VisitCompare(selector, opcode, g.UseRegister(left),
+                            g.UseImmediate(right), cont);
       }
     } else {
       switch (cont->condition()) {
         case kEqual:
         case kNotEqual:
           if (cont->IsSet()) {
-            VisitCompare(selector, opcode, g.UseRegister(left),
-                         g.UseImmediate(right), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(left),
+                                g.UseImmediate(right), cont);
           } else {
             if (g.CanBeZero(right)) {
-              VisitWordCompareZero(selector, g.UseRegisterOrImmediateZero(left),
-                                   cont);
+              return VisitWordCompareZero(
+                  selector, g.UseRegisterOrImmediateZero(left), cont);
             } else {
-              VisitCompare(selector, opcode, g.UseRegister(left),
-                           g.UseRegister(right), cont);
+              return VisitCompare(selector, opcode, g.UseRegister(left),
+                                  g.UseRegister(right), cont);
             }
           }
           break;
@@ -767,26 +772,26 @@ void VisitWordCompare(InstructionSelectorT<Adapter>* selector,
         case kUnsignedLessThan:
         case kUnsignedGreaterThanOrEqual: {
           if (g.CanBeZero(right)) {
-            VisitWordCompareZero(selector, g.UseRegisterOrImmediateZero(left),
-                                 cont);
+            return VisitWordCompareZero(
+                selector, g.UseRegisterOrImmediateZero(left), cont);
           } else {
-            VisitCompare(selector, opcode, g.UseRegister(left),
-                         g.UseImmediate(right), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(left),
+                                g.UseImmediate(right), cont);
           }
         } break;
         default:
           if (g.CanBeZero(right)) {
-            VisitWordCompareZero(selector, g.UseRegisterOrImmediateZero(left),
-                                 cont);
+            return VisitWordCompareZero(
+                selector, g.UseRegisterOrImmediateZero(left), cont);
           } else {
-            VisitCompare(selector, opcode, g.UseRegister(left),
-                         g.UseRegister(right), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(left),
+                                g.UseRegister(right), cont);
           }
       }
     }
   } else {
-    VisitCompare(selector, opcode, g.UseRegister(left), g.UseRegister(right),
-                 cont);
+    return VisitCompare(selector, opcode, g.UseRegister(left),
+                        g.UseRegister(right), cont);
   }
 }
 
@@ -2229,6 +2234,18 @@ void InstructionSelectorT<Adapter>::VisitF64x2Pmin(node_t node) {
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitF64x2Pmax(node_t node) {
     VisitUniqueRRR(this, kRiscvF64x2Pmax, node);
+}
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitTruncateFloat64ToFloat16RawBits(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitChangeFloat16RawBitsToFloat64(
+    node_t node) {
+  UNIMPLEMENTED();
 }
 
 // static

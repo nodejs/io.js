@@ -15,6 +15,7 @@
 #include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/wasm-assembler-helpers.h"
+#include "src/heap/factory-inl.h"
 #include "src/objects/instance-type-inl.h"
 #include "src/wasm/compilation-environment-inl.h"
 #include "src/wasm/decoder.h"
@@ -81,7 +82,7 @@ class WasmInJSInliningReducer : public Next {
                LoadOp::Kind::RawAligned(), MemoryRepresentation::Int32(),
                compiler::kNoWriteBarrier);
 
-      V<Any> result =
+      result =
           Next::ReduceCall(callee, frame_state, arguments, descriptor, effects);
 
       __ Store(thread_in_wasm_flag_address, __ Word32Constant(0),
@@ -820,16 +821,16 @@ class WasmInJsInliningInterface {
     Bailout(decoder);
   }
 
-  void RefTest(FullDecoder* decoder, uint32_t ref_index, const Value& object,
-               Value* result, bool null_succeeds) {
+  void RefTest(FullDecoder* decoder, wasm::ModuleTypeIndex ref_index,
+               const Value& object, Value* result, bool null_succeeds) {
     Bailout(decoder);
   }
   void RefTestAbstract(FullDecoder* decoder, const Value& object,
                        wasm::HeapType type, Value* result, bool null_succeeds) {
     Bailout(decoder);
   }
-  void RefCast(FullDecoder* decoder, uint32_t ref_index, const Value& object,
-               Value* result, bool null_succeeds) {
+  void RefCast(FullDecoder* decoder, wasm::ModuleTypeIndex ref_index,
+               const Value& object, Value* result, bool null_succeeds) {
     Bailout(decoder);
   }
   void RefCastAbstract(FullDecoder* decoder, const Value& object,
@@ -917,8 +918,9 @@ class WasmInJsInliningInterface {
     Bailout(decoder);
   }
 
-  void BrOnCast(FullDecoder* decoder, uint32_t ref_index, const Value& object,
-                Value* value_on_branch, uint32_t br_depth, bool null_succeeds) {
+  void BrOnCast(FullDecoder* decoder, wasm::ModuleTypeIndex ref_index,
+                const Value& object, Value* value_on_branch, uint32_t br_depth,
+                bool null_succeeds) {
     Bailout(decoder);
   }
   void BrOnCastAbstract(FullDecoder* decoder, const Value& object,
@@ -926,7 +928,7 @@ class WasmInJsInliningInterface {
                         uint32_t br_depth, bool null_succeeds) {
     Bailout(decoder);
   }
-  void BrOnCastFail(FullDecoder* decoder, uint32_t ref_index,
+  void BrOnCastFail(FullDecoder* decoder, wasm::ModuleTypeIndex ref_index,
                     const Value& object, Value* value_on_fallthrough,
                     uint32_t br_depth, bool null_succeeds) {
     Bailout(decoder);
@@ -1122,6 +1124,7 @@ class WasmInJsInliningInterface {
       case wasm::kRtt:
       case wasm::kRef:
       case wasm::kBottom:
+      case wasm::kTop:
         UNREACHABLE();
     }
   }
@@ -1159,9 +1162,16 @@ V<Any> WasmInJSInliningReducer<Next>::TryInlineWasmCall(
     return OpIndex::Invalid();
   }
 
+  if (func_idx < module->num_imported_functions) {
+    TRACE("- not inlining: call to an imported function");
+    return OpIndex::Invalid();
+  }
+  DCHECK_LT(func_idx - module->num_imported_functions,
+            module->num_declared_functions);
+
   // TODO(42204563): Support shared-everything proposal (at some point, or
   // possibly never).
-  bool is_shared = module->types[func.sig_index].is_shared;
+  bool is_shared = module->type(func.sig_index).is_shared;
   if (is_shared) {
     TRACE("- not inlining: shared everything is not supported");
     return OpIndex::Invalid();

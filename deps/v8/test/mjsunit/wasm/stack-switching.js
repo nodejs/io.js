@@ -2,9 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --experimental-wasm-jspi
+// Flags: --allow-natives-syntax --wasm-staging
 // Flags: --expose-gc --wasm-stack-switching-stack-size=100
-// Flags: --experimental-wasm-type-reflection
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -27,6 +26,22 @@ d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
   }
   assertThrows(() => WebAssembly.promising(asmModule()), TypeError,
       /Argument 0 must be a WebAssembly exported function/);
+
+  let builder = new WasmModuleBuilder();
+  builder.addFunction("forty2", kSig_i_v)
+      .addBody([
+          kExprI32Const, 42]).exportFunc();
+  let instance = builder.instantiate();
+
+  assertThrows(()=> new WebAssembly.Suspending(instance.exports.forty2), TypeError,
+      /Argument 0 must not be a WebAssembly function/);
+
+  let funcref = new WebAssembly.Function(
+    {parameters: [], results: ['i32']},
+      (() => 42));
+
+  assertThrows(() => new WebAssembly.Suspending(funcref ), TypeError,
+      /Argument 0 must not be a WebAssembly function/);
 })();
 
 (function TestStackSwitchNoSuspend() {
@@ -394,101 +409,6 @@ function TestNestedSuspenders(suspend) {
   assertPromiseResult(exp(), v => assertEquals(42, v));
 })();
 
-(function TestSuspendJSFramesTraps() {
-  // The call stack of this test looks like:
-  // export1 -> import1 -> export2 -> import2
-  // Where export1 is "promising" and import2 is "suspending". Returning a
-  // promise from import2 should trap because of the JS import in the middle.
-  print(arguments.callee.name);
-  let builder = new WasmModuleBuilder();
-  let import1_index = builder.addImport("m", "import1", kSig_i_v);
-  let import2_index = builder.addImport("m", "import2", kSig_i_v);
-  builder.addFunction("export1", kSig_i_v)
-      .addBody([
-          // export1 -> import1 (unwrapped)
-          kExprCallFunction, import1_index,
-      ]).exportFunc();
-  builder.addFunction("export2", kSig_i_v)
-      .addBody([
-          // export2 -> import2 (suspending)
-          kExprCallFunction, import2_index,
-      ]).exportFunc();
-  let instance;
-  function import1() {
-    // import1 -> export2 (unwrapped)
-    instance.exports.export2();
-  }
-  function import2() {
-    return Promise.resolve(0);
-  }
-  import2 = new WebAssembly.Suspending(import2);
-  instance = builder.instantiate(
-      {'m':
-        {'import1': import1,
-         'import2': import2
-        }});
-  // export1 (promising)
-  let wrapper = WebAssembly.promising(instance.exports.export1);
-  assertThrowsAsync(wrapper(), WebAssembly.RuntimeError,
-      /trying to suspend JS frames/);
-})();
-
-(function TestSwitchingToTheCentralStackForRuntime() {
-  print(arguments.callee.name);
-  let builder = new WasmModuleBuilder();
-  let table = builder.addTable(kWasmExternRef, 1);
-  let array_index = builder.addArray(kWasmI32, true);
-  let new_space_full_index = builder.addImport('m', 'new_space_full', kSig_v_v);
-  builder.addFunction("test", kSig_i_r)
-      .addBody([
-        kExprLocalGet, 0,
-        kExprI32Const, 1,
-        kNumericPrefix, kExprTableGrow, table.index]).exportFunc();
-  builder.addFunction("test2", kSig_i_r)
-      .addBody([
-        kExprI32Const, 1]).exportFunc();
-  builder.addFunction("test3", kSig_l_v)
-      .addBody([
-        kExprCallFunction, new_space_full_index,
-        ...wasmI64Const(0)
-        ]).exportFunc();
-  builder.addFunction("test4", kSig_v_v)
-      .addBody([
-        kExprCallFunction, new_space_full_index,
-        kExprI32Const, 1,
-        kGCPrefix, kExprArrayNewDefault, array_index,
-        kExprDrop]).exportFunc();
-  function new_space_full() {
-    %SimulateNewspaceFull();
-  }
-  let instance = builder.instantiate({m: {new_space_full}});
-  let wrapper = WebAssembly.promising(instance.exports.test);
-  let wrapper2 = WebAssembly.promising(instance.exports.test2);
-  let wrapper3 = WebAssembly.promising(instance.exports.test3);
-  let wrapper4 = WebAssembly.promising(instance.exports.test4);
-  function switchesToCS(fn) {
-    const beforeCall = %WasmSwitchToTheCentralStackCount();
-    fn();
-    return %WasmSwitchToTheCentralStackCount() - beforeCall;
-  }
-
-  // Calling exported functions from the central stack.
-  assertEquals(0, switchesToCS(() => instance.exports.test({})));
-  assertEquals(0, switchesToCS(() => instance.exports.test2({})));
-  assertEquals(0, switchesToCS(() => instance.exports.test3({})));
-  assertEquals(0, switchesToCS(() => instance.exports.test4({})));
-
-  // Runtime call to table.grow.
-  switchesToCS(wrapper);
-  // No runtime calls.
-  switchesToCS(wrapper2);
-  // Runtime call to allocate the bigint.
-  switchesToCS(wrapper3);
-  // Runtime call for array.new.
-  switchesToCS(wrapper4);
-  %CheckIsOnCentralStack();
-})();
-
 (function TestSwitchingToTheCentralStackForJS() {
   print(arguments.callee.name);
   let builder = new WasmModuleBuilder();
@@ -615,4 +535,118 @@ function TestNestedSuspenders(suspend) {
   let wrapped_export = WebAssembly.promising(instance2.exports.main);
   let combined_promise = wrapped_export();
   assertPromiseResult(combined_promise, v => assertEquals(3, v));
+})();
+
+(function ReImportedSuspendingImport() {
+  print(arguments.callee.name);
+  let builder1 = new WasmModuleBuilder();
+  import_index = builder1.addImport('m', 'import', kSig_i_v);
+  builder1.addExport("f", import_index);
+  let js_import = new WebAssembly.Suspending(() => Promise.resolve(1));
+  let instance1 = builder1.instantiate({m: {import: js_import}});
+  let builder2 = new WasmModuleBuilder();
+  import_index = builder2.addImport('m', 'import', kSig_i_v);
+  builder2.addFunction("main", kSig_i_v)
+      .addBody([
+          kExprCallFunction, import_index,
+          kExprI32Const, 1,
+          kExprI32Add,
+      ]).exportFunc();
+  let instance2 = builder2.instantiate({m: {import: instance1.exports.f}});
+  let wrapped_export = WebAssembly.promising(instance2.exports.main);
+  let combined_promise = wrapped_export();
+  assertPromiseResult(combined_promise, v => assertEquals(2, v));
+})();
+
+// Send a termination request to a worker with a full stack pool, to check that
+// retiring the stack does not invalidate the stack memory that the unwinder is
+// currently using.
+(function TestTerminationWithFullStackPool() {
+  print(arguments.callee.name);
+  const builder = new WasmModuleBuilder();
+  let js_async = builder.addImport('m', 'js_async', kSig_v_v);
+  let fill_stack_pool = builder.addImport('m', 'fill_stack_pool', kSig_v_v);
+  builder.addFunction('wasm_async', kSig_v_v).addBody([
+      kExprCallFunction, js_async,
+  ]).exportFunc();
+  builder.addFunction('main', kSig_v_v).addBody([
+    kExprCallFunction, fill_stack_pool,
+    kExprLoop, kWasmVoid, kExprBr, 0, kExprEnd
+  ]).exportFunc();
+  const module = builder.toModule();
+
+  function workerCode() {
+    d8.test.enableJSPI();
+    onmessage = async function({data:module}) {
+      let wasm_async;
+      let instance = new WebAssembly.Instance(module, {m: {
+        js_async: new WebAssembly.Suspending(() => {
+          return Promise.resolve();
+        }),
+        fill_stack_pool: new WebAssembly.Suspending(async () => {
+          let promises = [];
+          // Suspend multiple concurrent calls to create multiple stacks.
+          for (let i = 0; i < 50; ++i) {
+            promises.push(wasm_async());
+          }
+          // Await them now, which returns the finished stacks to the stack pool.
+          for (let i = 0; i < 50; ++i) {
+            await promises[i];
+          }
+          // Terminate the worker. This unwinds the main stack and attempts to
+          // return it to the stack pool, which is already full.
+          postMessage('terminate');
+        })
+      }});
+      wasm_async = WebAssembly.promising(instance.exports.wasm_async);
+      WebAssembly.promising(instance.exports.main)();
+    };
+  }
+
+  const worker = new Worker(workerCode, {type: 'function'});
+  worker.postMessage(module);
+  assertEquals('terminate', worker.getMessage());
+  worker.terminateAndWait();
+})();
+
+// A promising export splits the logical stack into multiple segments in memory.
+// Check that the stack frame iterator still iterates the full logical stack
+// where we expect it to, e.g. in error stack traces.
+(function TestStackTrace() {
+  print(arguments.callee.name);
+  let builder = new WasmModuleBuilder();
+  import_index = builder.addImport('m', 'check_stack', kSig_v_v);
+  builder.addFunction("test", kSig_v_v)
+      .addBody([
+          kExprCallFunction, import_index
+      ]).exportFunc();
+  stacks = [];
+  function check_stack() {
+    let e = new Error();
+    stacks.push(e.stack);
+  }
+  let instance = builder.instantiate({m: {check_stack}});
+  let wrapper_sync = instance.exports.test;
+  let wrapper_async = WebAssembly.promising(instance.exports.test);
+  // Perform the calls in a loop so that the source location of the call is
+  // the same, which makes it easy to compare their call stack below.
+  for (let exp of [wrapper_sync, wrapper_async]) {
+    exp();
+  }
+  assertEquals(stacks[0], stacks[1]);
+})();
+
+(function RegressPCAuthFailure() {
+  print(arguments.callee.name);
+  var builder = new WasmModuleBuilder();
+  builder.addImport("mod", "func", kSig_v_v);
+  builder.addFunction("main", kSig_v_v)
+    .addBody([kExprCallFunction, 0])
+    .exportAs("main");
+  var main = builder.instantiate({
+    mod: {
+      func: ()=>{%DebugTrace();}
+    }
+  }).exports.main;
+  WebAssembly.promising(main)();
 })();

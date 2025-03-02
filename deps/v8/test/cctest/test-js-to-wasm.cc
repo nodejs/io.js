@@ -286,6 +286,9 @@ class FastJSWasmCallTester {
     i::v8_flags.stress_background_compile = false;
     i::v8_flags.concurrent_osr = false;  // Seems to mess with %ObserveNode.
     i::v8_flags.invocation_count_for_turbofan = 20;
+#ifdef V8_ENABLE_MAGLEV
+    i::v8_flags.maglev = false;
+#endif  // V8_ENABLE_MAGLEV
   }
 
   ~FastJSWasmCallTester() {
@@ -321,11 +324,12 @@ class FastJSWasmCallTester {
   void CallAndCheckWasmFunction(const std::string& exported_function_name,
                                 v8::MemorySpan<v8::Local<v8::Value>> args,
                                 const T& expected_result,
-                                bool test_lazy_deopt = false) {
+                                bool test_lazy_deopt = false,
+                                bool test_ref_deopt = false) {
     LocalContext env;
 
     v8::Local<v8::Value> result_value = DoCallAndCheckWasmFunction(
-        env, exported_function_name, args, test_lazy_deopt);
+        env, exported_function_name, args, test_lazy_deopt, test_ref_deopt);
 
     CHECK(CheckType<T>(result_value));
     if constexpr (std::is_convertible_v<T, decltype(result_value)>) {
@@ -334,6 +338,16 @@ class FastJSWasmCallTester {
       T result = ConvertJSValue<T>::Get(result_value, env.local()).ToChecked();
       CHECK_EQ(result, expected_result);
     }
+  }
+
+  // Executes a test function that returns an externref.
+  void CallAndCheckWasmGCFunction(const std::string& exported_function_name,
+                                  v8::MemorySpan<v8::Local<v8::Value>> args,
+                                  bool test_lazy_deopt = false) {
+    LocalContext env;
+    v8::Local<v8::Value> result_value = DoCallAndCheckWasmFunction(
+        env, exported_function_name, args, test_lazy_deopt, true);
+    CHECK(result_value->IsObject());
   }
 
   // Executes a test function that returns NaN.
@@ -572,6 +586,13 @@ class FastJSWasmCallTester {
     CHECK_EQ(result_interpreted, result_compiled);
   }
 
+  ModuleTypeIndex DefineArray(ValueType element_type, bool mutability,
+                              ModuleTypeIndex supertype = kNoSuperType,
+                              bool is_final = false) {
+    return builder_->AddArrayType(
+        zone_.New<ArrayType>(element_type, mutability), is_final, supertype);
+  }
+
  private:
   // Convert the code of a Wasm module into a string that represents the content
   // of a JavaScript Uint8Array, that can be loaded with
@@ -597,7 +618,8 @@ class FastJSWasmCallTester {
 
   v8::Local<v8::Value> DoCallAndCheckWasmFunction(
       LocalContext& env, const std::string& exported_function_name,
-      v8::MemorySpan<v8::Local<v8::Value>> args, bool test_lazy_deopt = false) {
+      v8::MemorySpan<v8::Local<v8::Value>> args, bool test_lazy_deopt = false,
+      bool test_ref_deopt = false) {
     for (size_t i = 0; i < args.size(); i++) {
       CHECK((*env)
                 ->Global()
@@ -609,7 +631,8 @@ class FastJSWasmCallTester {
     std::string js_code =
         test_lazy_deopt
             ? GetJSTestCodeWithLazyDeopt(env, WasmModuleAsJSArray(),
-                                         exported_function_name, args.size())
+                                         exported_function_name, args.size(),
+                                         test_ref_deopt)
             : GetJSTestCode(WasmModuleAsJSArray(), exported_function_name,
                             args.size());
     return CompileRunWithJSWasmCallNodeObserver(js_code);
@@ -706,7 +729,8 @@ class FastJSWasmCallTester {
   // function.
   std::string GetJSTestCodeWithLazyDeopt(
       LocalContext& env, const std::string& wasm_module,
-      const std::string& wasm_exported_function_name, size_t arity) {
+      const std::string& wasm_exported_function_name, size_t arity,
+      bool test_ref_deopt) {
     DCHECK_LE(arity, 1);
     bool bigint_arg = false;
     if (arity == 1) {
@@ -744,6 +768,9 @@ class FastJSWasmCallTester {
     code += bigint_arg
                 ? "    result = %ObserveNode(" + wasm_exported_function_name +
                       "(" + js_args + " + BigInt(b))) + BigInt(n);"
+            : test_ref_deopt
+                ? "    result = %ObserveNode(" + wasm_exported_function_name +
+                      "(" + js_args + " + b));"
                 : "    result = %ObserveNode(" + wasm_exported_function_name +
                       "(" + js_args + " + b)) + n;";
     code +=
@@ -926,6 +953,42 @@ TEST(TestFastJSWasmCall_MismatchedArity) {
 }
 
 // Lazy deoptimization tests
+
+TEST(TestFastJSWasmCall_LazyDeopt_RefResult) {
+  v8::HandleScope scope(CcTest::isolate());
+  FastJSWasmCallTester tester;
+  const ModuleTypeIndex type_index = tester.DefineArray(kWasmI32, true);
+  ValueType kRefType = kWasmExternRef;
+  static const ValueType kTypes[2] = {kRefType, kWasmI32};
+  static FunctionSig sig_q_i(1, 1, kTypes);
+
+  // WasmRef ref_deopt(int32_t i32) {
+  //   static int count = 0;
+  //   if (++count == kDeoptLoopCount) {
+  //      callback(i32);
+  //   }
+  //   return (ExternRef)new WasmArrayNewDefault(type_index, 2);
+  // }
+  DECLARE_EXPORTED_FUNCTION_WITH_LOCALS(
+      ref_deopt, &sig_q_i, {kWasmI32},
+      WASM_CODE(
+          {WASM_STORE_MEM(
+               MachineType::Int32(), WASM_I32V(1032),
+               WASM_LOCAL_TEE(
+                   1, WASM_I32_ADD(
+                          WASM_LOAD_MEM(MachineType::Int32(), WASM_I32V(1032)),
+                          WASM_ONE))),
+           WASM_BLOCK(WASM_BR_IF(0, WASM_I32_NE(WASM_LOCAL_GET(1),
+                                                WASM_I32V(kDeoptLoopCount))),
+                      WASM_CALL_FUNCTION(0, WASM_LOCAL_GET(0)), WASM_DROP),
+           WASM_GC_EXTERN_CONVERT_ANY(
+               WASM_ARRAY_NEW_DEFAULT(type_index, WASM_LOCAL_GET(0)))}))
+
+  tester.DeclareCallback("callback", &sig_q_i, "env");
+  tester.AddExportedFunction(k_ref_deopt);
+  auto args = v8::to_array<v8::Local<v8::Value>>({v8_num(42)});
+  { tester.CallAndCheckWasmGCFunction("ref_deopt", args, true); }
+}
 
 TEST(TestFastJSWasmCall_LazyDeopt_I32Result) {
   v8::HandleScope scope(CcTest::isolate());

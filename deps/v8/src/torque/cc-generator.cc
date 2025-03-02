@@ -393,7 +393,13 @@ void CCGenerator::EmitInstruction(const LoadReferenceInstruction& instruction,
             "Not supported in C++ output: LoadReference on non-smi tagged "
             "value");
       }
-
+      if (instruction.synchronization != FieldSynchronization::kNone) {
+        // TODO(ishell): generate proper TaggedField<..>::load() call once
+        // there's a real use case.
+        ReportError(
+            "Torque doesn't support @cppRelaxedLoad/@cppAcquireLoad on tagged "
+            "data");
+      }
       // References and slices can cause some values to have the Torque type
       // HeapObject|TaggedZeroPattern, which is output as "Object". TaggedField
       // requires HeapObject, so we need a cast.
@@ -401,8 +407,22 @@ void CCGenerator::EmitInstruction(const LoadReferenceInstruction& instruction,
             << ">::load(UncheckedCast<HeapObject>(" << object
             << "), static_cast<int>(" << offset << "));\n";
     } else {
-      out() << "(" << object << ")->ReadField<" << result_type << ">(" << offset
-            << ");\n";
+      // This code replicates the way we load the field in accessors, see
+      // CppClassGenerator::EmitLoadFieldStatement().
+      const char* load;
+      switch (instruction.synchronization) {
+        case FieldSynchronization::kNone:
+          load = "ReadField";
+          break;
+        case FieldSynchronization::kRelaxed:
+          load = "Relaxed_ReadField";
+          break;
+        case FieldSynchronization::kAcquireRelease:
+          ReportError(
+              "Torque doesn't support @cppAcquireLoad on untagged data");
+      }
+      out() << "(" << object << ")->" << load << "<" << result_type << ">("
+            << offset << ");\n";
     }
   } else {
     std::string result_type = instruction.type->GetDebugType();

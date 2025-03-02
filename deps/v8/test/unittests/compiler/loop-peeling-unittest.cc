@@ -4,10 +4,10 @@
 
 #include "src/compiler/loop-peeling.h"
 
-#include "src/compiler/graph-visualizer.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/node.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
+#include "src/compiler/turbofan-graph.h"
 #include "test/unittests/compiler/graph-unittest.h"
 #include "test/unittests/compiler/node-test-utils.h"
 #include "testing/gmock-support.h"

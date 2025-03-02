@@ -8,7 +8,7 @@
 #include "include/v8-extension.h"
 #include "src/base/strings.h"
 #include "src/base/vector.h"
-#include "src/third_party/vtune/vtuneapi.h"
+#include "third_party/vtune/vtuneapi.h"
 
 #define UNKNOWN_PARAMS 1 << 0
 #define NO_DOMAIN_NAME 1 << 1
@@ -38,8 +38,8 @@ class VTuneDomainSupportExtension : public v8::Extension {
   static void Mark(const v8::FunctionCallbackInfo<v8::Value>& info);
 
   static const char* BuildSource(char* buf, size_t size, const char* fun_name) {
-    base::SNPrintF(base::Vector<char>(buf, static_cast<int>(size)),
-                   "native function %s();", fun_name);
+    base::SNPrintF(base::VectorOf(buf, size), "native function %s();",
+                   fun_name);
     return buf;
   }
 

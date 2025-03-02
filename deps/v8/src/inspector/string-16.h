@@ -11,6 +11,7 @@
 #include <climits>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -32,6 +33,7 @@ class String16 {
   V8_EXPORT String16(const UChar* characters);
   V8_EXPORT String16(const char* characters);
   String16(const char* characters, size_t size);
+  String16(std::string_view string);
   explicit String16(const std::basic_string<UChar>& impl);
   explicit String16(std::basic_string<UChar>&& impl);
 

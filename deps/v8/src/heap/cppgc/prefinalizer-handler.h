@@ -52,9 +52,6 @@ class PreFinalizerHandler final {
 
   HeapBase& heap_;
   bool is_invoking_ = false;
-#ifdef DEBUG
-  int creation_thread_id_;
-#endif
 
   // Counter of bytes allocated during prefinalizers.
   size_t bytes_allocated_in_prefinalizers = 0u;

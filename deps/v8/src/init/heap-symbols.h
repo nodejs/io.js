@@ -160,7 +160,6 @@
 
 // Internalized strings to be allocated early on the read only heap
 #define IMPORTANT_INTERNALIZED_STRING_LIST_GENERATOR(V, _) \
-  V(_, length_string, "length")                            \
   V(_, prototype_string, "prototype")                      \
   V(_, name_string, "name")                                \
   V(_, enumerable_string, "enumerable")                    \
@@ -172,6 +171,7 @@
   INTERNALIZED_STRING_LIST_GENERATOR_INTL(V, _)                               \
   V(_, add_string, "add")                                                     \
   V(_, AggregateError_string, "AggregateError")                               \
+  V(_, alphabet_string, "alphabet")                                           \
   V(_, always_string, "always")                                               \
   V(_, anonymous_string, "anonymous")                                         \
   V(_, apply_string, "apply")                                                 \
@@ -321,6 +321,7 @@
   V(_, jsMemoryRange_string, "jsMemoryRange")                                 \
   V(_, keys_string, "keys")                                                   \
   V(_, largestUnit_string, "largestUnit")                                     \
+  V(_, last_chunk_handling_string, "lastChunkHandling")                       \
   V(_, lastIndex_string, "lastIndex")                                         \
   V(_, let_string, "let")                                                     \
   V(_, line_string, "line")                                                   \
@@ -434,6 +435,7 @@
   V(_, string_to_string, "[object String]")                                   \
   V(_, suppressed_string, "suppressed")                                       \
   V(_, SuppressedError_string, "SuppressedError")                             \
+  V(_, SuspendError_string, "SuspendError")                                   \
   V(_, Symbol_iterator_string, "Symbol.iterator")                             \
   V(_, Symbol_match_all_string, "Symbol.matchAll")                            \
   V(_, Symbol_replace_string, "Symbol.replace")                               \
@@ -518,10 +520,10 @@
   V(_, strict_function_transition_symbol)                 \
   V(_, template_literal_function_literal_id_symbol)       \
   V(_, template_literal_slot_id_symbol)                   \
+  V(_, wasm_cross_instance_call_symbol)                   \
   V(_, wasm_exception_tag_symbol)                         \
   V(_, wasm_exception_values_symbol)                      \
   V(_, wasm_uncatchable_symbol)                           \
-  V(_, wasm_wrapped_object_symbol)                        \
   V(_, wasm_debug_proxy_cache_symbol)                     \
   V(_, wasm_debug_proxy_names_symbol)
 
@@ -550,6 +552,7 @@
 // These Names have to be allocated consecutively for fast checks,
 #define INTERNALIZED_STRING_FOR_PROTECTOR_LIST_GENERATOR(V, _) \
   V(_, constructor_string, "constructor")                      \
+  V(_, length_string, "length")                                \
   V(_, next_string, "next")                                    \
   V(_, resolve_string, "resolve")                              \
   V(_, then_string, "then")                                    \
@@ -636,6 +639,7 @@
   F(SCAVENGER_SCAVENGE_WEAK_GLOBAL_HANDLES_PROCESS)  \
   F(SCAVENGER_SCAVENGE_PARALLEL)                     \
   F(SCAVENGER_SCAVENGE_PARALLEL_PHASE)               \
+  F(SCAVENGER_SCAVENGE_PIN_OBJECTS)                  \
   F(SCAVENGER_SCAVENGE_ROOTS)                        \
   F(SCAVENGER_SCAVENGE_STACK_ROOTS)                  \
   F(SCAVENGER_SCAVENGE_UPDATE_REFS)                  \
@@ -717,7 +721,6 @@
   MINOR_MS_INCREMENTAL_SCOPES(F)         \
   F(HEAP_EMBEDDER_TRACING_EPILOGUE)      \
   F(HEAP_EPILOGUE)                       \
-  F(HEAP_EPILOGUE_REDUCE_NEW_SPACE)      \
   F(HEAP_EPILOGUE_SAFEPOINT)             \
   F(HEAP_EXTERNAL_EPILOGUE)              \
   F(HEAP_EXTERNAL_NEAR_HEAP_LIMIT)       \

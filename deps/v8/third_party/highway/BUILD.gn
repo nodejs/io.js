@@ -19,6 +19,20 @@ config("libhwy_external_config") {
     # for absl::uint128 is 16.
     defines += [ "HWY_BROKEN_TARGETS=HWY_ALL_SVE" ]
   }
+  if (target_cpu == "ppc64" || target_cpu == "s390x") {
+    # Not using <asm/hwcap.h> on ppc64/s390x:
+    # https://github.com/google/highway/issues/2406
+    defines += [ "TOOLCHAIN_MISS_ASM_HWCAP_H" ]
+  }
+  if (target_cpu == "s390x") {
+    # z13 relies only on emulation.
+    # Start using `-march=z14 -mzvector` once ready.
+    defines += [ "HWY_BROKEN_EMU128=0" ]
+  }
+  if (current_os == "aix") {
+    # enable emulation until highway aix support is ready.
+    defines += [ "HWY_BROKEN_EMU128=0" ]
+  }
 }
 
 source_set("libhwy") {

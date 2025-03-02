@@ -69,7 +69,7 @@ class TemplateInfo
   static void CacheTemplateInstantiation(
       Isolate* isolate, DirectHandle<NativeContext> native_context,
       DirectHandle<TemplateInfoType> data, CachingMode caching_mode,
-      Handle<InstantiationType> object);
+      DirectHandle<InstantiationType> object);
 
   template <typename TemplateInfoType>
   static void UncacheTemplateInstantiation(
@@ -165,7 +165,7 @@ class FunctionTemplateInfo
 
   // If set, do not create a prototype property for the associated
   // JSFunction. This bit implies that neither the prototype_template nor the
-  // prototype_provoider_template are instantiated.
+  // prototype_provider_template are instantiated.
   DECL_BOOLEAN_ACCESSORS(remove_prototype)
 
   // If not set an access may be performed on calling the associated JSFunction.
@@ -177,7 +177,7 @@ class FunctionTemplateInfo
   // safely read concurrently.
   DECL_BOOLEAN_ACCESSORS(published)
 
-  // This specifies the permissable range of instance type of objects that can
+  // This specifies the permissible range of instance type of objects that can
   // be allowed to be used as receivers with the given template.
   DECL_PRIMITIVE_GETTER(allowed_receiver_instance_type_range_start,
                         InstanceType)
@@ -309,10 +309,10 @@ class DictionaryTemplateInfo
  public:
   class BodyDescriptor;
 
-  static Handle<DictionaryTemplateInfo> Create(
+  static DirectHandle<DictionaryTemplateInfo> Create(
       Isolate* isolate, const v8::MemorySpan<const std::string_view>& names);
 
-  static Handle<JSObject> NewInstance(
+  static DirectHandle<JSObject> NewInstance(
       DirectHandle<NativeContext> context,
       DirectHandle<DictionaryTemplateInfo> self,
       const MemorySpan<MaybeLocal<Value>>& property_values);

@@ -118,7 +118,7 @@ TEST(AsAtomic8, CompareAndSwap_Concurrent) {
   }
 }
 
-TEST(AsAtomicWord, SetBits_Sequential) {
+TEST(AsAtomicWord, Relaxed_SetBits_Sequential) {
   uintptr_t word = 0;
   // Fill the word with a repeated 0xF0 pattern.
   for (unsigned i = 0; i < sizeof(word); i++) {
@@ -132,7 +132,29 @@ TEST(AsAtomicWord, SetBits_Sequential) {
   uintptr_t mask = 0xFF;
   for (unsigned i = 0; i < sizeof(word); i++) {
     uintptr_t byte = static_cast<uintptr_t>(i) << (i * 8);
-    AsAtomicWord::SetBits(&word, byte, mask);
+    AsAtomicWord::Relaxed_SetBits(&word, byte, mask);
+    mask <<= 8;
+  }
+  for (unsigned i = 0; i < sizeof(word); i++) {
+    EXPECT_EQ(i, (word >> (i * 8) & 0xFFu));
+  }
+}
+
+TEST(AsAtomicWord, Release_SetBits_Sequential) {
+  uintptr_t word = 0;
+  // Fill the word with a repeated 0xF0 pattern.
+  for (unsigned i = 0; i < sizeof(word); i++) {
+    word = (word << 8) | 0xF0;
+  }
+  // Check the pattern.
+  for (unsigned i = 0; i < sizeof(word); i++) {
+    EXPECT_EQ(0xF0u, (word >> (i * 8) & 0xFFu));
+  }
+  // Set the i-th byte value to i.
+  uintptr_t mask = 0xFF;
+  for (unsigned i = 0; i < sizeof(word); i++) {
+    uintptr_t byte = static_cast<uintptr_t>(i) << (i * 8);
+    AsAtomicWord::Release_SetBits(&word, byte, mask);
     mask <<= 8;
   }
   for (unsigned i = 0; i < sizeof(word); i++) {
@@ -157,7 +179,7 @@ class BitSettingThread final : public Thread {
   void Run() override {
     uintptr_t bit = 1;
     bit = bit << bit_index_;
-    AsAtomicWord::SetBits(word_addr_, bit, bit);
+    AsAtomicWord::Relaxed_SetBits(word_addr_, bit, bit);
   }
 
  private:

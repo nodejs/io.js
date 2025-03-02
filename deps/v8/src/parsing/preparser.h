@@ -157,6 +157,12 @@ class PreParserExpression {
         ExpressionTypeField::encode(kCallEvalExpression));
   }
 
+  static PreParserExpression ImportCall() {
+    return PreParserExpression(
+        TypeField::encode(kExpression) |
+        ExpressionTypeField::encode(kImportCallExpression));
+  }
+
   static PreParserExpression SuperCallReference() {
     return PreParserExpression(
         TypeField::encode(kExpression) |
@@ -229,6 +235,11 @@ class PreParserExpression {
            ExpressionTypeField::decode(code_) == kSuperCallReference;
   }
 
+  bool IsImportCallExpression() const {
+    return TypeField::decode(code_) == kExpression &&
+           ExpressionTypeField::decode(code_) == kImportCallExpression;
+  }
+
   // At the moment PreParser doesn't track these expression types.
   bool IsFunctionLiteral() const { return false; }
   bool IsCallNew() const { return false; }
@@ -277,7 +288,8 @@ class PreParserExpression {
     kCallExpression,
     kCallEvalExpression,
     kSuperCallReference,
-    kAssignment
+    kAssignment,
+    kImportCallExpression,
   };
 
   explicit PreParserExpression(uint32_t expression_code)
@@ -715,13 +727,13 @@ class PreParserFactory {
   PreParserExpression NewImportCallExpression(const PreParserExpression& args,
                                               const ModuleImportPhase phase,
                                               int pos) {
-    return PreParserExpression::Default();
+    return PreParserExpression::ImportCall();
   }
 
   PreParserExpression NewImportCallExpression(
       const PreParserExpression& specifier, const ModuleImportPhase phase,
       const PreParserExpression& import_options, int pos) {
-    return PreParserExpression::Default();
+    return PreParserExpression::ImportCall();
   }
 
  private:
@@ -860,9 +872,13 @@ class PreParser : public ParserBase<PreParser> {
             PendingCompilationErrorHandler* pending_error_handler,
             RuntimeCallStats* runtime_call_stats, V8FileLogger* v8_file_logger,
             UnoptimizedCompileFlags flags, bool parsing_on_main_thread = true)
+      // Set compile_hints_magic_enabled = false, since we cannot have eager
+      // functions inside lazy functions (when we're already using the
+      // PreParser).
       : ParserBase<PreParser>(zone, scanner, stack_limit, ast_value_factory,
                               pending_error_handler, runtime_call_stats,
-                              v8_file_logger, flags, parsing_on_main_thread),
+                              v8_file_logger, flags, parsing_on_main_thread,
+                              /*compile_hints_magic_enabled=*/false),
         use_counts_(nullptr),
         preparse_data_builder_(nullptr),
         preparse_data_builder_buffer_() {
@@ -1050,7 +1066,7 @@ class PreParser : public ParserBase<PreParser> {
       int pos, FunctionKind kind, PreParserScopedStatementList* body) {
     ParseStatementList(body, Token::kRightBrace);
   }
-  V8_INLINE void ParseAndRewriteAsyncGeneratorFunctionBody(
+  V8_INLINE void ParseAsyncGeneratorFunctionBody(
       int pos, FunctionKind kind, PreParserScopedStatementList* body) {
     ParseStatementList(body, Token::kRightBrace);
   }

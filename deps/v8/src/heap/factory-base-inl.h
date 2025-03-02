@@ -21,7 +21,7 @@ namespace internal {
 #define RO_ROOT_ACCESSOR(Type, name, CamelName) \
   template <typename Impl>                      \
   Handle<Type> FactoryBase<Impl>::name() {      \
-    return read_only_roots().name##_handle();   \
+    return isolate()->roots_table().name();     \
   }
 READ_ONLY_ROOT_LIST(RO_ROOT_ACCESSOR)
 #undef ROOT_ACCESSOR
@@ -71,22 +71,23 @@ Handle<Number> FactoryBase<Impl>::NewNumberFromUint(uint32_t value) {
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Number> FactoryBase<Impl>::NewNumberFromSize(size_t value) {
+DirectHandle<Number> FactoryBase<Impl>::NewNumberFromSize(size_t value) {
   // We can't use Smi::IsValid() here because that operates on a signed
   // intptr_t, and casting from size_t could create a bogus sign bit.
   if (value <= static_cast<size_t>(Smi::kMaxValue)) {
-    return handle(Smi::FromIntptr(static_cast<intptr_t>(value)), isolate());
+    return direct_handle(Smi::FromIntptr(static_cast<intptr_t>(value)),
+                         isolate());
   }
   return NewHeapNumber<allocation>(static_cast<double>(value));
 }
 
 template <typename Impl>
 template <AllocationType allocation>
-Handle<Number> FactoryBase<Impl>::NewNumberFromInt64(int64_t value) {
+DirectHandle<Number> FactoryBase<Impl>::NewNumberFromInt64(int64_t value) {
   if (value <= std::numeric_limits<int32_t>::max() &&
       value >= std::numeric_limits<int32_t>::min() &&
       Smi::IsValid(static_cast<int32_t>(value))) {
-    return handle(Smi::FromInt(static_cast<int32_t>(value)), isolate());
+    return direct_handle(Smi::FromInt(static_cast<int32_t>(value)), isolate());
   }
   return NewHeapNumber<allocation>(static_cast<double>(value));
 }
@@ -111,6 +112,15 @@ template <typename Impl>
 template <AllocationType allocation>
 Handle<HeapNumber> FactoryBase<Impl>::NewHeapNumberWithHoleNaN() {
   return NewHeapNumberFromBits<allocation>(kHoleNanInt64);
+}
+
+template <typename Impl>
+template <AllocationType allocation>
+Handle<HeapNumber> FactoryBase<Impl>::NewHeapInt32(int32_t value) {
+  Handle<HeapNumber> heap_number = NewHeapNumber<allocation>();
+  heap_number->set_value_as_bits(
+      (static_cast<uint64_t>(kHoleNanUpper32) << 32) | value);
+  return heap_number;
 }
 
 template <typename Impl>

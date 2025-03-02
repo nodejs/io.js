@@ -6,7 +6,7 @@
 #define V8_COMPILER_NODE_CACHE_H_
 
 #include "src/base/export-template.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/macros.h"
 #include "src/zone/zone-containers.h"
 

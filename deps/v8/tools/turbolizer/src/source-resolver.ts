@@ -113,7 +113,8 @@ export class SourceResolver {
       }
       this.bytecodeSources.set(numSourceId,
                                new BytecodeSource(source.sourceId, inliningIds, source.functionName,
-                                                  data, bytecodeSource.constantPool));
+                                                  data, bytecodeSource.constantPool,
+                                                  source.feedbackVector));
     }
   }
 

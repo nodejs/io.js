@@ -293,25 +293,57 @@ void Builtins::Generate_LookupGlobalICInsideTypeofBaseline(
 void Builtins::Generate_LookupContextTrampoline(
     compiler::CodeAssemblerState* state) {
   AccessorAssembler assembler(state);
-  assembler.GenerateLookupContextTrampoline(TypeofMode::kNotInside);
+  assembler.GenerateLookupContextTrampoline(TypeofMode::kNotInside,
+                                            ContextKind::kDefault);
+}
+
+void Builtins::Generate_LookupScriptContextTrampoline(
+    compiler::CodeAssemblerState* state) {
+  AccessorAssembler assembler(state);
+  assembler.GenerateLookupContextTrampoline(TypeofMode::kNotInside,
+                                            ContextKind::kScriptContext);
 }
 
 void Builtins::Generate_LookupContextBaseline(
     compiler::CodeAssemblerState* state) {
   AccessorAssembler assembler(state);
-  assembler.GenerateLookupContextBaseline(TypeofMode::kNotInside);
+  assembler.GenerateLookupContextBaseline(TypeofMode::kNotInside,
+                                          ContextKind::kDefault);
+}
+
+void Builtins::Generate_LookupScriptContextBaseline(
+    compiler::CodeAssemblerState* state) {
+  AccessorAssembler assembler(state);
+  assembler.GenerateLookupContextBaseline(TypeofMode::kNotInside,
+                                          ContextKind::kScriptContext);
 }
 
 void Builtins::Generate_LookupContextInsideTypeofTrampoline(
     compiler::CodeAssemblerState* state) {
   AccessorAssembler assembler(state);
-  assembler.GenerateLookupContextTrampoline(TypeofMode::kInside);
+  assembler.GenerateLookupContextTrampoline(TypeofMode::kInside,
+                                            ContextKind::kDefault);
+}
+
+void Builtins::Generate_LookupScriptContextInsideTypeofTrampoline(
+    compiler::CodeAssemblerState* state) {
+  AccessorAssembler assembler(state);
+  assembler.GenerateLookupContextTrampoline(TypeofMode::kInside,
+                                            ContextKind::kScriptContext);
 }
 
 void Builtins::Generate_LookupContextInsideTypeofBaseline(
     compiler::CodeAssemblerState* state) {
   AccessorAssembler assembler(state);
-  assembler.GenerateLookupContextBaseline(TypeofMode::kInside);
+  assembler.GenerateLookupContextBaseline(TypeofMode::kInside,
+                                          ContextKind::kDefault);
+}
+
+void Builtins::Generate_LookupScriptContextInsideTypeofBaseline(
+    compiler::CodeAssemblerState* state) {
+  AccessorAssembler assembler(state);
+  assembler.GenerateLookupContextBaseline(TypeofMode::kInside,
+                                          ContextKind::kScriptContext);
 }
 
 }  // namespace internal

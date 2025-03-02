@@ -35,6 +35,7 @@ class V8_EXPORT_PRIVATE TracedValue : public ConvertableToTraceFormat
 
   // These methods assume that |name| is a long lived "quoted" string.
   void SetInteger(const char* name, int value);
+  void SetUnsignedInteger(const char* name, uint64_t value);
   void SetDouble(const char* name, double value);
   void SetBoolean(const char* name, bool value);
   void SetString(const char* name, const char* value);

@@ -94,6 +94,10 @@ class V8_EXPORT_PRIVATE ConcurrentUnifiedHeapMarkingVisitor
   // attached.
   std::unique_ptr<MarkingWorklists::Local> local_marking_worklist_;
   UnifiedHeapMarkingState concurrent_unified_heap_marking_state_;
+
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+  IsolateGroup* saved_isolate_group_ = nullptr;
+#endif
 };
 
 }  // namespace internal

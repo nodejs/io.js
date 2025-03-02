@@ -214,14 +214,7 @@ size_t DefaultJobState::CappedMaxConcurrency(size_t worker_count) const {
 
 void DefaultJobState::CallOnWorkerThread(TaskPriority priority,
                                          std::unique_ptr<Task> task) {
-  switch (priority) {
-    case TaskPriority::kBestEffort:
-      return platform_->CallLowPriorityTaskOnWorkerThread(std::move(task));
-    case TaskPriority::kUserVisible:
-      return platform_->CallOnWorkerThread(std::move(task));
-    case TaskPriority::kUserBlocking:
-      return platform_->CallBlockingTaskOnWorkerThread(std::move(task));
-  }
+  platform_->PostTaskOnWorkerThread(priority, std::move(task));
 }
 
 void DefaultJobState::UpdatePriority(TaskPriority priority) {

@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --sandbox-testing --experimental-wasm-type-reflection
+// Flags: --sandbox-testing --wasm-staging
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -68,7 +68,7 @@ const kHeapTypeShift = 5;
 // Put a WasmJSFunction into table1 while it still has type $sig1.
 table1.set(0, new WebAssembly.Function(
   {parameters: [], results: ['i64']},
-  () => BigInt(Sandbox.targetPage)));
+  () => 0x414141414141n));
 
 // Now set table1's type to $sig0.
 let t0 = getPtr(table0);

@@ -278,7 +278,7 @@ int OS::ActivationFrameAlignment() {
   return 8;
 #elif V8_TARGET_ARCH_MIPS
   return 8;
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
   return 8;
 #else
   // Otherwise we just assume 16 byte alignment, i.e.:
@@ -368,10 +368,6 @@ void* OS::GetRandomMmapAddr() {
   // of virtual addressing.  Truncate to 40 bits to allow kernel chance to
   // fulfill request.
   raw_addr &= uint64_t{0xFFFFFFF000};
-#elif V8_TARGET_ARCH_S390
-  // 31 bits of virtual addressing.  Truncate to 29 bits to allow kernel chance
-  // to fulfill request.
-  raw_addr &= 0x1FFFF000;
 #elif V8_TARGET_ARCH_MIPS64
   // 42 bits of virtual addressing. Truncate to 40 bits to allow kernel chance
   // to fulfill request.
@@ -759,7 +755,7 @@ void OS::DebugBreak() {
   asm("int $3");
 #elif V8_OS_ZOS
   asm(" dc x'0001'");
-#elif V8_HOST_ARCH_S390
+#elif V8_HOST_ARCH_S390X
   // Software breakpoint instruction is 0x0001
   asm volatile(".word 0x0001");
 #elif V8_HOST_ARCH_RISCV64

@@ -49,6 +49,8 @@ Reduction TypedOptimization::Reduce(Node* node) {
       return ReduceCheckMaps(node);
     case IrOpcode::kCheckNumber:
       return ReduceCheckNumber(node);
+    case IrOpcode::kCheckNumberFitsInt32:
+      return ReduceCheckNumberFitsInt32(node);
     case IrOpcode::kCheckString:
       return ReduceCheckString(node);
     case IrOpcode::kCheckStringOrStringWrapper:
@@ -83,6 +85,8 @@ Reduction TypedOptimization::Reduce(Node* node) {
       return ReduceSameValue(node);
     case IrOpcode::kSelect:
       return ReduceSelect(node);
+    case IrOpcode::kTypedArrayLength:
+      return ReduceTypedArrayLength(node);
     case IrOpcode::kTypeOf:
       return ReduceTypeOf(node);
     case IrOpcode::kToBoolean:
@@ -101,6 +105,8 @@ Reduction TypedOptimization::Reduce(Node* node) {
     case IrOpcode::kSpeculativeNumberLessThan:
     case IrOpcode::kSpeculativeNumberLessThanOrEqual:
       return ReduceSpeculativeNumberComparison(node);
+    case IrOpcode::kTransitionElementsKindOrCheckMap:
+      return ReduceTransitionElementsKindOrCheckMap(node);
     default:
       break;
   }
@@ -124,6 +130,7 @@ Node* ResolveSameValueRenames(Node* node) {
     switch (node->opcode()) {
       case IrOpcode::kCheckHeapObject:
       case IrOpcode::kCheckNumber:
+      case IrOpcode::kCheckNumberFitsInt32:
       case IrOpcode::kCheckSmi:
       case IrOpcode::kFinishRegion:
       case IrOpcode::kTypeGuard:
@@ -222,28 +229,51 @@ Reduction TypedOptimization::ReduceCheckNotTaggedHole(Node* node) {
   return NoChange();
 }
 
+namespace {
+// The CheckMaps(o, ...map...) can be eliminated if map is stable,
+// o has type Constant(object) and map == object->map, and either
+//  (1) map cannot transition further, or
+//  (2) we can add a code dependency on the stability of map
+//      (to guard the Constant type information).
+bool CheckMapsHelper(OptionalMapRef object_map, ZoneRefSet<Map> maps,
+                     CompilationDependencies* dependencies) {
+  if (object_map.has_value()) {
+    for (MapRef map : maps) {
+      if (map.equals(*object_map)) {
+        if (object_map->CanTransition()) {
+          dependencies->DependOnStableMap(*object_map);
+        }
+        return true;
+      }
+    }
+  }
+  return false;
+}
+}  // namespace
+
 Reduction TypedOptimization::ReduceCheckMaps(Node* node) {
-  // The CheckMaps(o, ...map...) can be eliminated if map is stable,
-  // o has type Constant(object) and map == object->map, and either
-  //  (1) map cannot transition further, or
-  //  (2) we can add a code dependency on the stability of map
-  //      (to guard the Constant type information).
   Node* const object = NodeProperties::GetValueInput(node, 0);
   Type const object_type = NodeProperties::GetType(object);
   Node* const effect = NodeProperties::GetEffectInput(node);
   OptionalMapRef object_map = GetStableMapFromObjectType(broker(), object_type);
-  if (object_map.has_value()) {
-    for (int i = 1; i < node->op()->ValueInputCount(); ++i) {
-      Node* const map = NodeProperties::GetValueInput(node, i);
-      Type const map_type = NodeProperties::GetType(map);
-      if (map_type.IsHeapConstant() &&
-          map_type.AsHeapConstant()->Ref().equals(*object_map)) {
-        if (object_map->CanTransition()) {
-          dependencies()->DependOnStableMap(*object_map);
-        }
-        return Replace(effect);
-      }
-    }
+  CheckMapsParameters p = CheckMapsParametersOf(node->op());
+  if (CheckMapsHelper(object_map, p.maps(), dependencies())) {
+    return Replace(effect);
+  }
+  return NoChange();
+}
+
+Reduction TypedOptimization::ReduceTransitionElementsKindOrCheckMap(
+    Node* node) {
+  Node* const object = NodeProperties::GetValueInput(node, 0);
+  Type const object_type = NodeProperties::GetType(object);
+  Node* const effect = NodeProperties::GetEffectInput(node);
+  OptionalMapRef object_map = GetStableMapFromObjectType(broker(), object_type);
+  ElementsTransitionWithMultipleSources p =
+      ElementsTransitionWithMultipleSourcesOf(node->op());
+  if (CheckMapsHelper(object_map, ZoneRefSet<Map>(p.target()),
+                      dependencies())) {
+    return Replace(effect);
   }
   return NoChange();
 }
@@ -252,6 +282,16 @@ Reduction TypedOptimization::ReduceCheckNumber(Node* node) {
   Node* const input = NodeProperties::GetValueInput(node, 0);
   Type const input_type = NodeProperties::GetType(input);
   if (input_type.Is(Type::Number())) {
+    ReplaceWithValue(node, input);
+    return Replace(input);
+  }
+  return NoChange();
+}
+
+Reduction TypedOptimization::ReduceCheckNumberFitsInt32(Node* node) {
+  Node* const input = NodeProperties::GetValueInput(node, 0);
+  Type const input_type = NodeProperties::GetType(input);
+  if (input_type.Is(Type::Signed32())) {
     ReplaceWithValue(node, input);
     return Replace(input);
   }
@@ -735,6 +775,23 @@ Reduction TypedOptimization::ReduceTypeOf(Node* node) {
   } else if (type.Is(Type::Function())) {
     return Replace(
         jsgraph()->ConstantNoHole(broker()->function_string(), broker()));
+  }
+  return NoChange();
+}
+
+Reduction TypedOptimization::ReduceTypedArrayLength(Node* node) {
+  DCHECK_EQ(IrOpcode::kTypedArrayLength, node->opcode());
+  Node* const input = NodeProperties::GetValueInput(node, 0);
+  // Constant-fold the length of the {input} if possible.
+  HeapObjectMatcher m(input);
+  if (m.HasResolvedValue() && m.Ref(broker()).IsJSTypedArray()) {
+    JSTypedArrayRef typed_array = m.Ref(broker()).AsJSTypedArray();
+    size_t byte_length = typed_array.byte_length();
+    ElementsKind elements_kind = typed_array.elements_kind(broker());
+    CHECK(!IsRabGsabTypedArrayElementsKind(elements_kind));
+    Node* value = jsgraph()->ConstantNoHole(
+        byte_length >> ElementsKindToShiftSize(elements_kind));
+    return Replace(value);
   }
   return NoChange();
 }

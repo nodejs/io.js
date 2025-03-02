@@ -17,31 +17,8 @@ extern class String extends Name {
     return this.StringInstanceType().is_not_internalized;
   }
 
-  // Keep this in sync with the C++ String::IsOneByteRepresentationUnderneath.
-  macro IsOneByteRepresentationUnderneath(): bool {
-    let string = this;
-    while (true) {
-      typeswitch (string) {
-        case (cons: ConsString): {
-          dcheck(cons.IsFlat());
-          string = cons.first;
-        }
-        case (thin: ThinString): {
-          // Internalized strings can't change representation.
-          dcheck(
-              thin.StringInstanceType().is_one_byte ==
-              thin.actual.StringInstanceType().is_one_byte);
-          return thin.StringInstanceType().is_one_byte;
-        }
-        case (slice: SlicedString): {
-          string = slice.parent;
-        }
-        case (String): {
-          return string.StringInstanceType().is_one_byte;
-        }
-      }
-    }
-    VerifiedUnreachable();
+  macro IsOneByteRepresentation(): bool {
+    return IsOneByteStringMap(this.map);
   }
 
   const length: int32;
@@ -69,10 +46,6 @@ extern class ConsString extends String {
   // Corresponds to String::IsFlat() in the C++ runtime.
   macro IsFlat(): bool {
     return this.second.length == 0;
-  }
-
-  macro IsOneByteRepresentation(): bool {
-    return this.StringInstanceType().is_one_byte;
   }
 
   first: String;
@@ -186,10 +159,15 @@ macro AllocateNonEmptySeqTwoByteString<Iterator: type>(
   };
 }
 
+@export
 macro AllocateNonEmptySeqOneByteString(length: uint32): SeqOneByteString {
+  dcheck(length > 0);
   return AllocateNonEmptySeqOneByteString(length, UninitializedIterator{});
 }
+
+@export
 macro AllocateNonEmptySeqTwoByteString(length: uint32): SeqTwoByteString {
+  dcheck(length > 0);
   return AllocateNonEmptySeqTwoByteString(length, UninitializedIterator{});
 }
 
@@ -221,26 +199,24 @@ extern macro StringWriteToFlatOneByte(
     String, RawPtr<char8>, int32, int32): void;
 extern macro StringWriteToFlatTwoByte(
     String, RawPtr<char16>, int32, int32): void;
+extern macro IsSequentialString(String): bool;
 
 // Corresponds to String::SlowFlatten in the C++ runtime.
 builtin StringSlowFlatten(cons: ConsString): String {
-  // TurboFan can create cons strings with empty first parts.
-  let cons = cons;
-  while (cons.first.length == 0) {
-    // We do not want to call this function recursively. Therefore we call
-    // String::Flatten only in those cases where String::SlowFlatten is not
-    // called again.
-    try {
-      const second = Cast<ConsString>(cons.second) otherwise FoundFlatString;
-      if (second.IsFlat()) goto FoundFlatString;
-      cons = second;
-    } label FoundFlatString {
-      return Flatten(cons.second);
+  // TurboFan can create cons strings with empty first parts. Make sure the
+  // cons shape is canonicalized by the end of this function (either here, if
+  // returning early, or below). Note this case is very rare in practice.
+  if (cons.first.length == 0) {
+    const second = cons.second;
+    if (IsSequentialString(second)) {
+      cons.first = second;
+      cons.second = kEmptyString;
+      return second;
     }
   }
 
   let flat: String;
-  if (cons.IsOneByteRepresentation()) {
+  if (cons.map == kConsOneByteStringMap) {
     const allocated = AllocateNonEmptySeqOneByteString(Unsigned(cons.length));
     StringWriteToFlatOneByte(
         cons, (&allocated.chars).GCUnsafeStartPointer(), 0, cons.length);

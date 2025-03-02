@@ -128,17 +128,18 @@ TEST(TestConcurrentSharedFunctionInfo) {
   Handle<JSFunction> f = Cast<JSFunction>(v8::Utils::OpenHandle(*function_f));
   Handle<SharedFunctionInfo> f_sfi(f->shared(), isolate);
   DCHECK(f_sfi->HasBytecodeArray());
-  OptimizedCompilationInfo f_info(&zone, isolate, f_sfi, f, CodeKind::TURBOFAN);
+  OptimizedCompilationInfo f_info(&zone, isolate, f_sfi, f,
+                                  CodeKind::TURBOFAN_JS);
   DirectHandle<Code> f_code =
       Pipeline::GenerateCodeForTesting(&f_info, isolate).ToHandleChecked();
-  f->UpdateCode(*f_code);
+  f->UpdateOptimizedCode(isolate, *f_code);
   IsCompiledScope compiled_scope_f(*f_sfi, isolate);
   JSFunction::EnsureFeedbackVector(isolate, f, &compiled_scope_f);
 
   ExpectSharedFunctionInfoState(isolate, *test_sfi, SfiState::Compiled);
 
   auto job =
-      Pipeline::NewCompilationJob(isolate, test, CodeKind::TURBOFAN, true);
+      Pipeline::NewCompilationJob(isolate, test, CodeKind::TURBOFAN_JS, true);
 
   // Prepare job.
   {

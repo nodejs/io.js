@@ -3612,8 +3612,8 @@ void SloppyArgsIndexedPropertyEnumerator(
   // Have to populate the handle manually, as it's not Cast-able.
   i::DirectHandle<i::JSReceiver> o =
       v8::Utils::OpenDirectHandle<Object, i::JSReceiver>(result);
-  i::Handle<i::JSArray> array(i::UncheckedCast<i::JSArray>(*o),
-                              o->GetIsolate());
+  i::DirectHandle<i::JSArray> array(i::UncheckedCast<i::JSArray>(*o),
+                                    o->GetIsolate());
   info.GetReturnValue().Set(v8::Utils::ToLocal(array));
 }
 
@@ -6577,7 +6577,7 @@ v8::Intercepted Regress42204611_Definer(
 THREADED_TEST(Regress42204611) {
   LocalContext env;
   v8::Isolate* isolate = env->GetIsolate();
-  v8::HandleScope scope(isolate);
+  v8::HandleScope handle_scope(isolate);
 
   std::vector<std::string> calls;
   Local<v8::External> calls_ext = v8::External::New(CcTest::isolate(), &calls);

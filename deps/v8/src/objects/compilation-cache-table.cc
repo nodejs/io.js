@@ -147,7 +147,8 @@ class EvalCacheKey : public HashTableKey {
   // * When positive, position is the position in the source where eval is
   //   called. When negative, position is the negation of the position in the
   //   dynamic function's effective source where the ')' ends the parameters.
-  EvalCacheKey(Handle<String> source, Handle<SharedFunctionInfo> shared,
+  EvalCacheKey(DirectHandle<String> source,
+               DirectHandle<SharedFunctionInfo> shared,
                LanguageMode language_mode, int position)
       : HashTableKey(CompilationCacheShape::EvalHash(*source, *shared,
                                                      language_mode, position)),
@@ -176,19 +177,19 @@ class EvalCacheKey : public HashTableKey {
     return source->Equals(*source_);
   }
 
-  Handle<Object> AsHandle(Isolate* isolate) {
-    Handle<FixedArray> array = isolate->factory()->NewFixedArray(4);
+  DirectHandle<Object> AsHandle(Isolate* isolate) {
+    DirectHandle<FixedArray> array = isolate->factory()->NewFixedArray(4);
     array->set(0, *shared_);
     array->set(1, *source_);
     array->set(2, Smi::FromEnum(language_mode_));
     array->set(3, Smi::FromInt(position_));
-    array->set_map(ReadOnlyRoots(isolate).fixed_cow_array_map());
+    array->set_map(isolate, ReadOnlyRoots(isolate).fixed_cow_array_map());
     return array;
   }
 
  private:
-  Handle<String> source_;
-  Handle<SharedFunctionInfo> shared_;
+  DirectHandle<String> source_;
+  DirectHandle<SharedFunctionInfo> shared_;
   LanguageMode language_mode_;
   int position_;
 };
@@ -196,7 +197,8 @@ class EvalCacheKey : public HashTableKey {
 // RegExpKey carries the source and flags of a regular expression as key.
 class RegExpKey : public HashTableKey {
  public:
-  RegExpKey(Isolate* isolate, Handle<String> string, JSRegExp::Flags flags)
+  RegExpKey(Isolate* isolate, DirectHandle<String> string,
+            JSRegExp::Flags flags)
       : HashTableKey(
             CompilationCacheShape::RegExpHash(*string, Smi::FromInt(flags))),
         isolate_(isolate),
@@ -215,7 +217,7 @@ class RegExpKey : public HashTableKey {
   }
 
   Isolate* isolate_;
-  Handle<String> string_;
+  DirectHandle<String> string_;
   JSRegExp::Flags flags_;
 };
 
@@ -231,13 +233,14 @@ class CodeKey : public HashTableKey {
   Handle<SharedFunctionInfo> key_;
 };
 
-Tagged<Smi> ScriptHash(Tagged<String> source, MaybeHandle<Object> maybe_name,
-                       int line_offset, int column_offset,
+Tagged<Smi> ScriptHash(Tagged<String> source,
+                       MaybeDirectHandle<Object> maybe_name, int line_offset,
+                       int column_offset,
                        v8::ScriptOriginOptions origin_options,
                        Isolate* isolate) {
   DisallowGarbageCollection no_gc;
   size_t hash = base::hash_combine(source->EnsureHash());
-  if (Handle<Object> name;
+  if (DirectHandle<Object> name;
       maybe_name.ToHandle(&name) && IsString(*name, isolate)) {
     hash =
         base::hash_combine(hash, Cast<String>(*name)->EnsureHash(), line_offset,
@@ -249,7 +252,7 @@ Tagged<Smi> ScriptHash(Tagged<String> source, MaybeHandle<Object> maybe_name,
 
 }  // namespace
 
-// We only re-use a cached function for some script source code if the
+// We only reuse a cached function for some script source code if the
 // script originates from the same place. This is to avoid issues
 // when reporting errors, etc.
 bool ScriptCacheKey::MatchesScript(Tagged<Script> script) {
@@ -360,7 +363,7 @@ ScriptCacheKey::ScriptCacheKey(Handle<String> source, MaybeHandle<Object> name,
       isolate_(isolate) {
   DCHECK(Smi::IsValid(static_cast<int>(Hash())));
 #ifdef DEBUG
-  Handle<FixedArray> wrapped_arguments;
+  DirectHandle<FixedArray> wrapped_arguments;
   if (maybe_wrapped_arguments.ToHandle(&wrapped_arguments)) {
     int length = wrapped_arguments->length();
     for (int i = 0; i < length; i++) {
@@ -394,9 +397,10 @@ bool ScriptCacheKey::IsMatch(Tagged<Object> other) {
   return other_source->Equals(*source_) && MatchesScript(other_script);
 }
 
-Handle<Object> ScriptCacheKey::AsHandle(
+DirectHandle<Object> ScriptCacheKey::AsHandle(
     Isolate* isolate, DirectHandle<SharedFunctionInfo> shared) {
-  Handle<WeakFixedArray> array = isolate->factory()->NewWeakFixedArray(kEnd);
+  DirectHandle<WeakFixedArray> array =
+      isolate->factory()->NewWeakFixedArray(kEnd);
   // Any SharedFunctionInfo being stored in the script cache should have a
   // Script.
   DCHECK(IsScript(shared->script()));
@@ -460,9 +464,10 @@ CompilationCacheScriptLookupResult CompilationCacheTable::LookupScript(
 }
 
 InfoCellPair CompilationCacheTable::LookupEval(
-    DirectHandle<CompilationCacheTable> table, Handle<String> src,
-    Handle<SharedFunctionInfo> outer_info, DirectHandle<Context> native_context,
-    LanguageMode language_mode, int position) {
+    DirectHandle<CompilationCacheTable> table, DirectHandle<String> src,
+    DirectHandle<SharedFunctionInfo> outer_info,
+    DirectHandle<NativeContext> native_context, LanguageMode language_mode,
+    int position) {
   InfoCellPair empty_result;
   Isolate* isolate = native_context->GetIsolate();
   src = String::Flatten(isolate, src);
@@ -481,14 +486,14 @@ InfoCellPair CompilationCacheTable::LookupEval(
   return InfoCellPair(isolate, Cast<SharedFunctionInfo>(obj), feedback_cell);
 }
 
-Handle<Object> CompilationCacheTable::LookupRegExp(Handle<String> src,
-                                                   JSRegExp::Flags flags) {
+DirectHandle<Object> CompilationCacheTable::LookupRegExp(
+    DirectHandle<String> src, JSRegExp::Flags flags) {
   Isolate* isolate = GetIsolate();
   DisallowGarbageCollection no_gc;
   RegExpKey key(isolate, src, flags);
   InternalIndex entry = FindEntry(isolate, &key);
   if (entry.is_not_found()) return isolate->factory()->undefined_value();
-  return Handle<Object>(PrimaryValueAt(entry), isolate);
+  return DirectHandle<Object>(PrimaryValueAt(entry), isolate);
 }
 
 Handle<CompilationCacheTable> CompilationCacheTable::EnsureScriptTableCapacity(
@@ -514,7 +519,7 @@ Handle<CompilationCacheTable> CompilationCacheTable::EnsureScriptTableCapacity(
   return EnsureCapacity(isolate, cache);
 }
 
-Handle<CompilationCacheTable> CompilationCacheTable::PutScript(
+DirectHandle<CompilationCacheTable> CompilationCacheTable::PutScript(
     Handle<CompilationCacheTable> cache, Handle<String> src,
     MaybeHandle<FixedArray> maybe_wrapped_arguments,
     DirectHandle<SharedFunctionInfo> value, Isolate* isolate) {
@@ -546,7 +551,7 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutScript(
   // fixing. Consider the following unlikely sequence of events:
   // 1. BackgroundMergeTask::SetUpOnMainThread finds a script S1 in the cache.
   // 2. DevTools is attached and clears the cache.
-  // 3. DevTools is detached; the cache is reenabled.
+  // 3. DevTools is detached; the cache is re-enabled.
   // 4. A new instance of the script, S2, is compiled and placed into the cache.
   // 5. The merge from step 1 finishes on the main thread, still using S1, and
   //    places S1 into the cache, replacing S2.
@@ -558,11 +563,11 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutScript(
   return cache;
 }
 
-Handle<CompilationCacheTable> CompilationCacheTable::PutEval(
-    Handle<CompilationCacheTable> cache, Handle<String> src,
-    Handle<SharedFunctionInfo> outer_info,
+DirectHandle<CompilationCacheTable> CompilationCacheTable::PutEval(
+    DirectHandle<CompilationCacheTable> cache, DirectHandle<String> src,
+    DirectHandle<SharedFunctionInfo> outer_info,
     DirectHandle<SharedFunctionInfo> value,
-    DirectHandle<Context> native_context,
+    DirectHandle<NativeContext> native_context,
     DirectHandle<FeedbackCell> feedback_cell, int position) {
   Isolate* isolate = native_context->GetIsolate();
   src = String::Flatten(isolate, src);
@@ -602,9 +607,10 @@ Handle<CompilationCacheTable> CompilationCacheTable::PutEval(
   return cache;
 }
 
-Handle<CompilationCacheTable> CompilationCacheTable::PutRegExp(
-    Isolate* isolate, Handle<CompilationCacheTable> cache, Handle<String> src,
-    JSRegExp::Flags flags, DirectHandle<RegExpData> value) {
+DirectHandle<CompilationCacheTable> CompilationCacheTable::PutRegExp(
+    Isolate* isolate, DirectHandle<CompilationCacheTable> cache,
+    DirectHandle<String> src, JSRegExp::Flags flags,
+    DirectHandle<RegExpData> value) {
   RegExpKey key(isolate, src, flags);
   cache = EnsureCapacity(isolate, cache);
   InternalIndex entry = cache->FindInsertionEntry(isolate, key.Hash());

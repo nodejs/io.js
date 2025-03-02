@@ -228,8 +228,20 @@ TF_BUILTIN(FastNewClosure, ConstructorBuiltinsAssembler) {
     Goto(&cell_done);
 
     BIND(&one_closure);
+#ifdef V8_ENABLE_LEAPTIERING
+    // The transition from one to many closures under leap tiering requires
+    // making sure that the dispatch_handle's code isn't context specialized for
+    // the single closure. This is handled in the runtime.
+    //
+    // TODO(leszeks): We could fast path this for the case where the dispatch
+    // handle either doesn't contain any code, or that code isn't context
+    // specialized.
+    TailCallRuntime(Runtime::kNewClosure, context, shared_function_info,
+                    feedback_cell);
+#else
     StoreMapNoWriteBarrier(feedback_cell, RootIndex::kManyClosuresCellMap);
     Goto(&cell_done);
+#endif  // V8_ENABLE_LEAPTIERING
 
     BIND(&cell_done);
   }
@@ -287,8 +299,9 @@ TF_BUILTIN(FastNewClosure, ConstructorBuiltinsAssembler) {
 #ifdef V8_ENABLE_LEAPTIERING
   TNode<JSDispatchHandleT> dispatch_handle = LoadObjectField<JSDispatchHandleT>(
       feedback_cell, FeedbackCell::kDispatchHandleOffset);
-  CSA_DCHECK(this, Word32NotEqual(dispatch_handle,
-                                  Int32Constant(kNullJSDispatchHandle)));
+  CSA_DCHECK(this,
+             Word32NotEqual(dispatch_handle,
+                            Int32Constant(kNullJSDispatchHandle.value())));
   StoreObjectFieldNoWriteBarrier(result, JSFunction::kDispatchHandleOffset,
                                  dispatch_handle);
 #else

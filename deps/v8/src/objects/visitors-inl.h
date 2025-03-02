@@ -8,6 +8,7 @@
 #include "src/codegen/reloc-info.h"
 #include "src/common/globals.h"
 #include "src/execution/isolate.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/objects/map.h"
 #include "src/objects/visitors.h"
 
@@ -43,11 +44,18 @@ template <typename Visitor>
 inline void ClientRootVisitor<Visitor>::VisitRunningCode(
     FullObjectSlot code_slot, FullObjectSlot maybe_istream_slot) {
 #if DEBUG
-  DCHECK(!InWritableSharedSpace(Cast<HeapObject>(*code_slot)));
+  DCHECK(!HeapLayout::InWritableSharedSpace(Cast<HeapObject>(*code_slot)));
   Tagged<Object> maybe_istream = *maybe_istream_slot;
   DCHECK(maybe_istream == Smi::zero() ||
-         !InWritableSharedSpace(Cast<HeapObject>(maybe_istream)));
+         !HeapLayout::InWritableSharedSpace(Cast<HeapObject>(maybe_istream)));
 #endif
+}
+
+// static
+template <typename Visitor>
+bool ClientRootVisitor<Visitor>::IsSharedHeapObject(Tagged<Object> object) {
+  return IsHeapObject(object) &&
+         HeapLayout::InWritableSharedSpace(Cast<HeapObject>(object));
 }
 
 template <typename Visitor>
@@ -58,12 +66,24 @@ inline void ClientObjectVisitor<Visitor>::VisitMapPointer(
 }
 
 template <typename Visitor>
+void ClientObjectVisitor<Visitor>::VisitInstructionStreamPointer(
+    Tagged<Code> host, InstructionStreamSlot slot) {
+#if DEBUG
+  Tagged<Object> istream_object = slot.load(code_cage_base());
+  Tagged<InstructionStream> istream;
+  if (istream_object.GetHeapObject(&istream)) {
+    DCHECK(!HeapLayout::InWritableSharedSpace(istream));
+  }
+#endif
+}
+
+template <typename Visitor>
 inline void ClientObjectVisitor<Visitor>::VisitCodeTarget(
     Tagged<InstructionStream> host, RelocInfo* rinfo) {
 #if DEBUG
   Tagged<InstructionStream> target =
       InstructionStream::FromTargetAddress(rinfo->target_address());
-  DCHECK(!InWritableSharedSpace(target));
+  DCHECK(!HeapLayout::InWritableSharedSpace(target));
 #endif
 }
 
@@ -72,6 +92,13 @@ inline void ClientObjectVisitor<Visitor>::VisitEmbeddedPointer(
     Tagged<InstructionStream> host, RelocInfo* rinfo) {
   if (!IsSharedHeapObject(rinfo->target_object(cage_base()))) return;
   actual_visitor_->VisitEmbeddedPointer(host, rinfo);
+}
+
+// static
+template <typename Visitor>
+bool ClientObjectVisitor<Visitor>::IsSharedHeapObject(Tagged<Object> object) {
+  return IsHeapObject(object) &&
+         HeapLayout::InWritableSharedSpace(Cast<HeapObject>(object));
 }
 
 }  // namespace internal

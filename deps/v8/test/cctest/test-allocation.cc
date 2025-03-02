@@ -20,6 +20,7 @@ using v8::IdleTask;
 using v8::Isolate;
 using v8::Task;
 
+#include "src/base/platform/platform.h"
 #include "src/utils/allocation.h"
 #include "src/zone/accounting-allocator.h"
 
@@ -67,21 +68,23 @@ size_t GetHugeMemoryAmount() {
 
 void OnMallocedOperatorNewOOM(const char* location, const char* message) {
   // exit(0) if the OOM callback was called and location matches expectation.
-  if (DidCallOnCriticalMemoryPressure())
-    exit(strcmp(location, "Malloced operator new"));
-  exit(1);
+  CHECK(DidCallOnCriticalMemoryPressure());
+  CHECK_EQ(0, strcmp(location, "Malloced operator new"));
+  v8::base::OS::ExitProcess(0);
 }
 
 void OnNewArrayOOM(const char* location, const char* message) {
   // exit(0) if the OOM callback was called and location matches expectation.
-  if (DidCallOnCriticalMemoryPressure()) exit(strcmp(location, "NewArray"));
-  exit(1);
+  CHECK(DidCallOnCriticalMemoryPressure());
+  CHECK_EQ(0, strcmp(location, "NewArray"));
+  v8::base::OS::ExitProcess(0);
 }
 
 void OnAlignedAllocOOM(const char* location, const char* message) {
   // exit(0) if the OOM callback was called and location matches expectation.
-  if (DidCallOnCriticalMemoryPressure()) exit(strcmp(location, "AlignedAlloc"));
-  exit(1);
+  CHECK(DidCallOnCriticalMemoryPressure());
+  CHECK_EQ(0, strcmp(location, "AlignedAlloc"));
+  v8::base::OS::ExitProcess(0);
 }
 
 }  // namespace
@@ -132,7 +135,6 @@ TEST_WITH_PLATFORM(MallocedOperatorNewOOM, AllocationPlatform) {
   // On failure, this won't return, since a Malloced::New failure is fatal.
   // In that case, behavior is checked in OnMallocedOperatorNewOOM before exit.
   void* result = v8::internal::Malloced::operator new(GetHugeMemoryAmount());
-  // On a few systems, allocation somehow succeeds.
   CHECK_EQ(result == nullptr, platform.oom_callback_called);
 }
 
@@ -141,8 +143,7 @@ TEST_WITH_PLATFORM(NewArrayOOM, AllocationPlatform) {
   CcTest::isolate()->SetFatalErrorHandler(OnNewArrayOOM);
   // On failure, this won't return, since a NewArray failure is fatal.
   // In that case, behavior is checked in OnNewArrayOOM before exit.
-  int8_t* result = v8::internal::NewArray<int8_t>(GetHugeMemoryAmount());
-  // On a few systems, allocation somehow succeeds.
+  void* result = v8::internal::NewArray<int8_t>(GetHugeMemoryAmount());
   CHECK_EQ(result == nullptr, platform.oom_callback_called);
 }
 
@@ -153,7 +154,6 @@ TEST_WITH_PLATFORM(AlignedAllocOOM, AllocationPlatform) {
   // In that case, behavior is checked in OnAlignedAllocOOM before exit.
   void* result = v8::internal::AlignedAllocWithRetry(
       GetHugeMemoryAmount(), v8::internal::AllocatePageSize());
-  // On a few systems, allocation somehow succeeds.
   CHECK_EQ(result == nullptr, platform.oom_callback_called);
 }
 

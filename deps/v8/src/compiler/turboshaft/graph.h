@@ -403,6 +403,17 @@ class Block : public RandomAccessStackDominatorNode<Block> {
     predecessor_count_ = 0;
   }
 
+  Block* single_loop_predecessor() const {
+    DCHECK(IsLoop());
+    return single_loop_predecessor_;
+  }
+  void SetSingleLoopPredecessor(Block* single_loop_predecessor) {
+    DCHECK(IsLoop());
+    DCHECK_NULL(single_loop_predecessor_);
+    DCHECK_NOT_NULL(single_loop_predecessor);
+    single_loop_predecessor_ = single_loop_predecessor;
+  }
+
   // The block from the previous graph which produced the current block. This
   // has to be updated to be the last block that contributed operations to the
   // current block to ensure that phi nodes are created correctly.
@@ -416,6 +427,10 @@ class Block : public RandomAccessStackDominatorNode<Block> {
   // block as a branch destination.
   const Block* OriginForBlockEnd() const {
     DCHECK(IsBound());
+    return origin_;
+  }
+  const Block* OriginForLoopHeader() const {
+    DCHECK(IsLoop());
     return origin_;
   }
 
@@ -437,6 +452,7 @@ class Block : public RandomAccessStackDominatorNode<Block> {
 
   const Operation& FirstOperation(const Graph& graph) const;
   const Operation& LastOperation(const Graph& graph) const;
+  Operation& LastOperation(Graph& graph) const;
 
   bool EndsWithBranchingOp(const Graph& graph) const {
     switch (LastOperation(graph).opcode) {
@@ -529,6 +545,7 @@ class Block : public RandomAccessStackDominatorNode<Block> {
   BlockIndex index_ = BlockIndex::Invalid();
   Block* last_predecessor_ = nullptr;
   Block* neighboring_predecessor_ = nullptr;
+  Block* single_loop_predecessor_ = nullptr;
   uint32_t predecessor_count_ = 0;
   const Block* origin_ = nullptr;
   // The {custom_data_} field can be used by algorithms to temporarily store
@@ -1223,6 +1240,11 @@ V8_INLINE const Operation& Block::FirstOperation(const Graph& graph) const {
 }
 
 V8_INLINE const Operation& Block::LastOperation(const Graph& graph) const {
+  DCHECK_EQ(graph_generation_, graph.generation());
+  return graph.Get(graph.PreviousIndex(end()));
+}
+
+V8_INLINE Operation& Block::LastOperation(Graph& graph) const {
   DCHECK_EQ(graph_generation_, graph.generation());
   return graph.Get(graph.PreviousIndex(end()));
 }

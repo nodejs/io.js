@@ -52,11 +52,11 @@ class JSCallReducerTest : public TypedGraphTest {
   }
 
   Node* MathFunction(const std::string& name) {
-    Handle<Object> m =
-        JSObject::GetProperty(
-            isolate(), isolate()->global_object(),
-            isolate()->factory()->NewStringFromAsciiChecked("Math"))
-            .ToHandleChecked();
+    DirectHandle<JSAny> m =
+        Cast<JSAny>(JSObject::GetProperty(
+                        isolate(), isolate()->global_object(),
+                        isolate()->factory()->NewStringFromAsciiChecked("Math"))
+                        .ToHandleChecked());
     Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), m,
@@ -66,11 +66,11 @@ class JSCallReducerTest : public TypedGraphTest {
   }
 
   Node* StringFunction(const char* name) {
-    Handle<Object> m =
+    DirectHandle<JSAny> m = Cast<JSAny>(
         JSObject::GetProperty(
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked("String"))
-            .ToHandleChecked();
+            .ToHandleChecked());
     Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), m, isolate()->factory()->NewStringFromAsciiChecked(name))
@@ -79,11 +79,11 @@ class JSCallReducerTest : public TypedGraphTest {
   }
 
   Node* NumberFunction(const char* name) {
-    Handle<Object> m =
+    DirectHandle<JSAny> m = Cast<JSAny>(
         JSObject::GetProperty(
             isolate(), isolate()->global_object(),
             isolate()->factory()->NewStringFromAsciiChecked("Number"))
-            .ToHandleChecked();
+            .ToHandleChecked());
     Handle<JSFunction> f = Cast<JSFunction>(
         Object::GetProperty(
             isolate(), m, isolate()->factory()->NewStringFromAsciiChecked(name))

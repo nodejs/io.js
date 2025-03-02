@@ -2,12 +2,23 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#if V8_TARGET_ARCH_S390
+#if V8_TARGET_ARCH_S390X
 
 #include "src/codegen/s390/constants-s390.h"
 
+#include "src/common/code-memory-access-inl.h"
+
 namespace v8 {
 namespace internal {
+
+void Instruction::SetInstructionBits(Instr value,
+                                     WritableJitAllocation* jit_allocation) {
+  if (jit_allocation) {
+    jit_allocation->WriteUnalignedValue(reinterpret_cast<Address>(this), value);
+  } else {
+    *reinterpret_cast<Instr*>(this) = value;
+  }
+}
 
 Instruction::OpcodeFormatType Instruction::OpcodeFormatTable[] = {
     // Based on Figure B-3 in z/Architecture Principles of
@@ -306,4 +317,4 @@ int Registers::Number(const char* name) {
 }  // namespace internal
 }  // namespace v8
 
-#endif  // V8_TARGET_ARCH_S390
+#endif  // V8_TARGET_ARCH_S390X

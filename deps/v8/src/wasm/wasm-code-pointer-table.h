@@ -26,14 +26,19 @@ struct WasmCodePointerTableEntry {
   static constexpr bool IsWriteProtected = true;
 
   // Set the entry to point to a given entrypoint.
-  inline void MakeCodePointerEntry(Address entrypoint);
+  inline void MakeCodePointerEntry(Address entrypoint, uint64_t signature_hash);
+  inline void UpdateCodePointerEntry(Address entrypoint,
+                                     uint64_t signature_hash);
 
   // Make this entry a freelist entry, containing the index of the next entry
   // on the freelist.
   inline void MakeFreelistEntry(uint32_t next_entry_index);
 
   // Load code entrypoint pointer stored in this entry.
-  inline Address GetEntrypoint() const;
+  inline Address GetEntrypoint(uint64_t signature_hash) const;
+
+  // Load code entrypoint pointer stored in this entry.
+  inline Address GetEntrypointWithoutSignatureCheck() const;
 
   // Get the index of the next entry on the freelist.
   inline uint32_t GetNextFreelistEntryIndex() const;
@@ -42,6 +47,9 @@ struct WasmCodePointerTableEntry {
   friend class WasmCodePointerTable;
 
   std::atomic<Address> entrypoint_;
+#ifdef V8_ENABLE_SANDBOX
+  uint64_t signature_hash_;
+#endif
 };
 
 // A table for storing valid Wasm code entrypoints. This table allows enforcing
@@ -67,6 +75,16 @@ class V8_EXPORT_PRIVATE WasmCodePointerTable
 
   using Handle = uint32_t;
   static constexpr Handle kInvalidHandle = -1;
+#ifdef V8_ENABLE_SANDBOX
+  static constexpr int kOffsetOfSignatureHash =
+      offsetof(WasmCodePointerTableEntry, signature_hash_);
+#endif
+
+#ifdef V8_TARGET_ARCH_64_BIT
+  // 64-bit architectures reserve a large table upfront, hence there's a fixed
+  // maximum number of Wasm code pointers.
+  static constexpr size_t kMaxWasmCodePointers = kMaxCapacity;
+#endif
 
   using WriteScope = CFIMetadataWriteScope;
 
@@ -77,27 +95,45 @@ class V8_EXPORT_PRIVATE WasmCodePointerTable
   void TearDown();
 
   // Read the entrypoint at a given index.
-  inline Address GetEntrypoint(uint32_t index) const;
+  inline Address GetEntrypoint(WasmCodePointer index,
+                               uint64_t signature_hash) const;
+
+  inline Address GetEntrypointWithoutSignatureCheck(
+      WasmCodePointer index) const;
 
   // Sets the entrypoint of the entry referenced by the given index.
   // The Unlocked version can be used in loops, but you need to hold a
   // `WriteScope` while calling it.
-  inline void SetEntrypoint(uint32_t index, Address value);
-  inline void SetEntrypointWithWriteScope(uint32_t index, Address value,
+  inline void UpdateEntrypoint(WasmCodePointer index, Address value,
+                               uint64_t signature_hash);
+  inline void SetEntrypointAndSignature(WasmCodePointer index, Address value,
+                                        uint64_t signature_hash);
+  inline void SetEntrypointWithWriteScope(WasmCodePointer index, Address value,
+                                          uint64_t signature_hash,
                                           WriteScope& write_scope);
 
   // Allocates a new entry in the table and optionally initialize it.
-  inline uint32_t AllocateAndInitializeEntry(Address entrypoint);
-  inline uint32_t AllocateUninitializedEntry();
+  inline WasmCodePointer AllocateAndInitializeEntry(Address entrypoint,
+                                                    uint64_t signature_hash);
+  inline WasmCodePointer AllocateUninitializedEntry();
 
   // Free an entry, which will add it to the free list.
-  inline void FreeEntry(uint32_t index);
+  inline void FreeEntry(WasmCodePointer index);
 
   // Iterate through the freelist to find and unmap empty segments. Will return
   // early if there's less than `threshold` many elements in the freelist.
   void SweepSegments(size_t threshold = 2 * kEntriesPerSegment);
 
+  // Add an entry for a native function address, used by the C API.
+  WasmCodePointer GetOrCreateHandleForNativeFunction(Address addr);
+
+  // Compare the address of the entry.
+  bool EntrypointEqualTo(WasmCodePointer index, Address address);
+
  private:
+  // Allow the ExternalReference to access the table base.
+  friend class ::v8::internal::ExternalReference;
+
   // This marker is used to temporarily unlink the freelist to get exclusive
   // access.
   static constexpr FreelistHead kRetryMarker = FreelistHead(0xffffffff, 0);
@@ -133,10 +169,16 @@ class V8_EXPORT_PRIVATE WasmCodePointerTable
   V8_INLINE uint32_t
   AllocateEntryFromFreelistNonAtomic(FreelistHead* freelist_head);
 
+  // Free all handles in the `native_function_map_`.
+  void FreeNativeFunctionHandles();
+
   std::atomic<FreelistHead> freelist_head_ = FreelistHead();
   // The mutex is used to avoid two threads from concurrently allocating
   // segments and using more memory than needed.
-  base::Mutex segment_allocation_mutex_;
+  base::SpinningMutex segment_allocation_mutex_;
+
+  base::SpinningMutex native_function_map_mutex_;
+  std::map<Address, WasmCodePointer> native_function_map_;
 
   friend class WasmCodePointerTableTest;
 };

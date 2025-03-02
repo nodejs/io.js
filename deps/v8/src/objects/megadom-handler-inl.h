@@ -18,7 +18,8 @@ namespace internal {
 
 TQ_OBJECT_CONSTRUCTORS_IMPL(MegaDomHandler)
 
-RELEASE_ACQUIRE_WEAK_ACCESSORS(MegaDomHandler, accessor, kAccessorOffset)
+RELEASE_ACQUIRE_ACCESSORS(MegaDomHandler, accessor, Tagged<MaybeObject>,
+                          kAccessorOffset)
 
 }  // namespace internal
 }  // namespace v8

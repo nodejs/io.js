@@ -52,7 +52,8 @@ static void SetUpNewSpaceWithPoisonedMementoAtTop() {
   Tagged<AllocationMemento> memento = UncheckedCast<AllocationMemento>(
       Tagged<Object>(heap->NewSpaceTop() + kHeapObjectTag));
   memento->set_map_after_allocation(
-      ReadOnlyRoots(heap).allocation_memento_map(), SKIP_WRITE_BARRIER);
+      isolate, ReadOnlyRoots(heap).allocation_memento_map(),
+      SKIP_WRITE_BARRIER);
 
   // Using this accessor as we're writing an invalid tagged pointer.
   Tagged_t poison = kHeapObjectTag;

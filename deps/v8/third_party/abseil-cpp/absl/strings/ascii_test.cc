@@ -200,6 +200,10 @@ TEST(AsciiStrTo, Lower) {
   EXPECT_EQ("abcdefghijklmnopqrstuvwxyz1!a", absl::AsciiStrToLower(long_str));
   EXPECT_EQ("pqrstu", absl::AsciiStrToLower(fun()));
 
+  // An empty `string_view` specifically exercises the case where a null data
+  // pointer is passed to internal functions.
+  EXPECT_EQ("", absl::AsciiStrToLower(absl::string_view()));
+
   absl::AsciiStrToLower(&mutable_str);
   EXPECT_EQ("_`?@[{amnopqrstuvwxyz", mutable_str);
 
@@ -222,6 +226,10 @@ TEST(AsciiStrTo, Upper) {
   EXPECT_EQ("_`?@[{AMNOPQRSTUVWXYZ", absl::AsciiStrToUpper(sp));
   EXPECT_EQ("ABCDEFGHIJKLMNOPQRSTUVWXYZ1!A", absl::AsciiStrToUpper(long_str));
   EXPECT_EQ("PQRSTU", absl::AsciiStrToUpper(fun()));
+
+  // An empty `string_view` specifically exercises the case where a null data
+  // pointer is passed to internal functions.
+  EXPECT_EQ("", absl::AsciiStrToUpper(absl::string_view()));
 
   char mutable_buf[] = "Mutable";
   std::transform(mutable_buf, mutable_buf + strlen(mutable_buf),

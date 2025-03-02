@@ -57,11 +57,11 @@ void WritableRelocInfo::apply(intptr_t delta) {
   if (RelocInfo::IsInternalReference(rmode_)) {
     // absolute code pointer inside code object moves with the code object.
     int32_t* p = reinterpret_cast<int32_t*>(pc_);
-    *p += delta;  // relocate entry
+    jit_allocation_.WriteValue(pc_, *p + delta);  // relocate entry
   } else if (RelocInfo::IsRelativeCodeTarget(rmode_)) {
     Instruction* branch = Instruction::At(pc_);
     int32_t branch_offset = branch->GetBranchOffset() - delta;
-    branch->SetBranchOffset(branch_offset);
+    branch->SetBranchOffset(branch_offset, &jit_allocation_);
   }
 }
 
@@ -97,9 +97,9 @@ Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
       Tagged<Object>(Assembler::target_address_at(pc_, constant_pool_)));
 }
 
-Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
+DirectHandle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
   if (IsCodeTarget(rmode_) || IsFullEmbeddedObject(rmode_)) {
-    return Handle<HeapObject>(reinterpret_cast<Address*>(
+    return DirectHandle<HeapObject>::FromSlot(reinterpret_cast<Address*>(
         Assembler::target_address_at(pc_, constant_pool_)));
   }
   DCHECK(IsRelativeCodeTarget(rmode_));
@@ -110,7 +110,7 @@ void WritableRelocInfo::set_target_object(Tagged<HeapObject> target,
                                           ICacheFlushMode icache_flush_mode) {
   DCHECK(IsCodeTarget(rmode_) || IsFullEmbeddedObject(rmode_));
   Assembler::set_target_address_at(pc_, constant_pool_, target.ptr(),
-                                   icache_flush_mode);
+                                   &jit_allocation_, icache_flush_mode);
 }
 
 Address RelocInfo::target_external_reference() {
@@ -122,7 +122,19 @@ void WritableRelocInfo::set_target_external_reference(
     Address target, ICacheFlushMode icache_flush_mode) {
   DCHECK(rmode_ == RelocInfo::EXTERNAL_REFERENCE);
   Assembler::set_target_address_at(pc_, constant_pool_, target,
-                                   icache_flush_mode);
+                                   &jit_allocation_, icache_flush_mode);
+}
+
+WasmCodePointer RelocInfo::wasm_code_pointer_table_entry() const {
+  DCHECK(rmode_ == WASM_CODE_POINTER_TABLE_ENTRY);
+  return WasmCodePointer{Assembler::uint32_constant_at(pc_, constant_pool_)};
+}
+
+void WritableRelocInfo::set_wasm_code_pointer_table_entry(
+    WasmCodePointer target, ICacheFlushMode icache_flush_mode) {
+  DCHECK(rmode_ == RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY);
+  Assembler::set_uint32_constant_at(pc_, constant_pool_, target.value(),
+                                    &jit_allocation_, icache_flush_mode);
 }
 
 Address RelocInfo::target_internal_reference() {
@@ -133,6 +145,11 @@ Address RelocInfo::target_internal_reference() {
 Address RelocInfo::target_internal_reference_address() {
   DCHECK(rmode_ == INTERNAL_REFERENCE);
   return pc_;
+}
+
+JSDispatchHandle RelocInfo::js_dispatch_handle() {
+  DCHECK(rmode_ == JS_DISPATCH_HANDLE);
+  return JSDispatchHandle(Assembler::uint32_constant_at(pc_, constant_pool_));
 }
 
 Builtin RelocInfo::target_builtin_at(Assembler* origin) { UNREACHABLE(); }
@@ -175,19 +192,14 @@ void Assembler::emit(Instr x) {
   pc_ += kInstrSize;
 }
 
-void Assembler::deserialization_set_special_target_at(
-    Address constant_pool_entry, Tagged<Code> code, Address target) {
-  DCHECK(!Builtins::IsIsolateIndependentBuiltin(code));
-  Memory<Address>(constant_pool_entry) = target;
-}
-
 int Assembler::deserialization_special_target_size(Address location) {
   return kSpecialTargetSize;
 }
 
 void Assembler::deserialization_set_target_internal_reference_at(
-    Address pc, Address target, RelocInfo::Mode mode) {
-  Memory<Address>(pc) = target;
+    Address pc, Address target, WritableJitAllocation& jit_allocation,
+    RelocInfo::Mode mode) {
+  jit_allocation.WriteValue<Address>(pc, target);
 }
 
 bool Assembler::is_constant_pool_load(Address pc) {
@@ -236,10 +248,16 @@ Address Assembler::target_address_at(Address pc, Address constant_pool) {
 
 void Assembler::set_target_address_at(Address pc, Address constant_pool,
                                       Address target,
+                                      WritableJitAllocation* jit_allocation,
                                       ICacheFlushMode icache_flush_mode) {
   if (is_constant_pool_load(pc)) {
     // This is a constant pool lookup. Update the entry in the constant pool.
-    Memory<Address>(constant_pool_entry_address(pc, constant_pool)) = target;
+    if (jit_allocation) {
+      jit_allocation->WriteValue<Address>(
+          constant_pool_entry_address(pc, constant_pool), target);
+    } else {
+      Memory<Address>(constant_pool_entry_address(pc, constant_pool)) = target;
+    }
     // Intuitively, we would think it is necessary to always flush the
     // instruction cache after patching a target address in the code as follows:
     //   FlushInstructionCache(pc, sizeof(target));
@@ -255,8 +273,17 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
     DCHECK(IsMovT(Memory<int32_t>(pc + kInstrSize)));
     uint32_t* instr_ptr = reinterpret_cast<uint32_t*>(pc);
     uint32_t immediate = static_cast<uint32_t>(target);
-    instr_ptr[0] = PatchMovwImmediate(instr_ptr[0], immediate & 0xFFFF);
-    instr_ptr[1] = PatchMovwImmediate(instr_ptr[1], immediate >> 16);
+    if (jit_allocation) {
+      jit_allocation->WriteValue(
+          reinterpret_cast<Address>(&instr_ptr[0]),
+          PatchMovwImmediate(instr_ptr[0], immediate & 0xFFFF));
+      jit_allocation->WriteValue(
+          reinterpret_cast<Address>(&instr_ptr[1]),
+          PatchMovwImmediate(instr_ptr[1], immediate >> 16));
+    } else {
+      instr_ptr[0] = PatchMovwImmediate(instr_ptr[0], immediate & 0xFFFF);
+      instr_ptr[1] = PatchMovwImmediate(instr_ptr[1], immediate >> 16);
+    }
     DCHECK(IsMovW(Memory<int32_t>(pc)));
     DCHECK(IsMovT(Memory<int32_t>(pc + kInstrSize)));
     if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
@@ -271,10 +298,25 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
            IsOrrImmed(Memory<int32_t>(pc + 3 * kInstrSize)));
     uint32_t* instr_ptr = reinterpret_cast<uint32_t*>(pc);
     uint32_t immediate = static_cast<uint32_t>(target);
-    instr_ptr[0] = PatchShiftImm(instr_ptr[0], immediate & kImm8Mask);
-    instr_ptr[1] = PatchShiftImm(instr_ptr[1], immediate & (kImm8Mask << 8));
-    instr_ptr[2] = PatchShiftImm(instr_ptr[2], immediate & (kImm8Mask << 16));
-    instr_ptr[3] = PatchShiftImm(instr_ptr[3], immediate & (kImm8Mask << 24));
+    if (jit_allocation) {
+      jit_allocation->WriteValue(
+          reinterpret_cast<Address>(&instr_ptr[0]),
+          PatchShiftImm(instr_ptr[0], immediate & kImm8Mask));
+      jit_allocation->WriteValue(
+          reinterpret_cast<Address>(&instr_ptr[1]),
+          PatchShiftImm(instr_ptr[1], immediate & (kImm8Mask << 8)));
+      jit_allocation->WriteValue(
+          reinterpret_cast<Address>(&instr_ptr[2]),
+          PatchShiftImm(instr_ptr[2], immediate & (kImm8Mask << 16)));
+      jit_allocation->WriteValue(
+          reinterpret_cast<Address>(&instr_ptr[3]),
+          PatchShiftImm(instr_ptr[3], immediate & (kImm8Mask << 24)));
+    } else {
+      instr_ptr[0] = PatchShiftImm(instr_ptr[0], immediate & kImm8Mask);
+      instr_ptr[1] = PatchShiftImm(instr_ptr[1], immediate & (kImm8Mask << 8));
+      instr_ptr[2] = PatchShiftImm(instr_ptr[2], immediate & (kImm8Mask << 16));
+      instr_ptr[3] = PatchShiftImm(instr_ptr[3], immediate & (kImm8Mask << 24));
+    }
     DCHECK(IsMovImmed(Memory<int32_t>(pc)) &&
            IsOrrImmed(Memory<int32_t>(pc + kInstrSize)) &&
            IsOrrImmed(Memory<int32_t>(pc + 2 * kInstrSize)) &&
@@ -285,7 +327,7 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
   } else {
     intptr_t branch_offset = target - pc - Instruction::kPcLoadDelta;
     Instruction* branch = Instruction::At(pc);
-    branch->SetBranchOffset(branch_offset);
+    branch->SetBranchOffset(branch_offset, jit_allocation);
     if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
       FlushInstructionCache(pc, kInstrSize);
     }
@@ -299,6 +341,7 @@ uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
 
 void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
                                        uint32_t new_constant,
+                                       WritableJitAllocation* jit_allocation,
                                        ICacheFlushMode icache_flush_mode) {
   CHECK(is_constant_pool_load(pc));
   Memory<uint32_t>(constant_pool_entry_address(pc, constant_pool)) =

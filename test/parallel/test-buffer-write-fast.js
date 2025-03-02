@@ -41,7 +41,5 @@ testFastUtf8Write();
 
 if (common.isDebug) {
   const { getV8FastApiCallCount } = internalBinding('debug');
-  // TODO: the count should be 4. The function is optimized, but the fast
-  // API is not called.
-  assert.strictEqual(getV8FastApiCallCount('buffer.writeString'), 0);
+  assert(getV8FastApiCallCount('buffer.writeString'), 4);
 }

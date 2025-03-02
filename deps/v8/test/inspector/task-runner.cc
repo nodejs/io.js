@@ -67,12 +67,12 @@ void TaskRunner::Run() {
 }
 
 void TaskRunner::RunMessageLoop(bool only_protocol) {
+  v8::Isolate::Scope isolate_scope(isolate());
   int loop_number = ++nested_loop_count_;
   while (nested_loop_count_ == loop_number && !is_terminated_ &&
          !isolate()->IsExecutionTerminating()) {
     std::unique_ptr<TaskRunner::Task> task = GetNext(only_protocol);
     if (!task) return;
-    v8::Isolate::Scope isolate_scope(isolate());
     v8::TryCatch try_catch(isolate());
     if (catch_exceptions_ == kStandardPropagateUncaughtExceptions) {
       try_catch.SetVerbose(true);

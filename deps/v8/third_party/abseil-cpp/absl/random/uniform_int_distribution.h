@@ -31,8 +31,9 @@
 #include <cassert>
 #include <istream>
 #include <limits>
-#include <type_traits>
+#include <ostream>
 
+#include "absl/base/config.h"
 #include "absl/base/optimization.h"
 #include "absl/random/internal/fast_uniform_bits.h"
 #include "absl/random/internal/iostream_state_saver.h"

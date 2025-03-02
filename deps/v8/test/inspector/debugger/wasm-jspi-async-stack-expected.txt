@@ -6,46 +6,50 @@ console: Error location: Error
     at doPause (test.js:45:34)
     at testSimple (test.js:71:3)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x4e)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at test_framework.js:1:1
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 testSimple (test.js:70:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 console: Suspending wrapperFunc
 console: Error location: Error
     at doPause (test.js:45:34)
     at testSimple (test.js:71:3)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x52)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x52)
     at async wrapperFunc (test.js:38:12)
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 testSimple (test.js:70:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 console: Error location: Error
     at doPause (test.js:45:34)
     at testSimple (test.js:71:3)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x56)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x56)
     at async wrapperFunc (test.js:38:12)
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 testSimple (test.js:70:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:86)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 
 Returned result {"result":{"type":"number","value":3,"description":"3"}}
 
@@ -61,8 +65,10 @@ doPause (test.js:45:2)
 testSetTimeout (test.js:76:2)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 console: Error location: Error
     at doPause (test.js:45:34)
@@ -74,14 +80,16 @@ doPause (test.js:45:2)
 testSetTimeout (test.js:76:2)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 -- setTimeout --
 result (test.js:75:40)
 testSetTimeout (test.js:75:23)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 console: Error location: Error
     at doPause (test.js:45:34)
@@ -93,20 +101,22 @@ doPause (test.js:45:2)
 testSetTimeout (test.js:76:2)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:86)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 -- setTimeout --
 result (test.js:75:40)
 testSetTimeout (test.js:75:23)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 -- setTimeout --
 result (test.js:75:40)
 testSetTimeout (test.js:75:23)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 Returned result {"result":{"type":"number","value":3,"description":"3"}}
 
@@ -115,15 +125,29 @@ console: Error location: Error
     at doPause (test.js:45:34)
     at innerPause (test.js:84:5)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x4e)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at testDoubleNested (test.js:92:11)
+    at js_func (test.js:25:18)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at test_framework.js:1:1
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 innerPause (test.js:83:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 console: Suspending wrapperFunc
 console: Suspending wrapperFunc
@@ -137,30 +161,54 @@ doPause (test.js:45:2)
 innerPause (test.js:85:4)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 Debugger paused on caught exception
 innerPause (test.js:87:4)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+(anonymous) (test_framework.js:0:0)
 
 console: Error location: Error
     at doPause (test.js:45:34)
     at innerPause (test.js:84:5)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x4e)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at testDoubleNested (test.js:92:11)
+    at js_func (test.js:25:18)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x52)
     at async wrapperFunc (test.js:38:12)
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 innerPause (test.js:83:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 console: Suspending wrapperFunc
 console: Error location: Error
@@ -173,30 +221,50 @@ doPause (test.js:45:2)
 innerPause (test.js:85:4)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 Debugger paused on caught exception
 innerPause (test.js:87:4)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 console: Error location: Error
     at doPause (test.js:45:34)
     at innerPause (test.js:84:5)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x4e)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at testDoubleNested (test.js:92:11)
+    at js_func (test.js:25:18)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x56)
     at async wrapperFunc (test.js:38:12)
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 innerPause (test.js:83:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 
 console: Suspending wrapperFunc
 console: Error location: Error
@@ -209,15 +277,25 @@ doPause (test.js:45:2)
 innerPause (test.js:85:4)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 
 Debugger paused on caught exception
 innerPause (test.js:87:4)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDoubleNested (test.js:91:10)
+js_func (test.js:24:17)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 
 Returned result {"result":{"type":"number","value":3,"description":"3"}}
 
@@ -228,30 +306,46 @@ console: Error location: Error
     at doPause (test.js:45:34)
     at testSimple (test.js:71:3)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x4e)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at thread1 (test.js:56:18)
+    at testStackSwitching (test.js:66:37)
+    at test_framework.js:1:1
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 testSimple (test.js:70:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+thread1 (test.js:55:17)
+testStackSwitching (test.js:65:36)
+(anonymous) (test_framework.js:0:0)
 
 console: Suspending wrapperFunc
 console: Error location: Error
     at doPause (test.js:45:34)
     at alsoSimple (test.js:52:5)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x4e)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x4e)
+    at wrapperFunc (test.js:36:15)
+    at thread2 (test.js:59:18)
+    at testStackSwitching (test.js:66:48)
+    at test_framework.js:1:1
 
 Debugger paused on debugger statement
 doPause (test.js:45:2)
 alsoSimple (test.js:51:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+thread2 (test.js:58:17)
+testStackSwitching (test.js:65:47)
+(anonymous) (test_framework.js:0:0)
 
 console: Suspending wrapperFunc
 console: Error location: Error
@@ -273,8 +367,8 @@ console: Error location: Error
     at doPause (test.js:45:34)
     at testSimple (test.js:71:3)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x52)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x52)
     at async wrapperFunc (test.js:38:12)
     at async thread1 (test.js:56:12)
     at async Promise.all (index 0)
@@ -284,15 +378,15 @@ Debugger paused on debugger statement
 doPause (test.js:45:2)
 testSimple (test.js:70:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 console: Error location: Error
     at doPause (test.js:45:34)
     at alsoSimple (test.js:52:5)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x52)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x52)
     at async wrapperFunc (test.js:38:12)
     at async thread2 (test.js:59:12)
     at async Promise.all (index 1)
@@ -302,8 +396,8 @@ Debugger paused on debugger statement
 doPause (test.js:45:2)
 alsoSimple (test.js:51:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 console: Error location: Error
     at doPause (test.js:45:34)
@@ -339,8 +433,8 @@ console: Error location: Error
     at doPause (test.js:45:34)
     at testSimple (test.js:71:3)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x56)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x56)
     at async wrapperFunc (test.js:38:12)
     at async thread1 (test.js:56:12)
     at async Promise.all (index 0)
@@ -350,15 +444,15 @@ Debugger paused on debugger statement
 doPause (test.js:45:2)
 testSimple (test.js:70:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:86)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 
 console: Error location: Error
     at doPause (test.js:45:34)
     at alsoSimple (test.js:52:5)
     at js_func (test.js:25:18)
-    at wrappedWasm (wasm://wasm/fac94cc6:wasm-function[1]:0x47)
-    at threeTimes (wasm://wasm/fac94cc6:wasm-function[2]:0x56)
+    at wrappedWasm (wasm://wasm/2a184bf2:wasm-function[1]:0x47)
+    at threeTimes (wasm://wasm/2a184bf2:wasm-function[2]:0x56)
     at async wrapperFunc (test.js:38:12)
     at async thread2 (test.js:59:12)
     at async Promise.all (index 1)
@@ -368,24 +462,26 @@ Debugger paused on debugger statement
 doPause (test.js:45:2)
 alsoSimple (test.js:51:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:86)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:86)
 
 Returned result {"result":{"type":"string","value":"3,6,3"}}
 
 
 Running test: testCatchPrediction
 Testing catch prediction through JSPI throwing from testSyncThrow to testCatch
-Debugger paused on uncaught exception
+Debugger paused on caught exception
 testSyncThrow (test.js:97:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testCatch (test.js:116:10)
+(anonymous) (test_framework.js:0:0)
 
 console: Suspending wrapperFunc
 console: caught: fail
 Returned result {"result":{"type":"undefined"}}
-PREDICTION MISMATCH: predicted uncaught=true actual uncaught=false
 
 Testing catch prediction through JSPI throwing from testAsyncThrow to testCatch
 console: Suspending wrapperFunc
@@ -393,8 +489,11 @@ Debugger paused on caught exception
 testAsyncThrow (test.js:102:2)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testCatch (test.js:116:10)
+(anonymous) (test_framework.js:0:0)
 
 console: caught: fail
 Returned result {"result":{"type":"undefined"}}
@@ -404,8 +503,8 @@ console: Suspending wrapperFunc
 Debugger paused on caught exception
 testSyncThrowAfterResume (test.js:110:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 console: caught: fail
 Returned result {"result":{"type":"undefined"}}
@@ -414,8 +513,11 @@ Testing catch prediction through JSPI throwing from testSyncThrow to testDontCat
 Debugger paused on uncaught exception
 testSyncThrow (test.js:97:2)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDontCatch (test.js:125:2)
+(anonymous) (test_framework.js:0:0)
 
 console: Suspending wrapperFunc
 Returned result {"result":{"type":"undefined"}}
@@ -427,8 +529,11 @@ Debugger paused on uncaught exception
 testAsyncThrow (test.js:102:2)
 -- await --
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:78)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:78)
+wrapperFunc (test.js:35:14)
+testDontCatch (test.js:125:2)
+(anonymous) (test_framework.js:0:0)
 
 Returned result {"result":{"type":"undefined"}}
 Exception was not caught
@@ -438,8 +543,8 @@ console: Suspending wrapperFunc
 Debugger paused on uncaught exception
 testSyncThrowAfterResume (test.js:110:4)
 js_func (test.js:24:17)
-$wrappedWasm (wasm://wasm/fac94cc6:0:71)
-$threeTimes (wasm://wasm/fac94cc6:0:82)
+$wrappedWasm (wasm://wasm/2a184bf2:0:71)
+$threeTimes (wasm://wasm/2a184bf2:0:82)
 
 Returned result {"result":{"type":"undefined"}}
 Exception was not caught

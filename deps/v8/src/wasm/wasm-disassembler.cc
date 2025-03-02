@@ -74,7 +74,7 @@ void DisassembleFunctionImpl(const WasmModule* module, int func_index,
   const wasm::WasmFunction& func = module->functions[func_index];
   AccountingAllocator allocator;
   Zone zone(&allocator, "Wasm disassembler");
-  bool shared = module->types[func.sig_index].is_shared;
+  bool shared = module->type(func.sig_index).is_shared;
   WasmDetectedFeatures detected;
   FunctionBodyDisassembler d(&zone, module, func_index, shared, &detected,
                              func.sig, function_body.begin(),
@@ -382,7 +382,7 @@ class ImmediatesPrinter {
     owner_->out_->PatchLabel(label_info, out_.start() + label_start_position);
   }
 
-  void PrintSignature(uint32_t sig_index) {
+  void PrintSignature(ModuleTypeIndex sig_index) {
     if (owner_->module_->has_signature(sig_index)) {
       const FunctionSig* sig = owner_->module_->signature(sig_index);
       PrintSignatureOneLine(out_, sig, 0 /* ignored */, names(), false);
@@ -484,7 +484,8 @@ class ImmediatesPrinter {
   void Field(FieldImmediate& imm) {
     TypeIndex(imm.struct_imm);
     out_ << " ";
-    names()->PrintFieldName(out_, imm.struct_imm.index, imm.field_imm.index);
+    names()->PrintFieldName(out_, imm.struct_imm.index.index,
+                            imm.field_imm.index);
   }
 
   void Length(IndexImmediate& imm) {
@@ -501,7 +502,7 @@ class ImmediatesPrinter {
     names()->PrintFunctionName(out_, imm.index, NamesProvider::kDevTools);
   }
 
-  void TypeIndex(IndexImmediate& imm) {
+  void TypeIndex(TypeIndexImmediate& imm) {
     out_ << " ";
     names()->PrintTypeName(out_, imm.index);
     use_type(imm.index);
@@ -597,7 +598,8 @@ class ImmediatesPrinter {
       }
     } else {
       char buffer[100];
-      const char* str = DoubleToCString(d, base::VectorOf(buffer, 100u));
+      std::string_view str =
+          DoubleToStringView(d, base::VectorOf(buffer, 100u));
       out_ << " " << str;
     }
   }
@@ -672,7 +674,7 @@ class ImmediatesPrinter {
     names()->PrintTableName(out_, imm.table_src.index);
   }
 
-  void ArrayCopy(IndexImmediate& dst, IndexImmediate& src) {
+  void ArrayCopy(TypeIndexImmediate& dst, TypeIndexImmediate& src) {
     out_ << " ";
     names()->PrintTypeName(out_, dst.index);
     out_ << " ";
@@ -682,7 +684,9 @@ class ImmediatesPrinter {
   }
 
  private:
-  void use_type(uint32_t type_index) { owner_->used_types_.insert(type_index); }
+  void use_type(ModuleTypeIndex type_index) {
+    owner_->used_types_.insert(type_index.index);
+  }
 
   NamesProvider* names() { return owner_->names_; }
 
@@ -716,8 +720,9 @@ void OffsetsProvider::CollectOffsets(const WasmModule* module,
   data_offsets_.reserve(module->data_segments.size());
   recgroups_.reserve(4);  // We can't know, so this is just a guess.
 
+  WasmDetectedFeatures unused_detected_features;
   ModuleDecoderImpl decoder{WasmEnabledFeatures::All(), wire_bytes, kWasmOrigin,
-                            this};
+                            &unused_detected_features, this};
   constexpr bool kNoVerifyFunctions = false;
   decoder.DecodeModule(kNoVerifyFunctions);
 }
@@ -844,8 +849,8 @@ void ModuleDisassembler::PrintModule(Indentation indentation, size_t max_mb) {
         break;
       }
     }
-    if (kSkipFunctionTypesInTypeSection && module_->has_signature(i) &&
-        !in_explicit_recgroup) {
+    if (kSkipFunctionTypesInTypeSection &&
+        module_->has_signature(ModuleTypeIndex{i}) && !in_explicit_recgroup) {
       continue;
     }
     PrintTypeDefinition(i, indentation, kIndicesAsComments);
@@ -1017,11 +1022,12 @@ void ModuleDisassembler::PrintModule(Indentation indentation, size_t max_mb) {
     if (elem.shared) out_ << "shared ";
     names_->PrintValueType(out_, elem.type);
 
-    ModuleDecoderImpl decoder(WasmEnabledFeatures::All(),
-                              wire_bytes_.module_bytes(),
-                              ModuleOrigin::kWasmOrigin);
+    WasmDetectedFeatures unused_detected_features;
+    ModuleDecoderImpl decoder(
+        WasmEnabledFeatures::All(), wire_bytes_.module_bytes(),
+        ModuleOrigin::kWasmOrigin, &unused_detected_features);
     decoder.consume_bytes(elem.elements_wire_bytes_offset);
-    for (size_t i = 0; i < elem.element_count; i++) {
+    for (size_t j = 0; j < elem.element_count; j++) {
       ConstantExpression entry = decoder.consume_element_segment_entry(
           const_cast<WasmModule*>(module_), elem);
       PrintInitExpression(entry, elem.type);
@@ -1049,7 +1055,7 @@ void ModuleDisassembler::PrintModule(Indentation indentation, size_t max_mb) {
     if (func->exported) PrintExportName(kExternalFunction, i);
     PrintSignatureOneLine(out_, func->sig, i, names_, true, kIndicesAsComments);
     out_.NextLine(func->code.offset());
-    bool shared = module_->types[func->sig_index].is_shared;
+    bool shared = module_->type(func->sig_index).is_shared;
     WasmDetectedFeatures detected;
     base::Vector<const uint8_t> code = wire_bytes_.GetFunctionBytes(func);
     FunctionBodyDisassembler d(&zone_, module_, i, shared, &detected, func->sig,
@@ -1079,7 +1085,7 @@ void ModuleDisassembler::PrintModule(Indentation indentation, size_t max_mb) {
     }
     if (data.shared) out_ << " shared";
     if (data.active) {
-      ValueType type = module_->memories[data.memory_index].is_memory64
+      ValueType type = module_->memories[data.memory_index].is_memory64()
                            ? kWasmI64
                            : kWasmI32;
       PrintInitExpression(data.dest_addr, type);
@@ -1148,22 +1154,22 @@ void ModuleDisassembler::PrintGlobal(const WasmGlobal& global) {
 void ModuleDisassembler::PrintInitExpression(const ConstantExpression& init,
                                              ValueType expected_type) {
   switch (init.kind()) {
-    case ConstantExpression::kEmpty:
+    case ConstantExpression::Kind::kEmpty:
       break;
-    case ConstantExpression::kI32Const:
+    case ConstantExpression::Kind::kI32Const:
       out_ << " (i32.const " << init.i32_value() << ")";
       break;
-    case ConstantExpression::kRefNull:
+    case ConstantExpression::Kind::kRefNull:
       out_ << " (ref.null ";
       names_->PrintHeapType(out_, HeapType(init.repr()));
       out_ << ")";
       break;
-    case ConstantExpression::kRefFunc:
+    case ConstantExpression::Kind::kRefFunc:
       out_ << " (ref.func ";
       names_->PrintFunctionName(out_, init.index(), NamesProvider::kDevTools);
       out_ << ")";
       break;
-    case ConstantExpression::kWireBytesRef:
+    case ConstantExpression::Kind::kWireBytesRef:
       WireBytesRef ref = init.wire_bytes_ref();
       const uint8_t* start = start_ + ref.offset();
       const uint8_t* end = start_ + ref.end_offset();
@@ -1192,31 +1198,36 @@ void ModuleDisassembler::PrintString(WireBytesRef ref) {
 // This mimics legacy wasmparser behavior. It might be a questionable choice,
 // but we'll follow suit for now.
 void ModuleDisassembler::PrintStringAsJSON(WireBytesRef ref) {
-  for (const uint8_t* ptr = start_ + ref.offset();
-       ptr < start_ + ref.end_offset(); ptr++) {
+  i::wasm::PrintStringAsJSON(out_, start_, ref);
+}
+
+void PrintStringAsJSON(StringBuilder& out, const uint8_t* start,
+                       WireBytesRef ref) {
+  for (const uint8_t* ptr = start + ref.offset();
+       ptr < start + ref.end_offset(); ptr++) {
     uint8_t b = *ptr;
     if (b <= 34) {
       switch (b) {
         // clang-format off
-        case '\b': out_ << "\\b";  break;
-        case '\t': out_ << "\\t";  break;
-        case '\n': out_ << "\\n";  break;
-        case '\f': out_ << "\\f";  break;
-        case '\r': out_ << "\\r";  break;
-        case ' ':  out_ << ' ';    break;
-        case '!':  out_ << '!';    break;
-        case '"':  out_ << "\\\""; break;
+        case '\b': out << "\\b";  break;
+        case '\t': out << "\\t";  break;
+        case '\n': out << "\\n";  break;
+        case '\f': out << "\\f";  break;
+        case '\r': out << "\\r";  break;
+        case ' ':  out << ' ';    break;
+        case '!':  out << '!';    break;
+        case '"':  out << "\\\""; break;
         // clang-format on
         default:
-          out_ << "\\u00" << kHexChars[b >> 4] << kHexChars[b & 0xF];
+          out << "\\u00" << kHexChars[b >> 4] << kHexChars[b & 0xF];
           break;
       }
     } else if (b != 127 && b != '\\') {
-      out_ << static_cast<char>(b);
+      out << static_cast<char>(b);
     } else if (b == '\\') {
-      out_ << "\\\\";
+      out << "\\\\";
     } else {
-      out_ << "\\x7F";
+      out << "\\x7F";
     }
   }
 }

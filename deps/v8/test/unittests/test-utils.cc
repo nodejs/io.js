@@ -24,13 +24,19 @@ namespace {
 CounterMap* kCurrentCounterMap = nullptr;
 }  // namespace
 
-IsolateWrapper::IsolateWrapper(CountersMode counters_mode)
+std::unique_ptr<CppHeap> IsolateWrapper::cpp_heap_;
+
+IsolateWrapper::IsolateWrapper(CountersMode counters_mode,
+                               bool use_statically_set_cpp_heap)
     : array_buffer_allocator_(
           v8::ArrayBuffer::Allocator::NewDefaultAllocator()) {
   CHECK_NULL(kCurrentCounterMap);
 
   v8::Isolate::CreateParams create_params;
   create_params.array_buffer_allocator = array_buffer_allocator_.get();
+  if (use_statically_set_cpp_heap) {
+    create_params.cpp_heap = cpp_heap_.release();
+  }
 
   if (counters_mode == kEnableCounters) {
     counter_map_ = std::make_unique<CounterMap>();

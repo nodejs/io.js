@@ -24,23 +24,16 @@ class String;
 
 class RegExpMatchInfoShape final : public AllStatic {
  public:
-  static constexpr int kElementSize = kTaggedSize;
   using ElementT = Smi;
   using CompressionScheme = SmiCompressionScheme;
   static constexpr RootIndex kMapRootIndex = RootIndex::kRegExpMatchInfoMap;
   static constexpr bool kLengthEqualsCapacity = true;
 
-#define FIELD_LIST(V)                                                   \
-  V(kCapacityOffset, kTaggedSize)                                       \
-  V(kNumberOfCaptureRegistersOffset, kTaggedSize)                       \
-  V(kLastSubjectOffset, kTaggedSize)                                    \
-  V(kLastInputOffset, kTaggedSize)                                      \
-  V(kUnalignedHeaderSize, OBJECT_POINTER_PADDING(kUnalignedHeaderSize)) \
-  V(kHeaderSize, 0)                                                     \
-  V(kCapturesOffset, 0)  // captures[capacity]
-
-  DEFINE_FIELD_OFFSET_CONSTANTS(HeapObject::kHeaderSize, FIELD_LIST)
-#undef FIELD_LIST
+  V8_ARRAY_EXTRA_FIELDS({
+    TaggedMember<Smi> number_of_capture_registers_;
+    TaggedMember<String> last_subject_;
+    TaggedMember<Object> last_input_;
+  });
 };
 
 // The property RegExpMatchInfo includes the matchIndices array of the last
@@ -48,10 +41,9 @@ class RegExpMatchInfoShape final : public AllStatic {
 // all the captured substrings), the invariant is that there are at least two
 // capture indices.  The array also contains the subject string for the last
 // successful match.
-class RegExpMatchInfo
+V8_OBJECT class RegExpMatchInfo
     : public TaggedArrayBase<RegExpMatchInfo, RegExpMatchInfoShape> {
   using Super = TaggedArrayBase<RegExpMatchInfo, RegExpMatchInfoShape>;
-  OBJECT_CONSTRUCTORS(RegExpMatchInfo, Super);
 
  public:
   using Shape = RegExpMatchInfoShape;
@@ -91,18 +83,11 @@ class RegExpMatchInfo
 
   static constexpr int kMinCapacity = 2;
 
-  // Redeclare these here since they are used from generated code.
-  static constexpr int kLengthOffset = Shape::kCapacityOffset;
-  static constexpr int kLastInputOffset = Shape::kLastInputOffset;
-  static constexpr int kLastSubjectOffset = Shape::kLastSubjectOffset;
-  static constexpr int kNumberOfCaptureRegistersOffset =
-      Shape::kNumberOfCaptureRegistersOffset;
-
   DECL_PRINTER(RegExpMatchInfo)
   DECL_VERIFIER(RegExpMatchInfo)
 
   class BodyDescriptor;
-};
+} V8_OBJECT_END;
 
 }  // namespace internal
 }  // namespace v8

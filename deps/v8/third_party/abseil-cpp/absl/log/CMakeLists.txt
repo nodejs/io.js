@@ -44,8 +44,10 @@ absl_cc_library(
   LINKOPTS
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
+    absl::base
     absl::config
     absl::core_headers
+    absl::leak_check
     absl::log_internal_nullguard
     absl::log_internal_nullstream
     absl::log_internal_strip
@@ -196,25 +198,27 @@ absl_cc_library(
     absl::config
     absl::core_headers
     absl::errno_saver
-    absl::inlined_vector
     absl::examine_stack
+    absl::inlined_vector
     absl::log_internal_append_truncated
     absl::log_internal_format
     absl::log_internal_globals
     absl::log_internal_proto
     absl::log_internal_log_sink_set
     absl::log_internal_nullguard
+    absl::log_internal_structured_proto
     absl::log_globals
     absl::log_entry
     absl::log_severity
     absl::log_sink
     absl::log_sink_registry
     absl::memory
+    absl::nullability
     absl::raw_logging_internal
-    absl::strings
-    absl::strerror
-    absl::time
     absl::span
+    absl::strerror
+    absl::strings
+    absl::time
 )
 
 absl_cc_library(
@@ -603,6 +607,7 @@ absl_cc_library(
     absl::config
     absl::log_sink
     absl::log_internal_log_sink_set
+    absl::nullability
   PUBLIC
 )
 
@@ -662,9 +667,50 @@ absl_cc_library(
   LINKOPTS
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
+    absl::any_invocable
     absl::config
+    absl::core_headers
     absl::log_internal_message
+    absl::log_internal_structured_proto
     absl::strings
+)
+
+absl_cc_library(
+  NAME
+    log_internal_structured_proto
+  SRCS
+    "internal/structured_proto.cc"
+  HDRS
+    "internal/structured_proto.h"
+  COPTS
+    ${ABSL_DEFAULT_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::log_internal_proto
+    absl::config
+    absl::span
+    absl::strings
+    absl::variant
+  PUBLIC
+)
+
+absl_cc_test(
+  NAME
+    log_internal_structured_proto_test
+  SRCS
+    "internal/structured_proto_test.cc"
+  COPTS
+    ${ABSL_TEST_COPTS}
+  LINKOPTS
+    ${ABSL_DEFAULT_LINKOPTS}
+  DEPS
+    absl::config
+    absl::log_internal_structured_proto
+    absl::span
+    absl::string_view
+    absl::utility
+    GTest::gmock_main
 )
 
 absl_cc_library(
@@ -678,6 +724,7 @@ absl_cc_library(
     ${ABSL_DEFAULT_LINKOPTS}
   DEPS
     absl::config
+    absl::core_headers
     absl::log_internal_structured
     absl::strings
   PUBLIC

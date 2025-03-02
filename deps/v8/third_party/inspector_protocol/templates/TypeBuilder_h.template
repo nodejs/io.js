@@ -89,16 +89,19 @@ public:
       {% endif %}
 
       {% if property.optional %}
-    bool {{"has" | to_method_case}}{{property_name}}() { return {{property_field}}.has_value(); }
+    bool {{"has" | to_method_case}}{{property_name}}() { return !!{{property_field}}; }
     {% if property_type.is_primitive %}
     {{property_type.raw_return_type}} {{"get" | to_method_case}}{{property_name}}({{property_type.raw_pass_type}} defaultValue) const {
        return {{property_field}}.value_or(defaultValue);
     }
     {% else %}
     {{property_type.raw_return_type}} {{"get" | to_method_case}}{{property_name}}({{property_type.raw_pass_type}} defaultValue) {
-       return {{property_field}}.has_value() ? &{{property_field}}.value() : defaultValue;
+       return {{property_field}} ? {{property_field}}.get() : defaultValue;
     }
     {% endif %}
+    const {{protocol.optional_type(property)}}& {{"get" | to_method_case}}{{property_name}}() const {
+       return {{property_field}};
+    }
       {% else %}
     {{property_type.raw_return_type}} {{"get" | to_method_case}}{{property_name}}() { return {{property_type.to_raw_type % property_field}}; }
       {% endif %}
@@ -175,7 +178,7 @@ private:
 
     {% for property in type.properties %}
       {% if property.optional %}
-    Maybe<{{protocol.resolve_type(property).raw_type}}> m_{{property.name}};
+    {{protocol.optional_type(property)}} m_{{property.name}};
       {% else %}
     {{protocol.resolve_type(property).type}} m_{{property.name}};
       {% endif %}
@@ -199,7 +202,7 @@ public:
         virtual void sendSuccess(
       {%- for parameter in command.returns -%}
         {%- if "optional" in parameter -%}
-            Maybe<{{protocol.resolve_type(parameter).raw_type}}> {{parameter.name}}
+            {{protocol.optional_type(parameter)}} {{parameter.name}}
         {%- else -%}
                 {{protocol.resolve_type(parameter).pass_type}} {{parameter.name}}
         {%- endif -%}
@@ -219,7 +222,7 @@ public:
     {%- for parameter in command.parameters -%}
       {%- if not loop.first -%}, {% endif -%}
       {%- if "optional" in parameter -%}
-        Maybe<{{protocol.resolve_type(parameter).raw_type}}> in_{{parameter.name}}
+        {{protocol.optional_type(parameter)}} in_{{parameter.name}}
       {%- else -%}
         {{protocol.resolve_type(parameter).pass_type}} in_{{parameter.name}}
       {%- endif -%}
@@ -231,7 +234,7 @@ public:
       {%- for parameter in command.returns -%}
         {%- if (not loop.first) or command.parameters -%}, {% endif -%}
         {%- if "optional" in parameter -%}
-        Maybe<{{protocol.resolve_type(parameter).raw_type}}>* out_{{parameter.name}}
+        {{protocol.optional_type(parameter)}}* out_{{parameter.name}}
         {%- else -%}
         {{protocol.resolve_type(parameter).type}}* out_{{parameter.name}}
         {%- endif -%}
@@ -258,7 +261,7 @@ public:
     void {{event.name | to_method_case}}(
     {%- for parameter in event.parameters -%}
       {%- if "optional" in parameter -%}
-        Maybe<{{protocol.resolve_type(parameter).raw_type}}> {{parameter.name}} = Maybe<{{protocol.resolve_type(parameter).raw_type}}>()
+        {{protocol.optional_type(parameter)}} {{parameter.name}} = {}
       {%- else -%}
         {{protocol.resolve_type(parameter).pass_type}} {{parameter.name}}
       {%- endif -%}{%- if not loop.last -%}, {% endif -%}

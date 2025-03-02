@@ -35,6 +35,7 @@ absl_cc_library(
     absl::core_headers
     absl::function_ref
     absl::inlined_vector
+    absl::leak_check
     absl::memory
     absl::no_destructor
     absl::nullability
@@ -42,8 +43,8 @@ absl_cc_library(
     absl::raw_logging_internal
     absl::span
     absl::stacktrace
-    absl::strerror
     absl::str_format
+    absl::strerror
     absl::strings
     absl::symbolize
   PUBLIC

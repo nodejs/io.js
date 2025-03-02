@@ -216,6 +216,6 @@ assertUnoptimized(readFloat64);
   warmup(readInt8Handled);
   assertOptimized(readInt8Handled);
   %ArrayBufferDetach(buffer);
-  assertInstanceof(readInt8Handled(0), TypeError);
   assertUnoptimized(readInt8Handled);
+  assertInstanceof(readInt8Handled(0), TypeError);
 })();

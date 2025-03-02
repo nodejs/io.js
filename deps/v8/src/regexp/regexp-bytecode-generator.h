@@ -26,7 +26,7 @@ class V8_EXPORT_PRIVATE RegExpBytecodeGenerator : public RegExpMacroAssembler {
   RegExpBytecodeGenerator(Isolate* isolate, Zone* zone);
   ~RegExpBytecodeGenerator() override;
   // The byte-code interpreter checks on each push anyway.
-  int stack_limit_slack() override { return 1; }
+  int stack_limit_slack_slot_count() override { return 1; }
   bool CanReadUnaligned() const override { return false; }
   void Bind(Label* label) override;
   void AdvanceCurrentPosition(int by) override;  // Signed cp change.
@@ -98,7 +98,7 @@ class V8_EXPORT_PRIVATE RegExpBytecodeGenerator : public RegExpMacroAssembler {
   void IfRegisterEqPos(int register_index, Label* if_eq) override;
 
   IrregexpImplementation Implementation() override;
-  Handle<HeapObject> GetCode(Handle<String> source) override;
+  Handle<HeapObject> GetCode(Handle<String> source, RegExpFlags flags) override;
 
  private:
   void ExpandBuffer();
@@ -110,7 +110,7 @@ class V8_EXPORT_PRIVATE RegExpBytecodeGenerator : public RegExpMacroAssembler {
   inline void Emit8(uint32_t x);
   inline void Emit(uint32_t bc, uint32_t arg);
   inline void Emit(uint32_t bc, int32_t arg);
-  void EmitSkipTable(Handle<ByteArray> table);
+  void EmitSkipTable(DirectHandle<ByteArray> table);
   // Bytecode buffer.
   int length();
   void Copy(uint8_t* a);

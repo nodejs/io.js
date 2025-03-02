@@ -21,7 +21,7 @@
 #include "src/compiler/backend/x64/instruction-codes-x64.h"
 #elif V8_TARGET_ARCH_PPC64
 #include "src/compiler/backend/ppc/instruction-codes-ppc.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/compiler/backend/s390/instruction-codes-s390.h"
 #elif V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
 #include "src/compiler/backend/riscv/instruction-codes-riscv.h"
@@ -124,11 +124,13 @@ inline RecordWriteMode WriteBarrierKindToRecordWriteMode(
   V(ArchTailCallCodeObject)                                                \
   V(ArchTailCallAddress)                                                   \
   IF_WASM(V, ArchTailCallWasm)                                             \
+  IF_WASM(V, ArchTailCallWasmIndirect)                                     \
   /* Update IsTailCall if further TailCall opcodes are added */            \
                                                                            \
   V(ArchCallCodeObject)                                                    \
   V(ArchCallJSFunction)                                                    \
   IF_WASM(V, ArchCallWasmFunction)                                         \
+  IF_WASM(V, ArchCallWasmFunctionIndirect)                                 \
   V(ArchCallBuiltinPointer)                                                \
   /* Update IsCallWithDescriptorFlags if further Call opcodes are added */ \
                                                                            \

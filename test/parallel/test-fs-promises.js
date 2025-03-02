@@ -58,7 +58,7 @@ assert.strictEqual(
       code: 'ENOENT',
       name: 'Error',
       message: /^ENOENT: no such file or directory, access/,
-      stack: /at async Function\.rejects/
+      stack: /at async ok\.rejects/
     }
   ).then(common.mustCall());
 

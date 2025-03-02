@@ -29,7 +29,7 @@ void WriteToFile(const char* prefix, FILE* file, Isolate* isolate,
     if (!arg->ToString(isolate->GetCurrentContext()).ToLocal(&str_obj)) return;
 
     v8::String::Utf8Value str(isolate, str_obj);
-    int n = static_cast<int>(fwrite(*str, sizeof(**str), str.length(), file));
+    size_t n = fwrite(*str, sizeof(**str), str.length(), file);
     if (n != str.length()) {
       printf("Error in fwrite\n");
       base::OS::ExitProcess(1);

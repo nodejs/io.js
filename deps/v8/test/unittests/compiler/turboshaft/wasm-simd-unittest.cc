@@ -17,12 +17,7 @@ namespace v8::internal::compiler::turboshaft {
 
 #include "src/compiler/turboshaft/define-assembler-macros.inc"
 
-class WasmSimdTest : public ReducerTest {
-  // Some of the optimizations only apply with the new instruction selection and
-  // are not supported by the Turbofan ISel / the RecreateSchedulePhase.
-  FlagScope<bool> force_new_isel_{
-      &v8_flags.turboshaft_wasm_instruction_selection_staged, true};
-};
+class WasmSimdTest : public ReducerTest {};
 
 TEST_F(WasmSimdTest, UpperToLowerF32x4AddReduce) {
   auto test = CreateFromGraph(1, [](auto& Asm) {

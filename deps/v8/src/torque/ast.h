@@ -956,8 +956,7 @@ struct ClassFieldExpression {
   std::vector<ConditionalAnnotation> conditions;
   bool custom_weak_marking;
   bool const_qualified;
-  FieldSynchronization read_synchronization;
-  FieldSynchronization write_synchronization;
+  FieldSynchronization synchronization;
 };
 
 struct LabelAndTypes {
@@ -991,9 +990,10 @@ struct MacroDeclaration : CallableDeclaration {
   MacroDeclaration(AstNode::Kind kind, SourcePosition pos, bool transitioning,
                    Identifier* name, std::optional<std::string> op,
                    ParameterList parameters, TypeExpression* return_type,
-                   const LabelAndTypesVector& labels)
+                   LabelAndTypesVector labels)
       : CallableDeclaration(kind, pos, transitioning, name,
-                            std::move(parameters), return_type, labels),
+                            std::move(parameters), return_type,
+                            std::move(labels)),
         op(std::move(op)) {
     if (parameters.implicit_kind == ImplicitKind::kJSImplicit) {
       Error("Cannot use \"js-implicit\" with macros, use \"implicit\" instead.")
@@ -1010,9 +1010,9 @@ struct ExternalMacroDeclaration : MacroDeclaration {
                            Identifier* name, std::optional<std::string> op,
                            ParameterList parameters,
                            TypeExpression* return_type,
-                           const LabelAndTypesVector& labels)
+                           LabelAndTypesVector labels)
       : MacroDeclaration(kKind, pos, transitioning, name, std::move(op),
-                         std::move(parameters), return_type, labels),
+                         std::move(parameters), return_type, std::move(labels)),
         external_assembler_name(std::move(external_assembler_name)) {}
   std::string external_assembler_name;
 };
@@ -1034,10 +1034,10 @@ struct TorqueMacroDeclaration : MacroDeclaration {
   TorqueMacroDeclaration(SourcePosition pos, bool transitioning,
                          Identifier* name, std::optional<std::string> op,
                          ParameterList parameters, TypeExpression* return_type,
-                         const LabelAndTypesVector& labels, bool export_to_csa,
+                         LabelAndTypesVector labels, bool export_to_csa,
                          std::optional<Statement*> body)
       : MacroDeclaration(kKind, pos, transitioning, name, std::move(op),
-                         std::move(parameters), return_type, labels),
+                         std::move(parameters), return_type, std::move(labels)),
         export_to_csa(export_to_csa),
         body(body) {}
   bool export_to_csa;
@@ -1087,12 +1087,15 @@ struct TorqueBuiltinDeclaration : BuiltinDeclaration {
                            ParameterList parameters,
                            TypeExpression* return_type,
                            bool has_custom_interface_descriptor,
+                           std::optional<std::string> use_counter_name,
                            std::optional<Statement*> body)
       : BuiltinDeclaration(kKind, pos, javascript_linkage, transitioning, name,
                            std::move(parameters), return_type),
         has_custom_interface_descriptor(has_custom_interface_descriptor),
+        use_counter_name(use_counter_name),
         body(body) {}
   bool has_custom_interface_descriptor;
+  std::optional<std::string> use_counter_name;
   std::optional<Statement*> body;
 };
 

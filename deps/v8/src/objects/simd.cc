@@ -155,6 +155,17 @@ inline int32_t reinterpret_vmaxvq_u64(uint64x2_t v) {
     }                                                                         \
   }
 
+#ifdef __SSE3__
+__m128i _mm_cmpeq_epi64_nosse4_2(__m128i a, __m128i b) {
+  __m128i res = _mm_cmpeq_epi32(a, b);
+  // For each 64-bit value swap results of lower 32 bits comparison with
+  // the results of upper 32 bits comparison.
+  __m128i res_swapped = _mm_shuffle_epi32(res, _MM_SHUFFLE(2, 3, 0, 1));
+  // Report match only when both upper and lower parts of 64-bit values match.
+  return _mm_and_si128(res, res_swapped);
+}
+#endif  // __SSE3__
+
 // Uses SIMD to vectorize the search loop. This function should only be called
 // for large-ish arrays. Note that nothing will break if |array_len| is less
 // than vectorization_threshold: things will just be slower than necessary.
@@ -162,11 +173,11 @@ template <typename T>
 inline uintptr_t fast_search_noavx(T* array, uintptr_t array_len,
                                    uintptr_t index, T search_element) {
   static constexpr bool is_uint32 =
-      sizeof(T) == sizeof(uint32_t) && std::is_integral<T>::value;
+      sizeof(T) == sizeof(uint32_t) && std::is_integral_v<T>;
   static constexpr bool is_uint64 =
-      sizeof(T) == sizeof(uint64_t) && std::is_integral<T>::value;
+      sizeof(T) == sizeof(uint64_t) && std::is_integral_v<T>;
   static constexpr bool is_double =
-      sizeof(T) == sizeof(double) && std::is_floating_point<T>::value;
+      sizeof(T) == sizeof(double) && std::is_floating_point_v<T>;
 
   static_assert(is_uint32 || is_uint64 || is_double);
 
@@ -204,12 +215,17 @@ inline uintptr_t fast_search_noavx(T* array, uintptr_t array_len,
 #undef MOVEMASK
 #undef EXTRACT
   } else if constexpr (is_uint64) {
-#define SET1(x) _mm_castsi128_ps(_mm_set1_epi64x(x))
-#define CMP(a, b) _mm_cmpeq_pd(_mm_castps_pd(a), _mm_castps_pd(b))
-#define EXTRACT(x) base::bits::CountTrailingZeros32(x)
-    VECTORIZED_LOOP_x86(__m128, __m128d, SET1, CMP, _mm_movemask_pd, EXTRACT)
-#undef SET1
-#undef CMP
+#define MOVEMASK(x) _mm_movemask_ps(_mm_castsi128_ps(x))
+// _mm_cmpeq_epi64_nosse4_2() might produce only the following non-zero
+// patterns:
+//   0b0011 -> 0 (the first value matches),
+//   0b1100 -> 1 (the second value matches),
+//   0b1111 -> 0 (both first and second value match).
+// Thus it's enough to check only the least significant bit.
+#define EXTRACT(x) (((x) & 1) ? 0 : 1)
+    VECTORIZED_LOOP_x86(__m128i, __m128i, _mm_set1_epi64x,
+                        _mm_cmpeq_epi64_nosse4_2, MOVEMASK, EXTRACT)
+#undef MOVEMASK
 #undef EXTRACT
   } else if constexpr (is_double) {
 #define EXTRACT(x) base::bits::CountTrailingZeros32(x)
@@ -259,11 +275,11 @@ TARGET_AVX2 inline uintptr_t fast_search_avx(T* array, uintptr_t array_len,
                                              uintptr_t index,
                                              T search_element) {
   static constexpr bool is_uint32 =
-      sizeof(T) == sizeof(uint32_t) && std::is_integral<T>::value;
+      sizeof(T) == sizeof(uint32_t) && std::is_integral_v<T>;
   static constexpr bool is_uint64 =
-      sizeof(T) == sizeof(uint64_t) && std::is_integral<T>::value;
+      sizeof(T) == sizeof(uint64_t) && std::is_integral_v<T>;
   static constexpr bool is_double =
-      sizeof(T) == sizeof(double) && std::is_floating_point<T>::value;
+      sizeof(T) == sizeof(double) && std::is_floating_point_v<T>;
 
   static_assert(is_uint32 || is_uint64 || is_double);
 
@@ -361,9 +377,12 @@ Address ArrayIndexOfIncludes(Address array_start, uintptr_t array_len,
   if constexpr (kind == ArrayIndexOfIncludesKind::DOUBLE) {
     Tagged<FixedDoubleArray> fixed_array =
         Cast<FixedDoubleArray>(Tagged<Object>(array_start));
-    double* array = static_cast<double*>(
-        fixed_array->RawField(FixedDoubleArray::OffsetOfElementAt(0))
-            .ToVoidPtr());
+    UnalignedDoubleMember* unaligned_array = fixed_array->begin();
+    // TODO(leszeks): This reinterpret cast is a bit sketchy because the values
+    // are unaligned doubles. Ideally we'd fix the search method to support
+    // UnalignedDoubleMember.
+    static_assert(sizeof(UnalignedDoubleMember) == sizeof(double));
+    double* array = reinterpret_cast<double*>(unaligned_array);
 
     double search_num;
     if (IsSmi(Tagged<Object>(search_element))) {

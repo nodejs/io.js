@@ -43,7 +43,7 @@ class V8_PLATFORM_EXPORT TaskQueue {
   void BlockUntilQueueEmptyForTesting();
 
   base::Semaphore process_queue_semaphore_;
-  base::Mutex lock_;
+  base::SpinningMutex lock_;
   std::queue<std::unique_ptr<Task>> task_queue_;
   bool terminated_;
 };

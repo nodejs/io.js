@@ -113,8 +113,6 @@
 
   // Change the property value.
   B.prototype.bar = "new value";
-  r = o.foo();
-  assertEquals("new value", r);
 
   // Assert that the function was deoptimized (dependency to the constant
   // value).
@@ -124,6 +122,9 @@
   // contains a call to the IC handler and doesn't get deopted.
   assertEquals(%IsDictPropertyConstTrackingEnabled(),
                isOptimized(D.prototype.foo));
+
+  r = o.foo();
+  assertEquals("new value", r);
 })();
 
 (function TestPropertyIsNonConstantData() {
@@ -240,6 +241,13 @@
   // Insert the property into the prototype chain between the lookup start
   // object and the old holder.
   B.prototype.bar = "new value";
+
+  // Depending on how long the compilation takes it can happen that we add a
+  // prototype chain dependency and already changing the prototype deoptimizes
+  // the code. This can then trigger eager re-optimization, which means after
+  // invoking foo() we cannot know if it is optimized or not.
+  let was_optimized = isOptimized(C.prototype.foo);
+
   r = o.foo();
   assertEquals("new value", r);
 
@@ -248,8 +256,10 @@
   // dictionary mode prototypes, yet. Therefore, if
   // v8_dict_property_const_tracking is enabled, the optimized code only
   // contains a call to the IC handler and doesn't get deopted.
-  assertEquals(%IsDictPropertyConstTrackingEnabled(),
-               isOptimized(C.prototype.foo));
+  if (was_optimized) {
+    assertEquals(%IsDictPropertyConstTrackingEnabled(),
+                 isOptimized(C.prototype.foo));
+  }
 })();
 
 (function TestUnexpectedHomeObjectPrototypeDeoptimizes() {
@@ -284,17 +294,26 @@
 
   // Change the home object's prototype.
   D.prototype.__proto__ = {"bar": "new value"};
+
+  // Depending on how long the compilation takes it can happen that we add a
+  // prototype chain dependency and already changing the prototype deoptimizes
+  // the code. This can then trigger eager re-optimization, which means after
+  // invoking foo() we cannot know if it is optimized or not.
+  let was_optimized = isOptimized(D.prototype.foo);
+
   r = o.foo();
-  assertEquals("new value", r);
 
   // Assert that the function was deoptimized.
   // TODO(v8:11457) We don't support inlining JSLoadNamedFromSuper for
   // dictionary mode prototypes, yet. Therefore, if
   // v8_dict_property_const_tracking is enabled, the optimized code only
   // contains a call to the IC handler and doesn't get deopted.
-  assertEquals(%IsDictPropertyConstTrackingEnabled(),
-               isOptimized(D.prototype.foo));
+  if (was_optimized) {
+    assertEquals(%IsDictPropertyConstTrackingEnabled(),
+                 isOptimized(D.prototype.foo));
+  }
 
+  assertEquals("new value", r);
 })();
 
 (function TestUnexpectedReceiverDoesNotDeoptimize() {

@@ -21,7 +21,7 @@
 #include "src/codegen/mips64/assembler-mips64.h"
 #elif V8_TARGET_ARCH_LOONG64
 #include "src/codegen/loong64/assembler-loong64.h"
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
 #include "src/codegen/s390/assembler-s390.h"
 #elif V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
 #include "src/codegen/riscv/assembler-riscv.h"

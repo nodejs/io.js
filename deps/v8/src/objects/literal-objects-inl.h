@@ -21,9 +21,6 @@ namespace v8::internal {
 // ObjectBoilerplateDescription
 //
 
-OBJECT_CONSTRUCTORS_IMPL(ObjectBoilerplateDescription,
-                         ObjectBoilerplateDescription::Super)
-
 // static
 template <class IsolateT>
 Handle<ObjectBoilerplateDescription> ObjectBoilerplateDescription::New(
@@ -54,9 +51,18 @@ Handle<ObjectBoilerplateDescription> ObjectBoilerplateDescription::New(
   return result;
 }
 
-SMI_ACCESSORS(ObjectBoilerplateDescription, backing_store_size,
-              Shape::kBackingStoreSizeOffset)
-SMI_ACCESSORS(ObjectBoilerplateDescription, flags, Shape::kFlagsOffset)
+int ObjectBoilerplateDescription::backing_store_size() const {
+  return backing_store_size_.load().value();
+}
+void ObjectBoilerplateDescription::set_backing_store_size(int value) {
+  backing_store_size_.store(this, Smi::FromInt(value));
+}
+int ObjectBoilerplateDescription::flags() const {
+  return flags_.load().value();
+}
+void ObjectBoilerplateDescription::set_flags(int value) {
+  flags_.store(this, Smi::FromInt(value));
+}
 
 Tagged<Object> ObjectBoilerplateDescription::name(int index) const {
   return get(NameIndex(index));

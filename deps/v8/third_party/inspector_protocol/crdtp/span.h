@@ -72,11 +72,11 @@ inline span<uint8_t> SpanFrom(const std::string& v) {
 
 // This SpanFrom routine works for std::vector<uint8_t> and
 // std::vector<uint16_t>, but also for base::span<const uint8_t> in Chromium.
-template <typename C,
-          typename = std::enable_if_t<
-              std::is_unsigned<typename C::value_type>{} &&
-              std::is_member_function_pointer<decltype(&C::size)>{}>>
-inline span<typename C::value_type> SpanFrom(const C& v) {
+template <typename C>
+inline span<typename C::value_type> SpanFrom(const C& v)
+  requires(std::is_unsigned_v<typename C::value_type> &&
+           std::is_member_function_pointer_v<decltype(&C::size)>)
+{
   return span<typename C::value_type>(v.data(), v.size());
 }
 

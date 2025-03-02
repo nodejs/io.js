@@ -13,6 +13,7 @@ namespace internal {
 namespace wasm {
 
 using ::wasm::ExportType;
+using ::wasm::Extern;
 using ::wasm::GlobalType;
 using ::wasm::MemoryType;
 using ::wasm::TableType;
@@ -49,7 +50,8 @@ TEST_F(WasmCapiTest, Reflect) {
   builder()->AddMemory(1);
   builder()->AddExport(base::CStrVector(kMemoryName), kExternalMemory, 0);
 
-  Instantiate(nullptr);
+  vec<Extern*> imports = vec<Extern*>::make_uninitialized();
+  Instantiate(imports);
 
   ownvec<ExportType> export_types = module()->exports();
   const ownvec<Extern>& exports = this->exports();
@@ -59,39 +61,39 @@ TEST_F(WasmCapiTest, Reflect) {
     ::wasm::ExternKind kind = exports[i]->kind();
     const ::wasm::ExternType* extern_type = export_types[i]->type();
     EXPECT_EQ(kind, extern_type->kind());
-    if (kind == ::wasm::EXTERN_FUNC) {
+    if (kind == ::wasm::ExternKind::FUNC) {
       ExpectName(kFuncName, export_types[i]->name());
       const FuncType* type = extern_type->func();
       const ownvec<ValType>& params = type->params();
       EXPECT_EQ(4u, params.size());
-      EXPECT_EQ(::wasm::I32, params[0]->kind());
-      EXPECT_EQ(::wasm::I64, params[1]->kind());
-      EXPECT_EQ(::wasm::F32, params[2]->kind());
-      EXPECT_EQ(::wasm::F64, params[3]->kind());
+      EXPECT_EQ(::wasm::ValKind::I32, params[0]->kind());
+      EXPECT_EQ(::wasm::ValKind::I64, params[1]->kind());
+      EXPECT_EQ(::wasm::ValKind::F32, params[2]->kind());
+      EXPECT_EQ(::wasm::ValKind::F64, params[3]->kind());
       const ownvec<ValType>& results = type->results();
       EXPECT_EQ(2u, results.size());
-      EXPECT_EQ(::wasm::I32, results[0]->kind());
-      EXPECT_EQ(::wasm::ANYREF, results[1]->kind());
+      EXPECT_EQ(::wasm::ValKind::I32, results[0]->kind());
+      EXPECT_EQ(::wasm::ValKind::EXTERNREF, results[1]->kind());
 
       const Func* func = exports[i]->func();
       EXPECT_EQ(4u, func->param_arity());
       EXPECT_EQ(2u, func->result_arity());
 
-    } else if (kind == ::wasm::EXTERN_GLOBAL) {
+    } else if (kind == ::wasm::ExternKind::GLOBAL) {
       ExpectName(kGlobalName, export_types[i]->name());
       const GlobalType* type = extern_type->global();
-      EXPECT_EQ(::wasm::F64, type->content()->kind());
-      EXPECT_EQ(::wasm::CONST, type->mutability());
+      EXPECT_EQ(::wasm::ValKind::F64, type->content()->kind());
+      EXPECT_EQ(::wasm::Mutability::CONST, type->mutability());
 
-    } else if (kind == ::wasm::EXTERN_TABLE) {
+    } else if (kind == ::wasm::ExternKind::TABLE) {
       ExpectName(kTableName, export_types[i]->name());
       const TableType* type = extern_type->table();
-      EXPECT_EQ(::wasm::FUNCREF, type->element()->kind());
+      EXPECT_EQ(::wasm::ValKind::FUNCREF, type->element()->kind());
       ::wasm::Limits limits = type->limits();
       EXPECT_EQ(12u, limits.min);
       EXPECT_EQ(12u, limits.max);
 
-    } else if (kind == ::wasm::EXTERN_MEMORY) {
+    } else if (kind == ::wasm::ExternKind::MEMORY) {
       ExpectName(kMemoryName, export_types[i]->name());
       const MemoryType* type = extern_type->memory();
       ::wasm::Limits limits = type->limits();

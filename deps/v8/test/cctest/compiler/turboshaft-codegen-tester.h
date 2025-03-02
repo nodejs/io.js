@@ -42,13 +42,6 @@ class DataHolder {
         descriptor_(Linkage::GetSimplifiedCDescriptor(
             zone, CSignature::New(zone, return_type, p...),
             CallDescriptor::kInitializeRootRegister)) {
-    // TODO(dmercadier): remove once turboshaft_instruction_selection is the
-    // default. We currently set it manually so that
-    // LoadStoreSimplificationReducer triggers lowering of Stores/Loads (and
-    // anyways, these tests always go through GenerateTurboshaftCodeForTesting,
-    // which uses the Turboshaft instruction selector without even checking
-    // v8_flags.turboshaft_instruction_selection).
-    v8_flags.turboshaft_instruction_selection = true;
     ts_pipeline_data_.InitializeGraphComponent(nullptr);
   }
 
@@ -118,7 +111,7 @@ class RawMachineAssemblerTester : public HandleAndZoneScope,
 
   void GenerateCode() { Generate(); }
 
-  Handle<Code> GetCode() {
+  DirectHandle<Code> GetCode() {
     Generate();
     return code_.ToHandleChecked();
   }
@@ -190,7 +183,7 @@ class RawMachineAssemblerTester : public HandleAndZoneScope,
     Block* start_block = NewBlock();
     Bind(start_block);
 
-    // We emit the parameters now so that they appear at the begining of the
+    // We emit the parameters now so that they appear at the beginning of the
     // graph (because the register allocator doesn't like it when Parameters are
     // not in the 1st block). Subsequent calls to `m.Parameter()` will reuse the
     // Parameters created here, thanks to Turboshaft's parameter cache (see

@@ -89,19 +89,18 @@ bool GzipUncompress(const std::string& input, std::string* output) {
   return false;
 }
 
-bool GzipUncompress(base::span<const char> input,
-                    base::span<const char> output) {
-  return GzipUncompress(base::as_bytes(input), base::as_bytes(output));
+bool GzipUncompress(base::span<const char> input, base::span<char> output) {
+  return GzipUncompress(base::as_bytes(input), base::as_writable_bytes(output));
 }
 
 bool GzipUncompress(base::span<const uint8_t> input,
-                    base::span<const uint8_t> output) {
+                    base::span<uint8_t> output) {
   uLongf uncompressed_size = GetUncompressedSize(input);
   if (uncompressed_size > output.size())
     return false;
   return zlib_internal::GzipUncompressHelper(
-             reinterpret_cast<Bytef*>(const_cast<uint8_t*>(output.data())),
-             &uncompressed_size, reinterpret_cast<const Bytef*>(input.data()),
+             reinterpret_cast<Bytef*>(output.data()), &uncompressed_size,
+             reinterpret_cast<const Bytef*>(input.data()),
              static_cast<uLongf>(input.size())) == Z_OK;
 }
 

@@ -25,9 +25,7 @@ namespace {
 
 #if defined(__EMSCRIPTEN__)
 // Workaround __EMSCRIPTEN__ error: llvm_fma_f64 not found.
-inline double fma(double x, double y, double z) {
-  return (x * y) + z;
-}
+inline double fma(double x, double y, double z) { return (x * y) + z; }
 #endif
 
 // Use Horner's method to evaluate a polynomial.
@@ -105,9 +103,8 @@ double normal_survival(double z) {
 // p-value, usually using bisection. Also known by the name CRITCHI.
 double ChiSquareValue(int dof, double p) {
   static constexpr double kChiEpsilon =
-      0.000001;  // Accuracy of the approximation.
-  static constexpr double kChiMax =
-      99999.0;  // Maximum chi-squared value.
+      0.000001;                               // Accuracy of the approximation.
+  static constexpr double kChiMax = 99999.0;  // Maximum chi-squared value.
 
   const double p_value = 1.0 - p;
   if (dof < 1 || p_value > 1.0) {

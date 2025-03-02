@@ -154,8 +154,8 @@ TEST(HeapObjectHeaderTest, ConstructionBitProtectsNonAtomicWrites) {
   constexpr size_t kSize =
       (sizeof(HeapObjectHeader) + sizeof(Payload) + kAllocationMask) &
       ~kAllocationMask;
-  typename std::aligned_storage<kSize, kAllocationGranularity>::type data;
-  HeapObjectHeader* header = new (&data) HeapObjectHeader(kSize, 1);
+  alignas(kAllocationGranularity) char data[kSize];
+  HeapObjectHeader* header = new (data) HeapObjectHeader(kSize, 1);
   ConcurrentGCThread gc_thread(
       header, reinterpret_cast<Payload*>(header->ObjectStart()));
   CHECK(gc_thread.Start());

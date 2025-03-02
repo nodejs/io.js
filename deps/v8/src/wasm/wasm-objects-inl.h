@@ -54,6 +54,7 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(WasmInstanceObject)
 TQ_OBJECT_CONSTRUCTORS_IMPL(WasmInternalFunction)
 TQ_OBJECT_CONSTRUCTORS_IMPL(WasmJSFunctionData)
 TQ_OBJECT_CONSTRUCTORS_IMPL(WasmMemoryObject)
+TQ_OBJECT_CONSTRUCTORS_IMPL(WasmMemoryMapDescriptor)
 TQ_OBJECT_CONSTRUCTORS_IMPL(WasmModuleObject)
 TQ_OBJECT_CONSTRUCTORS_IMPL(WasmNull)
 TQ_OBJECT_CONSTRUCTORS_IMPL(WasmObject)
@@ -69,10 +70,9 @@ TQ_OBJECT_CONSTRUCTORS_IMPL(WasmTypeInfo)
   DEF_GETTER(holder, has_##name, bool) {                     \
     Tagged<Object> value =                                   \
         TaggedField<Object, offset>::load(cage_base, *this); \
-    return !IsUndefined(value, GetReadOnlyRoots(cage_base)); \
+    return !IsUndefined(value);                              \
   }                                                          \
-  ACCESSORS_CHECKED2(holder, name, type, offset,             \
-                     !IsUndefined(value, GetReadOnlyRoots(cage_base)), true)
+  ACCESSORS_CHECKED2(holder, name, type, offset, !IsUndefined(value), true)
 
 #define PRIMITIVE_ACCESSORS(holder, name, type, offset)               \
   type holder::name() const {                                         \
@@ -130,7 +130,7 @@ void WasmGlobalObject::set_type(wasm::ValueType value) {
 int WasmGlobalObject::type_size() const { return type().value_kind_size(); }
 
 Address WasmGlobalObject::address() const {
-  DCHECK_NE(type(), wasm::kWasmAnyRef);
+  DCHECK(!type().is_reference());
   DCHECK_LE(offset() + type_size(), untagged_buffer()->byte_length());
   return reinterpret_cast<Address>(untagged_buffer()->backing_store()) +
          offset();
@@ -330,12 +330,6 @@ const wasm::WasmModule* WasmInstanceObject::module() const {
 }
 
 ImportedFunctionEntry::ImportedFunctionEntry(
-    Isolate* isolate, DirectHandle<WasmInstanceObject> instance_object,
-    int index)
-    : ImportedFunctionEntry(
-          handle(instance_object->trusted_data(isolate), isolate), index) {}
-
-ImportedFunctionEntry::ImportedFunctionEntry(
     Handle<WasmTrustedInstanceData> instance_data, int index)
     : instance_data_(instance_data), index_(index) {
   DCHECK_GE(index, 0);
@@ -343,13 +337,25 @@ ImportedFunctionEntry::ImportedFunctionEntry(
 }
 
 // WasmDispatchTable
-OBJECT_CONSTRUCTORS_IMPL(WasmDispatchTable, TrustedObject)
+OBJECT_CONSTRUCTORS_IMPL(WasmDispatchTable, ExposedTrustedObject)
 
 PROTECTED_POINTER_ACCESSORS(WasmDispatchTable, protected_offheap_data,
                             TrustedManaged<WasmDispatchTableData>,
                             kProtectedOffheapDataOffset)
 WasmDispatchTableData* WasmDispatchTable::offheap_data() const {
   return protected_offheap_data()->get().get();
+}
+
+PROTECTED_POINTER_ACCESSORS(WasmDispatchTable, protected_uses,
+                            ProtectedWeakFixedArray, kProtectedUsesOffset)
+
+wasm::CanonicalValueType WasmDispatchTable::table_type() const {
+  return wasm::CanonicalValueType::FromRawBitField(
+      ReadField<uint32_t>(kTableTypeOffset));
+}
+void WasmDispatchTable::set_table_type(wasm::CanonicalValueType type) {
+  DCHECK(type.IsFunctionType());
+  WriteField(kTableTypeOffset, type.raw_bit_field());
 }
 
 void WasmDispatchTable::clear_entry_padding(int index) {
@@ -378,15 +384,16 @@ inline Tagged<Object> WasmDispatchTable::implicit_arg(int index) const {
   return implicit_arg;
 }
 
-inline Address WasmDispatchTable::target(int index) const {
+inline WasmCodePointer WasmDispatchTable::target(int index) const {
   DCHECK_LT(index, length());
-  if (v8_flags.wasm_jitless) return kNullAddress;
-  return ReadField<Address>(OffsetOf(index) + kTargetBias);
+  if (v8_flags.wasm_jitless) return wasm::kInvalidWasmCodePointer;
+  return WasmCodePointer{ReadField<uint32_t>(OffsetOf(index) + kTargetBias)};
 }
 
-inline int WasmDispatchTable::sig(int index) const {
+inline wasm::CanonicalTypeIndex WasmDispatchTable::sig(int index) const {
   DCHECK_LT(index, length());
-  return ReadField<int>(OffsetOf(index) + kSigBias);
+  return wasm::CanonicalTypeIndex{
+      ReadField<uint32_t>(OffsetOf(index) + kSigBias)};
 }
 
 #if V8_ENABLE_DRUMBRAKE
@@ -417,11 +424,28 @@ struct CastTraits<WasmExportedFunction> {
 
 // WasmImportData
 
-CODE_POINTER_ACCESSORS(WasmImportData, code, kCodeOffset)
-
 PROTECTED_POINTER_ACCESSORS(WasmImportData, instance_data,
                             WasmTrustedInstanceData,
                             kProtectedInstanceDataOffset)
+
+PROTECTED_POINTER_ACCESSORS(WasmImportData, call_origin, TrustedObject,
+                            kProtectedCallOriginOffset)
+
+wasm::Suspend WasmImportData::suspend() const {
+  return SuspendField::decode(bit_field());
+}
+
+void WasmImportData::set_suspend(wasm::Suspend value) {
+  set_bit_field(SuspendField::update(bit_field(), value));
+}
+
+uint32_t WasmImportData::table_slot() const {
+  return TableSlotField::decode(bit_field());
+}
+
+void WasmImportData::set_table_slot(uint32_t value) {
+  set_bit_field(TableSlotField::update(bit_field(), value));
+}
 
 // WasmInternalFunction
 
@@ -448,8 +472,37 @@ PROTECTED_POINTER_ACCESSORS(WasmExportedFunctionData, instance_data,
 CODE_POINTER_ACCESSORS(WasmExportedFunctionData, c_wrapper_code,
                        kCWrapperCodeOffset)
 
-PRIMITIVE_ACCESSORS(WasmExportedFunctionData, sig, const wasm::FunctionSig*,
+PRIMITIVE_ACCESSORS(WasmExportedFunctionData, sig, const wasm::CanonicalSig*,
                     kSigOffset)
+
+wasm::CanonicalTypeIndex WasmExportedFunctionData::sig_index() const {
+  return wasm::CanonicalTypeIndex{
+      static_cast<uint32_t>(canonical_type_index())};
+}
+
+bool WasmExportedFunctionData::is_promising() const {
+  return WasmFunctionData::PromiseField::decode(js_promise_flags()) ==
+         wasm::kPromise;
+}
+
+WasmCodePointer WasmInternalFunction::call_target() {
+  return WasmCodePointer{raw_call_target()};
+}
+void WasmInternalFunction::set_call_target(WasmCodePointer code_pointer) {
+  set_raw_call_target(code_pointer.value());
+}
+
+// WasmJSFunctionData
+wasm::CanonicalTypeIndex WasmJSFunctionData::sig_index() const {
+  return wasm::CanonicalTypeIndex{static_cast<uint32_t>(canonical_sig_index())};
+}
+PROTECTED_POINTER_ACCESSORS(WasmJSFunctionData, protected_offheap_data,
+                            TrustedManaged<WasmJSFunctionData::OffheapData>,
+                            kProtectedOffheapDataOffset)
+
+WasmJSFunctionData::OffheapData* WasmJSFunctionData::offheap_data() const {
+  return protected_offheap_data()->get().get();
+}
 
 // WasmJSFunction
 WasmJSFunction::WasmJSFunction(Address ptr) : JSFunction(ptr) {
@@ -465,6 +518,11 @@ struct CastTraits<WasmJSFunction> {
     return WasmJSFunction::IsWasmJSFunction(value);
   }
 };
+
+// WasmCapiFunctionData
+wasm::CanonicalTypeIndex WasmCapiFunctionData::sig_index() const {
+  return wasm::CanonicalTypeIndex{static_cast<uint32_t>(canonical_sig_index())};
+}
 
 // WasmCapiFunction
 WasmCapiFunction::WasmCapiFunction(Address ptr) : JSFunction(ptr) {
@@ -501,11 +559,13 @@ Tagged<WasmFuncRef> WasmExternalFunction::func_ref() const {
 }
 
 // WasmTypeInfo
-EXTERNAL_POINTER_ACCESSORS(WasmTypeInfo, native_type, Address,
-                           kNativeTypeOffset, kWasmTypeInfoNativeTypeTag)
-TRUSTED_POINTER_ACCESSORS(WasmTypeInfo, trusted_data, WasmTrustedInstanceData,
-                          kTrustedDataOffset,
-                          kWasmTrustedInstanceDataIndirectPointerTag)
+wasm::CanonicalTypeIndex WasmTypeInfo::type_index() const {
+  return wasm::CanonicalTypeIndex{canonical_type_index()};
+}
+
+wasm::CanonicalValueType WasmTypeInfo::element_type() const {
+  return wasm::CanonicalValueType::FromRawBitField(canonical_element_type());
+}
 
 #undef OPTIONAL_ACCESSORS
 #undef READ_PRIMITIVE_FIELD
@@ -516,7 +576,25 @@ TRUSTED_POINTER_ACCESSORS(WasmTableObject, trusted_data,
                           WasmTrustedInstanceData, kTrustedDataOffset,
                           kWasmTrustedInstanceDataIndirectPointerTag)
 
-wasm::ValueType WasmTableObject::type() {
+TRUSTED_POINTER_ACCESSORS(WasmTableObject, trusted_dispatch_table,
+                          WasmDispatchTable, kTrustedDispatchTableOffset,
+                          kWasmDispatchTableIndirectPointerTag)
+
+wasm::ValueType WasmTableObject::type(const wasm::WasmModule* module) {
+  wasm::ValueType type = unsafe_type();
+  SBXCHECK(!type.has_index() || module->has_type(type.ref_index()));
+  return type;
+}
+
+wasm::CanonicalValueType WasmTableObject::canonical_type(
+    const wasm::WasmModule* module) {
+  wasm::ValueType unsafe = unsafe_type();
+  if (!unsafe.has_index()) return wasm::CanonicalValueType{unsafe};
+  SBXCHECK(module != nullptr && module->has_type(unsafe.ref_index()));
+  return module->canonical_type(unsafe);
+}
+
+wasm::ValueType WasmTableObject::unsafe_type() {
   // Various consumers of ValueKind (e.g. ValueKind::name()) use the raw enum
   // value as index into a global array. As such, if the index is corrupted
   // (which must be assumed, as it comes from within the sandbox), this can
@@ -528,38 +606,55 @@ wasm::ValueType WasmTableObject::type() {
   return type;
 }
 
+bool WasmTableObject::is_in_bounds(uint32_t entry_index) {
+  return entry_index < static_cast<uint32_t>(current_length());
+}
+
 bool WasmTableObject::is_table64() const {
-  int table64_smi_value =
-      TorqueGeneratedWasmTableObject<WasmTableObject, JSObject>::is_table64();
-  DCHECK_LE(0, table64_smi_value);
-  DCHECK_GE(1, table64_smi_value);
-  return table64_smi_value != 0;
+  return address_type() == wasm::AddressType::kI64;
+}
+
+std::optional<uint64_t> WasmTableObject::maximum_length_u64() const {
+  Tagged<Object> max = maximum_length();
+  if (IsUndefined(max)) return std::nullopt;
+  if (is_table64()) {
+    DCHECK(IsBigInt(max));
+#if DEBUG
+    bool lossless;
+    uint64_t value = Cast<BigInt>(maximum_length())->AsUint64(&lossless);
+    DCHECK(lossless);
+    return value;
+#else
+    return Cast<BigInt>(maximum_length())->AsUint64();
+#endif
+  }
+  DCHECK(IsNumber(max));
+  double value = Object::NumberValue(max);
+  DCHECK_LE(0, value);
+  DCHECK_GE(std::numeric_limits<uint64_t>::max(), value);
+  return value;
 }
 
 bool WasmMemoryObject::has_maximum_pages() { return maximum_pages() >= 0; }
 
 bool WasmMemoryObject::is_memory64() const {
-  int memory64_smi_value =
-      TorqueGeneratedWasmMemoryObject<WasmMemoryObject,
-                                      JSObject>::is_memory64();
-  DCHECK_LE(0, memory64_smi_value);
-  DCHECK_GE(1, memory64_smi_value);
-  return memory64_smi_value != 0;
+  return address_type() == wasm::AddressType::kI64;
 }
 
 // static
-Handle<Object> WasmObject::ReadValueAt(Isolate* isolate,
-                                       DirectHandle<HeapObject> obj,
-                                       wasm::ValueType type, uint32_t offset) {
+DirectHandle<Object> WasmObject::ReadValueAt(Isolate* isolate,
+                                             DirectHandle<HeapObject> obj,
+                                             wasm::CanonicalValueType type,
+                                             uint32_t offset) {
   Address field_address = obj->GetFieldAddress(offset);
   switch (type.kind()) {
     case wasm::kI8: {
       int8_t value = base::Memory<int8_t>(field_address);
-      return handle(Smi::FromInt(value), isolate);
+      return direct_handle(Smi::FromInt(value), isolate);
     }
     case wasm::kI16: {
       int16_t value = base::Memory<int16_t>(field_address);
-      return handle(Smi::FromInt(value), isolate);
+      return direct_handle(Smi::FromInt(value), isolate);
     }
     case wasm::kI32: {
       int32_t value = base::Memory<int32_t>(field_address);
@@ -588,7 +683,7 @@ Handle<Object> WasmObject::ReadValueAt(Isolate* isolate,
     case wasm::kRef:
     case wasm::kRefNull: {
       ObjectSlot slot(field_address);
-      return handle(slot.load(isolate), isolate);
+      return direct_handle(slot.load(isolate), isolate);
     }
 
     case wasm::kRtt:
@@ -596,6 +691,7 @@ Handle<Object> WasmObject::ReadValueAt(Isolate* isolate,
       UNREACHABLE();
 
     case wasm::kVoid:
+    case wasm::kTop:
     case wasm::kBottom:
       UNREACHABLE();
   }
@@ -623,21 +719,6 @@ ElementType WasmObject::FromNumber(Tagged<Object> value) {
   UNREACHABLE();
 }
 
-wasm::StructType* WasmStruct::type(Tagged<Map> map) {
-  Tagged<WasmTypeInfo> type_info = map->wasm_type_info();
-  return reinterpret_cast<wasm::StructType*>(type_info->native_type());
-}
-
-wasm::StructType* WasmStruct::GcSafeType(Tagged<Map> map) {
-  DCHECK_EQ(WASM_STRUCT_TYPE, map->instance_type());
-  Tagged<HeapObject> raw = Cast<HeapObject>(map->constructor_or_back_pointer());
-  // The {WasmTypeInfo} might be in the middle of being moved, which is why we
-  // can't read its map for a checked cast. But we can rely on its native type
-  // pointer being intact in the old location.
-  Tagged<WasmTypeInfo> type_info = UncheckedCast<WasmTypeInfo>(raw);
-  return reinterpret_cast<wasm::StructType*>(type_info->native_type());
-}
-
 // static
 void WasmStruct::EncodeInstanceSizeInMap(int instance_size, Tagged<Map> map) {
   // WasmStructs can be bigger than the {map.instance_size_in_words} field
@@ -662,8 +743,6 @@ int WasmStruct::GcSafeSize(Tagged<Map> map) {
   return DecodeInstanceSizeFromMap(map);
 }
 
-wasm::StructType* WasmStruct::type() const { return type(map()); }
-
 Address WasmStruct::RawFieldAddress(int raw_offset) {
   int offset = WasmStruct::kHeaderSize + raw_offset;
   return FIELD_ADDR(*this, offset);
@@ -673,23 +752,21 @@ ObjectSlot WasmStruct::RawField(int raw_offset) {
   return ObjectSlot(RawFieldAddress(raw_offset));
 }
 
-wasm::ArrayType* WasmArray::type(Tagged<Map> map) {
+wasm::CanonicalTypeIndex WasmArray::type_index(Tagged<Map> map) {
   DCHECK_EQ(WASM_ARRAY_TYPE, map->instance_type());
   Tagged<WasmTypeInfo> type_info = map->wasm_type_info();
-  return reinterpret_cast<wasm::ArrayType*>(type_info->native_type());
+  return type_info->type_index();
 }
 
-wasm::ArrayType* WasmArray::GcSafeType(Tagged<Map> map) {
+const wasm::CanonicalValueType WasmArray::GcSafeElementType(Tagged<Map> map) {
   DCHECK_EQ(WASM_ARRAY_TYPE, map->instance_type());
   Tagged<HeapObject> raw = Cast<HeapObject>(map->constructor_or_back_pointer());
   // The {WasmTypeInfo} might be in the middle of being moved, which is why we
   // can't read its map for a checked cast. But we can rely on its native type
   // pointer being intact in the old location.
   Tagged<WasmTypeInfo> type_info = UncheckedCast<WasmTypeInfo>(raw);
-  return reinterpret_cast<wasm::ArrayType*>(type_info->native_type());
+  return type_info->element_type();
 }
-
-wasm::ArrayType* WasmArray::type() const { return type(map()); }
 
 int WasmArray::SizeFor(Tagged<Map> map, int length) {
   int element_size = DecodeElementSizeFromMap(map);
@@ -698,8 +775,8 @@ int WasmArray::SizeFor(Tagged<Map> map, int length) {
 
 uint32_t WasmArray::element_offset(uint32_t index) {
   DCHECK_LE(index, length());
-  return WasmArray::kHeaderSize +
-         index * type()->element_type().value_kind_size();
+  int element_size = DecodeElementSizeFromMap(map());
+  return WasmArray::kHeaderSize + index * element_size;
 }
 
 Address WasmArray::ElementAddress(uint32_t index) {
@@ -708,18 +785,19 @@ Address WasmArray::ElementAddress(uint32_t index) {
 
 ObjectSlot WasmArray::ElementSlot(uint32_t index) {
   DCHECK_LE(index, length());
-  DCHECK(type()->element_type().is_reference());
+  DCHECK(map()->wasm_type_info()->element_type().is_reference());
   return RawField(kHeaderSize + kTaggedSize * index);
 }
 
 // static
-Handle<Object> WasmArray::GetElement(Isolate* isolate,
-                                     DirectHandle<WasmArray> array,
-                                     uint32_t index) {
+DirectHandle<Object> WasmArray::GetElement(Isolate* isolate,
+                                           DirectHandle<WasmArray> array,
+                                           uint32_t index) {
   if (index >= array->length()) {
     return isolate->factory()->undefined_value();
   }
-  wasm::ValueType element_type = array->type()->element_type();
+  wasm::CanonicalValueType element_type =
+      array->map()->wasm_type_info()->element_type();
   return ReadValueAt(isolate, array, element_type,
                      array->element_offset(index));
 }

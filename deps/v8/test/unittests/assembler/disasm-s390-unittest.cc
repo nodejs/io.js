@@ -121,38 +121,10 @@ TEST_F(DisasmS390Test, TwoBytes) {
 TEST_F(DisasmS390Test, FourBytes) {
   SET_UP();
 
-#if V8_TARGET_ARCH_S390X
   COMPARE(aghi(r5, Operand(1)), "a75b0001       aghi\tr5,1");
   COMPARE(lghi(r6, Operand(8)), "a7690008       lghi\tr6,8");
   COMPARE(mghi(r1, Operand(2)), "a71d0002       mghi\tr1,2");
   COMPARE(cghi(r3, Operand(7)), "a73f0007       cghi\tr3,7");
-#else
-  COMPARE(ahi(r3, Operand(9)), "a73a0009       ahi\tr3,9");
-  COMPARE(lhi(r7, Operand::Zero()), "a7780000       lhi\tr7,0");
-  COMPARE(mhi(r8, Operand(3)), "a78c0003       mhi\tr8,3");
-  COMPARE(chi(r4, Operand(5)), "a74e0005       chi\tr4,5");
-  COMPARE(a(r13, MemOperand(r8, 70)), "5ad08046       a\tr13,70(r8)");
-  COMPARE(s(r9, MemOperand(sp, 9)), "5b90f009       s\tr9,9(sp)");
-  COMPARE(m(r6, MemOperand(r7, ip, 20)), "5c67c014       m\tr6,20(r7,ip)");
-  COMPARE(d(r14, MemOperand(r7, 15)), "5de0700f       d\tr14,15(r7)");
-  COMPARE(o(r7, MemOperand(r3, r2, 10)), "5673200a       o\tr7,10(r3,r2)");
-  COMPARE(n(r9, MemOperand(r5, sp, 9)), "5495f009       n\tr9,9(r5,sp)");
-  COMPARE(l(r0, MemOperand(r4, fp, 1)), "5804b001       l\tr0,1(r4,fp)");
-  COMPARE(c(r8, MemOperand(r5, r7, 18)), "59857012       c\tr8,18(r5,r7)");
-  COMPARE(al_z(r6, MemOperand(r9, sp, 2000)),
-          "5e69f7d0       al\tr6,2000(r9,sp)");
-  COMPARE(sl(r8, MemOperand(r1, 100)), "5f801064       sl\tr8,100(r1)");
-  COMPARE(la(r5, MemOperand(r9, 9)), "41509009       la\tr5,9(r9)");
-  COMPARE(ch(r0, MemOperand(r3, 0)), "49003000       ch\tr0,0(r3)");
-  COMPARE(cl(r1, MemOperand(r8, 5)), "55108005       cl\tr1,5(r8)");
-  COMPARE(cli(MemOperand(r9, 64), Operand(5)), "95059040       cli\t64(r9),5");
-  COMPARE(tm(MemOperand(r0, 8), Operand(7)), "91070008       tm\t8(r0),7");
-  COMPARE(bct(r1, MemOperand(r9, 15)), "4610900f       bct\tr1,15(r9)");
-  COMPARE(st(r5, MemOperand(r9, r8, 7)), "50598007       st\tr5,7(r9,r8)");
-  COMPARE(stc(r13, MemOperand(r5, r1, 8)), "42d51008       stc\tr13,8(r5,r1)");
-  COMPARE(ic_z(r9, MemOperand(r1, 90)), "4390105a       ic\tr9,90(r1)");
-  COMPARE(sth(r5, MemOperand(r9, r0, 87)), "40590057       sth\tr5,87(r9,r0)");
-#endif
   COMPARE(iihh(r10, Operand(8)), "a5a00008       iihh\tr10,8");
   COMPARE(iihl(r9, Operand(10)), "a591000a       iihl\tr9,10");
   COMPARE(iilh(r0, Operand(40)), "a5020028       iilh\tr0,40");
@@ -173,7 +145,6 @@ TEST_F(DisasmS390Test, FourBytes) {
 TEST_F(DisasmS390Test, SixBytes) {
   SET_UP();
 
-#if V8_TARGET_ARCH_S390X
   COMPARE(llihf(ip, Operand(90000)), "c0ce00015f90   llihf\tip,90000");
   COMPARE(agsi(MemOperand(r9, 1000), Operand(70)),
           "eb4693e8007a   agsi\t1000(r9),70");
@@ -229,53 +200,6 @@ TEST_F(DisasmS390Test, SixBytes) {
   COMPARE(nihf(r2, Operand(8888)), "c02a000022b8   nihf\tr2,8888");
   COMPARE(oihf(r6, Operand(9000)), "c06c00002328   oihf\tr6,9000");
   COMPARE(msgfi(r6, Operand(90000)), "c26000015f90   msgfi\tr6,90000");
-#else
-  COMPARE(llilf(r10, Operand(72354)), "c0af00011aa2   llilf\tr10,72354");
-  COMPARE(iilf(r4, Operand(11)), "c0490000000b   iilf\tr4,11");
-  COMPARE(afi(r2, Operand(8000)), "c22900001f40   afi\tr2,8000");
-  COMPARE(asi(MemOperand(r9, 1000), Operand(70)),
-          "eb4693e8006a   asi\t1000(r9),70");
-  COMPARE(alfi(r1, Operand(90)), "c21b0000005a   alfi\tr1,90");
-  COMPARE(clfi(r9, Operand(60)), "c29f0000003c   clfi\tr9,60");
-  COMPARE(cfi(r8, Operand(10)), "c28d0000000a   cfi\tr8,10");
-  COMPARE(xilf(r3, Operand(15)), "c0370000000f   xilf\tr3,15");
-  COMPARE(sllk(r6, r7, Operand(10)), "eb67000a00df   sllk\tr6,r7,10(r0)");
-  COMPARE(sllk(r6, r7, r8), "eb67800000df   sllk\tr6,r7,0(r8)");
-  COMPARE(slak(r1, r3, r2), "eb13200000dd   slak\tr1,r3,0(r2)");
-  COMPARE(slak(r1, r3, Operand(2)), "eb13000200dd   slak\tr1,r3,2(r0)");
-  COMPARE(srak(r1, r3, Operand(2)), "eb13000200dc   srak\tr1,r3,2(r0)");
-  COMPARE(srak(r1, r3, r2), "eb13200000dc   srak\tr1,r3,0(r2)");
-  COMPARE(stmy(r3, r4, MemOperand(sp, 10)),
-          "eb34f00a0090   stmy\tr3,r4,10(sp)");
-  COMPARE(lt_z(r1, MemOperand(r4, sp, 10)), "e314f00a0012   lt\tr1,10(r4,sp)");
-  COMPARE(ml(r0, MemOperand(r3, r9, 2046)),
-          "e30397fe0096   ml\tr0,2046(r3,r9)");
-  COMPARE(ay(r5, MemOperand(r7, 8888)), "e35072b8025a   ay\tr5,8888(r7)");
-  COMPARE(sy(r8, MemOperand(r6, r7, 2046)),
-          "e38677fe005b   sy\tr8,2046(r6,r7)");
-  COMPARE(ny(r2, MemOperand(r9, r0, 8888)),
-          "e32902b80254   ny\tr2,8888(r9,r0)");
-  COMPARE(oy(r8, MemOperand(r4, 321)), "e38041410056   oy\tr8,321(r4)");
-  COMPARE(xy(r5, MemOperand(r3, r2, 0)), "e35320000057   xy\tr5,0(r3,r2)");
-  COMPARE(cy(r9, MemOperand(r4, 321)), "e39041410059   cy\tr9,321(r4)");
-  COMPARE(ahy(r1, MemOperand(r5, r6, 8888)),
-          "e31562b8027a   ahy\tr1,8888(r5,r6)");
-  COMPARE(shy(r1, MemOperand(r5, r6, 8888)),
-          "e31562b8027b   shy\tr1,8888(r5,r6)");
-  COMPARE(lb(r7, MemOperand(sp, 15)), "e370f00f0076   lb\tr7,15(sp)");
-  COMPARE(ly(r0, MemOperand(r1, r2, 321)), "e30121410058   ly\tr0,321(r1,r2)");
-  COMPARE(aly(r9, MemOperand(r2, r3, 10)), "e392300a005e   aly\tr9,10(r2,r3)");
-  COMPARE(sly(r2, MemOperand(r9, r1, 15)), "e329100f005f   sly\tr2,15(r9,r1)");
-  COMPARE(llh(r4, MemOperand(r1, 10)), "e340100a0095   llh\tr4,10(r1)");
-  COMPARE(llc(r0, MemOperand(r4, r5, 30)), "e304501e0094   llc\tr0,30(r4,r5)");
-  COMPARE(chy(r9, MemOperand(r8, r7, 30)), "e398701e0079   chy\tr9,30(r8,r7)");
-  COMPARE(cly(r8, MemOperand(r5, r4, 14)), "e385400e0055   cly\tr8,14(r5,r4)");
-  COMPARE(sty(r0, MemOperand(r0, 15)), "e300000f0050   sty\tr0,15(r0)");
-  COMPARE(mvhi(MemOperand(r7, 25), Operand(100)),
-          "e54c70190064   mvhi\t25(r7),100");
-  COMPARE(slfi(r4, Operand(100)), "c24500000064   slfi\tr4,100");
-  COMPARE(msfi(r8, Operand(1000)), "c281000003e8   msfi\tr8,1000");
-#endif
   COMPARE(iihf(r6, Operand(9)), "c06800000009   iihf\tr6,9");
   COMPARE(srlk(r1, r3, r2), "eb13200000de   srlk\tr1,r3,0(r2)");
   COMPARE(srlk(r1, r3, Operand(2)), "eb13000200de   srlk\tr1,r3,2(r0)");

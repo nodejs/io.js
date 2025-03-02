@@ -29,7 +29,7 @@ TEST(BasicSlotSet, InsertAndLookup1) {
   for (size_t i = 0; i < kTestPageSize; i += kTestGranularity) {
     EXPECT_TRUE(set->Lookup(i));
   }
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 
 TEST(BasicSlotSet, InsertAndLookup2) {
@@ -46,7 +46,7 @@ TEST(BasicSlotSet, InsertAndLookup2) {
       EXPECT_FALSE(set->Lookup(i));
     }
   }
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 
 TEST(BasicSlotSet, Iterate) {
@@ -77,7 +77,7 @@ TEST(BasicSlotSet, Iterate) {
     }
   }
 
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 
 TEST(BasicSlotSet, IterateFromHalfway) {
@@ -110,7 +110,7 @@ TEST(BasicSlotSet, IterateFromHalfway) {
     }
   }
 
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 
 TEST(BasicSlotSet, Remove) {
@@ -136,7 +136,7 @@ TEST(BasicSlotSet, Remove) {
     }
   }
 
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 
 namespace {
@@ -160,7 +160,7 @@ void CheckRemoveRangeOn(uint32_t start, uint32_t end) {
       EXPECT_FALSE(set->Lookup(i));
     }
   }
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 }  // namespace
 
@@ -191,7 +191,7 @@ TEST(BasicSlotSet, RemoveRange) {
       EXPECT_FALSE(set->Lookup(i));
     }
   }
-  TestSlotSet::Delete(set, kBucketsTestPage);
+  TestSlotSet::Delete(set);
 }
 
 }  // namespace base

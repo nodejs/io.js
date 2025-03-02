@@ -4,7 +4,7 @@
 
 #include "src/compiler/node-marker.h"
 
-#include "src/compiler/graph.h"
+#include "src/compiler/turbofan-graph.h"
 
 namespace v8 {
 namespace internal {

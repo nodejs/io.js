@@ -18,20 +18,14 @@ MaglevTest::MaglevTest()
       broker_(isolate(), zone(), v8_flags.trace_heap_broker, CodeKind::MAGLEV),
       broker_scope_(&broker_, isolate(), zone()),
       current_broker_(&broker_) {
-  // PersistentHandlesScope currently requires an active handle before it can
-  // be opened and they can't be nested.
-  // TODO(v8:13897): Remove once PersistentHandlesScopes can be opened
-  // uncontionally.
   if (!PersistentHandlesScope::IsActive(isolate())) {
-    DirectHandle<Object> dummy(ReadOnlyRoots(isolate()->heap()).empty_string(),
-                               isolate());
-    persistent_scope_ = std::make_unique<PersistentHandlesScope>(isolate());
+    persistent_scope_.emplace(isolate());
   }
   broker()->SetTargetNativeContextRef(isolate()->native_context());
 }
 
 MaglevTest::~MaglevTest() {
-  if (persistent_scope_ != nullptr) {
+  if (persistent_scope_) {
     persistent_scope_->Detach();
   }
 }

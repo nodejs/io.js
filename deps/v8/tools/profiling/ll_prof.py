@@ -31,6 +31,11 @@
 # for py2/py3 compatibility
 from __future__ import print_function
 
+import sys
+import pathlib
+
+sys.path.insert(0, str(pathlib.Path(__file__).parents[1]))
+
 import bisect
 import collections
 import ctypes
@@ -300,7 +305,7 @@ class CodeMap(object):
     return removed
 
   def AllCode(self):
-    for page in self.pages.itervalues():
+    for page in self.pages.values():
       for code in page:
         if CodePage.PageAddress(code.start_address) == page.address:
           yield code
@@ -341,9 +346,9 @@ class LogReader(object):
     "arm64": ctypes.c_uint64
   }
 
-  _CODE_CREATE_TAG = "C"
-  _CODE_MOVE_TAG = "M"
-  _CODE_MOVING_GC_TAG = "G"
+  _CODE_CREATE_TAG = b"C"
+  _CODE_MOVE_TAG = b"M"
+  _CODE_MOVING_GC_TAG = b"G"
 
   def __init__(self, log_name, code_map):
     self.log_file = open(log_name, "r")
@@ -351,7 +356,7 @@ class LogReader(object):
     self.log_pos = 0
     self.code_map = code_map
 
-    self.arch = self.log[:self.log.find("\0")]
+    self.arch = self.log[:self.log.find(b"\0")].decode()
     self.log_pos += len(self.arch) + 1
     assert self.arch in LogReader._ARCH_TO_POINTER_TYPE_MAP, \
         "Unsupported architecture %s" % self.arch
@@ -371,7 +376,7 @@ class LogReader(object):
 
   def ReadUpToGC(self):
     while self.log_pos < self.log.size():
-      tag = self.log[self.log_pos]
+      tag = self.log[self.log_pos:self.log_pos + 1]
       self.log_pos += 1
 
       if tag == LogReader._CODE_MOVING_GC_TAG:
@@ -382,7 +387,7 @@ class LogReader(object):
         self.log_pos += ctypes.sizeof(event)
         start_address = event.code_address
         end_address = start_address + event.code_size
-        name = self.log[self.log_pos:self.log_pos + event.name_size]
+        name = self.log[self.log_pos:self.log_pos + event.name_size].decode()
         origin = JS_ORIGIN
         self.log_pos += event.name_size
         origin_offset = self.log_pos
@@ -586,13 +591,17 @@ PERF_RECORD_SAMPLE = 9
 class TraceReader(object):
   """Perf (linux-2.6/tools/perf) trace file reader."""
 
-  _TRACE_HEADER_MAGIC = 4993446653023372624
+  _TRACE_HEADER_MAGIC = int.from_bytes(b"PERFFILE", byteorder="little")
+  assert _TRACE_HEADER_MAGIC == 4993446653023372624
+  _TRACE_HEADER_MAGIC_2 = int.from_bytes(b"PERFILE2", byteorder="little")
+  assert _TRACE_HEADER_MAGIC_2 == 3622385352885552464
 
   def __init__(self, trace_name):
     self.trace_file = open(trace_name, "r")
     self.trace = mmap.mmap(self.trace_file.fileno(), 0, mmap.MAP_PRIVATE)
     self.trace_header = TRACE_HEADER_DESC.Read(self.trace, 0)
-    if self.trace_header.magic != TraceReader._TRACE_HEADER_MAGIC:
+    if self.trace_header.magic not in (self._TRACE_HEADER_MAGIC,
+                                       self._TRACE_HEADER_MAGIC_2):
       print("Warning: unsupported trace header magic", file=sys.stderr)
     self.offset = self.trace_header.data_offset
     self.limit = self.trace_header.data_offset + self.trace_header.data_size
@@ -607,6 +616,7 @@ class TraceReader(object):
         perf_event_attr.sample_type)
     self.callchain_supported = \
         (perf_event_attr.sample_type & PERF_SAMPLE_CALLCHAIN) != 0
+    self.ip_struct = None
     if self.callchain_supported:
       self.ip_struct = Descriptor.CTYPE_MAP[PERF_SAMPLE_EVENT_IP_FORMAT]
       self.ip_size = ctypes.sizeof(self.ip_struct)
@@ -625,7 +635,7 @@ class TraceReader(object):
     # Read null-terminated filename.
     filename = self.trace[offset + self.header_size + ctypes.sizeof(mmap_info):
                           offset + header.size]
-    mmap_info.filename = HOST_ROOT + filename[:filename.find(chr(0))]
+    mmap_info.filename = HOST_ROOT + filename[:filename.find(b"\0")].decode()
     return mmap_info
 
   def ReadMmap2(self, header, offset):
@@ -634,7 +644,7 @@ class TraceReader(object):
     # Read null-terminated filename.
     filename = self.trace[offset + self.header_size + ctypes.sizeof(mmap_info):
                           offset + header.size]
-    mmap_info.filename = HOST_ROOT + filename[:filename.find(chr(0))]
+    mmap_info.filename = HOST_ROOT + filename[:filename.find(b"\0")].decode()
     return mmap_info
 
   def ReadSample(self, header, offset):
@@ -651,8 +661,13 @@ class TraceReader(object):
     return sample
 
   def Dispose(self):
-    self.trace.close()
+    if self.ip_struct:
+      del self.ip_struct
+    del self.trace_header
+    del self.sample_event_body_desc
     self.trace_file.close()
+    # TODO: fix this, we leak some data somewhere.
+    # self.trace.close()
 
   def _SampleEventBodyDesc(self, sample_type):
     assert (sample_type & PERF_SAMPLE_READ) == 0, \
@@ -693,8 +708,9 @@ class LibraryRepo(object):
     pipe = process.stdout
     try:
       for line in pipe:
-        match = OBJDUMP_SECTION_HEADER_RE.match(line)
-        if match and match.group(1) == 'dynsym': return True
+        match = OBJDUMP_SECTION_HEADER_RE.match(line.decode())
+        if match and match.group(1) == 'dynsym':
+          return True
     finally:
       pipe.close()
     assert process.wait() == 0, "Failed to objdump -h %s" % filename
@@ -734,6 +750,7 @@ class LibraryRepo(object):
     dynamic = False
     try:
       for line in pipe:
+        line = line.decode()
         if after_section:
           if line.find("CODE") != -1:
             code_sections.add(after_section)

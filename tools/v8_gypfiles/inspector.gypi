@@ -119,7 +119,6 @@
       '<(inspector_protocol_path)/crdtp/find_by_first.h',
       '<(inspector_protocol_path)/crdtp/json.cc',
       '<(inspector_protocol_path)/crdtp/json.h',
-      '<(inspector_protocol_path)/crdtp/maybe.h',
       '<(inspector_protocol_path)/crdtp/parser_handler.h',
       '<(inspector_protocol_path)/crdtp/protocol_core.cc',
       '<(inspector_protocol_path)/crdtp/protocol_core.h',

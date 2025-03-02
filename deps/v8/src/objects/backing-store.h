@@ -11,6 +11,7 @@
 #include "include/v8-array-buffer.h"
 #include "include/v8-internal.h"
 #include "src/handles/handles.h"
+#include "src/sandbox/sandbox.h"
 
 namespace v8::internal {
 
@@ -66,7 +67,8 @@ class V8_EXPORT_PRIVATE BackingStore : public BackingStoreBase {
   static std::unique_ptr<BackingStore> TryAllocateAndPartiallyCommitMemory(
       Isolate* isolate, size_t byte_length, size_t max_byte_length,
       size_t page_size, size_t initial_pages, size_t maximum_pages,
-      WasmMemoryFlag wasm_memory, SharedFlag shared);
+      WasmMemoryFlag wasm_memory, SharedFlag shared,
+      bool has_guard_regions = false);
 
   // Create a backing store that wraps existing allocated memory.
   static std::unique_ptr<BackingStore> WrapAllocation(
@@ -78,7 +80,13 @@ class V8_EXPORT_PRIVATE BackingStore : public BackingStoreBase {
   static std::unique_ptr<BackingStore> EmptyBackingStore(SharedFlag shared);
 
   // Accessors.
-  void* buffer_start() const { return buffer_start_; }
+  // Internally, we treat nullptr as the empty buffer value. However,
+  // externally, we should use the EmptyBackingStoreBuffer() constant for that
+  // purpose as the buffer pointer should always point into the sandbox. As
+  // such, this is the place where we convert between these two.
+  void* buffer_start() const {
+    return buffer_start_ != nullptr ? buffer_start_ : EmptyBackingStoreBuffer();
+  }
   size_t byte_length(
       std::memory_order memory_order = std::memory_order_relaxed) const {
     return byte_length_.load(memory_order);
@@ -100,14 +108,6 @@ class V8_EXPORT_PRIVATE BackingStore : public BackingStoreBase {
   ResizeOrGrowResult ResizeInPlace(Isolate* isolate, size_t new_byte_length);
   ResizeOrGrowResult GrowInPlace(Isolate* isolate, size_t new_byte_length);
 
-  bool CanReallocate() const {
-    return !is_wasm_memory_ && !custom_deleter_ && !globally_registered_ &&
-           !is_resizable_by_js_ && buffer_start_ != nullptr;
-  }
-
-  // Wrapper around ArrayBuffer::Allocator::Reallocate.
-  bool Reallocate(Isolate* isolate, size_t new_byte_length);
-
 #if V8_ENABLE_WEBASSEMBLY
   // Attempt to grow this backing store in place.
   std::optional<size_t> GrowWasmMemoryInPlace(Isolate* isolate,
@@ -123,8 +123,8 @@ class V8_EXPORT_PRIVATE BackingStore : public BackingStoreBase {
 
   // Attach the given memory object to this backing store. The memory object
   // will be updated if this backing store is grown.
-  void AttachSharedWasmMemoryObject(Isolate* isolate,
-                                    Handle<WasmMemoryObject> memory_object);
+  void AttachSharedWasmMemoryObject(
+      Isolate* isolate, DirectHandle<WasmMemoryObject> memory_object);
 
   // Send asynchronous updates to attached memory objects in other isolates
   // after the backing store has been grown. Memory objects in this
@@ -242,9 +242,9 @@ class GlobalBackingStoreRegistry {
 
   // Adds the given memory object to the backing store's weak list
   // of memory objects (under the registry lock).
-  static void AddSharedWasmMemoryObject(Isolate* isolate,
-                                        BackingStore* backing_store,
-                                        Handle<WasmMemoryObject> memory_object);
+  static void AddSharedWasmMemoryObject(
+      Isolate* isolate, BackingStore* backing_store,
+      DirectHandle<WasmMemoryObject> memory_object);
 
   // Purge any shared wasm memory lists that refer to this isolate.
   static void Purge(Isolate* isolate);

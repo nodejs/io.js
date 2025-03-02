@@ -206,33 +206,33 @@ class InliningTree : public ZoneObject {
 
 void InliningTree::Inline() {
   is_inlined_ = true;
-  auto feedback =
-      data_->module->type_feedback.feedback_for_function.find(function_index_);
-  if (feedback != data_->module->type_feedback.feedback_for_function.end() &&
-      feedback->second.feedback_vector.size() ==
-          feedback->second.call_targets.size()) {
-    std::vector<CallSiteFeedback>& type_feedback =
-        feedback->second.feedback_vector;
-    feedback_found_ = true;
-    function_calls_ =
-        data_->zone->AllocateVector<CasesPerCallSite>(type_feedback.size());
-    has_non_inlineable_targets_ =
-        data_->zone->AllocateVector<bool>(type_feedback.size());
-    for (size_t i = 0; i < type_feedback.size(); i++) {
-      function_calls_[i] = data_->zone->AllocateVector<InliningTree*>(
-          type_feedback[i].num_cases());
-      has_non_inlineable_targets_[i] =
-          type_feedback[i].has_non_inlineable_targets();
-      for (int the_case = 0; the_case < type_feedback[i].num_cases();
-           the_case++) {
-        uint32_t callee_index = type_feedback[i].function_index(the_case);
-        // TODO(jkummerow): Experiment with propagating relative call counts
-        // into the nested InliningTree, and weighting scores there accordingly.
-        function_calls_[i][the_case] = data_->zone->New<InliningTree>(
-            data_, callee_index, type_feedback[i].call_count(the_case),
-            data_->module->functions[callee_index].code.length(),
-            function_index_, static_cast<int>(i), the_case, depth_ + 1);
-      }
+  auto& feedback_map = data_->module->type_feedback.feedback_for_function;
+  auto feedback_it = feedback_map.find(function_index_);
+  if (feedback_it == feedback_map.end()) return;
+  const FunctionTypeFeedback& feedback = feedback_it->second;
+  base::Vector<CallSiteFeedback> type_feedback =
+      feedback.feedback_vector.as_vector();
+  if (type_feedback.empty()) return;  // No feedback yet.
+  DCHECK_EQ(type_feedback.size(), feedback.call_targets.size());
+  feedback_found_ = true;
+  function_calls_ =
+      data_->zone->AllocateVector<CasesPerCallSite>(type_feedback.size());
+  has_non_inlineable_targets_ =
+      data_->zone->AllocateVector<bool>(type_feedback.size());
+  for (size_t i = 0; i < type_feedback.size(); i++) {
+    function_calls_[i] = data_->zone->AllocateVector<InliningTree*>(
+        type_feedback[i].num_cases());
+    has_non_inlineable_targets_[i] =
+        type_feedback[i].has_non_inlineable_targets();
+    for (int the_case = 0; the_case < type_feedback[i].num_cases();
+         the_case++) {
+      uint32_t callee_index = type_feedback[i].function_index(the_case);
+      // TODO(jkummerow): Experiment with propagating relative call counts
+      // into the nested InliningTree, and weighting scores there accordingly.
+      function_calls_[i][the_case] = data_->zone->New<InliningTree>(
+          data_, callee_index, type_feedback[i].call_count(the_case),
+          data_->module->functions[callee_index].code.length(), function_index_,
+          static_cast<int>(i), the_case, depth_ + 1);
     }
   }
 }
@@ -256,8 +256,7 @@ void InliningTree::FullyExpand() {
       queue;
   queue.push(this);
   int inlined_count = 0;
-  base::SharedMutexGuard<base::kShared> mutex_guard(
-      &data_->module->type_feedback.mutex);
+  base::SpinningMutexGuard mutex_guard(&data_->module->type_feedback.mutex);
   while (!queue.empty() && inlined_count < kMaxInlinedCount) {
     InliningTree* top = queue.top();
     if (v8_flags.trace_wasm_inlining) {
@@ -278,6 +277,12 @@ void InliningTree::FullyExpand() {
     if (top->function_index_ < data_->module->num_imported_functions) {
       if (v8_flags.trace_wasm_inlining && top != this) {
         PrintF("imported function]\n");
+      }
+      continue;
+    }
+    if (is_asmjs_module(data_->module)) {
+      if (v8_flags.trace_wasm_inlining) {
+        PrintF("cannot inline asm.js function]\n");
       }
       continue;
     }
@@ -314,21 +319,23 @@ void InliningTree::FullyExpand() {
     constexpr int kOneLessCall = 6;  // Guesstimated savings per call.
     inlined_wire_byte_count += std::max(top->wire_byte_size_ - kOneLessCall, 0);
 
-    if (top->feedback_found()) {
-      if (top->depth_ < kMaxInliningNestingDepth) {
-        if (v8_flags.trace_wasm_inlining) PrintF("queueing callees]\n");
-        for (CasesPerCallSite cases : top->function_calls_) {
-          for (InliningTree* call : cases) {
-            if (call != nullptr) {
-              queue.push(call);
-            }
+    if (!top->feedback_found()) {
+      if (v8_flags.trace_wasm_inlining) {
+        PrintF("no feedback yet or no callees]\n");
+      }
+    } else if (top->depth_ < kMaxInliningNestingDepth) {
+      if (v8_flags.trace_wasm_inlining) {
+        PrintF("queueing %zu callee(s)]\n", top->function_calls_.size());
+      }
+      for (CasesPerCallSite cases : top->function_calls_) {
+        for (InliningTree* call : cases) {
+          if (call != nullptr) {
+            queue.push(call);
           }
         }
-      } else if (v8_flags.trace_wasm_inlining) {
-        PrintF("max inlining depth reached]\n");
       }
-    } else {
-      if (v8_flags.trace_wasm_inlining) PrintF("feedback not found]\n");
+    } else if (v8_flags.trace_wasm_inlining) {
+      PrintF("max inlining depth reached]\n");
     }
   }
   if (v8_flags.trace_wasm_inlining && !queue.empty()) {

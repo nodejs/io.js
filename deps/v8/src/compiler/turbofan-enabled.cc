@@ -17,7 +17,7 @@ namespace compiler {
 std::unique_ptr<TurbofanCompilationJob> NewCompilationJob(
     Isolate* isolate, Handle<JSFunction> function, IsScriptAvailable has_script,
     BytecodeOffset osr_offset) {
-  return Pipeline::NewCompilationJob(isolate, function, CodeKind::TURBOFAN,
+  return Pipeline::NewCompilationJob(isolate, function, CodeKind::TURBOFAN_JS,
                                      has_script == IsScriptAvailable::kYes,
                                      osr_offset);
 }

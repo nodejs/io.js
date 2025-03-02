@@ -7,7 +7,7 @@
 
 #include "src/base/flags.h"
 #include "src/compiler/opcodes.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 
 #define TYPER_SUPPORTED_MACHINE_BINOP_LIST(V) \
   V(Int32Add)                                 \
@@ -92,6 +92,7 @@ class V8_EXPORT_PRIVATE OperationTyper {
   Type CheckBounds(Type index, Type length);
   Type CheckFloat64Hole(Type type);
   Type CheckNumber(Type type);
+  Type CheckNumberFitsInt32(Type type);
   Type ConvertTaggedHoleToUndefined(Type type);
 
   Type TypeTypeGuard(const Operator* sigma_op, Type input);

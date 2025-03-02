@@ -21,14 +21,14 @@
 #include "src/heap/gc-tracer-inl.h"
 #include "src/heap/gc-tracer.h"
 #include "src/heap/heap-inl.h"
-#include "src/heap/heap-write-barrier-inl.h"
-#include "src/heap/heap-write-barrier.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/local-heap.h"
 #include "src/init/v8.h"
 #include "src/logging/counters.h"
 #include "src/objects/objects-inl.h"
 #include "src/objects/slots.h"
 #include "src/objects/visitors.h"
+#include "src/sandbox/isolate.h"
 #include "src/tasks/cancelable-task.h"
 #include "src/tasks/task-utils.h"
 #include "src/utils/utils.h"
@@ -304,7 +304,7 @@ class NodeBase {
     DCHECK_EQ(offsetof(NodeBase, flags_), Internals::kNodeFlagsOffset);
   }
 
-#ifdef ENABLE_HANDLE_ZAPPING
+#ifdef ENABLE_GLOBAL_HANDLE_ZAPPING
   ~NodeBase() {
     ClearFields();
     data_.next_free = nullptr;
@@ -319,7 +319,7 @@ class NodeBase {
   }
 
   // Publishes all internal state to be consumed by other threads.
-  Handle<Object> Publish(Tagged<Object> object) {
+  IndirectHandle<Object> Publish(Tagged<Object> object) {
     DCHECK(!AsChild()->IsInUse());
     data_.parameter = nullptr;
     AsChild()->MarkAsUsed();
@@ -337,7 +337,7 @@ class NodeBase {
 
   Tagged<Object> object() const { return Tagged<Object>(object_); }
   FullObjectSlot location() { return FullObjectSlot(&object_); }
-  Handle<Object> handle() { return Handle<Object>(&object_); }
+  IndirectHandle<Object> handle() { return IndirectHandle<Object>(&object_); }
   Address raw_object() const { return object_; }
 
   uint8_t index() const { return index_; }
@@ -410,7 +410,7 @@ namespace {
 void ExtractInternalFields(Tagged<JSObject> jsobject, void** embedder_fields,
                            int len) {
   int field_count = jsobject->GetEmbedderFieldCount();
-  Isolate* isolate = GetIsolateForSandbox(jsobject);
+  IsolateForSandbox isolate = GetIsolateForSandbox(jsobject);
   for (int i = 0; i < len; ++i) {
     if (field_count == i) break;
     void* pointer;
@@ -616,12 +616,12 @@ namespace {
 
 template <typename NodeType>
 bool NeedsTrackingInYoungNodes(Tagged<Object> value, NodeType* node) {
-  return ObjectInYoungGeneration(value) && !node->is_in_young_list();
+  return HeapLayout::InYoungGeneration(value) && !node->is_in_young_list();
 }
 
 }  // namespace
 
-Handle<Object> GlobalHandles::Create(Tagged<Object> value) {
+IndirectHandle<Object> GlobalHandles::Create(Tagged<Object> value) {
   GlobalHandles::Node* node = regular_nodes_->Allocate();
   if (NeedsTrackingInYoungNodes(value, node)) {
     young_nodes_.push_back(node);
@@ -630,11 +630,11 @@ Handle<Object> GlobalHandles::Create(Tagged<Object> value) {
   return node->Publish(value);
 }
 
-Handle<Object> GlobalHandles::Create(Address value) {
+IndirectHandle<Object> GlobalHandles::Create(Address value) {
   return Create(Tagged<Object>(value));
 }
 
-Handle<Object> GlobalHandles::CopyGlobal(Address* location) {
+IndirectHandle<Object> GlobalHandles::CopyGlobal(Address* location) {
   DCHECK_NOT_NULL(location);
   GlobalHandles* global_handles =
       Node::FromLocation(location)->global_handles();
@@ -781,7 +781,7 @@ void UpdateListOfYoungNodesImpl(Isolate* isolate, std::vector<T*>* node_list) {
   for (T* node : *node_list) {
     DCHECK(node->is_in_young_list());
     if (node->IsInUse() && node->state() != T::NEAR_DEATH) {
-      if (ObjectInYoungGeneration(node->object())) {
+      if (HeapLayout::InYoungGeneration(node->object())) {
         (*node_list)[last++] = node;
         isolate->heap()->IncrementNodesCopiedInNewSpace();
       } else {
@@ -804,7 +804,7 @@ void ClearListOfYoungNodesImpl(Isolate* isolate, std::vector<T*>* node_list) {
     DCHECK(node->is_in_young_list());
     node->set_in_young_list(false);
     DCHECK_IMPLIES(node->IsInUse() && node->state() != T::NEAR_DEATH,
-                   !ObjectInYoungGeneration(node->object()));
+                   !HeapLayout::InYoungGeneration(node->object()));
   }
   isolate->heap()->IncrementNodesDiedInNewSpace(
       static_cast<int>(node_list->size()));
@@ -876,7 +876,7 @@ void GlobalHandles::PostGarbageCollectionProcessing(
   if (second_pass_callbacks_.empty()) return;
 
   const bool synchronous_second_pass =
-      v8_flags.optimize_for_size || v8_flags.predictable ||
+      isolate_->MemorySaverModeEnabled() || v8_flags.predictable ||
       isolate_->heap()->IsTearingDown() ||
       (gc_callback_flags &
        (kGCCallbackFlagForced | kGCCallbackFlagCollectAllAvailableGarbage |
@@ -939,7 +939,7 @@ void GlobalHandles::IterateAllYoungRoots(RootVisitor* v) {
 DISABLE_CFI_PERF
 void GlobalHandles::ApplyPersistentHandleVisitor(
     v8::PersistentHandleVisitor* visitor, GlobalHandles::Node* node) {
-  v8::Value* value = ToApi<v8::Value>(node->handle());
+  Address* value = node->handle().location();
   visitor->VisitPersistentHandle(
       reinterpret_cast<v8::Persistent<v8::Value>*>(&value),
       node->wrapper_class_id());
@@ -1031,7 +1031,7 @@ void EternalHandles::IterateYoungRoots(RootVisitor* visitor) {
 void EternalHandles::PostGarbageCollectionProcessing() {
   size_t last = 0;
   for (int index : young_node_indices_) {
-    if (ObjectInYoungGeneration(Tagged<Object>(*GetLocation(index)))) {
+    if (HeapLayout::InYoungGeneration(Tagged<Object>(*GetLocation(index)))) {
       young_node_indices_[last++] = index;
     }
   }
@@ -1055,7 +1055,7 @@ void EternalHandles::Create(Isolate* isolate, Tagged<Object> object,
   }
   DCHECK_EQ(the_hole.ptr(), blocks_[block][offset]);
   blocks_[block][offset] = object.ptr();
-  if (ObjectInYoungGeneration(object)) {
+  if (HeapLayout::InYoungGeneration(object)) {
     young_node_indices_.push_back(size_);
   }
   *index = size_++;

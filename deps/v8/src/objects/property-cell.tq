@@ -10,11 +10,16 @@ extern class PropertyCell extends HeapObject {
   dependent_code: DependentCode;
 }
 
-// Used for keeping track of whether a top-level variable declared with
-// `let` stays constant and what optimized code depends on it.
-extern class ConstTrackingLetCell extends HeapObject {
+// Used for const-tracking and slot representation of ScriptContexts.
+extern class ContextSidePropertyCell extends HeapObject {
+  property_details_raw: Smi;
   dependent_code: DependentCode;
 }
 
-const kConstTrackingLetCellConstMarker: Smi = SmiTag(1);
-const kConstTrackingLetCellNonConstMarker: Smi = SmiTag(0);
+// TODO(victorgomes): Use constexpr generate to ensure that these values are
+// defined in one place.
+const kContextSidePropertyOther: intptr = 0;
+const kContextSidePropertyConst: intptr = 1;
+const kContextSidePropertySmi: intptr = 2;
+const kContextSidePropertyInt32: intptr = 3;
+const kContextSidePropertyHeapNumber: intptr = 4;

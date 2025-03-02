@@ -33,7 +33,7 @@ BUILTIN(RegExpPrototypeToString) {
         isolate, source,
         JSReceiver::GetProperty(isolate, recv,
                                 isolate->factory()->source_string()));
-    Handle<String> source_str;
+    DirectHandle<String> source_str;
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, source_str,
                                        Object::ToString(isolate, source));
     builder.AppendString(source_str);
@@ -46,7 +46,7 @@ BUILTIN(RegExpPrototypeToString) {
         isolate, flags,
         JSReceiver::GetProperty(isolate, recv,
                                 isolate->factory()->flags_string()));
-    Handle<String> flags_str;
+    DirectHandle<String> flags_str;
     ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, flags_str,
                                        Object::ToString(isolate, flags));
     builder.AppendString(flags_str);
@@ -90,7 +90,7 @@ BUILTIN(RegExpInputGetter) {
 BUILTIN(RegExpInputSetter) {
   HandleScope scope(isolate);
   Handle<Object> value = args.atOrUndefined(isolate, 1);
-  Handle<String> str;
+  DirectHandle<String> str;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(isolate, str,
                                      Object::ToString(isolate, value));
   isolate->regexp_last_match_info()->set_last_input(*str);

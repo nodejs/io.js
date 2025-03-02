@@ -1900,6 +1900,18 @@ void InstructionSelectorT<Adapter>::VisitTruncateFloat64ToInt64(node_t node) {
 }
 
 template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitTruncateFloat64ToFloat16RawBits(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitChangeFloat16RawBitsToFloat64(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitTryTruncateFloat32ToInt64(
     node_t node) {
   Mips64OperandGeneratorT<Adapter> g(this);
@@ -2714,11 +2726,12 @@ namespace {
 
 // Shared routine for multiple compare operations.
 template <typename Adapter>
-static void VisitCompare(InstructionSelectorT<Adapter>* selector,
-                         InstructionCode opcode, InstructionOperand left,
-                         InstructionOperand right,
-                         FlagsContinuationT<Adapter>* cont) {
-  selector->EmitWithContinuation(opcode, left, right, cont);
+static Instruction* VisitCompare(InstructionSelectorT<Adapter>* selector,
+                                 InstructionCode opcode,
+                                 InstructionOperand left,
+                                 InstructionOperand right,
+                                 FlagsContinuationT<Adapter>* cont) {
+  return selector->EmitWithContinuation(opcode, left, right, cont);
 }
 
 // Shared routine for multiple float32 compare operations.
@@ -2788,9 +2801,11 @@ void VisitFloat64Compare(InstructionSelectorT<Adapter>* selector,
 
 // Shared routine for multiple word compare operations.
 template <typename Adapter>
-void VisitWordCompare(InstructionSelectorT<Adapter>* selector,
-                      typename Adapter::node_t node, InstructionCode opcode,
-                      FlagsContinuationT<Adapter>* cont, bool commutative) {
+Instruction* VisitWordCompare(InstructionSelectorT<Adapter>* selector,
+                              typename Adapter::node_t node,
+                              InstructionCode opcode,
+                              FlagsContinuationT<Adapter>* cont,
+                              bool commutative) {
   Mips64OperandGeneratorT<Adapter> g(selector);
   DCHECK_EQ(selector->value_input_count(node), 2);
   auto left = selector->input_at(node, 0);
@@ -2799,64 +2814,64 @@ void VisitWordCompare(InstructionSelectorT<Adapter>* selector,
   // Match immediates on left or right side of comparison.
   if (g.CanBeImmediate(right, opcode)) {
     if (opcode == kMips64Tst) {
-      VisitCompare(selector, opcode, g.UseRegister(left), g.UseImmediate(right),
-                   cont);
+      return VisitCompare(selector, opcode, g.UseRegister(left),
+                          g.UseImmediate(right), cont);
     } else {
       switch (cont->condition()) {
         case kEqual:
         case kNotEqual:
           if (cont->IsSet()) {
-            VisitCompare(selector, opcode, g.UseRegister(left),
-                         g.UseImmediate(right), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(left),
+                                g.UseImmediate(right), cont);
           } else {
-            VisitCompare(selector, opcode, g.UseRegister(left),
-                         g.UseRegister(right), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(left),
+                                g.UseRegister(right), cont);
           }
           break;
         case kSignedLessThan:
         case kSignedGreaterThanOrEqual:
         case kUnsignedLessThan:
         case kUnsignedGreaterThanOrEqual:
-          VisitCompare(selector, opcode, g.UseRegister(left),
-                       g.UseImmediate(right), cont);
+          return VisitCompare(selector, opcode, g.UseRegister(left),
+                              g.UseImmediate(right), cont);
           break;
         default:
-          VisitCompare(selector, opcode, g.UseRegister(left),
-                       g.UseRegister(right), cont);
+          return VisitCompare(selector, opcode, g.UseRegister(left),
+                              g.UseRegister(right), cont);
       }
     }
   } else if (g.CanBeImmediate(left, opcode)) {
     if (!commutative) cont->Commute();
     if (opcode == kMips64Tst) {
-      VisitCompare(selector, opcode, g.UseRegister(right), g.UseImmediate(left),
-                   cont);
+      return VisitCompare(selector, opcode, g.UseRegister(right),
+                          g.UseImmediate(left), cont);
     } else {
       switch (cont->condition()) {
         case kEqual:
         case kNotEqual:
           if (cont->IsSet()) {
-            VisitCompare(selector, opcode, g.UseRegister(right),
-                         g.UseImmediate(left), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(right),
+                                g.UseImmediate(left), cont);
           } else {
-            VisitCompare(selector, opcode, g.UseRegister(right),
-                         g.UseRegister(left), cont);
+            return VisitCompare(selector, opcode, g.UseRegister(right),
+                                g.UseRegister(left), cont);
           }
           break;
         case kSignedLessThan:
         case kSignedGreaterThanOrEqual:
         case kUnsignedLessThan:
         case kUnsignedGreaterThanOrEqual:
-          VisitCompare(selector, opcode, g.UseRegister(right),
-                       g.UseImmediate(left), cont);
+          return VisitCompare(selector, opcode, g.UseRegister(right),
+                              g.UseImmediate(left), cont);
           break;
         default:
-          VisitCompare(selector, opcode, g.UseRegister(right),
-                       g.UseRegister(left), cont);
+          return VisitCompare(selector, opcode, g.UseRegister(right),
+                              g.UseRegister(left), cont);
       }
     }
   } else {
-    VisitCompare(selector, opcode, g.UseRegister(left), g.UseRegister(right),
-                 cont);
+    return VisitCompare(selector, opcode, g.UseRegister(left),
+                        g.UseRegister(right), cont);
   }
 }
 
@@ -2895,7 +2910,10 @@ void VisitFullWord32Compare(InstructionSelectorT<Adapter>* selector,
                  g.UseRegister(selector->input_at(node, 1)),
                  g.TempImmediate(32));
 
-  VisitCompare(selector, opcode, leftOp, rightOp, cont);
+  Instruction* instr = VisitCompare(selector, opcode, leftOp, rightOp, cont);
+  if constexpr (Adapter::IsTurboshaft) {
+    selector->UpdateSourcePosition(instr, node);
+  }
 }
 
 template <typename Adapter>
@@ -2928,7 +2946,10 @@ void VisitOptimizedWord32Compare(InstructionSelectorT<Adapter>* selector,
             static_cast<int>(AbortReason::kUnsupportedNonPrimitiveCompare)));
   }
 
-  VisitWordCompare(selector, node, opcode, cont, false);
+  Instruction* instr = VisitWordCompare(selector, node, opcode, cont, false);
+  if constexpr (Adapter::IsTurboshaft) {
+    selector->UpdateSourcePosition(instr, node);
+  }
 }
 
 template <typename Adapter>
@@ -2959,7 +2980,7 @@ void VisitWord32Compare(InstructionSelectorT<Adapter>* selector,
 #else
     if (IsNodeUnsigned(node->InputAt(0)) != IsNodeUnsigned(node->InputAt(1)) ||
         node->InputAt(0)->opcode() == IrOpcode::kCall ||
-        node->InputAt(1)->opcode() == IrOpcode::kCall ) {
+        node->InputAt(1)->opcode() == IrOpcode::kCall) {
 #endif
       VisitFullWord32Compare(selector, node, kMips64Cmp, cont);
     } else {
@@ -3375,7 +3396,8 @@ void InstructionSelectorT<TurbofanAdapter>::VisitWordCompareZero(
         break;
       case IrOpcode::kWord32And:
       case IrOpcode::kWord64And:
-        return VisitWordCompare(this, value, kMips64Tst, cont, true);
+        VisitWordCompare(this, value, kMips64Tst, cont, true);
+        return;
       case IrOpcode::kStackPointerGreaterThan:
         cont->OverwriteAndNegateIfEqual(kStackPointerGreaterThanCondition);
         return VisitStackPointerGreaterThan(value, cont);
@@ -3487,7 +3509,8 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitWordCompareZero(
         }
       } else if (value_op.Is<Opmask::kWord32BitwiseAnd>() ||
                  value_op.Is<Opmask::kWord64BitwiseAnd>()) {
-        return VisitWordCompare(this, value, kMips64Tst, cont, true);
+        VisitWordCompare(this, value, kMips64Tst, cont, true);
+        return;
       } else if (value_op.Is<StackPointerGreaterThanOp>()) {
         cont->OverwriteAndNegateIfEqual(kStackPointerGreaterThanCondition);
         return VisitStackPointerGreaterThan(value, cont);

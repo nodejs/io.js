@@ -4,7 +4,7 @@
 
 #include "src/utils/identity-map.h"
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/logging.h"
 #include "src/heap/heap.h"
 #include "src/roots/roots-inl.h"

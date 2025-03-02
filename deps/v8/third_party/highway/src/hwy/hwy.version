@@ -1,0 +1,19 @@
+HWY_0 {
+  global:
+    extern "C++" {
+      *hwy::*;
+    };
+
+  local:
+    # Hide all the std namespace symbols. std namespace is explicitly marked
+    # as visibility(default) and header-only functions or methods (such as those
+    # from templates) should be exposed in shared libraries as weak symbols but
+    # this is only needed when we expose those types in the shared library API
+    # in any way. We don't use C++ std types in the API and we also don't
+    # support exceptions in the library.
+    # See https://gcc.gnu.org/bugzilla/show_bug.cgi?id=36022 for a discussion
+    # about this.
+    extern "C++" {
+      *std::*;
+    };
+};

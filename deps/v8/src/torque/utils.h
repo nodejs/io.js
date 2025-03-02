@@ -14,7 +14,7 @@
 #include <unordered_set>
 
 #include "src/base/contextual.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/torque/source-positions.h"
 
 namespace v8::internal::torque {

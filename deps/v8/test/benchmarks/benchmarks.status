@@ -126,6 +126,7 @@
   'kraken/ai-astar': [SKIP],
   'kraken/stanford-crypto-aes': [SKIP],
   'kraken/stanford-crypto-ccm': [SKIP],
+  'kraken/stanford-crypto-pbkdf2': [SKIP],
   'octane/box2d': [SKIP],
   'octane/crypto': [SKIP],
   'octane/earley-boyer': [SKIP],

@@ -183,7 +183,7 @@ IR	+3540+05126	Asia/Tehran
 IT,SM,VA	+4154+01229	Europe/Rome
 JM	+175805-0764736	America/Jamaica
 JO	+3157+03556	Asia/Amman
-JP	+353916+1394441	Asia/Tokyo
+JP,AU	+353916+1394441	Asia/Tokyo	Eyre Bird Observatory
 KE,DJ,ER,ET,KM,MG,SO,TZ,UG,YT	-0117+03649	Africa/Nairobi
 KG	+4254+07436	Asia/Bishkek
 KI,MH,TV,UM,WF	+0125+17300	Pacific/Tarawa	Gilberts, Marshalls, Wake
@@ -209,8 +209,7 @@ MD	+4700+02850	Europe/Chisinau
 MH	+0905+16720	Pacific/Kwajalein	Kwajalein
 MM,CC	+1647+09610	Asia/Yangon
 MN	+4755+10653	Asia/Ulaanbaatar	most of Mongolia
-MN	+4801+09139	Asia/Hovd	Bayan-Ölgii, Govi-Altai, Hovd, Uvs, Zavkhan
-MN	+4804+11430	Asia/Choibalsan	Dornod, Sükhbaatar
+MN	+4801+09139	Asia/Hovd	Bayan-Ölgii, Hovd, Uvs
 MO	+221150+1133230	Asia/Macau
 MQ	+1436-06105	America/Martinique
 MT	+3554+01431	Europe/Malta
@@ -247,7 +246,7 @@ PF	-0900-13930	Pacific/Marquesas	Marquesas Islands
 PF	-2308-13457	Pacific/Gambier	Gambier Islands
 PG,AQ,FM	-0930+14710	Pacific/Port_Moresby	Papua New Guinea (most areas), Chuuk, Yap, Dumont d'Urville
 PG	-0613+15534	Pacific/Bougainville	Bougainville
-PH	+1435+12100	Asia/Manila
+PH	+143512+1205804	Asia/Manila
 PK	+2452+06703	Asia/Karachi
 PL	+5215+02100	Europe/Warsaw
 PM	+4703-05620	America/Miquelon
@@ -294,7 +293,7 @@ RU	+6445+17729	Asia/Anadyr	MSK+09 - Bering Sea
 SA,AQ,KW,YE	+2438+04643	Asia/Riyadh	Syowa
 SB,FM	-0932+16012	Pacific/Guadalcanal	Pohnpei
 SD	+1536+03232	Africa/Khartoum
-SG,MY	+0117+10351	Asia/Singapore	peninsular Malaysia
+SG,AQ,MY	+0117+10351	Asia/Singapore	peninsular Malaysia, Concordia
 SR	+0550-05510	America/Paramaribo
 SS	+0451+03137	Africa/Juba
 ST	+0020+00644	Africa/Sao_Tome

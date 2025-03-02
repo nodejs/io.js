@@ -15,17 +15,18 @@ namespace v8 {
 namespace internal {
 
 V8_WARN_UNUSED_RESULT inline ExceptionStatus
-ElementsAccessor::CollectElementIndices(Handle<JSObject> object,
+ElementsAccessor::CollectElementIndices(DirectHandle<JSObject> object,
                                         KeyAccumulator* keys) {
   return CollectElementIndices(
-      object, handle(object->elements(), keys->isolate()), keys);
+      object, direct_handle(object->elements(), keys->isolate()), keys);
 }
 
 inline MaybeHandle<FixedArray> ElementsAccessor::PrependElementIndices(
-    Isolate* isolate, Handle<JSObject> object, Handle<FixedArray> keys,
-    GetKeysConversion convert, PropertyFilter filter) {
+    Isolate* isolate, DirectHandle<JSObject> object,
+    DirectHandle<FixedArray> keys, GetKeysConversion convert,
+    PropertyFilter filter) {
   return PrependElementIndices(isolate, object,
-                               handle(object->elements(), isolate), keys,
+                               direct_handle(object->elements(), isolate), keys,
                                convert, filter);
 }
 

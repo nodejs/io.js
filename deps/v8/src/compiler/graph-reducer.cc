@@ -8,11 +8,11 @@
 #include <limits>
 
 #include "src/codegen/tick-counter.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/js-heap-broker.h"
 #include "src/compiler/node-observer.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/node.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/compiler/verifier.h"
 
 namespace v8 {

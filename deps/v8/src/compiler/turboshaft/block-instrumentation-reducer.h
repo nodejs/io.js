@@ -87,7 +87,7 @@ class BlockInstrumentationReducer
   V<Word32> LoadCounterValue(int block_number) {
     int offset_to_counter_value = block_number * kInt32Size;
     if (on_heap_counters_) {
-      offset_to_counter_value += ByteArray::kHeaderSize;
+      offset_to_counter_value += sizeof(ByteArray::Header);
       // Allocation is disallowed here, so rather than referring to an actual
       // counters array, create a reference to a special marker object. This
       // object will get fixed up later in the constants table (see
@@ -111,7 +111,7 @@ class BlockInstrumentationReducer
   void StoreCounterValue(int block_number, V<Word32> value) {
     int offset_to_counter_value = block_number * kInt32Size;
     if (on_heap_counters_) {
-      offset_to_counter_value += ByteArray::kHeaderSize;
+      offset_to_counter_value += sizeof(ByteArray::Header);
       // Allocation is disallowed here, so rather than referring to an actual
       // counters array, create a reference to a special marker object. This
       // object will get fixed up later in the constants table (see

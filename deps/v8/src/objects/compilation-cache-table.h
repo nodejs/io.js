@@ -45,6 +45,8 @@ class CompilationCacheShape : public BaseShape<HashTableKey*> {
   // Why 3 slots? Because of the eval cache.
   static const int kEntrySize = 3;
   static const bool kMatchNeedsHoleCheck = true;
+  static const bool kDoHashSpreading = false;
+  static const uint32_t kHashBits = 0;
 };
 
 class InfoCellPair {
@@ -119,7 +121,7 @@ class CompilationCacheTable
   static CompilationCacheScriptLookupResult LookupScript(
       DirectHandle<CompilationCacheTable> table, Handle<String> src,
       const ScriptDetails& script_details, Isolate* isolate);
-  static Handle<CompilationCacheTable> PutScript(
+  static DirectHandle<CompilationCacheTable> PutScript(
       Handle<CompilationCacheTable> cache, Handle<String> src,
       MaybeHandle<FixedArray> maybe_wrapped_arguments,
       DirectHandle<SharedFunctionInfo> value, Isolate* isolate);
@@ -136,22 +138,24 @@ class CompilationCacheTable
   // leaks due to premature caching of eval strings that are
   // never needed later.
   static InfoCellPair LookupEval(DirectHandle<CompilationCacheTable> table,
-                                 Handle<String> src,
-                                 Handle<SharedFunctionInfo> shared,
-                                 DirectHandle<Context> native_context,
+                                 DirectHandle<String> src,
+                                 DirectHandle<SharedFunctionInfo> shared,
+                                 DirectHandle<NativeContext> native_context,
                                  LanguageMode language_mode, int position);
-  static Handle<CompilationCacheTable> PutEval(
-      Handle<CompilationCacheTable> cache, Handle<String> src,
-      Handle<SharedFunctionInfo> outer_info,
+  static DirectHandle<CompilationCacheTable> PutEval(
+      DirectHandle<CompilationCacheTable> cache, DirectHandle<String> src,
+      DirectHandle<SharedFunctionInfo> outer_info,
       DirectHandle<SharedFunctionInfo> value,
-      DirectHandle<Context> native_context,
+      DirectHandle<NativeContext> native_context,
       DirectHandle<FeedbackCell> feedback_cell, int position);
 
   // The RegExp cache contains RegExpData objects.
-  Handle<Object> LookupRegExp(Handle<String> source, JSRegExp::Flags flags);
-  static Handle<CompilationCacheTable> PutRegExp(
-      Isolate* isolate, Handle<CompilationCacheTable> cache, Handle<String> src,
-      JSRegExp::Flags flags, DirectHandle<RegExpData> value);
+  DirectHandle<Object> LookupRegExp(DirectHandle<String> source,
+                                    JSRegExp::Flags flags);
+  static DirectHandle<CompilationCacheTable> PutRegExp(
+      Isolate* isolate, DirectHandle<CompilationCacheTable> cache,
+      DirectHandle<String> src, JSRegExp::Flags flags,
+      DirectHandle<RegExpData> value);
 
   void Remove(Tagged<Object> value);
   void RemoveEntry(InternalIndex entry);
@@ -170,9 +174,6 @@ class CompilationCacheTable
  private:
   static Handle<CompilationCacheTable> EnsureScriptTableCapacity(
       Isolate* isolate, Handle<CompilationCacheTable> cache);
-
-  OBJECT_CONSTRUCTORS(CompilationCacheTable,
-                      HashTable<CompilationCacheTable, CompilationCacheShape>);
 };
 
 }  // namespace internal

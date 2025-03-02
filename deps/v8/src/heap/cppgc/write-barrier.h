@@ -38,7 +38,7 @@ class V8_EXPORT_PRIVATE YoungGenerationEnabler final {
   YoungGenerationEnabler() = default;
 
   size_t is_enabled_;
-  v8::base::Mutex mutex_;
+  v8::base::SpinningMutex mutex_;
 };
 #endif  // defined(CPPGC_YOUNG_GENERATION)
 

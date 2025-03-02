@@ -152,7 +152,8 @@ class V8_EXPORT_PRIVATE MicrotaskQueue final : public v8::MicrotaskQueue {
   using CallbackWithData =
       std::pair<MicrotasksCompletedCallbackWithData, void*>;
   std::vector<CallbackWithData> microtasks_completed_callbacks_;
-  std::vector<CallbackWithData> microtasks_completed_callbacks_cow_;
+  std::optional<std::vector<CallbackWithData>>
+      microtasks_completed_callbacks_cow_;
 };
 
 }  // namespace internal

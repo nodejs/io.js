@@ -19,75 +19,96 @@ class TestChunk {
 TEST(List, InsertAtTailAndRemove) {
   List<TestChunk> list;
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
   TestChunk t1;
   list.PushBack(&t1);
   EXPECT_FALSE(list.Empty());
+  EXPECT_EQ(1u, list.size());
   EXPECT_TRUE(list.Contains(&t1));
   list.Remove(&t1);
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
 }
 
 TEST(List, InsertAtHeadAndRemove) {
   List<TestChunk> list;
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
   TestChunk t1;
   list.PushFront(&t1);
   EXPECT_FALSE(list.Empty());
+  EXPECT_EQ(1u, list.size());
   list.Remove(&t1);
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
 }
 
 TEST(List, InsertMultipleAtTailAndRemoveFromTail) {
   List<TestChunk> list;
   EXPECT_TRUE(list.Empty());
-  const int kSize = 10;
+  EXPECT_EQ(0u, list.size());
+  const size_t kSize = 10;
   TestChunk chunks[kSize];
-  for (int i = 0; i < kSize; i++) {
+  for (size_t i = 0; i < kSize; i++) {
     list.PushBack(&chunks[i]);
     EXPECT_EQ(list.back(), &chunks[i]);
+    EXPECT_EQ(i + 1, list.size());
   }
-  for (int i = kSize - 1; i > 0; i--) {
+  EXPECT_EQ(kSize, list.size());
+  for (size_t i = kSize - 1; i > 0; i--) {
     list.Remove(&chunks[i]);
     EXPECT_EQ(list.back(), &chunks[i - 1]);
+    EXPECT_EQ(i, list.size());
   }
 
   list.Remove(&chunks[0]);
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
 }
 
 TEST(List, InsertMultipleAtHeadAndRemoveFromHead) {
   List<TestChunk> list;
   EXPECT_TRUE(list.Empty());
-  const int kSize = 10;
+  EXPECT_EQ(0u, list.size());
+  const size_t kSize = 10;
   TestChunk chunks[kSize];
-  for (int i = 0; i < kSize; i++) {
+  for (size_t i = 0; i < kSize; i++) {
     list.PushFront(&chunks[i]);
     EXPECT_EQ(list.front(), &chunks[i]);
+    EXPECT_EQ(i + 1, list.size());
   }
-  for (int i = kSize - 1; i > 0; i--) {
+  EXPECT_EQ(kSize, list.size());
+  for (size_t i = kSize - 1; i > 0; i--) {
     list.Remove(&chunks[i]);
     EXPECT_EQ(list.front(), &chunks[i - 1]);
+    EXPECT_EQ(i, list.size());
   }
-
   list.Remove(&chunks[0]);
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
 }
 
 TEST(List, InsertMultipleAtTailAndRemoveFromMiddle) {
   List<TestChunk> list;
   EXPECT_TRUE(list.Empty());
-  const int kSize = 10;
+  EXPECT_EQ(0u, list.size());
+  const size_t kSize = 10;
   TestChunk chunks[kSize];
-  for (int i = 0; i < kSize; i++) {
+  for (size_t i = 0; i < kSize; i++) {
     list.PushBack(&chunks[i]);
     EXPECT_EQ(list.back(), &chunks[i]);
+    EXPECT_EQ(i + 1, list.size());
   }
-  int i, j;
-  for (i = kSize / 2 - 1, j = kSize / 2; i >= 0; i--, j++) {
+  EXPECT_EQ(kSize, list.size());
+  size_t i, j;
+  for (i = kSize / 2 - 1, j = kSize / 2; j < kSize; i--, j++) {
     list.Remove(&chunks[i]);
+    EXPECT_EQ(i * 2 + 1, list.size());
     list.Remove(&chunks[j]);
+    EXPECT_EQ(i * 2, list.size());
   }
   EXPECT_TRUE(list.Empty());
+  EXPECT_EQ(0u, list.size());
 }
 
 }  // namespace heap

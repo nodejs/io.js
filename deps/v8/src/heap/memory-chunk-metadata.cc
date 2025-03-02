@@ -11,8 +11,7 @@
 #include "src/objects/heap-object.h"
 #include "src/utils/allocation.h"
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 MemoryChunkMetadata::MemoryChunkMetadata(Heap* heap, BaseSpace* space,
                                          size_t chunk_size, Address area_start,
@@ -60,41 +59,4 @@ void MemoryChunkMetadata::SynchronizedHeapStore() {
 }
 #endif
 
-class MemoryChunkValidator {
-  // Computed offsets should match the compiler generated ones.
-  static_assert(MemoryChunkLayout::kFlagsOffset ==
-                offsetof(MemoryChunk, main_thread_flags_));
-#ifdef V8_ENABLE_SANDBOX
-  static_assert(MemoryChunkLayout::kMetadataIndexOffset ==
-                offsetof(MemoryChunk, metadata_index_));
-#else
-  static_assert(MemoryChunkLayout::kMetadataOffset ==
-                offsetof(MemoryChunk, metadata_));
-#endif
-
-  static_assert(MemoryChunkLayout::kSizeOffset ==
-                offsetof(MemoryChunkMetadata, size_));
-  static_assert(MemoryChunkLayout::kHeapOffset ==
-                offsetof(MemoryChunkMetadata, heap_));
-  static_assert(offsetof(MemoryChunkMetadata, size_) ==
-                MemoryChunkLayout::kSizeOffset);
-  static_assert(offsetof(MemoryChunkMetadata, heap_) ==
-                MemoryChunkLayout::kHeapOffset);
-  static_assert(offsetof(MemoryChunkMetadata, area_start_) ==
-                MemoryChunkLayout::kAreaStartOffset);
-  static_assert(offsetof(MemoryChunkMetadata, area_end_) ==
-                MemoryChunkLayout::kAreaEndOffset);
-  static_assert(offsetof(MemoryChunkMetadata, allocated_bytes_) ==
-                MemoryChunkLayout::kAllocatedBytesOffset);
-  static_assert(offsetof(MemoryChunkMetadata, wasted_memory_) ==
-                MemoryChunkLayout::kWastedMemoryOffset);
-  static_assert(offsetof(MemoryChunkMetadata, high_water_mark_) ==
-                MemoryChunkLayout::kHighWaterMarkOffset);
-  static_assert(offsetof(MemoryChunkMetadata, owner_) ==
-                MemoryChunkLayout::kOwnerOffset);
-  static_assert(offsetof(MemoryChunkMetadata, reservation_) ==
-                MemoryChunkLayout::kReservationOffset);
-};
-
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

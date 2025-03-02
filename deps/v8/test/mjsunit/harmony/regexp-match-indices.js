@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 //
-// Flags: --harmony-regexp-match-indices --allow-natives-syntax
+// Flags: --allow-natives-syntax
 // Flags: --expose-gc --stack-size=100
 // Flags: --no-force-slow-path
 

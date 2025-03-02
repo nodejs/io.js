@@ -14,6 +14,8 @@
 namespace v8 {
 namespace internal {
 
+enum class LazyDeoptimizeReason : uint8_t;
+
 // Dependent code is conceptually the list of {Code, DependencyGroup} tuples
 // associated with an object, where the dependency group is a reason that could
 // lead to a deopt of the corresponding code.
@@ -52,20 +54,25 @@ class DependentCode : public WeakArrayList {
     // Group of code objects that omit run-time type checks for initial maps of
     // constructors.
     kInitialMapChangedGroup = 1 << 6,
-    // Group of code objects that depends on tenuring information in
+    // Group of code objects that depend on tenuring information in
     // AllocationSites not being changed.
     kAllocationSiteTenuringChangedGroup = 1 << 7,
-    // Group of code objects that depends on element transition information in
+    // Group of code objects that depend on element transition information in
     // AllocationSites not being changed.
     kAllocationSiteTransitionChangedGroup = 1 << 8,
-    // Group of code objects that depends on a const-tracked let variable in
+    // Group of code objects that depend on a slot side table property of
     // a ScriptContext not being changed.
-    kConstTrackingLetChangedGroup = 1 << 9,
+    kScriptContextSlotPropertyChangedGroup = 1 << 9,
+    // Group of code objects that depend on particular context's extension
+    // slot to be empty.
+    kEmptyContextExtensionGroup = 1 << 10,
     // IMPORTANT: The last bit must fit into a Smi, i.e. into 31 bits.
   };
   using DependencyGroups = base::Flags<DependencyGroup, uint32_t>;
 
   static const char* DependencyGroupName(DependencyGroup group);
+  static LazyDeoptimizeReason DependencyGroupToLazyDeoptReason(
+      DependencyGroup group);
 
   // Register a dependency of {code} on {object}, of the kinds given by
   // {groups}.
@@ -102,13 +109,12 @@ class DependentCode : public WeakArrayList {
  private:
   // Get/Set {object}'s {DependentCode}.
   static Tagged<DependentCode> GetDependentCode(Tagged<HeapObject> object);
-  static void SetDependentCode(Handle<HeapObject> object,
+  static void SetDependentCode(DirectHandle<HeapObject> object,
                                DirectHandle<DependentCode> dep);
 
-  static Handle<DependentCode> InsertWeakCode(Isolate* isolate,
-                                              Handle<DependentCode> entries,
-                                              DependencyGroups groups,
-                                              DirectHandle<Code> code);
+  static DirectHandle<DependentCode> InsertWeakCode(
+      Isolate* isolate, Handle<DependentCode> entries, DependencyGroups groups,
+      DirectHandle<Code> code);
 
   bool MarkCodeForDeoptimization(Isolate* isolate,
                                  DependencyGroups deopt_groups);

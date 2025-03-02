@@ -9,107 +9,112 @@
 #ifndef V8_WASM_INTERPRETER_INSTRUCTION_HANDLERS_H_
 #define V8_WASM_INTERPRETER_INSTRUCTION_HANDLERS_H_
 
-#define FOREACH_LOAD_STORE_INSTR_HANDLER(V) \
-  /* LoadMem */                             \
-  V(r2r_I32LoadMem8S)                       \
-  V(r2r_I32LoadMem8U)                       \
-  V(r2r_I32LoadMem16S)                      \
-  V(r2r_I32LoadMem16U)                      \
-  V(r2r_I64LoadMem8S)                       \
-  V(r2r_I64LoadMem8U)                       \
-  V(r2r_I64LoadMem16S)                      \
-  V(r2r_I64LoadMem16U)                      \
-  V(r2r_I64LoadMem32S)                      \
-  V(r2r_I64LoadMem32U)                      \
-  V(r2r_I32LoadMem)                         \
-  V(r2r_I64LoadMem)                         \
-  V(r2r_F32LoadMem)                         \
-  V(r2r_F64LoadMem)                         \
-  V(r2s_I32LoadMem8S)                       \
-  V(r2s_I32LoadMem8U)                       \
-  V(r2s_I32LoadMem16S)                      \
-  V(r2s_I32LoadMem16U)                      \
-  V(r2s_I64LoadMem8S)                       \
-  V(r2s_I64LoadMem8U)                       \
-  V(r2s_I64LoadMem16S)                      \
-  V(r2s_I64LoadMem16U)                      \
-  V(r2s_I64LoadMem32S)                      \
-  V(r2s_I64LoadMem32U)                      \
-  V(r2s_I32LoadMem)                         \
-  V(r2s_I64LoadMem)                         \
-  V(r2s_F32LoadMem)                         \
-  V(r2s_F64LoadMem)                         \
-  V(s2r_I32LoadMem8S)                       \
-  V(s2r_I32LoadMem8U)                       \
-  V(s2r_I32LoadMem16S)                      \
-  V(s2r_I32LoadMem16U)                      \
-  V(s2r_I64LoadMem8S)                       \
-  V(s2r_I64LoadMem8U)                       \
-  V(s2r_I64LoadMem16S)                      \
-  V(s2r_I64LoadMem16U)                      \
-  V(s2r_I64LoadMem32S)                      \
-  V(s2r_I64LoadMem32U)                      \
-  V(s2r_I32LoadMem)                         \
-  V(s2r_I64LoadMem)                         \
-  V(s2r_F32LoadMem)                         \
-  V(s2r_F64LoadMem)                         \
-  V(s2s_I32LoadMem8S)                       \
-  V(s2s_I32LoadMem8U)                       \
-  V(s2s_I32LoadMem16S)                      \
-  V(s2s_I32LoadMem16U)                      \
-  V(s2s_I64LoadMem8S)                       \
-  V(s2s_I64LoadMem8U)                       \
-  V(s2s_I64LoadMem16S)                      \
-  V(s2s_I64LoadMem16U)                      \
-  V(s2s_I64LoadMem32S)                      \
-  V(s2s_I64LoadMem32U)                      \
-  V(s2s_I32LoadMem)                         \
-  V(s2s_I64LoadMem)                         \
-  V(s2s_F32LoadMem)                         \
-  V(s2s_F64LoadMem)                         \
-  /* LoadMem_LocalSet */                    \
-  V(s2s_I32LoadMem8S_LocalSet)              \
-  V(s2s_I32LoadMem8U_LocalSet)              \
-  V(s2s_I32LoadMem16S_LocalSet)             \
-  V(s2s_I32LoadMem16U_LocalSet)             \
-  V(s2s_I64LoadMem8S_LocalSet)              \
-  V(s2s_I64LoadMem8U_LocalSet)              \
-  V(s2s_I64LoadMem16S_LocalSet)             \
-  V(s2s_I64LoadMem16U_LocalSet)             \
-  V(s2s_I64LoadMem32S_LocalSet)             \
-  V(s2s_I64LoadMem32U_LocalSet)             \
-  V(s2s_I32LoadMem_LocalSet)                \
-  V(s2s_I64LoadMem_LocalSet)                \
-  V(s2s_F32LoadMem_LocalSet)                \
-  V(s2s_F64LoadMem_LocalSet)                \
-  /* StoreMem */                            \
-  V(r2s_I32StoreMem8)                       \
-  V(r2s_I32StoreMem16)                      \
-  V(r2s_I64StoreMem8)                       \
-  V(r2s_I64StoreMem16)                      \
-  V(r2s_I64StoreMem32)                      \
-  V(r2s_I32StoreMem)                        \
-  V(r2s_I64StoreMem)                        \
-  V(r2s_F32StoreMem)                        \
-  V(r2s_F64StoreMem)                        \
-  V(s2s_I32StoreMem8)                       \
-  V(s2s_I32StoreMem16)                      \
-  V(s2s_I64StoreMem8)                       \
-  V(s2s_I64StoreMem16)                      \
-  V(s2s_I64StoreMem32)                      \
-  V(s2s_I32StoreMem)                        \
-  V(s2s_I64StoreMem)                        \
-  V(s2s_F32StoreMem)                        \
-  V(s2s_F64StoreMem)                        \
-  /* LoadStoreMem */                        \
-  V(r2s_I32LoadStoreMem)                    \
-  V(r2s_I64LoadStoreMem)                    \
-  V(r2s_F32LoadStoreMem)                    \
-  V(r2s_F64LoadStoreMem)                    \
-  V(s2s_I32LoadStoreMem)                    \
-  V(s2s_I64LoadStoreMem)                    \
-  V(s2s_F32LoadStoreMem)                    \
-  V(s2s_F64LoadStoreMem)
+#define GENERATE_MEM64_INSTR_HANDLER(V, name) V(name##_Idx64)
+
+#define FOREACH_MEM64_LOAD_STORE_INSTR_HANDLER(V) \
+  FOREACH_LOAD_STORE_INSTR_HANDLER(GENERATE_MEM64_INSTR_HANDLER, V)
+
+#define FOREACH_LOAD_STORE_INSTR_HANDLER(V, ...)           \
+  /* LoadMem */                                            \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I32LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I32LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I32LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I32LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem32S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem32U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_I64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_F32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2r_F64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem32S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem32U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_F32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_F64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I32LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I32LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I32LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I32LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem32S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem32U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_I64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_F32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2r_F64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem8S)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem8U)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem16S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem16U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem32S)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem32U)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F32LoadMem)             \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F64LoadMem)             \
+  /* LoadMem_LocalSet */                                   \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem8S_LocalSet)  \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem8U_LocalSet)  \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem16S_LocalSet) \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem16U_LocalSet) \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem8S_LocalSet)  \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem8U_LocalSet)  \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem16S_LocalSet) \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem16U_LocalSet) \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem32S_LocalSet) \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem32U_LocalSet) \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadMem_LocalSet)    \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadMem_LocalSet)    \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F32LoadMem_LocalSet)    \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F64LoadMem_LocalSet)    \
+  /* StoreMem */                                           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32StoreMem8)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32StoreMem16)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64StoreMem8)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64StoreMem16)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64StoreMem32)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_F32StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_F64StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32StoreMem8)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32StoreMem16)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64StoreMem8)           \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64StoreMem16)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64StoreMem32)          \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F32StoreMem)            \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F64StoreMem)            \
+  /* LoadStoreMem */                                       \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I32LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_I64LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_F32LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) r2s_F64LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I32LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_I64LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F32LoadStoreMem)        \
+  V(__VA_ARGS__ __VA_OPT__(, ) s2s_F64LoadStoreMem)
 
 #define FOREACH_LOAD_STORE_DUPLICATED_INSTR_HANDLER(V) \
   /* LoadMem_LocalSet */                               \
@@ -749,7 +754,9 @@
   V(s2s_I64UConvertSatF64)                      \
   /* Other instruction handlers. */             \
   V(s2s_MemoryGrow)                             \
+  V(s2s_Memory64Grow)                           \
   V(s2s_MemorySize)                             \
+  V(s2s_Memory64Size)                           \
   V(s2s_Return)                                 \
   V(s2s_Branch)                                 \
   V(r2s_BranchIf)                               \
@@ -764,7 +771,9 @@
   V(s2s_CallImportedFunction)                   \
   V(s2s_ReturnCallImportedFunction)             \
   V(s2s_CallIndirect)                           \
+  V(s2s_CallIndirect64)                         \
   V(s2s_ReturnCallIndirect)                     \
+  V(s2s_ReturnCallIndirect64)                   \
   V(r2s_BrTable)                                \
   V(s2s_BrTable)                                \
   V(s2s_CopySlotMulti)                          \
@@ -781,7 +790,6 @@
   V(s2s_PreserveCopySlot32)                     \
   V(s2s_PreserveCopySlot64)                     \
   V(s2s_PreserveCopySlot128)                    \
-  V(s2s_PreserveCopySlotRef)                    \
   V(r2s_CopyR0ToSlot32)                         \
   V(r2s_CopyR0ToSlot64)                         \
   V(r2s_CopyFp0ToSlot32)                        \
@@ -795,93 +803,171 @@
   V(s2s_RefFunc)                                \
   V(s2s_RefEq)                                  \
   V(s2s_MemoryInit)                             \
+  V(s2s_Memory64Init)                           \
   V(s2s_DataDrop)                               \
   V(s2s_MemoryCopy)                             \
+  V(s2s_Memory64Copy)                           \
   V(s2s_MemoryFill)                             \
+  V(s2s_Memory64Fill)                           \
   V(s2s_TableGet)                               \
+  V(s2s_Table64Get)                             \
   V(s2s_TableSet)                               \
+  V(s2s_Table64Set)                             \
   V(s2s_TableInit)                              \
+  V(s2s_Table64Init)                            \
   V(s2s_ElemDrop)                               \
   V(s2s_TableCopy)                              \
+  V(s2s_Table64Copy_32_64_32)                   \
+  V(s2s_Table64Copy_64_32_32)                   \
+  V(s2s_Table64Copy_64_64_64)                   \
   V(s2s_TableGrow)                              \
+  V(s2s_Table64Grow)                            \
   V(s2s_TableSize)                              \
+  V(s2s_Table64Size)                            \
   V(s2s_TableFill)                              \
+  V(s2s_Table64Fill)                            \
   V(s2s_Unreachable)                            \
   V(s2s_Unwind)                                 \
-  V(s2s_OnLoopBackwardJump)                     \
-  V(s2s_Nop)                                    \
+  V(s2s_OnLoopBegin)                            \
+  V(s2s_OnLoopBeginNoRefSlots)                  \
   /* Exception handling */                      \
   V(s2s_Throw)                                  \
   V(s2s_Rethrow)                                \
   V(s2s_Catch)                                  \
   /* Atomics */                                 \
   V(s2s_AtomicNotify)                           \
+  V(s2s_AtomicNotify_Idx64)                     \
   V(s2s_I32AtomicWait)                          \
+  V(s2s_I32AtomicWait_Idx64)                    \
   V(s2s_I64AtomicWait)                          \
+  V(s2s_I64AtomicWait_Idx64)                    \
   V(s2s_AtomicFence)                            \
   V(s2s_I32AtomicAdd)                           \
+  V(s2s_I32AtomicAdd_Idx64)                     \
   V(s2s_I32AtomicAdd8U)                         \
+  V(s2s_I32AtomicAdd8U_Idx64)                   \
   V(s2s_I32AtomicAdd16U)                        \
+  V(s2s_I32AtomicAdd16U_Idx64)                  \
   V(s2s_I32AtomicSub)                           \
+  V(s2s_I32AtomicSub_Idx64)                     \
   V(s2s_I32AtomicSub8U)                         \
+  V(s2s_I32AtomicSub8U_Idx64)                   \
   V(s2s_I32AtomicSub16U)                        \
+  V(s2s_I32AtomicSub16U_Idx64)                  \
   V(s2s_I32AtomicAnd)                           \
+  V(s2s_I32AtomicAnd_Idx64)                     \
   V(s2s_I32AtomicAnd8U)                         \
+  V(s2s_I32AtomicAnd8U_Idx64)                   \
   V(s2s_I32AtomicAnd16U)                        \
+  V(s2s_I32AtomicAnd16U_Idx64)                  \
   V(s2s_I32AtomicOr)                            \
+  V(s2s_I32AtomicOr_Idx64)                      \
   V(s2s_I32AtomicOr8U)                          \
+  V(s2s_I32AtomicOr8U_Idx64)                    \
   V(s2s_I32AtomicOr16U)                         \
+  V(s2s_I32AtomicOr16U_Idx64)                   \
   V(s2s_I32AtomicXor)                           \
+  V(s2s_I32AtomicXor_Idx64)                     \
   V(s2s_I32AtomicXor8U)                         \
+  V(s2s_I32AtomicXor8U_Idx64)                   \
   V(s2s_I32AtomicXor16U)                        \
+  V(s2s_I32AtomicXor16U_Idx64)                  \
   V(s2s_I32AtomicExchange)                      \
+  V(s2s_I32AtomicExchange_Idx64)                \
   V(s2s_I32AtomicExchange8U)                    \
+  V(s2s_I32AtomicExchange8U_Idx64)              \
   V(s2s_I32AtomicExchange16U)                   \
+  V(s2s_I32AtomicExchange16U_Idx64)             \
   V(s2s_I64AtomicAdd)                           \
+  V(s2s_I64AtomicAdd_Idx64)                     \
   V(s2s_I64AtomicAdd8U)                         \
+  V(s2s_I64AtomicAdd8U_Idx64)                   \
   V(s2s_I64AtomicAdd16U)                        \
+  V(s2s_I64AtomicAdd16U_Idx64)                  \
   V(s2s_I64AtomicAdd32U)                        \
+  V(s2s_I64AtomicAdd32U_Idx64)                  \
   V(s2s_I64AtomicSub)                           \
+  V(s2s_I64AtomicSub_Idx64)                     \
   V(s2s_I64AtomicSub8U)                         \
+  V(s2s_I64AtomicSub8U_Idx64)                   \
   V(s2s_I64AtomicSub16U)                        \
+  V(s2s_I64AtomicSub16U_Idx64)                  \
   V(s2s_I64AtomicSub32U)                        \
+  V(s2s_I64AtomicSub32U_Idx64)                  \
   V(s2s_I64AtomicAnd)                           \
+  V(s2s_I64AtomicAnd_Idx64)                     \
   V(s2s_I64AtomicAnd8U)                         \
+  V(s2s_I64AtomicAnd8U_Idx64)                   \
   V(s2s_I64AtomicAnd16U)                        \
+  V(s2s_I64AtomicAnd16U_Idx64)                  \
   V(s2s_I64AtomicAnd32U)                        \
+  V(s2s_I64AtomicAnd32U_Idx64)                  \
   V(s2s_I64AtomicOr)                            \
+  V(s2s_I64AtomicOr_Idx64)                      \
   V(s2s_I64AtomicOr8U)                          \
+  V(s2s_I64AtomicOr8U_Idx64)                    \
   V(s2s_I64AtomicOr16U)                         \
+  V(s2s_I64AtomicOr16U_Idx64)                   \
   V(s2s_I64AtomicOr32U)                         \
+  V(s2s_I64AtomicOr32U_Idx64)                   \
   V(s2s_I64AtomicXor)                           \
+  V(s2s_I64AtomicXor_Idx64)                     \
   V(s2s_I64AtomicXor8U)                         \
+  V(s2s_I64AtomicXor8U_Idx64)                   \
   V(s2s_I64AtomicXor16U)                        \
+  V(s2s_I64AtomicXor16U_Idx64)                  \
   V(s2s_I64AtomicXor32U)                        \
+  V(s2s_I64AtomicXor32U_Idx64)                  \
   V(s2s_I64AtomicExchange)                      \
+  V(s2s_I64AtomicExchange_Idx64)                \
   V(s2s_I64AtomicExchange8U)                    \
+  V(s2s_I64AtomicExchange8U_Idx64)              \
   V(s2s_I64AtomicExchange16U)                   \
+  V(s2s_I64AtomicExchange16U_Idx64)             \
   V(s2s_I64AtomicExchange32U)                   \
+  V(s2s_I64AtomicExchange32U_Idx64)             \
   V(s2s_I32AtomicCompareExchange)               \
+  V(s2s_I32AtomicCompareExchange_Idx64)         \
   V(s2s_I32AtomicCompareExchange8U)             \
+  V(s2s_I32AtomicCompareExchange8U_Idx64)       \
   V(s2s_I32AtomicCompareExchange16U)            \
+  V(s2s_I32AtomicCompareExchange16U_Idx64)      \
   V(s2s_I64AtomicCompareExchange)               \
+  V(s2s_I64AtomicCompareExchange_Idx64)         \
   V(s2s_I64AtomicCompareExchange8U)             \
+  V(s2s_I64AtomicCompareExchange8U_Idx64)       \
   V(s2s_I64AtomicCompareExchange16U)            \
+  V(s2s_I64AtomicCompareExchange16U_Idx64)      \
   V(s2s_I64AtomicCompareExchange32U)            \
+  V(s2s_I64AtomicCompareExchange32U_Idx64)      \
   V(s2s_I32AtomicLoad)                          \
+  V(s2s_I32AtomicLoad_Idx64)                    \
   V(s2s_I32AtomicLoad8U)                        \
+  V(s2s_I32AtomicLoad8U_Idx64)                  \
   V(s2s_I32AtomicLoad16U)                       \
+  V(s2s_I32AtomicLoad16U_Idx64)                 \
   V(s2s_I64AtomicLoad)                          \
+  V(s2s_I64AtomicLoad_Idx64)                    \
   V(s2s_I64AtomicLoad8U)                        \
+  V(s2s_I64AtomicLoad8U_Idx64)                  \
   V(s2s_I64AtomicLoad16U)                       \
+  V(s2s_I64AtomicLoad16U_Idx64)                 \
   V(s2s_I64AtomicLoad32U)                       \
+  V(s2s_I64AtomicLoad32U_Idx64)                 \
   V(s2s_I32AtomicStore)                         \
+  V(s2s_I32AtomicStore_Idx64)                   \
   V(s2s_I32AtomicStore8U)                       \
+  V(s2s_I32AtomicStore8U_Idx64)                 \
   V(s2s_I32AtomicStore16U)                      \
+  V(s2s_I32AtomicStore16U_Idx64)                \
   V(s2s_I64AtomicStore)                         \
+  V(s2s_I64AtomicStore_Idx64)                   \
   V(s2s_I64AtomicStore8U)                       \
+  V(s2s_I64AtomicStore8U_Idx64)                 \
   V(s2s_I64AtomicStore16U)                      \
+  V(s2s_I64AtomicStore16U_Idx64)                \
   V(s2s_I64AtomicStore32U)                      \
+  V(s2s_I64AtomicStore32U_Idx64)                \
   /* SIMD */                                    \
   V(s2s_SimdF64x2Splat)                         \
   V(s2s_SimdF32x4Splat)                         \
@@ -1039,7 +1125,9 @@
   V(s2s_SimdI16x8ReplaceLane)                   \
   V(s2s_SimdI8x16ReplaceLane)                   \
   V(s2s_SimdS128LoadMem)                        \
+  V(s2s_SimdS128LoadMem_Idx64)                  \
   V(s2s_SimdS128StoreMem)                       \
+  V(s2s_SimdS128StoreMem_Idx64)                 \
   V(s2s_SimdI64x2Shl)                           \
   V(s2s_SimdI64x2ShrS)                          \
   V(s2s_SimdI64x2ShrU)                          \
@@ -1115,25 +1203,45 @@
   V(s2s_SimdF64x2Qfma)                          \
   V(s2s_SimdF64x2Qfms)                          \
   V(s2s_SimdS128Load8Splat)                     \
+  V(s2s_SimdS128Load8Splat_Idx64)               \
   V(s2s_SimdS128Load16Splat)                    \
+  V(s2s_SimdS128Load16Splat_Idx64)              \
   V(s2s_SimdS128Load32Splat)                    \
+  V(s2s_SimdS128Load32Splat_Idx64)              \
   V(s2s_SimdS128Load64Splat)                    \
+  V(s2s_SimdS128Load64Splat_Idx64)              \
   V(s2s_SimdS128Load8x8S)                       \
+  V(s2s_SimdS128Load8x8S_Idx64)                 \
   V(s2s_SimdS128Load8x8U)                       \
+  V(s2s_SimdS128Load8x8U_Idx64)                 \
   V(s2s_SimdS128Load16x4S)                      \
+  V(s2s_SimdS128Load16x4S_Idx64)                \
   V(s2s_SimdS128Load16x4U)                      \
+  V(s2s_SimdS128Load16x4U_Idx64)                \
   V(s2s_SimdS128Load32x2S)                      \
+  V(s2s_SimdS128Load32x2S_Idx64)                \
   V(s2s_SimdS128Load32x2U)                      \
+  V(s2s_SimdS128Load32x2U_Idx64)                \
   V(s2s_SimdS128Load32Zero)                     \
+  V(s2s_SimdS128Load32Zero_Idx64)               \
   V(s2s_SimdS128Load64Zero)                     \
+  V(s2s_SimdS128Load64Zero_Idx64)               \
   V(s2s_SimdS128Load8Lane)                      \
+  V(s2s_SimdS128Load8Lane_Idx64)                \
   V(s2s_SimdS128Load16Lane)                     \
+  V(s2s_SimdS128Load16Lane_Idx64)               \
   V(s2s_SimdS128Load32Lane)                     \
+  V(s2s_SimdS128Load32Lane_Idx64)               \
   V(s2s_SimdS128Load64Lane)                     \
+  V(s2s_SimdS128Load64Lane_Idx64)               \
   V(s2s_SimdS128Store8Lane)                     \
+  V(s2s_SimdS128Store8Lane_Idx64)               \
   V(s2s_SimdS128Store16Lane)                    \
+  V(s2s_SimdS128Store16Lane_Idx64)              \
   V(s2s_SimdS128Store32Lane)                    \
+  V(s2s_SimdS128Store32Lane_Idx64)              \
   V(s2s_SimdS128Store64Lane)                    \
+  V(s2s_SimdS128Store64Lane_Idx64)              \
   V(s2s_SimdI32x4ExtAddPairwiseI16x8S)          \
   V(s2s_SimdI32x4ExtAddPairwiseI16x8U)          \
   V(s2s_SimdI16x8ExtAddPairwiseI8x16S)          \
@@ -1224,7 +1332,8 @@
   V(s2s_TrapIllegalCast)                        \
   V(s2s_RefTestSucceeds)                        \
   V(s2s_RefTestFails)                           \
-  V(s2s_RefIsNonNull)
+  V(s2s_RefIsNonNull)                           \
+  FOREACH_MEM64_LOAD_STORE_INSTR_HANDLER(V)
 
 #ifdef V8_DRUMBRAKE_BOUNDS_CHECKS
 #define FOREACH_INSTR_HANDLER(V)                 \

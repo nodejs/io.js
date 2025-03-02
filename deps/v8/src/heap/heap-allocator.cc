@@ -222,18 +222,21 @@ void HeapAllocator::VerifyLinearAllocationAreas() const {
 #endif  // DEBUG
 
 void HeapAllocator::MarkLinearAllocationAreasBlack() {
+  DCHECK(!v8_flags.black_allocated_pages);
   old_space_allocator_->MarkLinearAllocationAreaBlack();
   trusted_space_allocator_->MarkLinearAllocationAreaBlack();
   code_space_allocator_->MarkLinearAllocationAreaBlack();
 }
 
 void HeapAllocator::UnmarkLinearAllocationsArea() {
+  DCHECK(!v8_flags.black_allocated_pages);
   old_space_allocator_->UnmarkLinearAllocationArea();
   trusted_space_allocator_->UnmarkLinearAllocationArea();
   code_space_allocator_->UnmarkLinearAllocationArea();
 }
 
 void HeapAllocator::MarkSharedLinearAllocationAreasBlack() {
+  DCHECK(!v8_flags.black_allocated_pages);
   if (shared_space_allocator_) {
     shared_space_allocator_->MarkLinearAllocationAreaBlack();
   }
@@ -243,11 +246,29 @@ void HeapAllocator::MarkSharedLinearAllocationAreasBlack() {
 }
 
 void HeapAllocator::UnmarkSharedLinearAllocationAreas() {
+  DCHECK(!v8_flags.black_allocated_pages);
   if (shared_space_allocator_) {
     shared_space_allocator_->UnmarkLinearAllocationArea();
   }
   if (shared_trusted_space_allocator_) {
     shared_trusted_space_allocator_->UnmarkLinearAllocationArea();
+  }
+}
+
+void HeapAllocator::FreeLinearAllocationAreasAndResetFreeLists() {
+  DCHECK(v8_flags.black_allocated_pages);
+  old_space_allocator_->FreeLinearAllocationAreaAndResetFreeList();
+  trusted_space_allocator_->FreeLinearAllocationAreaAndResetFreeList();
+  code_space_allocator_->FreeLinearAllocationAreaAndResetFreeList();
+}
+
+void HeapAllocator::FreeSharedLinearAllocationAreasAndResetFreeLists() {
+  DCHECK(v8_flags.black_allocated_pages);
+  if (shared_space_allocator_) {
+    shared_space_allocator_->FreeLinearAllocationAreaAndResetFreeList();
+  }
+  if (shared_trusted_space_allocator_) {
+    shared_trusted_space_allocator_->FreeLinearAllocationAreaAndResetFreeList();
   }
 }
 

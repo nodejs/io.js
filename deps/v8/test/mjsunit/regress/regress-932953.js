@@ -51,7 +51,7 @@
   // Reconfigure to double field.
   o3.x = 0.1;
 
-  // Migrate o2 to the new shape.
+  // Migrate o2 to the new shape. (This won't mark the new map as a migration target.)
   assertEquals(o2, %TryMigrateInstance(o2));
 
   %OptimizeFunctionOnNextCall(f);
@@ -60,7 +60,14 @@
 
   // Ensure o1 is migrated (e.g. in jitless mode, where the unoptimized f won't
   // necessarily migrate it).
-  assertEquals(o1, %TryMigrateInstance(o1));
+
+  let migrated = %TryMigrateInstance(o1);
+  if (typeof migrated === 'number') {
+    // No migration happened (o1 was already migrated).
+    migrated = o1;
+  }
+
+  assertEquals(o1, migrated);
 
   assertTrue(%HaveSameMap(o1, o2));
   assertTrue(%HaveSameMap(o1, o3));

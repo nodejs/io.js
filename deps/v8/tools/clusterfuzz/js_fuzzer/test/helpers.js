@@ -12,12 +12,17 @@ const assert = require('assert');
 const path = require('path');
 const fs = require('fs');
 
+const corpus = require('../corpus.js');
 const sourceHelpers = require('../source_helpers.js');
 
 const BASE_DIR = path.join(path.dirname(__dirname), 'test_data');
 const DB_DIR = path.join(BASE_DIR, 'fake_db');
 
-const HEADER = `// Copyright 2020 the V8 project authors. All rights reserved.
+const TEST_CORPUS = new sourceHelpers.BaseCorpus(BASE_DIR);
+const FUZZILLI_TEST_CORPUS = corpus.create(BASE_DIR, 'fuzzilli');
+const V8_TEST_CORPUS = corpus.create(BASE_DIR, 'v8');
+
+const HEADER = `// Copyright 2025 the V8 project authors. All rights reserved.
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
@@ -49,13 +54,28 @@ function deterministicRandom(sandbox) {
 }
 
 function loadTestData(relPath) {
-  return sourceHelpers.loadSource(BASE_DIR, relPath);
+  return sourceHelpers.loadSource(TEST_CORPUS, relPath);
+}
+
+function loadFuzzilliTestData(relPath) {
+  return sourceHelpers.loadSource(FUZZILLI_TEST_CORPUS, relPath);
+}
+
+function loadV8TestData(relPath) {
+  return sourceHelpers.loadSource(V8_TEST_CORPUS, relPath);
 }
 
 function assertExpectedResult(expectedPath, result) {
   const absPath = path.join(BASE_DIR, expectedPath);
   if (process.env.GENERATE) {
-    fs.writeFileSync(absPath, HEADER + result.trim() + '\n');
+    let header = HEADER;
+    if (fs.existsSync(absPath)) {
+      // Keep the old copyright header if the file already exists.
+      const previous = fs.readFileSync(absPath, 'utf-8').trim().split('\n');
+      previous.splice(3);
+      header = previous.join('\n') + '\n\n';
+    }
+    fs.writeFileSync(absPath, header + result.trim() + '\n');
     return;
   }
 
@@ -68,8 +88,11 @@ function assertExpectedResult(expectedPath, result) {
 module.exports = {
   BASE_DIR: BASE_DIR,
   DB_DIR: DB_DIR,
+  TEST_CORPUS: TEST_CORPUS,
   assertExpectedResult: assertExpectedResult,
   cycleProbabilitiesFun: cycleProbabilitiesFun,
   deterministicRandom: deterministicRandom,
+  loadFuzzilliTestData: loadFuzzilliTestData,
   loadTestData: loadTestData,
+  loadV8TestData: loadV8TestData,
 }

@@ -152,7 +152,7 @@ void MacroAssembler::RecordWriteField(Register object, int offset,
   DCHECK(IsAligned(offset, kPointerSize));
 
   Daddu(dst, object, Operand(offset - kHeapObjectTag));
-  if (v8_flags.debug_code) {
+  if (v8_flags.slow_debug_code) {
     BlockTrampolinePoolScope block_trampoline_pool(this);
     Label ok;
     And(t8, dst, Operand(kPointerSize - 1));
@@ -167,7 +167,7 @@ void MacroAssembler::RecordWriteField(Register object, int offset,
 
   // Clobber clobbered input registers when running with the debug-code flag
   // turned on to provoke errors.
-  if (v8_flags.debug_code) {
+  if (v8_flags.slow_debug_code) {
     li(value, Operand(base::bit_cast<int64_t>(kZapValue + 4)));
     li(dst, Operand(base::bit_cast<int64_t>(kZapValue + 8)));
   }
@@ -257,7 +257,7 @@ void MacroAssembler::RecordWrite(Register object, Register address,
   DCHECK(!AreAliased(object, address, value, t8));
   DCHECK(!AreAliased(object, address, value, t9));
 
-  if (v8_flags.debug_code) {
+  if (v8_flags.slow_debug_code) {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
     DCHECK(!AreAliased(object, value, scratch));
@@ -304,7 +304,7 @@ void MacroAssembler::RecordWrite(Register object, Register address,
 
   // Clobber clobbered registers when running with the debug-code flag
   // turned on to provoke errors.
-  if (v8_flags.debug_code) {
+  if (v8_flags.slow_debug_code) {
     li(address, Operand(base::bit_cast<int64_t>(kZapValue + 12)));
     li(value, Operand(base::bit_cast<int64_t>(kZapValue + 16)));
     li(slot_address, Operand(base::bit_cast<int64_t>(kZapValue + 20)));
@@ -1905,8 +1905,10 @@ void MacroAssembler::li(Register rd, Operand j, LiFlags mode) {
     }
 
     RecordRelocInfo(j.rmode(), immediate);
-    if (RelocInfo::IsWasmCanonicalSigId(j.rmode())) {
-      // wasm_canonical_sig_id is 32-bit value.
+    if (RelocInfo::IsWasmCanonicalSigId(j.rmode()) ||
+        RelocInfo::IsWasmCodePointerTableEntry(j.rmode())) {
+      // wasm_canonical_sig_id and wasm_code_pointer_table_entry are 32-bit
+      // values.
       DCHECK(is_int32(immediate));
       lui(rd, (immediate >> 16) & kImm16Mask);
       ori(rd, rd, immediate & kImm16Mask);
@@ -4226,8 +4228,8 @@ void MacroAssembler::LoadFromConstantsTable(Register destination,
   DCHECK(RootsTable::IsImmortalImmovable(RootIndex::kBuiltinsConstantsTable));
   LoadRoot(destination, RootIndex::kBuiltinsConstantsTable);
   Ld(destination,
-     FieldMemOperand(destination,
-                     FixedArray::kHeaderSize + constant_index * kPointerSize));
+     FieldMemOperand(destination, OFFSET_OF_DATA_START(FixedArray) +
+                                      constant_index * kPointerSize));
 }
 
 void MacroAssembler::LoadRootRelative(Register destination, int32_t offset) {
@@ -5282,7 +5284,8 @@ void MacroAssembler::CallRuntime(const Runtime::Function* f,
   // smarter.
   PrepareCEntryArgs(num_arguments);
   PrepareCEntryFunction(ExternalReference::Create(f));
-  CallBuiltin(Builtins::RuntimeCEntry(f->result_size));
+  bool switch_to_central_stack = options().is_wasm;
+  CallBuiltin(Builtins::RuntimeCEntry(f->result_size, switch_to_central_stack));
 }
 
 void MacroAssembler::TailCallRuntime(Runtime::FunctionId fid) {
@@ -5356,16 +5359,14 @@ void MacroAssembler::Check(Condition cc, AbortReason reason, Register rs,
 }
 
 void MacroAssembler::Abort(AbortReason reason) {
-  Label abort_start;
-  bind(&abort_start);
+  ASM_CODE_COMMENT(this);
   if (v8_flags.code_comments) {
-    const char* msg = GetAbortReason(reason);
-    RecordComment("Abort message: ");
-    RecordComment(msg);
+    RecordComment("Abort message:", SourceLocation{});
+    RecordComment(GetAbortReason(reason), SourceLocation{});
   }
 
-  // Avoid emitting call to builtin if requested.
-  if (trap_on_abort()) {
+  // Without debug code, save the code size and just trap.
+  if (!v8_flags.debug_code) {
     stop();
     return;
   }
@@ -5381,6 +5382,9 @@ void MacroAssembler::Abort(AbortReason reason) {
     Call(a1);
     return;
   }
+
+  Label abort_start;
+  bind(&abort_start);
 
   Move(a0, Smi::FromInt(static_cast<int>(reason)));
 
@@ -6169,7 +6173,7 @@ void MacroAssembler::CheckPageFlag(Register object, Register scratch, int mask,
                                    Condition cc, Label* condition_met) {
   ASM_CODE_COMMENT(this);
   And(scratch, object, Operand(~MemoryChunk::GetAlignmentMaskForAssembler()));
-  Ld(scratch, MemOperand(scratch, MemoryChunkLayout::kFlagsOffset));
+  Ld(scratch, MemOperand(scratch, MemoryChunk::FlagsOffset()));
   And(scratch, scratch, Operand(mask));
   Branch(condition_met, cc, scratch, Operand(zero_reg));
 }
@@ -6275,6 +6279,34 @@ void MacroAssembler::JumpJSFunction(Register function_object,
 #endif
 }
 
+#ifdef V8_ENABLE_WEBASSEMBLY
+
+void MacroAssembler::ResolveWasmCodePointer(Register target) {
+  ASM_CODE_COMMENT(this);
+  ExternalReference global_jump_table =
+      ExternalReference::wasm_code_pointer_table();
+  UseScratchRegisterScope temps(this);
+  Register scratch = temps.Acquire();
+  xor_(zero_reg, scratch, scratch);
+  li(scratch, global_jump_table);
+  static_assert(sizeof(wasm::WasmCodePointerTableEntry) == kSystemPointerSize);
+  sll(target, target, kSystemPointerSizeLog2);
+  daddu(scratch, scratch, target);
+  Ld(target, MemOperand(scratch, 0));
+}
+
+void MacroAssembler::CallWasmCodePointer(Register target,
+                                         CallJumpMode call_jump_mode) {
+  ResolveWasmCodePointer(target);
+  if (call_jump_mode == CallJumpMode::kTailCall) {
+    Jump(target);
+  } else {
+    Call(target);
+  }
+}
+
+#endif
+
 namespace {
 
 #ifndef V8_ENABLE_LEAPTIERING
@@ -6308,7 +6340,7 @@ void TailCallOptimizedCodeSlot(MacroAssembler* masm,
 
   // Optimized code is good, get it into the closure and link the closure into
   // the optimized functions list, then tail call the optimized code.
-  // The feedback vector is no longer used, so re-use it as a scratch
+  // The feedback vector is no longer used, so reuse it as a scratch
   // register.
   __ ReplaceClosureCodeWithOptimizedCode(optimized_code_entry, a1, scratch1,
                                          scratch2);

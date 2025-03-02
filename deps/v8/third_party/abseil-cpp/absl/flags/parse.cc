@@ -35,7 +35,7 @@
 #include "absl/algorithm/container.h"
 #include "absl/base/attributes.h"
 #include "absl/base/config.h"
-#include "absl/base/const_init.h"
+#include "absl/base/no_destructor.h"
 #include "absl/base/thread_annotations.h"
 #include "absl/flags/commandlineflag.h"
 #include "absl/flags/config.h"
@@ -64,14 +64,17 @@ ABSL_NAMESPACE_BEGIN
 namespace flags_internal {
 namespace {
 
-ABSL_CONST_INIT absl::Mutex processing_checks_guard(absl::kConstInit);
+absl::Mutex* ProcessingChecksMutex() {
+  static absl::NoDestructor<absl::Mutex> mutex;
+  return mutex.get();
+}
 
 ABSL_CONST_INIT bool flagfile_needs_processing
-    ABSL_GUARDED_BY(processing_checks_guard) = false;
+    ABSL_GUARDED_BY(ProcessingChecksMutex()) = false;
 ABSL_CONST_INIT bool fromenv_needs_processing
-    ABSL_GUARDED_BY(processing_checks_guard) = false;
+    ABSL_GUARDED_BY(ProcessingChecksMutex()) = false;
 ABSL_CONST_INIT bool tryfromenv_needs_processing
-    ABSL_GUARDED_BY(processing_checks_guard) = false;
+    ABSL_GUARDED_BY(ProcessingChecksMutex()) = false;
 
 ABSL_CONST_INIT absl::Mutex specified_flags_guard(absl::kConstInit);
 ABSL_CONST_INIT std::vector<const CommandLineFlag*>* specified_flags
@@ -106,7 +109,7 @@ ABSL_FLAG(std::vector<std::string>, flagfile, {},
     .OnUpdate([]() {
       if (absl::GetFlag(FLAGS_flagfile).empty()) return;
 
-      absl::MutexLock l(&absl::flags_internal::processing_checks_guard);
+      absl::MutexLock l(absl::flags_internal::ProcessingChecksMutex());
 
       // Setting this flag twice before it is handled most likely an internal
       // error and should be reviewed by developers.
@@ -122,7 +125,7 @@ ABSL_FLAG(std::vector<std::string>, fromenv, {},
     .OnUpdate([]() {
       if (absl::GetFlag(FLAGS_fromenv).empty()) return;
 
-      absl::MutexLock l(&absl::flags_internal::processing_checks_guard);
+      absl::MutexLock l(absl::flags_internal::ProcessingChecksMutex());
 
       // Setting this flag twice before it is handled most likely an internal
       // error and should be reviewed by developers.
@@ -138,7 +141,7 @@ ABSL_FLAG(std::vector<std::string>, tryfromenv, {},
     .OnUpdate([]() {
       if (absl::GetFlag(FLAGS_tryfromenv).empty()) return;
 
-      absl::MutexLock l(&absl::flags_internal::processing_checks_guard);
+      absl::MutexLock l(absl::flags_internal::ProcessingChecksMutex());
 
       // Setting this flag twice before it is handled most likely an internal
       // error and should be reviewed by developers.
@@ -415,7 +418,7 @@ bool HandleGeneratorFlags(std::vector<ArgsList>& input_args,
                           std::vector<std::string>& flagfile_value) {
   bool success = true;
 
-  absl::MutexLock l(&flags_internal::processing_checks_guard);
+  absl::MutexLock l(flags_internal::ProcessingChecksMutex());
 
   // flagfile could have been set either on a command line or
   // programmatically before invoking ParseCommandLine. Note that we do not
@@ -478,7 +481,7 @@ void ResetGeneratorFlags(const std::vector<std::string>& flagfile_value) {
   // going to be {"f1", "f2"}
   if (!flagfile_value.empty()) {
     absl::SetFlag(&FLAGS_flagfile, flagfile_value);
-    absl::MutexLock l(&flags_internal::processing_checks_guard);
+    absl::MutexLock l(flags_internal::ProcessingChecksMutex());
     flags_internal::flagfile_needs_processing = false;
   }
 
@@ -490,7 +493,7 @@ void ResetGeneratorFlags(const std::vector<std::string>& flagfile_value) {
     absl::SetFlag(&FLAGS_tryfromenv, {});
   }
 
-  absl::MutexLock l(&flags_internal::processing_checks_guard);
+  absl::MutexLock l(flags_internal::ProcessingChecksMutex());
   flags_internal::fromenv_needs_processing = false;
   flags_internal::tryfromenv_needs_processing = false;
 }

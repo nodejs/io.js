@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include <array>
+#include <cstddef>
 #include <iterator>
 #include <type_traits>
 
@@ -229,7 +230,7 @@ class V8_EXPORT MemorySpan {
 
     constexpr Iterator& operator+=(difference_type rhs) {
       ptr_ += rhs;
-      return this;
+      return *this;
     }
 
     [[nodiscard]] friend constexpr Iterator operator+(Iterator lhs,
@@ -245,7 +246,7 @@ class V8_EXPORT MemorySpan {
 
     constexpr Iterator& operator-=(difference_type rhs) {
       ptr_ -= rhs;
-      return this;
+      return *this;
     }
 
     [[nodiscard]] friend constexpr Iterator operator-(Iterator lhs,

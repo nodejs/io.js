@@ -13,9 +13,9 @@ const int N_THREADS = 10;
 const int N_REPS = 3;
 
 // A function to be called from Wasm code.
-own wasm_trap_t* callback(const wasm_val_t args[], wasm_val_t results[]) {
-  assert(args[0].kind == WASM_I32);
-  printf("> Thread %d running\n", args[0].of.i32);
+own wasm_trap_t* callback(const wasm_val_vec_t* args, wasm_val_vec_t* results) {
+  assert(args->data[0].kind == WASM_I32);
+  printf("> Thread %d running\n", args->data[0].of.i32);
   return NULL;
 }
 
@@ -29,7 +29,7 @@ typedef struct {
 void* run(void* args_abs) {
   thread_args* args = (thread_args*)args_abs;
 
-  // Rereate store and module.
+  // Recreate store and module.
   own wasm_store_t* store = wasm_store_new(args->engine);
   own wasm_module_t* module = wasm_module_obtain(store, args->module);
 
@@ -42,18 +42,19 @@ void* run(void* args_abs) {
     own wasm_func_t* func = wasm_func_new(store, func_type, callback);
     wasm_functype_delete(func_type);
 
-    wasm_val_t val = {.kind = WASM_I32, .of = {.i32 = (int32_t)args->id}};
+    wasm_val_t val = WASM_I32_VAL((int32_t)args->id);
     own wasm_globaltype_t* global_type =
       wasm_globaltype_new(wasm_valtype_new_i32(), WASM_CONST);
     own wasm_global_t* global = wasm_global_new(store, global_type, &val);
     wasm_globaltype_delete(global_type);
 
     // Instantiate.
-    const wasm_extern_t* imports[] = {
+    wasm_extern_t* externs[] = {
       wasm_func_as_extern(func), wasm_global_as_extern(global),
     };
+    wasm_extern_vec_t imports = WASM_ARRAY_VEC(externs);
     own wasm_instance_t* instance =
-      wasm_instance_new(store, module, imports, NULL);
+      wasm_instance_new(store, module, &imports, NULL);
     if (!instance) {
       printf("> Error instantiating module!\n");
       return NULL;
@@ -78,7 +79,8 @@ void* run(void* args_abs) {
     wasm_instance_delete(instance);
 
     // Call.
-    if (wasm_func_call(run_func, NULL, NULL)) {
+    wasm_val_vec_t empty = WASM_EMPTY_VEC;
+    if (wasm_func_call(run_func, &empty, &empty)) {
       printf("> Error calling function!\n");
       return NULL;
     }
@@ -99,7 +101,7 @@ int main(int argc, const char *argv[]) {
   wasm_engine_t* engine = wasm_engine_new();
 
   // Load binary.
-  FILE* file = fopen("threads.wasm", "r");
+  FILE* file = fopen("threads.wasm", "rb");
   if (!file) {
     printf("> Error loading module!\n");
     return 1;

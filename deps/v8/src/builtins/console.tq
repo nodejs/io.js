@@ -3,8 +3,11 @@
 // found in the LICENSE file.
 
 namespace console {
-extern builtin ConsoleAssert(
-    implicit context: Context)(JSFunction, JSAny, int32): JSAny;
+// These are technically all js-implicit parameters, but we don't currently
+// support supplying these in tail calls (where we have to supply them).
+extern javascript builtin ConsoleAssert(
+    js-implicit context: Context)(JSFunction, JSAny, int32,
+    DispatchHandle): JSAny;
 
 javascript builtin FastConsoleAssert(
     js-implicit context: NativeContext, receiver: JSAny, newTarget: JSAny,
@@ -13,7 +16,8 @@ javascript builtin FastConsoleAssert(
     return Undefined;
   } else {
     tail ConsoleAssert(
-        target, newTarget, Convert<int32>(arguments.actual_count));
+        target, newTarget, Convert<int32>(arguments.actual_count),
+        kInvalidDispatchHandle);
   }
 }
 }

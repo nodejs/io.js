@@ -92,9 +92,8 @@ TypedObject GetTypedObjectForString(uintptr_t address, i::InstanceType type,
     }
   };
 
-  return i::StringShape(type)
-      .DispatchToSpecificTypeWithoutCast<StringGetDispatcher, TypedObject>(
-          address, type_source);
+  return String::DispatchToSpecificTypeWithoutCast<StringGetDispatcher>(
+      type, address, type_source);
 }
 
 TypedObject GetTypedObjectByInstanceType(uintptr_t address,
@@ -372,11 +371,11 @@ class ReadStringVisitor : public TqObjectVisitor {
       Address memory_chunk =
           MemoryChunk::FromAddress(object->GetMapAddress())->address();
       uint32_t metadata_index = GetOrFinish(ReadValue<uint32_t>(
-          memory_chunk + MemoryChunkLayout::kMetadataIndexOffset));
+          memory_chunk + MemoryChunk::MetadataIndexOffset()));
       Address metadata_address = GetOrFinish(ReadValue<Address>(
           heap_addresses_.metadata_pointer_table, metadata_index));
       Address heap = GetOrFinish(ReadValue<Address>(
-          metadata_address + MemoryChunkLayout::kHeapOffset));
+          metadata_address + MemoryChunkMetadata::HeapOffset()));
       Isolate* isolate = Isolate::FromHeap(reinterpret_cast<Heap*>(heap));
       Address external_pointer_table_address_address =
           isolate->shared_external_pointer_table_address_address();
@@ -388,7 +387,8 @@ class ReadStringVisitor : public TqObjectVisitor {
           static_cast<int32_t>(resource_data >> kExternalPointerIndexShift);
       Address tagged_data =
           GetOrFinish(ReadValue<Address>(external_pointer_table, index));
-      Address data_address = tagged_data & ~kExternalStringResourceDataTag;
+      // We don't really need to perform the type check here.
+      Address data_address = tagged_data & kExternalPointerPayloadMask;
 #else
       uintptr_t data_address = static_cast<uintptr_t>(resource_data);
 #endif  // V8_ENABLE_SANDBOX

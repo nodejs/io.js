@@ -426,9 +426,9 @@ class V8_EXPORT_PRIVATE Scanner {
   }
 
   template <typename IsolateT>
-  Handle<String> SourceUrl(IsolateT* isolate) const;
+  DirectHandle<String> SourceUrl(IsolateT* isolate) const;
   template <typename IsolateT>
-  Handle<String> SourceMappingUrl(IsolateT* isolate) const;
+  DirectHandle<String> SourceMappingUrl(IsolateT* isolate) const;
 
   bool SawSourceMappingUrlMagicCommentAtSign() const {
     return saw_source_mapping_url_magic_comment_at_sign_;

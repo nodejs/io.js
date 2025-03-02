@@ -394,6 +394,14 @@ function RunTest(params, returns, map) {
   }
 }
 
+// Regression test for crbug.com/390035515.
+RunTest(
+    [
+      kWasmI64, kWasmI64, kWasmI64, kWasmI64, kWasmI64, kWasmI64, kWasmI64,
+      kWasmI64, kWasmI64, kWasmI64
+    ],
+    [kWasmI64], [0]);
+
 for (let i = 0; i < (debug ? 200 : 2); ++i) {
   GenerateAndRunTest();
 }

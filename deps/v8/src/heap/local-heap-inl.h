@@ -52,11 +52,11 @@ template <typename Callback>
 V8_INLINE void LocalHeap::ParkAndExecuteCallback(Callback callback) {
   // This method is given as a callback to the stack trampoline, when the stack
   // marker has just been set.
-#if defined(V8_ENABLE_DIRECT_HANDLE) && defined(DEBUG)
+#if defined(V8_ENABLE_DIRECT_HANDLE) && defined(ENABLE_SLOW_DCHECKS)
   // Reset the number of direct handles that are below the stack marker.
   // It will be restored before the method returns.
   DirectHandleBase::ResetNumberOfHandlesScope scope;
-#endif  // V8_ENABLE_DIRECT_HANDLE && DEBUG
+#endif  // V8_ENABLE_DIRECT_HANDLE && ENABLE_SLOW_DCHECKS
   ParkedScope parked(this);
   // Provide the parked scope as a witness, if the callback expects it.
   if constexpr (std::is_invocable_v<Callback, const ParkedScope&>) {

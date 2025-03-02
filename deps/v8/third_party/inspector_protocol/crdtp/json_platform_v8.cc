@@ -23,9 +23,8 @@ bool StrToD(const char* str, double* result) {
 // Prints |value| in a format suitable for JSON.
 std::string DToStr(double value) {
   v8::base::ScopedVector<char> buffer(
-      v8::internal::kDoubleToCStringMinBufferSize);
-  const char* str = v8::internal::DoubleToCString(value, buffer);
-  return (str == nullptr) ? "" : std::string(str);
+      v8::internal::kDoubleToStringMinBufferSize);
+  return std::string(v8::internal::DoubleToStringView(value, buffer));
 }
 }  // namespace platform
 }  // namespace json

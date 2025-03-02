@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --wasm-staging --turboshaft-wasm
+// Flags: --wasm-staging
 // Flags: --allow-natives-syntax --wasm-inlining-ignore-call-counts
 // The following flags are not needed but simplify the graph while still
 // reproducing the bug:

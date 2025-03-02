@@ -72,24 +72,31 @@ transitioning javascript builtin JSToJSWrapperInvalidSig(
 }
 
 transitioning javascript builtin JSToJSWrapper(
-    js-implicit context: NativeContext, receiver: JSAny, target: JSFunction)(
-    ...arguments): JSAny {
+    js-implicit context: NativeContext, receiver: JSAny, target: JSFunction,
+    dispatchHandle: DispatchHandle)(...arguments): JSAny {
+  // This is a generic builtin that can be installed on functions with different
+  // parameter counts, so we need to support that.
+  SetSupportsDynamicParameterCount(target, dispatchHandle);
+
   const functionData = target.shared_function_info.wasm_js_function_data;
 
   const importData =
       UnsafeCast<WasmImportData>(functionData.internal.implicit_arg);
 
-  const signaturePod = &importData.sig.bytes;
-  const serializedSig = torque_internal::unsafe::NewConstSlice<int32>(
-      signaturePod.object, signaturePod.offset,
-      signaturePod.length / torque_internal::SizeOf<int32>());
-  const returnCount =
-      Convert<intptr>(*torque_internal::unsafe::NewReference<int32>(
-          serializedSig.object, serializedSig.offset));
-  const paramCount: intptr = serializedSig.length - returnCount - 1;
-  const returnTypes = Subslice(serializedSig, Convert<intptr>(1), returnCount)
-      otherwise unreachable;
-  const paramTypes = Subslice(serializedSig, returnCount + 1, paramCount)
+  const returnCount = *torque_internal::unsafe::NewOffHeapReference(
+      %RawDownCast<RawPtr<intptr>>(importData.sig + 0));
+  const paramCount = *torque_internal::unsafe::NewOffHeapReference(
+      %RawDownCast<RawPtr<intptr>>(
+          importData.sig + torque_internal::SizeOf<intptr>()));
+  const valueTypesStorage = *torque_internal::unsafe::NewOffHeapReference(
+      %RawDownCast<RawPtr<RawPtr<int32>>>(
+          importData.sig + 2 * torque_internal::SizeOf<intptr>()));
+  const signatureValueTypes =
+      torque_internal::unsafe::NewOffHeapConstSlice<int32>(
+          valueTypesStorage, paramCount + returnCount);
+  const returnTypes =
+      Subslice(signatureValueTypes, 0, returnCount) otherwise unreachable;
+  const paramTypes = Subslice(signatureValueTypes, returnCount, paramCount)
       otherwise unreachable;
 
   const numOutParams = paramCount + 1;
@@ -135,20 +142,6 @@ transitioning javascript builtin JSToJSWrapper(
     result = resultArray;
   }
 
-  // The normal return sequence of Torque-generated JavaScript builtins does not
-  // consider the case where the caller may push additional "undefined"
-  // parameters on the stack, and therefore does not generate code to pop these
-  // additional parameters. Here we calculate the actual number of parameters on
-  // the stack. This number is the number of actual parameters provided by the
-  // caller, which is `arguments.length`, or the number of declared arguments,
-  // if not enough actual parameters were provided, i.e.
-  // `SharedFunctionInfo::length`.
-  let popCount = arguments.length;
-  const declaredArgCount = paramCount;
-  if (declaredArgCount > popCount) {
-    popCount = declaredArgCount;
-  }
-  // Also pop the receiver.
-  PopAndReturn(popCount + 1, result);
+  return result;
 }
 }

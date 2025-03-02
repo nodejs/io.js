@@ -91,8 +91,10 @@ async function test(source, newSource, location, next) {
     InspectorTest.log(lines.join('\n'));
   }
 
-  Protocol.Debugger.onBreakpointResolved(message => {
-    dumpSourceWithBreakpoint(newSource, message.params.location);
+  Protocol.Debugger.onScriptParsed(({ params: { resolvedBreakpoints } }) => {
+    for (const {location} of resolvedBreakpoints ?? []) {
+      dumpSourceWithBreakpoint(newSource, location);
+    }
   })
 
   var sourceURL = `test${++finishedTests}.js`;

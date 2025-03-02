@@ -4,13 +4,12 @@
 
 // CPU specific code for x64 independent of OS goes here.
 
-#if defined(__GNUC__) && !defined(__MINGW64__) && !defined(GOOGLE3)
-#include "src/third_party/valgrind/valgrind.h"
-#endif
-
 #if V8_TARGET_ARCH_X64
 
 #include "src/codegen/cpu-features.h"
+#if defined(__GNUC__) && !defined(__MINGW64__) && !defined(GOOGLE3)
+#include "third_party/valgrind/valgrind.h"
+#endif
 
 namespace v8 {
 namespace internal {

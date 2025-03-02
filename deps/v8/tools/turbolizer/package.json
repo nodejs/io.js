@@ -2,6 +2,7 @@
   "name": "turbolizer",
   "version": "0.1.1",
   "description": "Visualization tool for V8 TurboFan IR graphs",
+  "type": "module",
   "scripts": {
     "build": "rollup -c",
     "watch": "rollup -c -w",
@@ -27,7 +28,7 @@
     "chai": "^4.3.6",
     "local-web-server": "^5.2.1",
     "mocha": "^10.0.0",
-    "rollup": "^2.75.6",
+    "rollup": "^3.29.5",
     "ts-mocha": "^10.0.0",
     "tslint": "^5.20.1",
     "typescript": "^4.7.3"

@@ -5,11 +5,11 @@
 #include "src/compiler/wasm-load-elimination.h"
 
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/simplified-operator.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/wasm/struct-types.h"
 #include "src/wasm/wasm-subtyping.h"
 

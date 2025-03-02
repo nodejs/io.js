@@ -29,6 +29,7 @@
 #include "include/v8-locker.h"
 #include "src/api/api-inl.h"
 #include "src/base/platform/platform.h"
+#include "src/debug/debug-interface.h"
 #include "src/execution/interrupts-scope.h"
 #include "src/execution/isolate.h"
 #include "src/init/v8.h"
@@ -48,6 +49,10 @@ class TerminatorThread : public base::Thread {
         isolate_(reinterpret_cast<Isolate*>(isolate)) {}
   void Run() override {
     semaphore->Wait();
+    // We need this because IsExecutionTerminating accesses the main pointer
+    // cage base through ReadOnlyRoots::address_at.
+    i::PtrComprCageAccessScope ptr_compr_cage_access_scope(
+        reinterpret_cast<i::Isolate*>(isolate_));
     CHECK(!isolate_->IsExecutionTerminating());
     isolate_->TerminateExecution();
   }
@@ -542,10 +547,10 @@ void InnerTryCallTerminate(const FunctionCallbackInfo<Value>& info) {
           ->Get(isolate->GetCurrentContext(),
                 String::NewFromUtf8(isolate, "loop").ToLocalChecked())
           .ToLocalChecked());
-  i::MaybeHandle<i::Object> exception;
-  i::MaybeHandle<i::Object> result = i::Execution::TryCall(
-      reinterpret_cast<i::Isolate*>(isolate), Utils::OpenHandle((*loop)),
-      Utils::OpenHandle((*global)), 0, nullptr,
+  i::MaybeDirectHandle<i::Object> exception;
+  i::MaybeDirectHandle<i::Object> result = i::Execution::TryCall(
+      reinterpret_cast<i::Isolate*>(isolate), Utils::OpenDirectHandle((*loop)),
+      Utils::OpenDirectHandle((*global)), {},
       i::Execution::MessageHandling::kReport, &exception);
   CHECK(result.is_null());
   CHECK(exception.is_null());
@@ -618,8 +623,8 @@ class ConsoleImpl : public debug::ConsoleDelegate {
 
 TEST_F(ThreadTerminationTest, TerminateConsole) {
   i::v8_flags.allow_natives_syntax = true;
-  ConsoleImpl console;
-  debug::SetConsoleDelegate(isolate(), &console);
+  ConsoleImpl console_impl;
+  debug::SetConsoleDelegate(isolate(), &console_impl);
   HandleScope scope(isolate());
   Local<ObjectTemplate> global = CreateGlobalTemplate(
       isolate(), TerminateCurrentThread, DoLoopCancelTerminate);
@@ -627,7 +632,7 @@ TEST_F(ThreadTerminationTest, TerminateConsole) {
   Context::Scope context_scope(context);
   {
     // setup console global.
-    HandleScope scope(isolate());
+    HandleScope inner_scope(isolate());
     Local<String> name = String::NewFromUtf8Literal(
         isolate(), "console", NewStringType::kInternalized);
     Local<Value> console =
@@ -682,14 +687,14 @@ TEST_F(ThreadTerminationTest, TerminationClearArrayJoinStack) {
     EXPECT_THAT(RunJS("a[0] = 1; Join();"), testing::IsString("1"));
   }
   {
-    ConsoleImpl console;
-    debug::SetConsoleDelegate(isolate(), &console);
-    HandleScope scope(isolate());
+    ConsoleImpl console_impl;
+    debug::SetConsoleDelegate(isolate(), &console_impl);
+    HandleScope middle_scope(isolate());
     Local<Context> context = Context::New(isolate(), nullptr, global_template);
     Context::Scope context_scope(context);
     {
       // setup console global.
-      HandleScope scope(isolate());
+      HandleScope inner_scope(isolate());
       Local<String> name = String::NewFromUtf8Literal(
           isolate(), "console", NewStringType::kInternalized);
       Local<Value> console = context->GetExtrasBindingObject()

@@ -7,6 +7,8 @@
 
 #include "src/baseline/bytecode-offset-iterator.h"
 #include "src/codegen/code-desc.h"
+#include "src/deoptimizer/deoptimize-reason.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/objects/code.h"
 #include "src/objects/deoptimization-data-inl.h"
@@ -44,7 +46,7 @@ GCSAFE_CODE_FWD_ACCESSOR(bool, is_turbofanned)
 GCSAFE_CODE_FWD_ACCESSOR(bool, has_tagged_outgoing_params)
 GCSAFE_CODE_FWD_ACCESSOR(bool, marked_for_deoptimization)
 GCSAFE_CODE_FWD_ACCESSOR(Tagged<Object>, raw_instruction_stream)
-GCSAFE_CODE_FWD_ACCESSOR(int, stack_slots)
+GCSAFE_CODE_FWD_ACCESSOR(uint32_t, stack_slots)
 GCSAFE_CODE_FWD_ACCESSOR(uint16_t, wasm_js_tagged_parameter_count)
 GCSAFE_CODE_FWD_ACCESSOR(uint16_t, wasm_js_first_tagged_parameter)
 GCSAFE_CODE_FWD_ACCESSOR(Address, constant_pool)
@@ -104,7 +106,7 @@ inline Tagged<ProtectedFixedArray> Code::deoptimization_data() const {
 inline void Code::set_deoptimization_data(Tagged<ProtectedFixedArray> value,
                                           WriteBarrierMode mode) {
   DCHECK(uses_deoptimization_data());
-  DCHECK(!ObjectInYoungGeneration(value));
+  DCHECK(!HeapLayout::InYoungGeneration(value));
 
   WriteProtectedPointerField(kDeoptimizationDataOrInterpreterDataOffset, value);
   CONDITIONAL_PROTECTED_POINTER_WRITE_BARRIER(
@@ -345,6 +347,18 @@ uintptr_t Code::GetBaselinePCForBytecodeOffset(
     Tagged<BytecodeArray> bytecodes) {
   DisallowGarbageCollection no_gc;
   CHECK_EQ(kind(), CodeKind::BASELINE);
+  // The following check ties together the bytecode being executed in
+  // Generate_BaselineOrInterpreterEntry with the bytecode that was used to
+  // compile this baseline code. Together, this ensures that we don't OSR into a
+  // wrong code object.
+  auto maybe_bytecodes = bytecode_or_interpreter_data();
+  if (IsBytecodeArray(maybe_bytecodes)) {
+    SBXCHECK_EQ(maybe_bytecodes, bytecodes);
+  } else {
+    CHECK(IsInterpreterData(maybe_bytecodes));
+    SBXCHECK_EQ(Cast<InterpreterData>(maybe_bytecodes)->bytecode_array(),
+                bytecodes);
+  }
   baseline::BytecodeOffsetIterator offset_iterator(
       Cast<TrustedByteArray>(bytecode_offset_table()), bytecodes);
   offset_iterator.AdvanceToBytecodeOffset(bytecode_offset);
@@ -472,10 +486,14 @@ bool Code::uses_safepoint_table() const {
   return is_turbofanned() || is_maglevved() || is_wasm_code();
 }
 
-int Code::stack_slots() const {
-  const int slots = StackSlotsField::decode(flags(kRelaxedLoad));
-  DCHECK_IMPLIES(!uses_safepoint_table(), slots == 0);
-  return slots;
+uint32_t Code::stack_slots() const {
+  DCHECK_IMPLIES(safepoint_table_size() > 0, uses_safepoint_table());
+  if (safepoint_table_size() == 0) return 0;
+  DCHECK(safepoint_table_size() >=
+         static_cast<int>(sizeof(SafepointTableStackSlotsField_t)));
+  static_assert(kSafepointTableStackSlotsOffset == 0);
+  return base::Memory<SafepointTableStackSlotsField_t>(
+      safepoint_table_address() + kSafepointTableStackSlotsOffset);
 }
 
 bool Code::marked_for_deoptimization() const {
@@ -488,6 +506,73 @@ void Code::set_marked_for_deoptimization(bool flag) {
   int32_t previous = flags(kRelaxedLoad);
   int32_t updated = MarkedForDeoptimizationField::update(previous, flag);
   set_flags(updated, kRelaxedStore);
+}
+
+inline void Code::SetMarkedForDeoptimization(Isolate* isolate,
+                                             LazyDeoptimizeReason reason) {
+  set_marked_for_deoptimization(true);
+  // Eager deopts are already logged by the deoptimizer.
+  if (reason != LazyDeoptimizeReason::kEagerDeopt &&
+      V8_UNLIKELY(v8_flags.trace_deopt || v8_flags.log_deopt)) {
+    TraceMarkForDeoptimization(isolate, reason);
+  }
+#ifdef V8_ENABLE_LEAPTIERING
+  JSDispatchHandle handle = js_dispatch_handle();
+  if (handle != kNullJSDispatchHandle) {
+    JSDispatchTable* jdt = IsolateGroup::current()->js_dispatch_table();
+    Tagged<Code> cur = jdt->GetCode(handle);
+    if (SafeEquals(cur)) {
+      if (v8_flags.reopt_after_lazy_deopts &&
+          isolate->concurrent_recompilation_enabled()) {
+        jdt->SetCodeNoWriteBarrier(
+            handle, *BUILTIN_CODE(isolate, InterpreterEntryTrampoline));
+        // Somewhat arbitrary list of lazy deopt reasons which we expect to be
+        // stable enough to warrant either immediate re-optimization, or
+        // re-optimization after one invocation (to detect potential follow-up
+        // IC changes).
+        // TODO(olivf): We should also work on reducing the number of
+        // dependencies we create in the compilers to require less of these
+        // quick re-compilations.
+        switch (reason) {
+          case LazyDeoptimizeReason::kAllocationSiteTenuringChange:
+          case LazyDeoptimizeReason::kAllocationSiteTransitionChange:
+          case LazyDeoptimizeReason::kEmptyContextExtensionChange:
+          case LazyDeoptimizeReason::kExceptionCaught:
+          case LazyDeoptimizeReason::kFieldTypeConstChange:
+          case LazyDeoptimizeReason::kFrameValueMaterialized:
+          case LazyDeoptimizeReason::kPropertyCellChange:
+          case LazyDeoptimizeReason::kPrototypeChange:
+          case LazyDeoptimizeReason::kScriptContextSlotPropertyChange:
+            jdt->SetTieringRequest(
+                handle,
+                v8_flags.maglev ? TieringBuiltin::kStartMaglevOptimizeJob
+                                : TieringBuiltin::kStartTurbofanOptimizeJob,
+                isolate);
+            break;
+          case LazyDeoptimizeReason::kFieldRepresentationChange:
+          case LazyDeoptimizeReason::kFieldTypeChange:
+          case LazyDeoptimizeReason::kInitialMapChange:
+          case LazyDeoptimizeReason::kMapDeprecated:
+            jdt->SetTieringRequest(
+                handle, TieringBuiltin::kMarkReoptimizeLazyDeoptimized,
+                isolate);
+            break;
+          default:
+            // TODO(olivf): This trampoline is just used to reset the budget. If
+            // we knew the feedback cell and the bytecode size here, we could
+            // directly reset the budget.
+            jdt->SetTieringRequest(handle, TieringBuiltin::kMarkLazyDeoptimized,
+                                   isolate);
+            break;
+        }
+      } else {
+        jdt->SetCodeNoWriteBarrier(handle, *BUILTIN_CODE(isolate, CompileLazy));
+      }
+    }
+    // Ensure we don't try to patch the entry multiple times.
+    set_js_dispatch_handle(kNullJSDispatchHandle);
+  }
+#endif
 }
 
 bool Code::embedded_objects_cleared() const {
@@ -661,7 +746,7 @@ bool Code::has_instruction_stream() const {
 #else
   const uint64_t value = ReadField<uint64_t>(kInstructionStreamOffset);
 #endif
-  SLOW_DCHECK(value == 0 || !InReadOnlySpace(*this));
+  SLOW_DCHECK(value == 0 || !HeapLayout::InReadOnlySpace(*this));
   return value != 0;
 }
 
@@ -673,7 +758,7 @@ bool Code::has_instruction_stream(RelaxedLoadTag tag) const {
   const uint64_t value =
       RELAXED_READ_INT64_FIELD(*this, kInstructionStreamOffset);
 #endif
-  SLOW_DCHECK(value == 0 || !InReadOnlySpace(*this));
+  SLOW_DCHECK(value == 0 || !HeapLayout::InReadOnlySpace(*this));
   return value != 0;
 }
 
@@ -799,17 +884,13 @@ void Code::clear_padding() {
 RELAXED_UINT32_ACCESSORS(Code, flags, kFlagsOffset)
 
 void Code::initialize_flags(CodeKind kind, bool is_context_specialized,
-                            bool is_turbofanned, int stack_slots) {
-  CHECK(StackSlotsField::is_valid(stack_slots));
+                            bool is_turbofanned) {
   DCHECK(!CodeKindIsInterpretedJSFunction(kind));
   uint32_t value = KindField::encode(kind) |
                    IsContextSpecializedField::encode(is_context_specialized) |
-                   IsTurbofannedField::encode(is_turbofanned) |
-                   StackSlotsField::encode(stack_slots);
+                   IsTurbofannedField::encode(is_turbofanned);
   static_assert(FIELD_SIZE(kFlagsOffset) == kInt32Size);
   set_flags(value, kRelaxedStore);
-  DCHECK_IMPLIES(stack_slots != 0, uses_safepoint_table());
-  DCHECK_IMPLIES(!uses_safepoint_table(), stack_slots == 0);
 }
 
 // Ensure builtin_id field fits into int16_t, so that we can rely on sign
@@ -851,6 +932,18 @@ inline bool Code::is_baseline_trampoline_builtin() const {
 inline bool Code::is_baseline_leave_frame_builtin() const {
   return builtin_id() == Builtin::kBaselineLeaveFrame;
 }
+
+#ifdef V8_ENABLE_LEAPTIERING
+inline JSDispatchHandle Code::js_dispatch_handle() const {
+  return JSDispatchHandle(
+      ReadField<JSDispatchHandle::underlying_type>(kDispatchHandleOffset));
+}
+
+inline void Code::set_js_dispatch_handle(JSDispatchHandle handle) {
+  Relaxed_WriteField<JSDispatchHandle::underlying_type>(kDispatchHandleOffset,
+                                                        handle.value());
+}
+#endif  // V8_ENABLE_LEAPTIERING
 
 OBJECT_CONSTRUCTORS_IMPL(CodeWrapper, Struct)
 CODE_POINTER_ACCESSORS(CodeWrapper, code, kCodeOffset)

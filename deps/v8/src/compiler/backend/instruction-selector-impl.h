@@ -424,6 +424,11 @@ class OperandGeneratorT : public Adapter {
             return Constant(RelocatablePtrConstantInfo(
                 base::checked_cast<int32_t>(constant->integral()),
                 RelocInfo::WASM_CANONICAL_SIG_ID));
+          case Kind::kRelocatableWasmIndirectCallTarget:
+            uint64_t value = constant->integral();
+            return Constant(RelocatablePtrConstantInfo(
+                base::checked_cast<int32_t>(value),
+                RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY));
         }
       }
       UNREACHABLE();

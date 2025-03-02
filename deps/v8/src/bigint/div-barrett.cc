@@ -237,7 +237,7 @@ void ProcessorImpl::DivideBarrett(RWDigits Q, RWDigits R, Digits A, Digits B,
   if (should_terminate()) return;
   Q.set_len(I.len() + 1);
   Add(Q, K + I.len(), A1);
-  // K is no longer used, can re-use {scratch} for P.
+  // K is no longer used, can reuse {scratch} for P.
 
   // (3): R = A - B*Q (approximate remainder).
   RWDigits P(scratch, 0, A.len() + 1);

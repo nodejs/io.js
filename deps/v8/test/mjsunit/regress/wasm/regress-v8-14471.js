@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --experimental-wasm-stack-switching
-// Flags: --wasm-to-js-generic-wrapper
+// Flags: --wasm-generic-wrapper
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 

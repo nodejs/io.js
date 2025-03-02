@@ -8,7 +8,7 @@
 #include <array>
 #include <tuple>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {

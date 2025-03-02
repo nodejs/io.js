@@ -14,7 +14,8 @@ namespace internal {
 namespace {
 ExternalPointerHandle LoadExternalPointerHandle(const EmbedderDataSlot& slot) {
   Address loc = slot.address() + EmbedderDataSlot::kExternalPointerOffset;
-  return ExternalPointerSlot(loc, kAnyExternalPointerTag).Relaxed_LoadHandle();
+  return ExternalPointerSlot(loc, kAnyExternalPointerTagRange)
+      .Relaxed_LoadHandle();
 }
 void StoreTaggedWithoutBarrier(const EmbedderDataSlot& slot,
                                Tagged<Object> value) {
@@ -25,11 +26,11 @@ void StoreTaggedWithoutBarrier(const EmbedderDataSlot& slot,
 #endif
 
 // static
-Handle<EmbedderDataArray> EmbedderDataArray::EnsureCapacity(
-    Isolate* isolate, Handle<EmbedderDataArray> array, int index) {
+DirectHandle<EmbedderDataArray> EmbedderDataArray::EnsureCapacity(
+    Isolate* isolate, DirectHandle<EmbedderDataArray> array, int index) {
   if (index < array->length()) return array;
   DCHECK_LT(index, kMaxLength);
-  Handle<EmbedderDataArray> new_array =
+  DirectHandle<EmbedderDataArray> new_array =
       isolate->factory()->NewEmbedderDataArray(index + 1);
   DisallowGarbageCollection no_gc;
   // Last new space allocation does not require any write barriers.

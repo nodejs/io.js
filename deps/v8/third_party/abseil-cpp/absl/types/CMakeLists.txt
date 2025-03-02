@@ -114,6 +114,7 @@ absl_cc_library(
     ${ABSL_DEFAULT_COPTS}
   DEPS
     absl::algorithm
+    absl::config
     absl::core_headers
     absl::nullability
     absl::throw_delegate

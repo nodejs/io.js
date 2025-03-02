@@ -13,7 +13,7 @@
 namespace v8 {
 namespace internal {
 
-StringTableKey::StringTableKey(uint32_t raw_hash_field, int length)
+StringTableKey::StringTableKey(uint32_t raw_hash_field, uint32_t length)
     : raw_hash_field_(raw_hash_field), length_(length) {}
 
 void StringTableKey::set_raw_hash_field(uint32_t raw_hash_field) {

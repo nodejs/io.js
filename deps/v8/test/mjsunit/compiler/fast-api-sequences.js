@@ -81,30 +81,6 @@ for (let i = 0; i < 100; i++) {
   ExpectFastCall(overloaded_test, 62);
 })();
 
-// Test function with invalid overloads.
-(function () {
-  function overloaded_test() {
-    return fast_c_api.add_all_invalid_overload(
-      [26, -6, 42]);
-  }
-
-  %PrepareFunctionForOptimization(overloaded_test);
-  result = overloaded_test();
-  assertEquals(62, result);
-
-  fast_c_api.reset_counts();
-  %OptimizeFunctionOnNextCall(overloaded_test);
-  result = overloaded_test();
-  assertEquals(62, result);
-  // Here we deopt because with this invalid overload:
-  // - add_all_int_invalid_func(Receiver, Bool, Int32, Options)
-  // - add_all_seq_c_func(Receiver, Bool, JSArray, Options)
-  // we expect that a number will be passed as 3rd argument
-  // (SimplifiedLowering takes the type from the first overloaded function).
-  assertUnoptimized(overloaded_test);
-  assertEquals(0, fast_c_api.fast_call_count());
-})();
-
 // ----------- Test different TypedArray functions. -----------
 // ----------- add_all_<TYPE>_typed_array -----------
 // `add_all_<TYPE>_typed_array` have the following signature:

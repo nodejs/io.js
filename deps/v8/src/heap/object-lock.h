@@ -10,32 +10,20 @@
 
 namespace v8::internal {
 
-class ExclusiveObjectLock final {
+class ObjectLock final {
  public:
   V8_INLINE static void Lock(Tagged<HeapObject> heap_object);
   V8_INLINE static void Unlock(Tagged<HeapObject> heap_object);
 };
 
-class SharedObjectLock final {
- public:
-  V8_INLINE static void Lock(Tagged<HeapObject> heap_object);
-  V8_INLINE static void Unlock(Tagged<HeapObject> heap_object);
-};
-
-template <typename LockType>
 class ObjectLockGuard final {
  public:
-  explicit ObjectLockGuard(Tagged<HeapObject> object) : raw_object_(object) {
-    LockType::Lock(object);
-  }
-  ~ObjectLockGuard() { LockType::Unlock(raw_object_); }
+  V8_INLINE explicit ObjectLockGuard(Tagged<HeapObject> object);
+  V8_INLINE ~ObjectLockGuard();
 
  private:
   Tagged<HeapObject> raw_object_;
 };
-
-using ExclusiveObjectLockGuard = ObjectLockGuard<ExclusiveObjectLock>;
-using SharedObjectLockGuard = ObjectLockGuard<SharedObjectLock>;
 
 }  // namespace v8::internal
 

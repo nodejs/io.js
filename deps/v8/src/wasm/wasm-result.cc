@@ -105,7 +105,7 @@ void ErrorThrower::RuntimeError(const char* format, ...) {
 }
 
 Handle<Object> ErrorThrower::Reify() {
-  Handle<JSFunction> constructor;
+  DirectHandle<JSFunction> constructor;
   switch (error_type_) {
     case kNone:
       UNREACHABLE();

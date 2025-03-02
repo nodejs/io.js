@@ -87,8 +87,7 @@ class ValueParserHandler : public ParserHandler {
   }
 
   void HandleBinary(span<uint8_t> bytes) override {
-    AddValueToParent(
-        BinaryValue::create(Binary::fromSpan(bytes.data(), bytes.size())));
+    AddValueToParent(BinaryValue::create(Binary::fromSpan(bytes)));
   }
 
   void HandleDouble(double value) override {

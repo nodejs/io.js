@@ -12,12 +12,10 @@
 namespace v8 {
 namespace internal {
 
-#define ACCESSOR_INFO_ACCESSOR(Type, name, CamelName)                          \
-  Handle<Type> LocalFactory::name() {                                          \
-    /* Do a bit of handle location magic to cast the Handle without having */  \
-    /* to pull in Cast<Type>. We know the type is right by construction.   */  \
-    return Handle<Type>(                                                       \
-        isolate()->isolate_->root_handle(RootIndex::k##CamelName).location()); \
+#define ACCESSOR_INFO_ACCESSOR(Type, name, CamelName)               \
+  DirectHandle<Type> LocalFactory::name() {                         \
+    return UncheckedCast<Type>(                                     \
+        isolate()->isolate_->root_handle(RootIndex::k##CamelName)); \
   }
 ACCESSOR_INFO_ROOT_LIST(ACCESSOR_INFO_ACCESSOR)
 #undef ACCESSOR_INFO_ACCESSOR

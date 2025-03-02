@@ -597,8 +597,8 @@ void CombineCompareLogic1(
 
             for (auto a : input_vector) {
               for (auto b : input_vector) {
-                std::array<InputType, 4> inputs{a, b, b, a};
-                uint32_t expected = gen.Expected(inputs);
+                std::array<InputType, 4> call_inputs{a, b, b, a};
+                uint32_t expected = gen.Expected(call_inputs);
                 uint32_t actual = m.Call(a, b, b, a);
                 CHECK_EQ(expected, actual);
               }
@@ -649,8 +649,8 @@ void CombineCompareLogic2(
 
         for (auto a : input_vector) {
           for (auto b : input_vector) {
-            std::array<InputType, 4> inputs{a, b, b, a};
-            uint32_t expected = gen.Expected(inputs);
+            std::array<InputType, 4> call_inputs{a, b, b, a};
+            uint32_t expected = gen.Expected(call_inputs);
             uint32_t actual = m.Call(a, b, b, a);
             CHECK_EQ(expected, actual);
           }
@@ -701,8 +701,8 @@ void CombineCompareLogic3Zero(
 
             for (auto a : input_vector) {
               for (auto b : input_vector) {
-                std::array<InputType, 4> inputs{a, b, 0, a};
-                uint32_t expected = gen.Expected(inputs);
+                std::array<InputType, 4> call_inputs{a, b, 0, a};
+                uint32_t expected = gen.Expected(call_inputs);
                 uint32_t actual = m.Call(a, b, b, a);
                 CHECK_EQ(expected, actual);
               }
@@ -755,8 +755,8 @@ void CombineCompareLogic3One(
 
             for (auto a : input_vector) {
               for (auto b : input_vector) {
-                std::array<InputType, 4> inputs{1, b, b, a};
-                uint32_t expected = gen.Expected(inputs);
+                std::array<InputType, 4> call_inputs{1, b, b, a};
+                uint32_t expected = gen.Expected(call_inputs);
                 uint32_t actual = m.Call(a, b, b, a);
                 CHECK_EQ(expected, actual);
               }
@@ -809,8 +809,8 @@ void CombineCompareLogic3ThirtyTwo(
 
             for (auto a : input_vector) {
               for (auto b : input_vector) {
-                std::array<InputType, 4> inputs{a, 32, b, a};
-                uint32_t expected = gen.Expected(inputs);
+                std::array<InputType, 4> call_inputs{a, 32, b, a};
+                uint32_t expected = gen.Expected(call_inputs);
                 uint32_t actual = m.Call(a, b, b, a);
                 CHECK_EQ(expected, actual);
               }
@@ -872,8 +872,8 @@ TEST(CombineCompareMaxDepth) {
 
     FOR_UINT32_INPUTS(a) {
       FOR_UINT32_INPUTS(b) {
-        std::array inputs{a, b, b, a};
-        uint32_t expected = gen.Expected(inputs);
+        std::array call_inputs{a, b, b, a};
+        uint32_t expected = gen.Expected(call_inputs);
         uint32_t actual = m.Call(a, b, b, a);
         CHECK_EQ(expected, actual);
       }
@@ -908,8 +908,8 @@ TEST(CombineCompareBranchesMaxDepth) {
 
       FOR_UINT32_INPUTS(a) {
         FOR_UINT32_INPUTS(b) {
-          std::array inputs{a, b, b, a};
-          uint32_t expected = gen.Expected(inputs);
+          std::array call_inputs{a, b, b, a};
+          uint32_t expected = gen.Expected(call_inputs);
           uint32_t actual = m.Call(a, b, b, a);
           CHECK_EQ(expected, actual);
         }
@@ -949,8 +949,8 @@ TEST(CombineCompareMaxDepthPlusOne) {
 
       FOR_UINT32_INPUTS(a) {
         FOR_UINT32_INPUTS(b) {
-          std::array inputs{a, b, b, a};
-          uint32_t expected = gen.Expected(inputs);
+          std::array call_inputs{a, b, b, a};
+          uint32_t expected = gen.Expected(call_inputs);
           uint32_t actual = m.Call(a, b, b, a);
           CHECK_EQ(expected, actual);
         }

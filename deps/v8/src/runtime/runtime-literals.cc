@@ -48,7 +48,7 @@ class JSObjectWalkVisitor {
       return StructureWalk(value);
     }
 
-    Handle<AllocationSite> current_site = site_context()->EnterNewScope();
+    DirectHandle<AllocationSite> current_site = site_context()->EnterNewScope();
     MaybeHandle<JSObject> copy_of_value = StructureWalk(value);
     site_context()->ExitScope(current_site, value);
     return copy_of_value;
@@ -77,7 +77,7 @@ MaybeHandle<JSObject> JSObjectWalkVisitor<ContextObject>::StructureWalk(
   }
 
   if (object->map(isolate)->is_deprecated()) {
-    base::SharedMutexGuard<base::kExclusive> mutex_guard(
+    base::SpinningMutexGuard mutex_guard(
         isolate->boilerplate_migration_access());
     JSObject::MigrateInstance(isolate, object);
   }
@@ -86,7 +86,7 @@ MaybeHandle<JSObject> JSObjectWalkVisitor<ContextObject>::StructureWalk(
   if (copying) {
     // JSFunction objects are not allowed to be in normal boilerplates at all.
     DCHECK(!IsJSFunction(*object, isolate));
-    Handle<AllocationSite> site_to_pass;
+    DirectHandle<AllocationSite> site_to_pass;
     if (site_context()->ShouldCreateMemento(object)) {
       site_to_pass = site_context()->current();
     }
@@ -169,8 +169,7 @@ MaybeHandle<JSObject> JSObjectWalkVisitor<ContextObject>::StructureWalk(
     case SHARED_ARRAY_ELEMENTS: {
       DirectHandle<FixedArray> elements(
           Cast<FixedArray>(copy->elements(isolate)), isolate);
-      if (elements->map(isolate) ==
-          ReadOnlyRoots(isolate).fixed_cow_array_map()) {
+      if (elements->map() == ReadOnlyRoots(isolate).fixed_cow_array_map()) {
 #ifdef DEBUG
         for (int i = 0; i < elements->length(); i++) {
           DCHECK(!IsJSObject(elements->get(i)));
@@ -237,10 +236,10 @@ class DeprecationUpdateContext {
   bool ShouldCreateMemento(DirectHandle<JSObject> object) { return false; }
   inline void ExitScope(DirectHandle<AllocationSite> scope_site,
                         DirectHandle<JSObject> object) {}
-  Handle<AllocationSite> EnterNewScope() { return Handle<AllocationSite>(); }
-  Handle<AllocationSite> current() {
-    UNREACHABLE();
+  DirectHandle<AllocationSite> EnterNewScope() {
+    return DirectHandle<AllocationSite>();
   }
+  DirectHandle<AllocationSite> current() { UNREACHABLE(); }
 
   static const bool kCopying = false;
 
@@ -284,7 +283,8 @@ class AllocationSiteCreationContext : public AllocationSiteContext {
     DCHECK(!scope_site.is_null());
     return scope_site;
   }
-  void ExitScope(Handle<AllocationSite> scope_site, Handle<JSObject> object) {
+  void ExitScope(DirectHandle<AllocationSite> scope_site,
+                 DirectHandle<JSObject> object) {
     if (object.is_null()) return;
     scope_site->set_boilerplate(*object, kReleaseStore);
     if (v8_flags.trace_creation_allocation_sites) {
@@ -305,29 +305,29 @@ class AllocationSiteCreationContext : public AllocationSiteContext {
   static const bool kCopying = false;
 };
 
-MaybeHandle<JSObject> DeepWalk(Handle<JSObject> object,
-                               DeprecationUpdateContext* site_context) {
+MaybeDirectHandle<JSObject> DeepWalk(Handle<JSObject> object,
+                                     DeprecationUpdateContext* site_context) {
   JSObjectWalkVisitor<DeprecationUpdateContext> v(site_context);
-  MaybeHandle<JSObject> result = v.StructureWalk(object);
-  Handle<JSObject> for_assert;
+  MaybeDirectHandle<JSObject> result = v.StructureWalk(object);
+  DirectHandle<JSObject> for_assert;
   DCHECK(!result.ToHandle(&for_assert) || for_assert.is_identical_to(object));
   return result;
 }
 
-MaybeHandle<JSObject> DeepWalk(Handle<JSObject> object,
-                               AllocationSiteCreationContext* site_context) {
+MaybeDirectHandle<JSObject> DeepWalk(
+    Handle<JSObject> object, AllocationSiteCreationContext* site_context) {
   JSObjectWalkVisitor<AllocationSiteCreationContext> v(site_context);
-  MaybeHandle<JSObject> result = v.StructureWalk(object);
-  Handle<JSObject> for_assert;
+  MaybeDirectHandle<JSObject> result = v.StructureWalk(object);
+  DirectHandle<JSObject> for_assert;
   DCHECK(!result.ToHandle(&for_assert) || for_assert.is_identical_to(object));
   return result;
 }
 
-MaybeHandle<JSObject> DeepCopy(Handle<JSObject> object,
-                               AllocationSiteUsageContext* site_context) {
+MaybeDirectHandle<JSObject> DeepCopy(Handle<JSObject> object,
+                                     AllocationSiteUsageContext* site_context) {
   JSObjectWalkVisitor<AllocationSiteUsageContext> v(site_context);
-  MaybeHandle<JSObject> copy = v.StructureWalk(object);
-  Handle<JSObject> for_assert;
+  MaybeDirectHandle<JSObject> copy = v.StructureWalk(object);
+  DirectHandle<JSObject> for_assert;
   DCHECK(!copy.ToHandle(&for_assert) || !for_assert.is_identical_to(object));
   return copy;
 }
@@ -400,7 +400,8 @@ Handle<JSObject> CreateObjectLiteral(
   int length = object_boilerplate_description->boilerplate_properties_count();
   // TODO(verwaest): Support tracking representations in the boilerplate.
   for (int index = 0; index < length; index++) {
-    Handle<Object> key(object_boilerplate_description->name(index), isolate);
+    DirectHandle<Object> key(object_boilerplate_description->name(index),
+                             isolate);
     Handle<Object> value(object_boilerplate_description->value(index), isolate);
 
     if (IsHeapObject(*value)) {
@@ -426,7 +427,7 @@ Handle<JSObject> CreateObjectLiteral(
                                               NONE)
           .Check();
     } else {
-      Handle<String> name = Cast<String>(key);
+      DirectHandle<String> name = Cast<String>(key);
       DCHECK(!name->AsArrayIndex(&element_index));
       JSObject::SetOwnPropertyIgnoreAttributes(boilerplate, name, value, NONE)
           .Check();
@@ -459,7 +460,7 @@ Handle<JSObject> CreateArrayLiteral(
         Cast<FixedDoubleArray>(constant_elements_values));
   } else {
     DCHECK(IsSmiOrObjectElementsKind(constant_elements_kind));
-    const bool is_cow = (constant_elements_values->map(isolate) ==
+    const bool is_cow = (constant_elements_values->map() ==
                          ReadOnlyRoots(isolate).fixed_cow_array_map());
     if (is_cow) {
       copied_elements_values = constant_elements_values;
@@ -506,7 +507,7 @@ Handle<JSObject> CreateArrayLiteral(
 }
 
 template <typename LiteralHelper>
-MaybeHandle<JSObject> CreateLiteralWithoutAllocationSite(
+MaybeDirectHandle<JSObject> CreateLiteralWithoutAllocationSite(
     Isolate* isolate, Handle<HeapObject> description, int flags) {
   Handle<JSObject> literal = LiteralHelper::Create(isolate, description, flags,
                                                    AllocationType::kYoung);
@@ -516,10 +517,11 @@ MaybeHandle<JSObject> CreateLiteralWithoutAllocationSite(
 }
 
 template <typename LiteralHelper>
-MaybeHandle<JSObject> CreateLiteral(Isolate* isolate,
-                                    Handle<HeapObject> maybe_vector,
-                                    int literals_index,
-                                    Handle<HeapObject> description, int flags) {
+MaybeDirectHandle<JSObject> CreateLiteral(Isolate* isolate,
+                                          Handle<HeapObject> maybe_vector,
+                                          int literals_index,
+                                          Handle<HeapObject> description,
+                                          int flags) {
   if (!IsFeedbackVector(*maybe_vector)) {
     DCHECK(IsUndefined(*maybe_vector));
     return CreateLiteralWithoutAllocationSite<LiteralHelper>(
@@ -565,7 +567,7 @@ MaybeHandle<JSObject> CreateLiteral(Isolate* isolate,
   // Copy the existing boilerplate.
   AllocationSiteUsageContext usage_context(isolate, site, enable_mementos);
   usage_context.EnterNewScope();
-  MaybeHandle<JSObject> copy = DeepCopy(boilerplate, &usage_context);
+  MaybeDirectHandle<JSObject> copy = DeepCopy(boilerplate, &usage_context);
   usage_context.ExitScope(site, boilerplate);
   return copy;
 }
@@ -623,7 +625,7 @@ RUNTIME_FUNCTION(Runtime_CreateRegExpLiteral) {
   // instance).
   CHECK(!HasBoilerplate(literal_site));
 
-  Handle<JSRegExp> regexp_instance;
+  DirectHandle<JSRegExp> regexp_instance;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, regexp_instance,
       JSRegExp::New(isolate, pattern, JSRegExp::Flags(flags)));
@@ -643,8 +645,8 @@ RUNTIME_FUNCTION(Runtime_CreateRegExpLiteral) {
           Smi::FromInt(static_cast<int>(regexp_instance->flags())));
 
   vector->SynchronizedSet(literal_slot, *boilerplate);
-  DCHECK(
-      HasBoilerplate(handle(Cast<Object>(vector->Get(literal_slot)), isolate)));
+  DCHECK(HasBoilerplate(
+      direct_handle(Cast<Object>(vector->Get(literal_slot)), isolate)));
 
   return *regexp_instance;
 }

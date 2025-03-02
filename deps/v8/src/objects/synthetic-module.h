@@ -31,7 +31,7 @@ class SyntheticModule
   // Returns Just(true) on success, Nothing<bool>() if an error was thrown.
   static Maybe<bool> SetExport(Isolate* isolate,
                                DirectHandle<SyntheticModule> module,
-                               Handle<String> export_name,
+                               DirectHandle<String> export_name,
                                DirectHandle<Object> export_value);
   // The following redundant method should be deleted when the deprecated
   // version of v8::SetSyntheticModuleExport is removed.  It differs from
@@ -40,7 +40,7 @@ class SyntheticModule
   // the module.
   static void SetExportStrict(Isolate* isolate,
                               DirectHandle<SyntheticModule> module,
-                              Handle<String> export_name,
+                              DirectHandle<String> export_name,
                               DirectHandle<Object> export_value);
 
   using BodyDescriptor =
@@ -52,7 +52,7 @@ class SyntheticModule
 
   static V8_WARN_UNUSED_RESULT MaybeHandle<Cell> ResolveExport(
       Isolate* isolate, DirectHandle<SyntheticModule> module,
-      Handle<String> module_specifier, Handle<String> export_name,
+      DirectHandle<String> module_specifier, DirectHandle<String> export_name,
       MessageLocation loc, bool must_resolve);
 
   static V8_WARN_UNUSED_RESULT bool PrepareInstantiate(
@@ -61,8 +61,8 @@ class SyntheticModule
   static V8_WARN_UNUSED_RESULT bool FinishInstantiate(
       Isolate* isolate, DirectHandle<SyntheticModule> module);
 
-  static V8_WARN_UNUSED_RESULT MaybeHandle<Object> Evaluate(
-      Isolate* isolate, Handle<SyntheticModule> module);
+  static V8_WARN_UNUSED_RESULT MaybeDirectHandle<Object> Evaluate(
+      Isolate* isolate, DirectHandle<SyntheticModule> module);
 
   TQ_OBJECT_CONSTRUCTORS(SyntheticModule)
 };

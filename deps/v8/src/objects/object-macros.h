@@ -26,18 +26,24 @@
 // alignment, since we have int32 fields), and to add warnings which ensure that
 // there is no unwanted within-object padding.
 #if V8_CC_GNU
-
 #define V8_OBJECT_PUSH                                                    \
   _Pragma("pack(push)") _Pragma("pack(4)") _Pragma("GCC diagnostic push") \
       _Pragma("GCC diagnostic error \"-Wpadded\"")
 #define V8_OBJECT_POP _Pragma("pack(pop)") _Pragma("GCC diagnostic pop")
+#elif V8_CC_MSVC
+#define V8_OBJECT_PUSH                                           \
+  __pragma(pack(push)) __pragma(pack(4)) __pragma(warning(push)) \
+      __pragma(warning(default : 4820))
+#define V8_OBJECT_POP __pragma(pack(pop)) __pragma(warning(pop))
+#else
+#error Unsupported compiler
+#endif
 
 #define V8_OBJECT V8_OBJECT_PUSH
-
-// GCC wants this pragma to be a new statement, but we prefer to have
+// Compilers wants the pragmas to be a new statement, but we prefer to have
 // V8_OBJECT_END look like part of the definition. Insert a semicolon before the
-// pragma to make gcc happy, and use static_assert(true) to swallow the next
-// semicolon.
+// pragma to make the compilers happy, and use static_assert(true) to swallow
+// the next semicolon.
 #define V8_OBJECT_END \
   ;                   \
   V8_OBJECT_POP static_assert(true)
@@ -46,21 +52,6 @@
 #define V8_OBJECT_INNER_CLASS_END \
   ;                               \
   V8_OBJECT_PUSH static_assert(true)
-
-#elif V8_CC_MSVC
-#define V8_OBJECT_PUSH                                           \
-  __pragma(pack(push)) __pragma(pack(4)) __pragma(warning(push)) \
-      __pragma(warning(default : 4820))
-#define V8_OBJECT_POP __pragma(pack(pop)) __pragma(warning(pop))
-
-#define V8_OBJECT V8_OBJECT_PUSH
-#define V8_OBJECT_END V8_OBJECT_POP
-
-#define V8_OBJECT_INNER_CLASS V8_OBJECT_POP
-#define V8_OBJECT_INNER_CLASS_END V8_OBJECT_PUSH
-#else
-#error Unsupported compiler
-#endif
 
 // Since this changes visibility, it should always be last in a class
 // definition.
@@ -151,19 +142,19 @@
   }                                                          \
   __VA_ARGS__ holder::name(PtrComprCageBase cage_base) const
 
-#define DEF_RELAXED_GETTER(holder, name, type)               \
-  type holder::name(RelaxedLoadTag tag) const {              \
+#define DEF_RELAXED_GETTER(holder, name, ...)                \
+  __VA_ARGS__ holder::name(RelaxedLoadTag tag) const {       \
     PtrComprCageBase cage_base = GetPtrComprCageBase(*this); \
     return holder::name(cage_base, tag);                     \
   }                                                          \
-  type holder::name(PtrComprCageBase cage_base, RelaxedLoadTag) const
+  __VA_ARGS__ holder::name(PtrComprCageBase cage_base, RelaxedLoadTag) const
 
-#define DEF_ACQUIRE_GETTER(holder, name, type)               \
-  type holder::name(AcquireLoadTag tag) const {              \
+#define DEF_ACQUIRE_GETTER(holder, name, ...)                \
+  __VA_ARGS__ holder::name(AcquireLoadTag tag) const {       \
     PtrComprCageBase cage_base = GetPtrComprCageBase(*this); \
     return holder::name(cage_base, tag);                     \
   }                                                          \
-  type holder::name(PtrComprCageBase cage_base, AcquireLoadTag) const
+  __VA_ARGS__ holder::name(PtrComprCageBase cage_base, AcquireLoadTag) const
 
 #define DEF_HEAP_OBJECT_PREDICATE(holder, name)            \
   bool name(Tagged<holder> obj) {                          \
@@ -179,45 +170,41 @@
   static const int k##name##Offset = value;        \
   TQ_FIELD_TYPE(name, tq_type)
 
-#define DECL_SETTER(name, type)      \
-  inline void set_##name(type value, \
+#define DECL_SETTER(name, ...)              \
+  inline void set_##name(__VA_ARGS__ value, \
                          WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
-#define DECL_ACCESSORS(name, type) \
-  DECL_GETTER(name, type)          \
-  DECL_SETTER(name, type)
+#define DECL_ACCESSORS(name, ...) \
+  DECL_GETTER(name, __VA_ARGS__)  \
+  DECL_SETTER(name, __VA_ARGS__)
 
 #define DECL_ACCESSORS_LOAD_TAG(name, type, tag_type) \
-  inline type name(tag_type tag) const;               \
-  inline type name(PtrComprCageBase cage_base, tag_type) const;
+  inline UNPAREN(type) name(tag_type tag) const;      \
+  inline UNPAREN(type) name(PtrComprCageBase cage_base, tag_type) const;
 
-#define DECL_ACCESSORS_STORE_TAG(name, type, tag_type) \
-  inline void set_##name(type value, tag_type,         \
+#define DECL_ACCESSORS_STORE_TAG(name, type, tag_type)  \
+  inline void set_##name(UNPAREN(type) value, tag_type, \
                          WriteBarrierMode mode = UPDATE_WRITE_BARRIER);
 
-#define DECL_RELAXED_GETTER(name, type) \
-  DECL_ACCESSORS_LOAD_TAG(name, type, RelaxedLoadTag)
+#define DECL_RELAXED_GETTER(name, ...) \
+  DECL_ACCESSORS_LOAD_TAG(name, (__VA_ARGS__), RelaxedLoadTag)
 
-#define DECL_RELAXED_SETTER(name, type) \
-  DECL_ACCESSORS_STORE_TAG(name, type, RelaxedStoreTag)
+#define DECL_RELAXED_SETTER(name, ...) \
+  DECL_ACCESSORS_STORE_TAG(name, (__VA_ARGS__), RelaxedStoreTag)
 
-#define DECL_RELAXED_ACCESSORS(name, type) \
-  DECL_RELAXED_GETTER(name, type)          \
-  DECL_RELAXED_SETTER(name, type)
+#define DECL_RELAXED_ACCESSORS(name, ...) \
+  DECL_RELAXED_GETTER(name, __VA_ARGS__)  \
+  DECL_RELAXED_SETTER(name, __VA_ARGS__)
 
-#define DECL_ACQUIRE_GETTER(name, type) \
-  DECL_ACCESSORS_LOAD_TAG(name, type, AcquireLoadTag)
+#define DECL_ACQUIRE_GETTER(name, ...) \
+  DECL_ACCESSORS_LOAD_TAG(name, (__VA_ARGS__), AcquireLoadTag)
 
-#define DECL_RELEASE_SETTER(name, type) \
-  DECL_ACCESSORS_STORE_TAG(name, type, ReleaseStoreTag)
+#define DECL_RELEASE_SETTER(name, ...) \
+  DECL_ACCESSORS_STORE_TAG(name, (__VA_ARGS__), ReleaseStoreTag)
 
-#define DECL_RELEASE_ACQUIRE_ACCESSORS(name, type) \
-  DECL_ACQUIRE_GETTER(name, type)                  \
-  DECL_RELEASE_SETTER(name, type)
-
-#define DECL_RELEASE_ACQUIRE_WEAK_ACCESSORS(name) \
-  DECL_ACQUIRE_GETTER(name, Tagged<MaybeObject>)  \
-  DECL_RELEASE_SETTER(name, Tagged<MaybeObject>)
+#define DECL_RELEASE_ACQUIRE_ACCESSORS(name, ...) \
+  DECL_ACQUIRE_GETTER(name, __VA_ARGS__)          \
+  DECL_RELEASE_SETTER(name, __VA_ARGS__)
 
 #define DEF_PRIMITIVE_ACCESSORS(holder, name, offset, type)     \
   type holder::name() const { return ReadField<type>(offset); } \
@@ -267,17 +254,18 @@
     RELAXED_WRITE_UINT8_FIELD(*this, offset, value);        \
   }
 
-#define ACCESSORS_CHECKED2(holder, name, type, offset, get_condition, \
-                           set_condition)                             \
-  DEF_GETTER(holder, name, type) {                                    \
-    type value = TaggedField<type, offset>::load(cage_base, *this);   \
-    DCHECK(get_condition);                                            \
-    return value;                                                     \
-  }                                                                   \
-  void holder::set_##name(type value, WriteBarrierMode mode) {        \
-    DCHECK(set_condition);                                            \
-    TaggedField<type, offset>::store(*this, value);                   \
-    CONDITIONAL_WRITE_BARRIER(*this, offset, value, mode);            \
+#define ACCESSORS_CHECKED2(holder, name, type, offset, get_condition,   \
+                           set_condition)                               \
+  DEF_GETTER(holder, name, UNPAREN(type)) {                             \
+    UNPAREN(type)                                                       \
+    value = TaggedField<UNPAREN(type), offset>::load(cage_base, *this); \
+    DCHECK(get_condition);                                              \
+    return value;                                                       \
+  }                                                                     \
+  void holder::set_##name(UNPAREN(type) value, WriteBarrierMode mode) { \
+    DCHECK(set_condition);                                              \
+    TaggedField<UNPAREN(type), offset>::store(*this, value);            \
+    CONDITIONAL_WRITE_BARRIER(*this, offset, value, mode);              \
   }
 
 #define ACCESSORS_CHECKED(holder, name, type, offset, condition) \
@@ -343,15 +331,17 @@
 // Similar to ACCESSORS_RELAXED above but with respective relaxed tags.
 #define RELAXED_ACCESSORS_CHECKED2(holder, name, type, offset, get_condition, \
                                    set_condition)                             \
-  DEF_RELAXED_GETTER(holder, name, type) {                                    \
-    type value = TaggedField<type, offset>::Relaxed_Load(cage_base, *this);   \
+  DEF_RELAXED_GETTER(holder, name, UNPAREN(type)) {                           \
+    UNPAREN(type)                                                             \
+    value =                                                                   \
+        TaggedField<UNPAREN(type), offset>::Relaxed_Load(cage_base, *this);   \
     DCHECK(get_condition);                                                    \
     return value;                                                             \
   }                                                                           \
-  void holder::set_##name(type value, RelaxedStoreTag,                        \
+  void holder::set_##name(UNPAREN(type) value, RelaxedStoreTag,               \
                           WriteBarrierMode mode) {                            \
     DCHECK(set_condition);                                                    \
-    TaggedField<type, offset>::Relaxed_Store(*this, value);                   \
+    TaggedField<UNPAREN(type), offset>::Relaxed_Store(*this, value);          \
     CONDITIONAL_WRITE_BARRIER(*this, offset, value, mode);                    \
   }
 
@@ -363,19 +353,21 @@
 
 #define RELEASE_ACQUIRE_GETTER_CHECKED(holder, name, type, offset,          \
                                        get_condition)                       \
-  DEF_ACQUIRE_GETTER(holder, name, type) {                                  \
-    type value = TaggedField<type, offset>::Acquire_Load(cage_base, *this); \
+  DEF_ACQUIRE_GETTER(holder, name, UNPAREN(type)) {                         \
+    UNPAREN(type)                                                           \
+    value =                                                                 \
+        TaggedField<UNPAREN(type), offset>::Acquire_Load(cage_base, *this); \
     DCHECK(get_condition);                                                  \
     return value;                                                           \
   }
 
-#define RELEASE_ACQUIRE_SETTER_CHECKED(holder, name, type, offset, \
-                                       set_condition)              \
-  void holder::set_##name(type value, ReleaseStoreTag,             \
-                          WriteBarrierMode mode) {                 \
-    DCHECK(set_condition);                                         \
-    TaggedField<type, offset>::Release_Store(*this, value);        \
-    CONDITIONAL_WRITE_BARRIER(*this, offset, value, mode);         \
+#define RELEASE_ACQUIRE_SETTER_CHECKED(holder, name, type, offset,   \
+                                       set_condition)                \
+  void holder::set_##name(UNPAREN(type) value, ReleaseStoreTag,      \
+                          WriteBarrierMode mode) {                   \
+    DCHECK(set_condition);                                           \
+    TaggedField<UNPAREN(type), offset>::Release_Store(*this, value); \
+    CONDITIONAL_WRITE_BARRIER(*this, offset, value, mode);           \
   }
 
 #define RELEASE_ACQUIRE_ACCESSORS_CHECKED2(holder, name, type, offset,      \
@@ -390,49 +382,6 @@
 
 #define RELEASE_ACQUIRE_ACCESSORS(holder, name, type, offset) \
   RELEASE_ACQUIRE_ACCESSORS_CHECKED(holder, name, type, offset, true)
-
-#define WEAK_ACCESSORS_CHECKED2(holder, name, offset, get_condition,          \
-                                set_condition)                                \
-  DEF_GETTER(holder, name, Tagged<MaybeObject>) {                             \
-    Tagged<MaybeObject> value =                                               \
-        TaggedField<MaybeObject, offset>::load(cage_base, *this);             \
-    DCHECK(get_condition);                                                    \
-    return value;                                                             \
-  }                                                                           \
-  void holder::set_##name(Tagged<MaybeObject> value, WriteBarrierMode mode) { \
-    DCHECK(set_condition);                                                    \
-    TaggedField<MaybeObject, offset>::store(*this, value);                    \
-    CONDITIONAL_WEAK_WRITE_BARRIER(*this, offset, value, mode);               \
-  }
-
-#define WEAK_ACCESSORS_CHECKED(holder, name, offset, condition) \
-  WEAK_ACCESSORS_CHECKED2(holder, name, offset, condition, condition)
-
-#define WEAK_ACCESSORS(holder, name, offset) \
-  WEAK_ACCESSORS_CHECKED(holder, name, offset, true)
-
-#define RELEASE_ACQUIRE_WEAK_ACCESSORS_CHECKED2(holder, name, offset,         \
-                                                get_condition, set_condition) \
-  DEF_ACQUIRE_GETTER(holder, name, Tagged<MaybeObject>) {                     \
-    Tagged<MaybeObject> value =                                               \
-        TaggedField<MaybeObject, offset>::Acquire_Load(cage_base, *this);     \
-    DCHECK(get_condition);                                                    \
-    return value;                                                             \
-  }                                                                           \
-  void holder::set_##name(Tagged<MaybeObject> value, ReleaseStoreTag,         \
-                          WriteBarrierMode mode) {                            \
-    DCHECK(set_condition);                                                    \
-    TaggedField<MaybeObject, offset>::Release_Store(*this, value);            \
-    CONDITIONAL_WEAK_WRITE_BARRIER(*this, offset, value, mode);               \
-  }
-
-#define RELEASE_ACQUIRE_WEAK_ACCESSORS_CHECKED(holder, name, offset,       \
-                                               condition)                  \
-  RELEASE_ACQUIRE_WEAK_ACCESSORS_CHECKED2(holder, name, offset, condition, \
-                                          condition)
-
-#define RELEASE_ACQUIRE_WEAK_ACCESSORS(holder, name, offset) \
-  RELEASE_ACQUIRE_WEAK_ACCESSORS_CHECKED(holder, name, offset, true)
 
 // Getter that returns a Smi as an int and writes an int as a Smi.
 #define SMI_ACCESSORS_CHECKED(holder, name, offset, condition)   \
@@ -705,41 +654,27 @@
 
 #ifdef V8_DISABLE_WRITE_BARRIERS
 #define WRITE_BARRIER(object, offset, value)
-#define WRITE_BARRIER_CPP(object, offset, value)
 #else
-#define WRITE_BARRIER(object, offset, value)                                \
-  do {                                                                      \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                     \
-    static_assert(kTaggedCanConvertToRawObjects);                           \
-    WriteBarrier::ForValue(object, Tagged(object)->RawField(offset), value, \
-                           UPDATE_WRITE_BARRIER);                           \
+#define WRITE_BARRIER(object, offset, value)                                   \
+  do {                                                                         \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                              \
+    static_assert(kTaggedCanConvertToRawObjects);                              \
+    /* For write barriers, it doesn't matter if the slot is strong or weak, */ \
+    /* so use the most generic slot (a maybe weak one). */                     \
+    WriteBarrier::ForValue(object, Tagged(object)->RawMaybeWeakField(offset),  \
+                           value, UPDATE_WRITE_BARRIER);                       \
   } while (false)
 #endif
 
 #ifdef V8_DISABLE_WRITE_BARRIERS
-#define WEAK_WRITE_BARRIER(object, offset, value)
+#define EXTERNAL_POINTER_WRITE_BARRIER(object, offset, tag)
 #else
-#define WEAK_WRITE_BARRIER(object, offset, value)                             \
-  do {                                                                        \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                       \
-    static_assert(kTaggedCanConvertToRawObjects);                             \
-    WriteBarrier::ForValue(object, Tagged(object)->RawMaybeWeakField(offset), \
-                           value, UPDATE_WRITE_BARRIER);                      \
-  } while (false)
-#endif
-
-#ifdef V8_DISABLE_WRITE_BARRIERS
-#define EPHEMERON_KEY_WRITE_BARRIER(object, offset, value)
-#elif V8_ENABLE_UNCONDITIONAL_WRITE_BARRIERS
-#define EPHEMERON_KEY_WRITE_BARRIER(object, offset, value) \
-  WRITE_BARRIER(object, offset, value)
-#else
-#define EPHEMERON_KEY_WRITE_BARRIER(object, offset, value)                 \
-  do {                                                                     \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                    \
-    WriteBarrier::ForEphemeronHashTable(Cast<EphemeronHashTable>(object),  \
-                                        (object)->RawField(offset), value, \
-                                        UPDATE_WRITE_BARRIER);             \
+#define EXTERNAL_POINTER_WRITE_BARRIER(object, offset, tag)           \
+  do {                                                                \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                     \
+    WriteBarrier::ForExternalPointer(                                 \
+        object, Tagged(object)->RawExternalPointerField(offset, tag), \
+        UPDATE_WRITE_BARRIER);                                        \
   } while (false)
 #endif
 
@@ -748,7 +683,7 @@
 #else
 #define INDIRECT_POINTER_WRITE_BARRIER(object, offset, tag, value)           \
   do {                                                                       \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                      \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                            \
     WriteBarrier::ForIndirectPointer(                                        \
         object, Tagged(object)->RawIndirectPointerField(offset, tag), value, \
         UPDATE_WRITE_BARRIER);                                               \
@@ -760,7 +695,7 @@
 #else
 #define JS_DISPATCH_HANDLE_WRITE_BARRIER(object, handle)                     \
   do {                                                                       \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                      \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                            \
     WriteBarrier::ForJSDispatchHandle(object, handle, UPDATE_WRITE_BARRIER); \
   } while (false)
 #endif
@@ -771,39 +706,26 @@
 #define CONDITIONAL_WRITE_BARRIER(object, offset, value, mode) \
   WRITE_BARRIER(object, offset, value)
 #else
-#define CONDITIONAL_WRITE_BARRIER(object, offset, value, mode)               \
-  do {                                                                       \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                      \
-    WriteBarrier::ForValue(object, (object)->RawField(offset), value, mode); \
-  } while (false)
-#endif
-
-#ifdef V8_DISABLE_WRITE_BARRIERS
-#define CONDITIONAL_WEAK_WRITE_BARRIER(object, offset, value, mode)
-#elif V8_ENABLE_UNCONDITIONAL_WRITE_BARRIERS
-#define CONDITIONAL_WEAK_WRITE_BARRIER(object, offset, value, mode) \
-  WRITE_BARRIER(object, offset, value)
-#else
-#define CONDITIONAL_WEAK_WRITE_BARRIER(object, offset, value, mode)            \
+#define CONDITIONAL_WRITE_BARRIER(object, offset, value, mode)                 \
   do {                                                                         \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                        \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                              \
+    /* For write barriers, it doesn't matter if the slot is strong or weak, */ \
+    /* so use the most generic slot (a maybe weak one). */                     \
     WriteBarrier::ForValue(object, (object)->RawMaybeWeakField(offset), value, \
                            mode);                                              \
   } while (false)
 #endif
 
 #ifdef V8_DISABLE_WRITE_BARRIERS
-#define CONDITIONAL_EPHEMERON_KEY_WRITE_BARRIER(object, offset, value, mode)
+#define CONDITIONAL_EXTERNAL_POINTER_WRITE_BARRIER(object, offset, tag, mode)
 #else
-#define CONDITIONAL_EPHEMERON_KEY_WRITE_BARRIER(object, offset, value, mode) \
-  do {                                                                       \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                      \
-    WriteBarrier::ForEphemeronHashTable(Cast<EphemeronHashTable>(object),    \
-                                        (object)->RawField(offset), value,   \
-                                        mode);                               \
+#define CONDITIONAL_EXTERNAL_POINTER_WRITE_BARRIER(object, offset, tag, mode) \
+  do {                                                                        \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                             \
+    WriteBarrier::ForExternalPointer(                                         \
+        object, Tagged(object)->RawExternalPointerField(offset, tag), mode);  \
   } while (false)
 #endif
-
 #ifdef V8_DISABLE_WRITE_BARRIERS
 #define CONDITIONAL_INDIRECT_POINTER_WRITE_BARRIER(object, offset, tag, value, \
                                                    mode)
@@ -811,7 +733,7 @@
 #define CONDITIONAL_INDIRECT_POINTER_WRITE_BARRIER(object, offset, tag, value, \
                                                    mode)                       \
   do {                                                                         \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                        \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                              \
     WriteBarrier::ForIndirectPointer(                                          \
         object, (object).RawIndirectPointerField(offset, tag), value, mode);   \
   } while (false)
@@ -833,7 +755,7 @@
 #define CONDITIONAL_PROTECTED_POINTER_WRITE_BARRIER(object, offset, value, \
                                                     mode)                  \
   do {                                                                     \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                    \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                          \
     WriteBarrier::ForProtectedPointer(                                     \
         object, (object).RawProtectedPointerField(offset), value, mode);   \
   } while (false)
@@ -843,7 +765,7 @@
 #else
 #define CONDITIONAL_JS_DISPATCH_HANDLE_WRITE_BARRIER(object, handle, mode) \
   do {                                                                     \
-    DCHECK_NOT_NULL(GetHeapFromWritableObject(object));                    \
+    DCHECK(HeapLayout::IsOwnedByAnyHeap(object));                          \
     WriteBarrier::ForJSDispatchHandle(object, handle, mode);               \
   } while (false)
 #endif
@@ -985,7 +907,7 @@ static_assert(sizeof(unsigned) == sizeof(uint32_t),
 #endif
 
 #define DEFINE_DEOPT_ELEMENT_ACCESSORS(name, type)         \
-  Tagged<type> DeoptimizationData::name() const {          \
+  auto DeoptimizationData::name() const -> Tagged<type> {  \
     return Cast<type>(get(k##name##Index));                \
   }                                                        \
   void DeoptimizationData::Set##name(Tagged<type> value) { \

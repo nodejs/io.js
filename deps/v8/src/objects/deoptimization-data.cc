@@ -20,7 +20,7 @@
 namespace v8 {
 namespace internal {
 
-Handle<Object> DeoptimizationLiteral::Reify(Isolate* isolate) const {
+DirectHandle<Object> DeoptimizationLiteral::Reify(Isolate* isolate) const {
   Validate();
   switch (kind_) {
     case DeoptimizationLiteralKind::kObject: {
@@ -74,7 +74,7 @@ Handle<DeoptimizationData> DeoptimizationData::Empty(LocalIsolate* isolate) {
 
 Tagged<SharedFunctionInfo> DeoptimizationData::GetInlinedFunction(int index) {
   if (index == -1) {
-    return Cast<i::SharedFunctionInfo>(SharedFunctionInfo());
+    return GetSharedFunctionInfo();
   } else {
     return Cast<i::SharedFunctionInfo>(LiteralArray()->get(index));
   }
@@ -178,6 +178,7 @@ void DeoptimizationData::PrintDeoptimizationData(std::ostream& os) const {
 
     if (v8_flags.print_code_verbose) {
       FrameTranslation()->PrintFrameTranslation(os, TranslationIndex(i).value(),
+                                                ProtectedLiteralArray(),
                                                 LiteralArray());
     }
   }
@@ -222,9 +223,7 @@ DeoptTranslationIterator::DeoptTranslationIterator(
 DeoptimizationFrameTranslation::Iterator::Iterator(
     Tagged<DeoptimizationFrameTranslation> buffer, int index)
     : DeoptTranslationIterator(
-          base::Vector<uint8_t>(buffer->AddressOfElementAt(0),
-                                buffer->length()),
-          index) {}
+          base::Vector<uint8_t>(buffer->begin(), buffer->length()), index) {}
 
 int32_t DeoptTranslationIterator::NextOperand() {
   if (V8_UNLIKELY(v8_flags.turbo_compress_frame_translations)) {
@@ -385,23 +384,24 @@ void DeoptTranslationIterator::SkipOpcodeAndItsOperandsAtPreviousIndex() {
 
 void DeoptimizationFrameTranslation::PrintFrameTranslation(
     std::ostream& os, int index,
+    Tagged<ProtectedDeoptimizationLiteralArray> protected_literal_array,
     Tagged<DeoptimizationLiteralArray> literal_array) const {
   DisallowGarbageCollection gc_oh_noes;
 
-  DeoptimizationFrameTranslation::Iterator iterator(*this, index);
-  TranslationOpcode opcode = iterator.NextOpcode();
-  DCHECK(TranslationOpcodeIsBegin(opcode));
-  os << opcode << " ";
-  DeoptimizationFrameTranslationPrintSingleOpcode(os, opcode, iterator,
-                                                  literal_array);
+  DeoptimizationFrameTranslation::Iterator iterator(this, index);
+  TranslationOpcode first_opcode = iterator.NextOpcode();
+  DCHECK(TranslationOpcodeIsBegin(first_opcode));
+  os << first_opcode << " ";
+  DeoptimizationFrameTranslationPrintSingleOpcode(
+      os, first_opcode, iterator, protected_literal_array, literal_array);
   while (iterator.HasNextOpcode()) {
     TranslationOpcode opcode = iterator.NextOpcode();
     if (TranslationOpcodeIsBegin(opcode)) {
       break;
     }
     os << opcode << " ";
-    DeoptimizationFrameTranslationPrintSingleOpcode(os, opcode, iterator,
-                                                    literal_array);
+    DeoptimizationFrameTranslationPrintSingleOpcode(
+        os, opcode, iterator, protected_literal_array, literal_array);
   }
 }
 

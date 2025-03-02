@@ -37,6 +37,7 @@
 #include "../../third_party/inspector_protocol/crdtp/json.h"
 #include "include/v8-container.h"
 #include "include/v8-context.h"
+#include "include/v8-cppgc.h"
 #include "include/v8-function.h"
 #include "include/v8-inspector.h"
 #include "include/v8-microtask-queue.h"
@@ -79,7 +80,7 @@ class EvaluateCallbackWrapper : public EvaluateCallback {
         new EvaluateCallbackWrapper(std::move(callback)));
   }
   void sendSuccess(std::unique_ptr<protocol::Runtime::RemoteObject> result,
-                   protocol::Maybe<protocol::Runtime::ExceptionDetails>
+                   std::unique_ptr<protocol::Runtime::ExceptionDetails>
                        exceptionDetails) override {
     return m_callback->sendSuccess(std::move(result),
                                    std::move(exceptionDetails));
@@ -104,7 +105,7 @@ bool wrapEvaluateResultAsync(InjectedScript* injectedScript,
                              bool throwOnSideEffect,
                              ProtocolCallback* callback) {
   std::unique_ptr<RemoteObject> result;
-  Maybe<protocol::Runtime::ExceptionDetails> exceptionDetails;
+  std::unique_ptr<protocol::Runtime::ExceptionDetails> exceptionDetails;
 
   Response response = injectedScript->wrapEvaluateResult(
       maybeResultValue, tryCatch, objectGroup, wrapOptions, throwOnSideEffect,
@@ -120,28 +121,26 @@ bool wrapEvaluateResultAsync(InjectedScript* injectedScript,
 void innerCallFunctionOn(
     V8InspectorSessionImpl* session, InjectedScript::Scope& scope,
     v8::Local<v8::Value> recv, const String16& expression,
-    Maybe<protocol::Array<protocol::Runtime::CallArgument>> optionalArguments,
+    std::unique_ptr<protocol::Array<protocol::Runtime::CallArgument>>
+        optionalArguments,
     bool silent, std::unique_ptr<WrapOptions> wrapOptions, bool userGesture,
     bool awaitPromise, const String16& objectGroup, bool throwOnSideEffect,
     std::unique_ptr<V8RuntimeAgentImpl::CallFunctionOnCallback> callback) {
   V8InspectorImpl* inspector = session->inspector();
 
-  std::unique_ptr<v8::Global<v8::Value>[]> argv = nullptr;
-  int argc = 0;
-  if (optionalArguments.has_value()) {
+  v8::LocalVector<v8::Value> args(inspector->isolate());
+  if (optionalArguments) {
     protocol::Array<protocol::Runtime::CallArgument>& arguments =
-        optionalArguments.value();
-    argc = static_cast<int>(arguments.size());
-    argv.reset(new v8::Global<v8::Value>[argc]);
+        *optionalArguments;
+    int argc = static_cast<int>(arguments.size());
+    args.resize(argc);
     for (int i = 0; i < argc; ++i) {
-      v8::Local<v8::Value> argumentValue;
       Response response = scope.injectedScript()->resolveCallArgument(
-          arguments[i].get(), &argumentValue);
+          arguments[i].get(), &args[i]);
       if (!response.IsSuccess()) {
         callback->sendFailure(response);
         return;
       }
-      argv[i] = v8::Global<v8::Value>(inspector->isolate(), argumentValue);
     }
   }
 
@@ -189,8 +188,8 @@ void innerCallFunctionOn(
     v8::MicrotasksScope microtasksScope(scope.context(),
                                         v8::MicrotasksScope::kRunMicrotasks);
     maybeResultValue = v8::debug::CallFunctionOn(
-        scope.context(), functionValue.As<v8::Function>(), recv, argc,
-        argv.get(), throwOnSideEffect);
+        scope.context(), functionValue.As<v8::Function>(), recv,
+        v8::base::VectorOf(args), throwOnSideEffect);
   }
   // Re-initialize after running client's code, as it could have destroyed
   // context or session.
@@ -215,8 +214,9 @@ void innerCallFunctionOn(
 }
 
 Response ensureContext(V8InspectorImpl* inspector, int contextGroupId,
-                       Maybe<int> executionContextId,
-                       Maybe<String16> uniqueContextId, int* contextId) {
+                       std::optional<int> executionContextId,
+                       std::optional<String16> uniqueContextId,
+                       int* contextId) {
   if (executionContextId.has_value()) {
     if (uniqueContextId.has_value()) {
       return Response::InvalidParams(
@@ -276,26 +276,28 @@ Response parseAdditionalSerializationParameters(
   return Response::Success();
 }
 
-Response getWrapOptions(
-    Maybe<bool> returnByValue, Maybe<bool> generatePreview,
-    Maybe<protocol::Runtime::SerializationOptions> maybeSerializationOptions,
-    v8::Isolate* isolate, std::unique_ptr<WrapOptions>* result) {
-  if (maybeSerializationOptions.has_value()) {
-    auto& serializationOptions = maybeSerializationOptions.value();
-    String16 serializationModeStr = serializationOptions.getSerialization();
+Response getWrapOptions(std::optional<bool> returnByValue,
+                        std::optional<bool> generatePreview,
+                        std::unique_ptr<protocol::Runtime::SerializationOptions>
+                            maybeSerializationOptions,
+                        v8::Isolate* isolate,
+                        std::unique_ptr<WrapOptions>* result) {
+  if (maybeSerializationOptions) {
+    String16 serializationModeStr =
+        maybeSerializationOptions->getSerialization();
     if (serializationModeStr ==
         protocol::Runtime::SerializationOptions::SerializationEnum::Deep) {
       v8::Local<v8::Object> additionalParameters;
       Response response = parseAdditionalSerializationParameters(
-          serializationOptions.getAdditionalParameters(nullptr), isolate,
+          maybeSerializationOptions->getAdditionalParameters(nullptr), isolate,
           &additionalParameters);
       if (!response.IsSuccess()) {
         return response;
       }
-      *result = std::make_unique<WrapOptions>(
-          WrapOptions{WrapMode::kDeep,
-                      {serializationOptions.getMaxDepth(v8::internal::kMaxInt),
-                       v8::Global<v8::Object>(isolate, additionalParameters)}});
+      *result = std::make_unique<WrapOptions>(WrapOptions{
+          WrapMode::kDeep,
+          {maybeSerializationOptions->getMaxDepth(v8::internal::kMaxInt),
+           v8::Global<v8::Object>(isolate, additionalParameters)}});
       return Response::Success();
     }
     if (serializationModeStr ==
@@ -325,14 +327,13 @@ Response getWrapOptions(
   return Response::Success();
 }
 
-Response getWrapOptions(Maybe<bool> returnByValue, Maybe<bool> generatePreview,
+Response getWrapOptions(std::optional<bool> returnByValue,
+                        std::optional<bool> generatePreview,
                         v8::Isolate* isolate,
                         std::unique_ptr<WrapOptions>* result) {
-  return getWrapOptions(
-      std::move(returnByValue), std::move(generatePreview),
-      Maybe<protocol::Runtime::
-                SerializationOptions>() /* empty serialization options */,
-      isolate, result);
+  return getWrapOptions(std::move(returnByValue), std::move(generatePreview),
+                        nullptr /* empty serialization options */, isolate,
+                        result);
 }
 
 }  // namespace
@@ -351,14 +352,17 @@ V8RuntimeAgentImpl::V8RuntimeAgentImpl(
 V8RuntimeAgentImpl::~V8RuntimeAgentImpl() = default;
 
 void V8RuntimeAgentImpl::evaluate(
-    const String16& expression, Maybe<String16> objectGroup,
-    Maybe<bool> includeCommandLineAPI, Maybe<bool> silent,
-    Maybe<int> executionContextId, Maybe<bool> returnByValue,
-    Maybe<bool> generatePreview, Maybe<bool> userGesture,
-    Maybe<bool> maybeAwaitPromise, Maybe<bool> throwOnSideEffect,
-    Maybe<double> timeout, Maybe<bool> disableBreaks, Maybe<bool> maybeReplMode,
-    Maybe<bool> allowUnsafeEvalBlockedByCSP, Maybe<String16> uniqueContextId,
-    Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
+    const String16& expression, std::optional<String16> objectGroup,
+    std::optional<bool> includeCommandLineAPI, std::optional<bool> silent,
+    std::optional<int> executionContextId, std::optional<bool> returnByValue,
+    std::optional<bool> generatePreview, std::optional<bool> userGesture,
+    std::optional<bool> maybeAwaitPromise,
+    std::optional<bool> throwOnSideEffect, std::optional<double> timeout,
+    std::optional<bool> disableBreaks, std::optional<bool> maybeReplMode,
+    std::optional<bool> allowUnsafeEvalBlockedByCSP,
+    std::optional<String16> uniqueContextId,
+    std::unique_ptr<protocol::Runtime::SerializationOptions>
+        serializationOptions,
     std::unique_ptr<EvaluateCallback> callback) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("devtools.timeline"),
                "EvaluateScript");
@@ -447,8 +451,8 @@ void V8RuntimeAgentImpl::evaluate(
 }
 
 void V8RuntimeAgentImpl::awaitPromise(
-    const String16& promiseObjectId, Maybe<bool> returnByValue,
-    Maybe<bool> generatePreview,
+    const String16& promiseObjectId, std::optional<bool> returnByValue,
+    std::optional<bool> generatePreview,
     std::unique_ptr<AwaitPromiseCallback> callback) {
   InjectedScript::ObjectScope scope(m_session, promiseObjectId);
   Response response = scope.initialize();
@@ -479,13 +483,16 @@ void V8RuntimeAgentImpl::awaitPromise(
 }
 
 void V8RuntimeAgentImpl::callFunctionOn(
-    const String16& expression, Maybe<String16> objectId,
-    Maybe<protocol::Array<protocol::Runtime::CallArgument>> optionalArguments,
-    Maybe<bool> silent, Maybe<bool> returnByValue, Maybe<bool> generatePreview,
-    Maybe<bool> userGesture, Maybe<bool> awaitPromise,
-    Maybe<int> executionContextId, Maybe<String16> objectGroup,
-    Maybe<bool> throwOnSideEffect, Maybe<String16> uniqueContextId,
-    Maybe<protocol::Runtime::SerializationOptions> serializationOptions,
+    const String16& expression, std::optional<String16> objectId,
+    std::unique_ptr<protocol::Array<protocol::Runtime::CallArgument>>
+        optionalArguments,
+    std::optional<bool> silent, std::optional<bool> returnByValue,
+    std::optional<bool> generatePreview, std::optional<bool> userGesture,
+    std::optional<bool> awaitPromise, std::optional<int> executionContextId,
+    std::optional<String16> objectGroup, std::optional<bool> throwOnSideEffect,
+    std::optional<String16> uniqueContextId,
+    std::unique_ptr<protocol::Runtime::SerializationOptions>
+        serializationOptions,
     std::unique_ptr<CallFunctionOnCallback> callback) {
   int justCount = (objectId.has_value() ? 1 : 0) +
                   (executionContextId.has_value() ? 1 : 0) +
@@ -560,16 +567,19 @@ void V8RuntimeAgentImpl::callFunctionOn(
 }
 
 Response V8RuntimeAgentImpl::getProperties(
-    const String16& objectId, Maybe<bool> ownProperties,
-    Maybe<bool> accessorPropertiesOnly, Maybe<bool> generatePreview,
-    Maybe<bool> nonIndexedPropertiesOnly,
+    const String16& objectId, std::optional<bool> ownProperties,
+    std::optional<bool> accessorPropertiesOnly,
+    std::optional<bool> generatePreview,
+    std::optional<bool> nonIndexedPropertiesOnly,
     std::unique_ptr<protocol::Array<protocol::Runtime::PropertyDescriptor>>*
         result,
-    Maybe<protocol::Array<protocol::Runtime::InternalPropertyDescriptor>>*
+    std::unique_ptr<
+        protocol::Array<protocol::Runtime::InternalPropertyDescriptor>>*
         internalProperties,
-    Maybe<protocol::Array<protocol::Runtime::PrivatePropertyDescriptor>>*
+    std::unique_ptr<
+        protocol::Array<protocol::Runtime::PrivatePropertyDescriptor>>*
         privateProperties,
-    Maybe<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
   using protocol::Runtime::InternalPropertyDescriptor;
   using protocol::Runtime::PrivatePropertyDescriptor;
 
@@ -597,7 +607,7 @@ Response V8RuntimeAgentImpl::getProperties(
       nonIndexedPropertiesOnly.value_or(false), *wrapOptions, result,
       exceptionDetails);
   if (!response.IsSuccess()) return response;
-  if (exceptionDetails->isJust()) return Response::Success();
+  if (*exceptionDetails) return Response::Success();
   std::unique_ptr<protocol::Array<InternalPropertyDescriptor>>
       internalPropertiesProtocolArray;
   std::unique_ptr<protocol::Array<PrivatePropertyDescriptor>>
@@ -670,8 +680,8 @@ Response V8RuntimeAgentImpl::discardConsoleEntries() {
 
 Response V8RuntimeAgentImpl::compileScript(
     const String16& expression, const String16& sourceURL, bool persistScript,
-    Maybe<int> executionContextId, Maybe<String16>* scriptId,
-    Maybe<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
+    std::optional<int> executionContextId, std::optional<String16>* scriptId,
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>* exceptionDetails) {
   if (!m_enabled) return Response::ServerError("Runtime agent is not enabled");
 
   int contextId = 0;
@@ -711,10 +721,11 @@ Response V8RuntimeAgentImpl::compileScript(
 }
 
 void V8RuntimeAgentImpl::runScript(
-    const String16& scriptId, Maybe<int> executionContextId,
-    Maybe<String16> objectGroup, Maybe<bool> silent,
-    Maybe<bool> includeCommandLineAPI, Maybe<bool> returnByValue,
-    Maybe<bool> generatePreview, Maybe<bool> awaitPromise,
+    const String16& scriptId, std::optional<int> executionContextId,
+    std::optional<String16> objectGroup, std::optional<bool> silent,
+    std::optional<bool> includeCommandLineAPI,
+    std::optional<bool> returnByValue, std::optional<bool> generatePreview,
+    std::optional<bool> awaitPromise,
     std::unique_ptr<RunScriptCallback> callback) {
   if (!m_enabled) {
     callback->sendFailure(
@@ -795,7 +806,7 @@ void V8RuntimeAgentImpl::runScript(
 }
 
 Response V8RuntimeAgentImpl::queryObjects(
-    const String16& prototypeObjectId, Maybe<String16> objectGroup,
+    const String16& prototypeObjectId, std::optional<String16> objectGroup,
     std::unique_ptr<protocol::Runtime::RemoteObject>* objects) {
   InjectedScript::ObjectScope scope(m_session, prototypeObjectId);
   Response response = scope.initialize();
@@ -811,7 +822,7 @@ Response V8RuntimeAgentImpl::queryObjects(
 }
 
 Response V8RuntimeAgentImpl::globalLexicalScopeNames(
-    Maybe<int> executionContextId,
+    std::optional<int> executionContextId,
     std::unique_ptr<protocol::Array<String16>>* outNames) {
   int contextId = 0;
   Response response = ensureContext(m_inspector, m_session->contextGroupId(),
@@ -841,11 +852,21 @@ Response V8RuntimeAgentImpl::getIsolateId(String16* outIsolateId) {
 }
 
 Response V8RuntimeAgentImpl::getHeapUsage(double* out_usedSize,
-                                          double* out_totalSize) {
+                                          double* out_totalSize,
+                                          double* out_embedderHeapUsedSize,
+                                          double* out_backingStorageSize) {
   v8::HeapStatistics stats;
   m_inspector->isolate()->GetHeapStatistics(&stats);
   *out_usedSize = stats.used_heap_size();
   *out_totalSize = stats.total_heap_size();
+  *out_backingStorageSize = stats.external_memory();
+  if (v8::CppHeap* cppHeap = m_inspector->isolate()->GetCppHeap()) {
+    cppgc::HeapStatistics cppStats =
+        cppHeap->CollectStatistics(cppgc::HeapStatistics::DetailLevel::kBrief);
+    *out_embedderHeapUsedSize = cppStats.used_size_bytes;
+  } else {
+    *out_embedderHeapUsedSize = 0;
+  }
   return Response::Success();
 }
 
@@ -870,9 +891,9 @@ protocol::DictionaryValue* getOrCreateDictionary(
 }
 }  // namespace
 
-Response V8RuntimeAgentImpl::addBinding(const String16& name,
-                                        Maybe<int> executionContextId,
-                                        Maybe<String16> executionContextName) {
+Response V8RuntimeAgentImpl::addBinding(
+    const String16& name, std::optional<int> executionContextId,
+    std::optional<String16> executionContextName) {
   if (executionContextId.has_value()) {
     if (executionContextName.has_value()) {
       return Response::InvalidParams(
@@ -976,7 +997,8 @@ Response V8RuntimeAgentImpl::removeBinding(const String16& name) {
 
 Response V8RuntimeAgentImpl::getExceptionDetails(
     const String16& errorObjectId,
-    Maybe<protocol::Runtime::ExceptionDetails>* out_exceptionDetails) {
+    std::unique_ptr<protocol::Runtime::ExceptionDetails>*
+        out_exceptionDetails) {
   InjectedScript::ObjectScope scope(m_session, errorObjectId);
   Response response = scope.initialize();
   if (!response.IsSuccess()) return response;
@@ -992,20 +1014,21 @@ Response V8RuntimeAgentImpl::getExceptionDetails(
       message, error, scope.objectGroupName(), out_exceptionDetails);
   if (!response.IsSuccess()) return response;
 
-  CHECK(out_exceptionDetails->isJust());
+  CHECK(*out_exceptionDetails);
 
   // When an exception object is present, `createExceptionDetails` assumes
   // the exception is uncaught and will overwrite the text field to "Uncaught".
   // Lets use the normal message text instead.
-  out_exceptionDetails->fromJust()->setText(
-      toProtocolString(m_inspector->isolate(), message->Get()));
+  (*out_exceptionDetails)
+      ->setText(toProtocolString(m_inspector->isolate(), message->Get()));
 
   // Check if the exception has any metadata on the inspector and also attach
   // it.
   std::unique_ptr<protocol::DictionaryValue> data =
       m_inspector->getAssociatedExceptionDataForProtocol(error);
-  if (data)
-    out_exceptionDetails->fromJust()->setExceptionMetaData(std::move(data));
+  if (data) {
+    (*out_exceptionDetails)->setExceptionMetaData(std::move(data));
+  }
   return Response::Success();
 }
 

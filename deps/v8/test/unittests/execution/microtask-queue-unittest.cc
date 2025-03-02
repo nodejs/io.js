@@ -81,7 +81,7 @@ class MicrotaskQueueTest : public TestWithNativeContextAndFinalizationRegistry,
                            public ::testing::WithParamInterface<bool> {
  public:
   template <typename F>
-  Handle<Microtask> NewMicrotask(F&& f) {
+  DirectHandle<Microtask> NewMicrotask(F&& f) {
     DirectHandle<Foreign> runner = factory()->NewForeign<kMicrotaskCallbackTag>(
         reinterpret_cast<Address>(&RunStdFunction));
     DirectHandle<Foreign> data =
@@ -116,7 +116,7 @@ class MicrotaskQueueTest : public TestWithNativeContextAndFinalizationRegistry,
   }
 
   template <size_t N>
-  Handle<Name> NameFromChars(const char (&chars)[N]) {
+  DirectHandle<Name> NameFromChars(const char (&chars)[N]) {
     return isolate()->factory()->NewStringFromStaticChars(chars);
   }
 
@@ -266,10 +266,10 @@ TEST_P(MicrotaskQueueTest, PromiseHandlerContext) {
   context3->native_context()->set_microtask_queue(isolate(), microtask_queue());
   context4->native_context()->set_microtask_queue(isolate(), microtask_queue());
 
-  Handle<JSFunction> handler;
-  Handle<JSProxy> proxy;
-  Handle<JSProxy> revoked_proxy;
-  Handle<JSBoundFunction> bound;
+  DirectHandle<JSFunction> handler;
+  DirectHandle<JSProxy> proxy;
+  DirectHandle<JSProxy> revoked_proxy;
+  DirectHandle<JSBoundFunction> bound;
 
   // Create a JSFunction on |context2|
   {
@@ -321,17 +321,17 @@ TEST_P(MicrotaskQueueTest, PromiseHandlerContext) {
       "Promise.resolve().then(bound);");
 
   ASSERT_EQ(4, microtask_queue()->size());
-  Handle<Microtask> microtask1(microtask_queue()->get(0), isolate());
+  DirectHandle<Microtask> microtask1(microtask_queue()->get(0), isolate());
   ASSERT_TRUE(IsPromiseFulfillReactionJobTask(*microtask1));
   EXPECT_EQ(*context2,
             Cast<PromiseFulfillReactionJobTask>(microtask1)->context());
 
-  Handle<Microtask> microtask2(microtask_queue()->get(1), isolate());
+  DirectHandle<Microtask> microtask2(microtask_queue()->get(1), isolate());
   ASSERT_TRUE(IsPromiseRejectReactionJobTask(*microtask2));
   EXPECT_EQ(*context2,
             Cast<PromiseRejectReactionJobTask>(microtask2)->context());
 
-  Handle<Microtask> microtask3(microtask_queue()->get(2), isolate());
+  DirectHandle<Microtask> microtask3(microtask_queue()->get(2), isolate());
   ASSERT_TRUE(IsPromiseFulfillReactionJobTask(*microtask3));
   // |microtask3| corresponds to a PromiseReaction for |revoked_proxy|.
   // As |revoked_proxy| doesn't have a context, the current context should be
@@ -339,7 +339,7 @@ TEST_P(MicrotaskQueueTest, PromiseHandlerContext) {
   EXPECT_EQ(*native_context(),
             Cast<PromiseFulfillReactionJobTask>(microtask3)->context());
 
-  Handle<Microtask> microtask4(microtask_queue()->get(3), isolate());
+  DirectHandle<Microtask> microtask4(microtask_queue()->get(3), isolate());
   ASSERT_TRUE(IsPromiseFulfillReactionJobTask(*microtask4));
   EXPECT_EQ(*context2,
             Cast<PromiseFulfillReactionJobTask>(microtask4)->context());
@@ -366,7 +366,7 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_Run) {
   EXPECT_EQ(0, microtask_queue()->size());
 
   // Enqueue microtasks to the current context.
-  Handle<JSArray> ran = RunJS<JSArray>(
+  DirectHandle<JSArray> ran = RunJS<JSArray>(
       "var ran = [false, false, false, false];"
       "Promise.resolve().then(() => { ran[0] = true; });"
       "Promise.reject().catch(() => { ran[1] = true; });"
@@ -375,7 +375,7 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_Run) {
   DirectHandle<JSFunction> function =
       RunJS<JSFunction>("(function() { ran[2] = true; })");
   DirectHandle<CallableTask> callable =
-      factory()->NewCallableTask(function, Utils::OpenHandle(*context()));
+      factory()->NewCallableTask(function, Utils::OpenDirectHandle(*context()));
   microtask_queue()->EnqueueMicrotask(*callable);
 
   // The handler should not run at this point.
@@ -425,10 +425,11 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_PromiseResolveThenableJobTask) {
 
 TEST_P(MicrotaskQueueTest, DetachGlobal_ResolveThenableForeignThen) {
   microtask_queue()->set_microtasks_policy(MicrotasksPolicy::kExplicit);
-  Handle<JSArray> result = RunJS<JSArray>(
+  DirectHandle<JSArray> result = RunJS<JSArray>(
       "let result = [false];"
       "result");
-  Handle<JSFunction> then = RunJS<JSFunction>("() => { result[0] = true; }");
+  DirectHandle<JSFunction> then =
+      RunJS<JSFunction>("() => { result[0] = true; }");
 
   DirectHandle<JSPromise> stale_promise;
 
@@ -502,12 +503,13 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_HandlerContext) {
   //   // so that handler runs even |resolved| is on the detached context A.
   //   resolved.then(handler);
 
-  Handle<JSReceiver> results = isolate()->factory()->NewJSObjectWithNullProto();
+  DirectHandle<JSReceiver> results =
+      isolate()->factory()->NewJSObjectWithNullProto();
 
   // These belong to a stale Context.
-  Handle<JSPromise> stale_resolved_promise;
-  Handle<JSPromise> stale_rejected_promise;
-  Handle<JSReceiver> stale_handler;
+  DirectHandle<JSPromise> stale_resolved_promise;
+  DirectHandle<JSPromise> stale_rejected_promise;
+  DirectHandle<JSReceiver> stale_handler;
 
   Local<v8::Context> sub_context = v8::Context::New(v8_isolate());
   {
@@ -519,7 +521,7 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_HandlerContext) {
         "  results[label] = true;"
         "}");
   }
-  // DetachGlobal() cancells all microtasks associated to the context.
+  // DetachGlobal() cancels all microtasks associated to the context.
   sub_context->DetachGlobal();
   sub_context.Clear();
 
@@ -564,7 +566,7 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_HandlerContext) {
 }
 
 TEST_P(MicrotaskQueueTest, DetachGlobal_Chain) {
-  Handle<JSPromise> stale_rejected_promise;
+  DirectHandle<JSPromise> stale_rejected_promise;
 
   Local<v8::Context> sub_context = v8::Context::New(v8_isolate());
   {
@@ -576,7 +578,7 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_Chain) {
 
   SetGlobalProperty("stale_rejected_promise",
                     Utils::ToLocal(Cast<JSReceiver>(stale_rejected_promise)));
-  Handle<JSArray> result = RunJS<JSArray>(
+  DirectHandle<JSArray> result = RunJS<JSArray>(
       "let result = [false];"
       "stale_rejected_promise"
       "  .then(() => {})"
@@ -591,12 +593,12 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_Chain) {
 
 TEST_P(MicrotaskQueueTest, DetachGlobal_InactiveHandler) {
   Local<v8::Context> sub_context = v8::Context::New(v8_isolate());
-  Utils::OpenHandle(*sub_context)
+  Utils::OpenDirectHandle(*sub_context)
       ->native_context()
       ->set_microtask_queue(isolate(), microtask_queue());
 
-  Handle<JSArray> result;
-  Handle<JSFunction> stale_handler;
+  DirectHandle<JSArray> result;
+  DirectHandle<JSFunction> stale_handler;
   DirectHandle<JSPromise> stale_promise;
   {
     v8::Context::Scope scope(sub_context);
@@ -622,7 +624,7 @@ TEST_P(MicrotaskQueueTest, DetachGlobal_InactiveHandler) {
 
   JSPromise::Fulfill(
       stale_promise,
-      handle(ReadOnlyRoots(isolate()).undefined_value(), isolate()));
+      direct_handle(ReadOnlyRoots(isolate()).undefined_value(), isolate()));
 
   microtask_queue()->RunMicrotasks(isolate());
   EXPECT_TRUE(

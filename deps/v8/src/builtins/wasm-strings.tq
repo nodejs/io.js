@@ -11,27 +11,28 @@ macro Trap(context: Context, error: constexpr MessageTemplate): never {
 }
 
 transitioning javascript builtin WebAssemblyStringCast(
-    js-implicit context: Context)(...arguments): String {
+    js-implicit context: Context)(arg: JSAny): String {
   try {
-    return Cast<String>(arguments[0]) otherwise goto IllegalCast;
+    return Cast<String>(arg) otherwise goto IllegalCast;
   } label IllegalCast deferred {
     Trap(context, MessageTemplate::kWasmTrapIllegalCast);
   }
 }
 
 transitioning javascript builtin WebAssemblyStringTest(
-    js-implicit context: Context)(...arguments): Smi {
-  return Is<String>(arguments[0]) ? SmiConstant(1) : SmiConstant(0);
+    js-implicit context: Context)(arg: JSAny): Smi {
+  return Is<String>(arg) ? SmiConstant(1) : SmiConstant(0);
 }
 
 extern runtime WasmCastToSpecialPrimitiveArray(Context, Object, Smi): WasmArray;
 
 transitioning javascript builtin WebAssemblyStringFromWtf16Array(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(arrayArg: JSAny, startArg: JSAny,
+    endArg: JSAny): JSAny {
   const array =
-      WasmCastToSpecialPrimitiveArray(context, arguments[0], SmiConstant(16));
-  const start = NumberToUint32(ToNumber_Inline(arguments[1]));
-  const end = NumberToUint32(ToNumber_Inline(arguments[2]));
+      WasmCastToSpecialPrimitiveArray(context, arrayArg, SmiConstant(16));
+  const start = NumberToUint32(ToNumber_Inline(startArg));
+  const end = NumberToUint32(ToNumber_Inline(endArg));
   return wasm::WasmStringNewWtf16Array(array, start, end);
 }
 
@@ -39,11 +40,12 @@ const kLossyUtf8:
     constexpr int31 generates 'unibrow::Utf8Variant::kLossyUtf8';
 
 transitioning javascript builtin WebAssemblyStringFromUtf8Array(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(arrayArg: JSAny, startArg: JSAny,
+    endArg: JSAny): JSAny {
   const array =
-      WasmCastToSpecialPrimitiveArray(context, arguments[0], SmiConstant(8));
-  const start = NumberToUint32(ToNumber_Inline(arguments[1]));
-  const end = NumberToUint32(ToNumber_Inline(arguments[2]));
+      WasmCastToSpecialPrimitiveArray(context, arrayArg, SmiConstant(8));
+  const start = NumberToUint32(ToNumber_Inline(startArg));
+  const end = NumberToUint32(ToNumber_Inline(endArg));
   const result =
       wasm::WasmStringNewWtf8Array(start, end, array, SmiConstant(kLossyUtf8));
   dcheck(Is<String>(result));
@@ -51,12 +53,13 @@ transitioning javascript builtin WebAssemblyStringFromUtf8Array(
 }
 
 transitioning javascript builtin WebAssemblyStringIntoUtf8Array(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny, arrayArg: JSAny,
+    startArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
     const array =
-        WasmCastToSpecialPrimitiveArray(context, arguments[1], SmiConstant(8));
-    const start = NumberToUint32(ToNumber_Inline(arguments[2]));
+        WasmCastToSpecialPrimitiveArray(context, arrayArg, SmiConstant(8));
+    const start = NumberToUint32(ToNumber_Inline(startArg));
     return runtime::WasmStringEncodeWtf8Array(
         context, SmiConstant(kLossyUtf8), string, array,
         ChangeUint32ToTagged(start));
@@ -66,9 +69,9 @@ transitioning javascript builtin WebAssemblyStringIntoUtf8Array(
 }
 
 transitioning javascript builtin WebAssemblyStringToUtf8Array(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
     return runtime::WasmStringToUtf8Array(context, string);
   } label IllegalCast deferred {
     Trap(context, MessageTemplate::kWasmTrapIllegalCast);
@@ -76,12 +79,13 @@ transitioning javascript builtin WebAssemblyStringToUtf8Array(
 }
 
 transitioning javascript builtin WebAssemblyStringToWtf16Array(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny, arrayArg: JSAny,
+    startArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
     const array =
-        WasmCastToSpecialPrimitiveArray(context, arguments[1], SmiConstant(16));
-    const start = NumberToUint32(ToNumber_Inline(arguments[2]));
+        WasmCastToSpecialPrimitiveArray(context, arrayArg, SmiConstant(16));
+    const start = NumberToUint32(ToNumber_Inline(startArg));
     const written = wasm::WasmStringEncodeWtf16Array(string, array, start);
     return Convert<Smi>(written);
   } label IllegalCast deferred {
@@ -90,14 +94,14 @@ transitioning javascript builtin WebAssemblyStringToWtf16Array(
 }
 
 transitioning javascript builtin WebAssemblyStringFromCharCode(
-    js-implicit context: Context)(...arguments): JSAny {
-  const code = NumberToUint32(ToNumber_Inline(arguments[0]));
+    js-implicit context: Context)(codeArg: JSAny): JSAny {
+  const code = NumberToUint32(ToNumber_Inline(codeArg));
   return StringFromSingleCharCode(%RawDownCast<char16>(code & 0xFFFF));
 }
 
 transitioning javascript builtin WebAssemblyStringFromCodePoint(
-    js-implicit context: Context)(...arguments): JSAny {
-  const code = ToNumber_Inline(arguments[0]);
+    js-implicit context: Context)(codeArg: JSAny): JSAny {
+  const code = ToNumber_Inline(codeArg);
   const codeUint = NumberToUint32(code);
   if (codeUint <= 0xFFFF) {
     return StringFromSingleCharCode(%RawDownCast<char16>(codeUint));
@@ -106,10 +110,10 @@ transitioning javascript builtin WebAssemblyStringFromCodePoint(
 }
 
 transitioning javascript builtin WebAssemblyStringCodePointAt(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny, indexArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
-    const index = NumberToUint32(ToNumber_Inline(arguments[1]));
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
+    const index = NumberToUint32(ToNumber_Inline(indexArg));
     if (index >= Unsigned(string.length)) goto OOB;
     const code: int32 = string::LoadSurrogatePairAt(
         string, string.length_intptr, Signed(Convert<uintptr>(index)),
@@ -123,10 +127,10 @@ transitioning javascript builtin WebAssemblyStringCodePointAt(
 }
 
 transitioning javascript builtin WebAssemblyStringCharCodeAt(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny, indexArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
-    const index = NumberToUint32(ToNumber_Inline(arguments[1]));
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
+    const index = NumberToUint32(ToNumber_Inline(indexArg));
     if (index >= Unsigned(string.length)) goto OOB;
     const code: char16 = StringCharCodeAt(string, Convert<uintptr>(index));
     return SmiTag(code);
@@ -138,9 +142,9 @@ transitioning javascript builtin WebAssemblyStringCharCodeAt(
 }
 
 transitioning javascript builtin WebAssemblyStringLength(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
     return string.length_smi;
   } label IllegalCast deferred {
     Trap(context, MessageTemplate::kWasmTrapIllegalCast);
@@ -148,9 +152,9 @@ transitioning javascript builtin WebAssemblyStringLength(
 }
 
 transitioning javascript builtin WebAssemblyStringMeasureUtf8(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
     // WTF-8 length equals Lossy-UTF-8 length.
     return runtime::WasmStringMeasureWtf8(context, string);
   } label IllegalCast deferred {
@@ -159,10 +163,10 @@ transitioning javascript builtin WebAssemblyStringMeasureUtf8(
 }
 
 transitioning javascript builtin WebAssemblyStringConcat(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(firstArg: JSAny, secondArg: JSAny): JSAny {
   try {
-    const first = Cast<String>(arguments[0]) otherwise goto IllegalCast;
-    const second = Cast<String>(arguments[1]) otherwise goto IllegalCast;
+    const first = Cast<String>(firstArg) otherwise goto IllegalCast;
+    const second = Cast<String>(secondArg) otherwise goto IllegalCast;
     return StringAdd_CheckNone(first, second);
   } label IllegalCast deferred {
     Trap(context, MessageTemplate::kWasmTrapIllegalCast);
@@ -170,11 +174,12 @@ transitioning javascript builtin WebAssemblyStringConcat(
 }
 
 transitioning javascript builtin WebAssemblyStringSubstring(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(stringArg: JSAny, startArg: JSAny,
+    endArg: JSAny): JSAny {
   try {
-    const string = Cast<String>(arguments[0]) otherwise goto IllegalCast;
-    const start = NumberToUint32(ToNumber_Inline(arguments[1]));
-    const end = NumberToUint32(ToNumber_Inline(arguments[2]));
+    const string = Cast<String>(stringArg) otherwise goto IllegalCast;
+    const start = NumberToUint32(ToNumber_Inline(startArg));
+    const end = NumberToUint32(ToNumber_Inline(endArg));
     return wasm::WasmStringViewWtf16Slice(string, start, end);
   } label IllegalCast deferred {
     Trap(context, MessageTemplate::kWasmTrapIllegalCast);
@@ -182,10 +187,8 @@ transitioning javascript builtin WebAssemblyStringSubstring(
 }
 
 transitioning javascript builtin WebAssemblyStringEquals(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(a: JSAny, b: JSAny): JSAny {
   try {
-    const a = arguments[0];
-    const b = arguments[1];
     if (a == Null) {
       typeswitch (b) {
         case (Null): {
@@ -215,10 +218,10 @@ transitioning javascript builtin WebAssemblyStringEquals(
 }
 
 transitioning javascript builtin WebAssemblyStringCompare(
-    js-implicit context: Context)(...arguments): JSAny {
+    js-implicit context: Context)(firstArg: JSAny, secondArg: JSAny): JSAny {
   try {
-    const first = Cast<String>(arguments[0]) otherwise goto IllegalCast;
-    const second = Cast<String>(arguments[1]) otherwise goto IllegalCast;
+    const first = Cast<String>(firstArg) otherwise goto IllegalCast;
+    const second = Cast<String>(secondArg) otherwise goto IllegalCast;
     return StringCompare(first, second);
   } label IllegalCast deferred {
     Trap(context, MessageTemplate::kWasmTrapIllegalCast);

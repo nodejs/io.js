@@ -37,8 +37,6 @@ class WasmBuiltinsAssembler : public CodeStubAssembler {
       TNode<WasmTrustedInstanceData>);
 
   TNode<Float64T> StringToFloat64(TNode<String>);
-
-  TNode<Smi> SignatureCheckFail(TNode<WasmInternalFunction>, TNode<UintPtrT>);
 };
 
 }  // namespace internal

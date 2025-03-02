@@ -77,7 +77,7 @@ class Recorder : public std::enable_shared_from_this<Recorder> {
   V8_EXPORT_PRIVATE void Delay(
       std::unique_ptr<Recorder::DelayedEventBase>&& event);
 
-  base::Mutex lock_;
+  base::SpinningMutex lock_;
   std::shared_ptr<v8::TaskRunner> foreground_task_runner_;
   std::shared_ptr<v8::metrics::Recorder> embedder_recorder_;
   std::queue<std::unique_ptr<DelayedEventBase>> delayed_events_;

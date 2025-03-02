@@ -5,6 +5,9 @@
 */
 
 /* Code */
+#ifndef _CRT_SECURE_NO_WARNINGS
+#  define _CRT_SECURE_NO_WARNINGS
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -140,28 +143,28 @@ extern int ZEXPORT unzRepair(const char* file, const char* fileOut, const char* 
 
         /* Central directory entry */
         {
-          char header[46];
+          char central[46];
           char* comment = "";
           int comsize = (int) strlen(comment);
-          WRITE_32(header, 0x02014b50);
-          WRITE_16(header + 4, version);
-          WRITE_16(header + 6, version);
-          WRITE_16(header + 8, gpflag);
-          WRITE_16(header + 10, method);
-          WRITE_16(header + 12, filetime);
-          WRITE_16(header + 14, filedate);
-          WRITE_32(header + 16, crc);
-          WRITE_32(header + 20, cpsize);
-          WRITE_32(header + 24, uncpsize);
-          WRITE_16(header + 28, fnsize);
-          WRITE_16(header + 30, extsize);
-          WRITE_16(header + 32, comsize);
-          WRITE_16(header + 34, 0);     /* disk # */
-          WRITE_16(header + 36, 0);     /* int attrb */
-          WRITE_32(header + 38, 0);     /* ext attrb */
-          WRITE_32(header + 42, currentOffset);
+          WRITE_32(central, 0x02014b50);
+          WRITE_16(central + 4, version);
+          WRITE_16(central + 6, version);
+          WRITE_16(central + 8, gpflag);
+          WRITE_16(central + 10, method);
+          WRITE_16(central + 12, filetime);
+          WRITE_16(central + 14, filedate);
+          WRITE_32(central + 16, crc);
+          WRITE_32(central + 20, cpsize);
+          WRITE_32(central + 24, uncpsize);
+          WRITE_16(central + 28, fnsize);
+          WRITE_16(central + 30, extsize);
+          WRITE_16(central + 32, comsize);
+          WRITE_16(central + 34, 0);    /* disk # */
+          WRITE_16(central + 36, 0);    /* int attrb */
+          WRITE_32(central + 38, 0);    /* ext attrb */
+          WRITE_32(central + 42, currentOffset);
           /* Header */
-          if (fwrite(header, 1, 46, fpOutCD) == 46) {
+          if (fwrite(central, 1, 46, fpOutCD) == 46) {
             offsetCD += 46;
 
             /* Filename */
@@ -215,23 +218,23 @@ extern int ZEXPORT unzRepair(const char* file, const char* fileOut, const char* 
     /* Final central directory  */
     {
       int entriesZip = entries;
-      char header[22];
+      char end[22];
       char* comment = ""; // "ZIP File recovered by zlib/minizip/mztools";
       int comsize = (int) strlen(comment);
       if (entriesZip > 0xffff) {
         entriesZip = 0xffff;
       }
-      WRITE_32(header, 0x06054b50);
-      WRITE_16(header + 4, 0);    /* disk # */
-      WRITE_16(header + 6, 0);    /* disk # */
-      WRITE_16(header + 8, entriesZip);   /* hack */
-      WRITE_16(header + 10, entriesZip);  /* hack */
-      WRITE_32(header + 12, offsetCD);    /* size of CD */
-      WRITE_32(header + 16, offset);      /* offset to CD */
-      WRITE_16(header + 20, comsize);     /* comment */
+      WRITE_32(end, 0x06054b50);
+      WRITE_16(end + 4, 0);         /* disk # */
+      WRITE_16(end + 6, 0);         /* disk # */
+      WRITE_16(end + 8, entriesZip);        /* hack */
+      WRITE_16(end + 10, entriesZip);       /* hack */
+      WRITE_32(end + 12, offsetCD);         /* size of CD */
+      WRITE_32(end + 16, offset);           /* offset to CD */
+      WRITE_16(end + 20, comsize);          /* comment */
 
       /* Header */
-      if (fwrite(header, 1, 22, fpOutCD) == 22) {
+      if (fwrite(end, 1, 22, fpOutCD) == 22) {
 
         /* Comment field */
         if (comsize > 0) {

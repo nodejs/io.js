@@ -58,7 +58,8 @@ class FutexWaitListNode {
 
   // Create an async FutexWaitListNode.
   FutexWaitListNode(std::weak_ptr<BackingStore> backing_store,
-                    void* wait_location, Handle<JSObject> promise_capability,
+                    void* wait_location,
+                    DirectHandle<JSObject> promise_capability,
                     Isolate* isolate);
 
   // Disallow copying nodes.

@@ -19,9 +19,7 @@ class BasePageHandle {
  public:
   static V8_INLINE BasePageHandle* FromPayload(void* payload) {
     return reinterpret_cast<BasePageHandle*>(
-        (reinterpret_cast<uintptr_t>(payload) &
-         ~(api_constants::kPageSize - 1)) +
-        api_constants::kGuardPageSize);
+        reinterpret_cast<uintptr_t>(payload) & ~(api_constants::kPageSize - 1));
   }
   static V8_INLINE const BasePageHandle* FromPayload(const void* payload) {
     return FromPayload(const_cast<void*>(payload));
@@ -33,7 +31,7 @@ class BasePageHandle {
  protected:
   explicit BasePageHandle(HeapHandle& heap_handle) : heap_handle_(heap_handle) {
     CPPGC_DCHECK(reinterpret_cast<uintptr_t>(this) % api_constants::kPageSize ==
-                 api_constants::kGuardPageSize);
+                 0);
   }
 
   HeapHandle& heap_handle_;

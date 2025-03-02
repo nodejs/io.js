@@ -16,8 +16,6 @@
 #include "src/common/globals.h"
 #include "src/common/segmented-table.h"
 
-#ifdef V8_COMPRESS_POINTERS
-
 namespace v8 {
 namespace internal {
 
@@ -111,6 +109,12 @@ class V8_EXPORT_PRIVATE ExternalEntityTable
     bool BelongsTo(const void* table) const { return owning_table_ == table; }
 #endif  // DEBUG
 
+    // Similar to `num_segments()` but also locks the mutex.
+    uint32_t NumSegmentsForTesting() {
+      base::SpinningMutexGuard guard(&mutex_);
+      return num_segments();
+    }
+
    protected:
     friend class ExternalEntityTable<Entry, size>;
 
@@ -139,7 +143,7 @@ class V8_EXPORT_PRIVATE ExternalEntityTable
     bool is_internal_read_only_space_ = false;
 
     // Mutex guarding access to the segments_ set.
-    base::Mutex mutex_;
+    base::SpinningMutex mutex_;
   };
 
   // A Space that supports black allocations.
@@ -198,6 +202,10 @@ class V8_EXPORT_PRIVATE ExternalEntityTable
   //
   // Returns the number of live entries after sweeping.
   uint32_t GenericSweep(Space* space);
+
+  // Variant of the above that invokes a callback for every live entry.
+  template <typename Callback>
+  uint32_t GenericSweep(Space* space, Callback marked);
 
   // Iterate over all entries in the given space.
   //
@@ -274,7 +282,5 @@ class V8_EXPORT_PRIVATE ExternalEntityTable
 
 }  // namespace internal
 }  // namespace v8
-
-#endif  // V8_COMPRESS_POINTERS
 
 #endif  // V8_SANDBOX_EXTERNAL_ENTITY_TABLE_H_

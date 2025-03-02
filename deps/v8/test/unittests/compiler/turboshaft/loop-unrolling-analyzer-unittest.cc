@@ -189,6 +189,7 @@ struct BoundedLoop {
   int increment;
   uint32_t expected_iter_count;
   const char* name;
+  uint32_t expected_unroll_count = 0;
 };
 std::ostream& operator<<(std::ostream& os, const BoundedLoop& loop) {
   return os << loop.name;
@@ -415,6 +416,75 @@ TEST_P(LoopUnrollingAnalyzerOverflowTest, LargeLoopIterCount) {
 INSTANTIATE_TEST_SUITE_P(LoopUnrollingAnalyzerTest,
                          LoopUnrollingAnalyzerOverflowTest,
                          ::testing::ValuesIn(kUnderOverflowBoundedLoops));
+
+#ifdef V8_ENABLE_WEBASSEMBLY
+struct BoundedPartialLoop {
+  int init;
+  Cmp cmp;
+  Binop binop;
+  int max;
+  uint32_t loop_body_size;
+  uint32_t expected_unroll_count;
+  const char* name;
+};
+std::ostream& operator<<(std::ostream& os, const BoundedPartialLoop& loop) {
+  return os << loop.name;
+}
+
+static const BoundedPartialLoop kPartiallyUnrolledLoops[] = {
+    {0, Cmp::kInt32LessThan, Binop::kWord32Add, 80, 8, 4,
+     "for (int32_t i = 0;  i < 80;  i += 8)"},
+    {0, Cmp::kInt32LessThan, Binop::kWord32Add, 160, 16, 4,
+     "for (int32_t i = 0;  i < 160;  i += 16)"},
+    {0, Cmp::kInt32LessThan, Binop::kWord32Add, 240, 24, 4,
+     "for (int32_t i = 0;  i < 240;  i += 24)"},
+    {0, Cmp::kInt32LessThan, Binop::kWord32Add, 320, 32, 3,
+     "for (int32_t i = 0;  i < 320;  i += 32)"},
+    {0, Cmp::kInt32LessThan, Binop::kWord32Add, 400, 40, 0,
+     "for (int32_t i = 0;  i < 400;  i += 40)"},
+};
+
+using LoopUnrollingAnalyzerPartialUnrollTest =
+    LoopUnrollingAnalyzerTestWithParam<BoundedPartialLoop>;
+
+// Checking that the LoopUnrollingAnalyzer determines the partial unroll count
+// base upon the size of the loop.
+TEST_P(LoopUnrollingAnalyzerPartialUnrollTest, PartialUnrollCount) {
+  BoundedPartialLoop params = GetParam();
+  auto test = CreateFromGraph(1, [&params](auto& Asm) {
+    using AssemblerT = std::remove_reference<decltype(Asm)>::type::Assembler;
+    OpIndex cond = Asm.GetParameter(0);
+
+    ScopedVar<Word32, AssemblerT> index(&Asm, params.init);
+
+    WHILE(EmitCmp(Asm, params.cmp, index, params.max)) {
+      __ WasmStackCheck(WasmStackCheckOp::Kind::kLoop);
+
+      // Advance the {index} a number of times.
+      for (uint32_t i = 0; i < params.loop_body_size; ++i) {
+        index = EmitBinop(Asm, params.binop, index, 1);
+      }
+    }
+
+    __ Return(index);
+  });
+
+  constexpr bool is_wasm = true;
+  LoopUnrollingAnalyzer analyzer(test.zone(), &test.graph(), is_wasm);
+
+  const Block& loop = GetFirstLoop(test.graph());
+  EXPECT_EQ(analyzer.ShouldPartiallyUnrollLoop(&loop),
+            params.expected_unroll_count != 0);
+  if (analyzer.ShouldPartiallyUnrollLoop(&loop)) {
+    EXPECT_EQ(params.expected_unroll_count,
+              analyzer.GetPartialUnrollCount(&loop));
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(LoopUnrollingAnalyzerTest,
+                         LoopUnrollingAnalyzerPartialUnrollTest,
+                         ::testing::ValuesIn(kPartiallyUnrolledLoops));
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 #include "src/compiler/turboshaft/undef-assembler-macros.inc"
 

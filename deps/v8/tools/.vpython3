@@ -61,6 +61,11 @@ wheel: <
 >
 
 wheel: <
+  name: "infra/python/wheels/hjson-py2_py3"
+  version: "version:3.1.0"
+>
+
+wheel: <
   name: "infra/python/wheels/httplib2-py3"
   version: "version:0.19.1"
 >

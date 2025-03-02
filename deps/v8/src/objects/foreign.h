@@ -54,7 +54,8 @@ class Foreign : public TorqueGeneratedForeign<Foreign, HeapObject> {
 
   using BodyDescriptor = StackedBodyDescriptor<
       FixedBodyDescriptorFor<Foreign>,
-      WithExternalPointer<kForeignAddressOffset, kAnyForeignTag>>;
+      WithExternalPointer<kForeignAddressOffset,
+                          kAnyForeignExternalPointerTagRange>>;
 
  private:
   TQ_OBJECT_CONSTRUCTORS(Foreign)

@@ -6,8 +6,8 @@
 
 #include "src/compiler/common-operator.h"
 #include "src/compiler/js-heap-broker.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/compiler/type-cache.h"
-#include "src/compiler/types.h"
 #include "src/objects/oddball.h"
 
 namespace v8 {
@@ -580,6 +580,19 @@ Type OperationTyper::NumberToUint8Clamped(Type type) {
 
   if (type.Is(cache_->kUint8)) return type;
   return cache_->kUint8;
+}
+
+Type OperationTyper::NumberToFloat16RawBits(Type type) {
+  DCHECK(type.Is(Type::Number()));
+
+  if (type.Is(cache_->kUint16)) return type;
+  return cache_->kUint16;
+}
+
+Type OperationTyper::Float16RawBitsToNumber(Type type) {
+  DCHECK(type.Is(Type::Number()));
+  if (type.Is(cache_->kFloat64)) return type;
+  return cache_->kFloat64;
 }
 
 Type OperationTyper::Integral32OrMinusZeroToBigInt(Type type) {
@@ -1331,6 +1344,10 @@ Type OperationTyper::CheckFloat64Hole(Type type) {
 
 Type OperationTyper::CheckNumber(Type type) {
   return Type::Intersect(type, Type::Number(), zone());
+}
+
+Type OperationTyper::CheckNumberFitsInt32(Type type) {
+  return Type::Intersect(type, Type::Signed32(), zone());
 }
 
 Type OperationTyper::TypeTypeGuard(const Operator* sigma_op, Type input) {

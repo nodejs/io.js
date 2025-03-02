@@ -64,8 +64,7 @@ struct WordOperationTyper {
       return type_t::Set(elements, zone);
     }
 
-    auto range =
-        MakeRange(base::Vector<const word_t>{elements.data(), elements.size()});
+    auto range = MakeRange(base::VectorOf(elements));
     auto result = type_t::Range(range.first, range.second, zone);
     DCHECK(
         base::all_of(elements, [&](word_t e) { return result.Contains(e); }));
@@ -739,8 +738,8 @@ struct FloatOperationTyper {
         results[2] = l_max / r_min;
         results[3] = l_max / r_max;
 
-        for (float_t r : results) {
-          if (std::isnan(r)) return type_t::Any();
+        for (float_t res : results) {
+          if (std::isnan(res)) return type_t::Any();
         }
 
         const float_t result_min = array_min(results);

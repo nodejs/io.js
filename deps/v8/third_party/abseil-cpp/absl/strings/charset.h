@@ -46,15 +46,13 @@
 #ifndef ABSL_STRINGS_CHARSET_H_
 #define ABSL_STRINGS_CHARSET_H_
 
-#include <cstddef>
 #include <cstdint>
-#include <cstring>
 
-#include "absl/base/macros.h"
-#include "absl/base/port.h"
+#include "absl/base/config.h"
 #include "absl/strings/string_view.h"
 
 namespace absl {
+ABSL_NAMESPACE_BEGIN
 
 class CharSet {
  public:
@@ -159,6 +157,7 @@ class CharSet {
   uint64_t m_[4];
 };
 
+ABSL_NAMESPACE_END
 }  // namespace absl
 
 #endif  // ABSL_STRINGS_CHARSET_H_

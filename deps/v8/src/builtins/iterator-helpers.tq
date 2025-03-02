@@ -193,6 +193,7 @@ macro NewJSIteratorMapHelper(
 }
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.map
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeMap(
     js-implicit context: NativeContext, receiver: JSAny)(
     mapper: JSAny): JSIteratorMapHelper {
@@ -205,7 +206,7 @@ transitioning javascript builtin IteratorPrototypeMap(
 
   // 3. If IsCallable(mapper) is false, throw a TypeError exception.
   const mapper = Cast<Callable>(mapper)
-      otherwise ThrowCalledNonCallable(methodName);
+      otherwise ThrowCalledNonCallable(mapper);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);
@@ -288,6 +289,7 @@ macro NewJSIteratorFilterHelper(
 }
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.filter
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeFilter(
     js-implicit context: NativeContext, receiver: JSAny)(
     predicate: JSAny): JSIteratorFilterHelper {
@@ -300,7 +302,7 @@ transitioning javascript builtin IteratorPrototypeFilter(
 
   // 3. If IsCallable(predicate) is false, throw a TypeError exception.
   const predicate = Cast<Callable>(predicate)
-      otherwise ThrowCalledNonCallable(methodName);
+      otherwise ThrowCalledNonCallable(predicate);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);
@@ -389,6 +391,7 @@ macro NewJSIteratorTakeHelper(
 }
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.take
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeTake(
     js-implicit context: NativeContext, receiver: JSAny)(
     limit: JSAny): JSIteratorTakeHelper {
@@ -493,6 +496,7 @@ macro NewJSIteratorDropHelper(
 }
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.drop
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeDrop(
     js-implicit context: NativeContext, receiver: JSAny)(
     limit: JSAny): JSIteratorDropHelper {
@@ -601,6 +605,7 @@ macro NewJSIteratorFlatMapHelper(
 }
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.flatmap
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeFlatMap(
     js-implicit context: NativeContext, receiver: JSAny)(
     mapper: JSAny): JSIteratorFlatMapHelper {
@@ -723,6 +728,7 @@ transitioning builtin IteratorFlatMapHelperNext(
 // --- reduce helper
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.reduce
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeReduce(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   const methodName: constexpr string = 'Iterator.prototype.reduce';
@@ -732,9 +738,10 @@ transitioning javascript builtin IteratorPrototypeReduce(
   const o = Cast<JSReceiver>(receiver)
       otherwise ThrowTypeError(MessageTemplate::kCalledOnNonObject, methodName);
 
+  let reducer = arguments[0];
   // 3. If IsCallable(reducer) is false, throw a TypeError exception.
-  const reducer = Cast<Callable>(arguments[0])
-      otherwise ThrowCalledNonCallable(methodName);
+  reducer = Cast<Callable>(reducer)
+      otherwise ThrowCalledNonCallable(reducer);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);
@@ -801,6 +808,7 @@ transitioning javascript builtin IteratorPrototypeReduce(
 // --- toArray helper
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.toarray
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeToArray(
     js-implicit context: NativeContext, receiver: JSAny)(): JSAny {
   const methodName: constexpr string = 'Iterator.prototype.toArray';
@@ -842,6 +850,7 @@ transitioning javascript builtin IteratorPrototypeToArray(
 // --- forEach helper
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.foreach
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeForEach(
     js-implicit context: NativeContext, receiver: JSAny)(fn: JSAny): JSAny {
   const methodName: constexpr string = 'Iterator.prototype.forEach';
@@ -853,7 +862,7 @@ transitioning javascript builtin IteratorPrototypeForEach(
 
   // 3. If IsCallable(fn) is false, throw a TypeError exception.
   const fn = Cast<Callable>(fn)
-      otherwise ThrowCalledNonCallable(methodName);
+      otherwise ThrowCalledNonCallable(fn);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);
@@ -897,6 +906,7 @@ transitioning javascript builtin IteratorPrototypeForEach(
 // --- some helper
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.some
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeSome(
     js-implicit context: NativeContext, receiver: JSAny)(
     predicate: JSAny): JSAny {
@@ -909,7 +919,7 @@ transitioning javascript builtin IteratorPrototypeSome(
 
   // 3. If IsCallable(predicate) is false, throw a TypeError exception.
   const predicate = Cast<Callable>(predicate)
-      otherwise ThrowCalledNonCallable(methodName);
+      otherwise ThrowCalledNonCallable(predicate);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);
@@ -961,6 +971,7 @@ transitioning javascript builtin IteratorPrototypeSome(
 // --- every helper
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.every
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeEvery(
     js-implicit context: NativeContext, receiver: JSAny)(
     predicate: JSAny): JSAny {
@@ -973,7 +984,7 @@ transitioning javascript builtin IteratorPrototypeEvery(
 
   // 3. If IsCallable(predicate) is false, throw a TypeError exception.
   const predicate = Cast<Callable>(predicate)
-      otherwise ThrowCalledNonCallable(methodName);
+      otherwise ThrowCalledNonCallable(predicate);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);
@@ -1025,6 +1036,7 @@ transitioning javascript builtin IteratorPrototypeEvery(
 // --- find helper
 
 // https://tc39.es/proposal-iterator-helpers/#sec-iteratorprototype.find
+@incrementUseCounter('v8::Isolate::kIteratorMethods')
 transitioning javascript builtin IteratorPrototypeFind(
     js-implicit context: NativeContext, receiver: JSAny)(
     predicate: JSAny): JSAny {
@@ -1037,7 +1049,7 @@ transitioning javascript builtin IteratorPrototypeFind(
 
   // 3. If IsCallable(predicate) is false, throw a TypeError exception.
   const predicate = Cast<Callable>(predicate)
-      otherwise ThrowCalledNonCallable(methodName);
+      otherwise ThrowCalledNonCallable(predicate);
 
   // 4. Let iterated be ? GetIteratorDirect(O).
   const iterated = GetIteratorDirect(o);

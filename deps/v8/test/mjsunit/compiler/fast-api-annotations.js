@@ -41,87 +41,106 @@ assertEquals(limits_result, add_all_annotate_enforce_range(limits_params));
 
 // ----------- enforce_range_compare -----------
 // `enforce_range_compare` has the following signature:
-// bool enforce_range_compare(bool /*in_range*/,
-//   double, integer_type)
+// bool enforce_range_compare(double, integer_type)
 // where integer_type = {int32_t, uint32_t, int64_t, uint64_t}
 
 // ----------- i32 -----------
-function compare_i32(in_range, arg) {
-  return fast_c_api.enforce_range_compare_i32(in_range, arg, arg);
+function compare_i32(arg) {
+  return fast_c_api.enforce_range_compare_i32(arg, arg);
 }
 
+fast_c_api.reset_counts();
 %PrepareFunctionForOptimization(compare_i32);
-assertFalse(compare_i32(true, 123));
+assertTrue(compare_i32(123));
 %OptimizeFunctionOnNextCall(compare_i32);
-assertTrue(compare_i32(true, 123));
-assertTrue(compare_i32(true, -0.5));
-assertTrue(compare_i32(true, 0.5));
-assertTrue(compare_i32(true, 1.5));
-assertTrue(compare_i32(true, -(2 ** 31)));
-assertTrue(compare_i32(true, 2 ** 31 - 1));
-assertThrows(() => compare_i32(false, -(2 ** 32)));
-assertThrows(() => compare_i32(false, -(2 ** 32 + 1)));
-assertThrows(() => compare_i32(false, 2 ** 32));
-assertThrows(() => compare_i32(false, 2 ** 32 + 3.15));
-assertThrows(() => compare_i32(false, Number.MIN_SAFE_INTEGER));
-assertThrows(() => compare_i32(false, Number.MAX_SAFE_INTEGER));
+assertTrue(compare_i32(123));
+assertTrue(compare_i32(-0.5));
+assertTrue(compare_i32(0.5));
+assertTrue(compare_i32(1.5));
+assertTrue(compare_i32(-(2 ** 31)));
+assertTrue(compare_i32(2 ** 31 - 1));
+assertThrows(() => compare_i32(-(2 ** 32)));
+assertThrows(() => compare_i32(-(2 ** 32 + 1)));
+assertThrows(() => compare_i32(2 ** 32));
+assertThrows(() => compare_i32(2 ** 32 + 3.15));
+assertThrows(() => compare_i32(Number.MIN_SAFE_INTEGER));
+assertThrows(() => compare_i32(Number.MAX_SAFE_INTEGER));
+// The successful calls actually reach the fast call target, the throwing calls
+// fall back to the regular call target.
+assertEquals(6, fast_c_api.fast_call_count());
+assertEquals(7, fast_c_api.slow_call_count());
 
 // ----------- u32 -----------
-function compare_u32(in_range, arg) {
-  return fast_c_api.enforce_range_compare_u32(in_range, arg, arg);
+function compare_u32(arg) {
+  return fast_c_api.enforce_range_compare_u32(arg, arg);
 }
 
+fast_c_api.reset_counts();
 %PrepareFunctionForOptimization(compare_u32);
-assertFalse(compare_u32(true, 123));
+assertTrue(compare_u32(123));
 %OptimizeFunctionOnNextCall(compare_u32);
-assertTrue(compare_u32(true, 123));
-assertTrue(compare_u32(true, 0));
-assertTrue(compare_u32(true, -0.5));
-assertTrue(compare_u32(true, 0.5));
-assertTrue(compare_u32(true, 2 ** 32 - 1));
-assertThrows(() => compare_u32(false, -(2 ** 31)));
-assertThrows(() => compare_u32(false, 2 ** 32));
-assertThrows(() => compare_u32(false, -1));
-assertThrows(() => compare_u32(false, -1.5));
-assertThrows(() => compare_u32(false, Number.MIN_SAFE_INTEGER));
-assertThrows(() => compare_u32(false, Number.MAX_SAFE_INTEGER));
+assertTrue(compare_u32(123));
+assertTrue(compare_u32(0));
+assertTrue(compare_u32(-0.5));
+assertTrue(compare_u32(0.5));
+assertTrue(compare_u32(2 ** 32 - 1));
+assertThrows(() => compare_u32(-(2 ** 31)));
+assertThrows(() => compare_u32(2 ** 32));
+assertThrows(() => compare_u32(-1));
+assertThrows(() => compare_u32(-1.5));
+assertThrows(() => compare_u32(Number.MIN_SAFE_INTEGER));
+assertThrows(() => compare_u32(Number.MAX_SAFE_INTEGER));
+// The successful calls actually reach the fast call target, the throwing calls
+// fall back to the regular call target.
+assertEquals(5, fast_c_api.fast_call_count());
+assertEquals(7, fast_c_api.slow_call_count());
 
 // ----------- i64 -----------
-function compare_i64(in_range, arg) {
-  return fast_c_api.enforce_range_compare_i64(in_range, arg, arg);
+function compare_i64(arg) {
+  return fast_c_api.enforce_range_compare_i64(arg, arg);
 }
 
+fast_c_api.reset_counts();
 %PrepareFunctionForOptimization(compare_i64);
-assertFalse(compare_i64(true, 123));
+assertTrue(compare_i64(123));
 %OptimizeFunctionOnNextCall(compare_i64);
-assertTrue(compare_i64(true, 123));
-assertTrue(compare_i64(true, -0.5));
-assertTrue(compare_i64(true, 0.5));
-assertTrue(compare_i64(true, 1.5));
-assertTrue(compare_i64(true, -(2 ** 63)));
-assertTrue(compare_i64(true, Number.MIN_SAFE_INTEGER));
-assertTrue(compare_i64(true, Number.MAX_SAFE_INTEGER));
-assertThrows(() => compare_i64(false, -(2 ** 64)));
-assertThrows(() => compare_i64(false, -(2 ** 64 + 1)));
-assertThrows(() => compare_i64(false, 2 ** 64));
-assertThrows(() => compare_i64(false, 2 ** 64 + 3.15));
+assertTrue(compare_i64(123));
+assertTrue(compare_i64(-0.5));
+assertTrue(compare_i64(0.5));
+assertTrue(compare_i64(1.5));
+assertTrue(compare_i64(-(2 ** 63)));
+assertTrue(compare_i64(Number.MIN_SAFE_INTEGER));
+assertTrue(compare_i64(Number.MAX_SAFE_INTEGER));
+assertThrows(() => compare_i64(-(2 ** 64)));
+assertThrows(() => compare_i64(-(2 ** 64 + 1)));
+assertThrows(() => compare_i64(2 ** 63));
+assertThrows(() => compare_i64(2 ** 64 + 2 ** 63));
+// The successful calls actually reach the fast call target, the throwing calls
+// fall back to the regular call target.
+assertEquals(7, fast_c_api.fast_call_count());
+assertEquals(5, fast_c_api.slow_call_count());
 
 // ----------- u64 -----------
-function compare_u64(in_range, arg) {
-  return fast_c_api.enforce_range_compare_u64(in_range, arg, arg);
+function compare_u64(arg) {
+  return fast_c_api.enforce_range_compare_u64(arg, arg);
 }
 
+fast_c_api.reset_counts();
 %PrepareFunctionForOptimization(compare_u64);
-assertFalse(compare_u64(true, 123));
+assertTrue(compare_u64(123));
 %OptimizeFunctionOnNextCall(compare_u64);
-assertTrue(compare_u64(true, 123));
-assertTrue(compare_u64(true, 0));
-assertTrue(compare_u64(true, -0.5));
-assertTrue(compare_u64(true, 0.5));
-assertTrue(compare_u64(true, 2 ** 32 - 1));
-assertTrue(compare_u64(true, Number.MAX_SAFE_INTEGER));
-assertThrows(() => compare_u64(false, 2 ** 64));
-assertThrows(() => compare_u64(false, -1));
-assertThrows(() => compare_u64(false, -1.5));
-assertThrows(() => compare_u64(false, Number.MIN_SAFE_INTEGER));
-assertThrows(() => compare_u64(false, 2 ** 64 + 3.15));
+assertTrue(compare_u64(123));
+assertTrue(compare_u64(0));
+assertTrue(compare_u64(-0.5));
+assertTrue(compare_u64(0.5));
+assertTrue(compare_u64(2 ** 32 - 1));
+assertTrue(compare_u64(Number.MAX_SAFE_INTEGER));
+assertThrows(() => compare_u64(2 ** 64));
+assertThrows(() => compare_u64(-1));
+assertThrows(() => compare_u64(-1.5));
+assertThrows(() => compare_u64(Number.MIN_SAFE_INTEGER));
+assertThrows(() => compare_u64(2 ** 64 + 2 ** 63));
+// The successful calls actually reach the fast call target, the throwing calls
+// fall back to the regular call target.
+assertEquals(6, fast_c_api.fast_call_count());
+assertEquals(6, fast_c_api.slow_call_count());

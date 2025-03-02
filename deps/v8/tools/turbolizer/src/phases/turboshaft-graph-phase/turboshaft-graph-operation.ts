@@ -20,6 +20,16 @@ enum Opcode {
   Shift = "Shift",
   Load = "Load",
   Store = "Store",
+  DeoptimizeIf = "DeoptimizeIf",
+  Goto = "Goto",
+  Branch = "Branch",
+  TaggedBitcast = "TaggedBitcast",
+}
+
+enum BranchHint {
+  None = "None",
+  True = "True",
+  False = "False",
 }
 
 enum RegisterRepresentation {
@@ -31,6 +41,15 @@ enum RegisterRepresentation {
   Compressed = "Compressed",
   Simd128 = "Simd128",
   Simd256 = "Simd256",
+}
+
+function escapeHTML(str: string): string {
+  return str
+       .replace(/&/g, "&amp;")
+       .replace(/</g, "&lt;")
+       .replace(/>/g, "&gt;")
+       .replace(/"/g, "&quot;")
+       .replace(/'/g, "&#039;");
 }
 
 function rrString(rep: RegisterRepresentation): string {
@@ -125,7 +144,7 @@ function chooseOption(option: string, otherwise: number | undefined,
   throw new CompactOperationError(
     `Option "${option}" is unexpected. Expecing any of: ${candidates}`);
 }
- 
+
 class CompactOperationError {
   message: string;
 
@@ -175,6 +194,11 @@ abstract class CompactOperationPrinter {
 enum Constant_Kind {
   Word32 = "word32",
   Word64 = "word64",
+  Float32 = "float32",
+  Float64 = "float64",
+  HeapObject = "heap object",
+  CompressedHeapObject = "compressed heap object",
+  External = "external",
 }
 
 class CompactOperationPrinter_Constant extends CompactOperationPrinter {
@@ -189,17 +213,101 @@ class CompactOperationPrinter_Constant extends CompactOperationPrinter {
     let [key, value] = options[0].split(":").map(x => x.trim());
     this.kind = toEnum(Constant_Kind, key);
     this.value = value;
+    // We try to strip the address away if we have something else.
+    let index = this.value.search(/\s|</);
+    if(this.value.startsWith("0x") && index > 0) {
+      this.value = this.value.substring(index);
+    }
   }
 
   public IsFullyInlined(): boolean {
-    return true;
+    switch(this.kind) {
+      case Constant_Kind.Word32:
+      case Constant_Kind.Word64:
+      case Constant_Kind.Float32:
+      case Constant_Kind.Float64:
+        return true;
+      default:
+        return false;
+    }
   }
-  public override Print(n: number, input: InputPrinter): string { return ""; }
+  public override Print(id: number, input: InputPrinter): string {
+    switch(this.kind) {
+      case Constant_Kind.Word32:
+      case Constant_Kind.Word64:
+      case Constant_Kind.Float32:
+      case Constant_Kind.Float64:
+        // Those are fully inlined.
+        return "";
+      case Constant_Kind.HeapObject:
+      case Constant_Kind.CompressedHeapObject:
+      case Constant_Kind.External:
+        return `v${id} = ${escapeHTML(this.value)}`;
+    }
+  }
   public PrintInLine(): string {
     switch(this.kind) {
       case Constant_Kind.Word32: return `${this.value}${this.sub("w32")}`;
       case Constant_Kind.Word64: return `${this.value}${this.sub("w64")}`;
+      case Constant_Kind.Float32: return `${this.value}${this.sub("f32")}`;
+      case Constant_Kind.Float64: return `${this.value}${this.sub("f64")}`;
+      case Constant_Kind.HeapObject:
+      case Constant_Kind.CompressedHeapObject:
+      case Constant_Kind.External:
+        // Not inlined.
+        return "";
     }
+  }
+}
+
+class CompactOperationPrinter_Goto_Branch extends CompactOperationPrinter {
+  opcode: Opcode; // Goto or Branch.
+  true_block: string; // Goto only uses this.
+  false_block: string;
+  hint: BranchHint;
+
+  constructor(operation: TurboshaftGraphOperation, properties: string) {
+    super(operation);
+    this.opcode = toEnum(Opcode, operation.title);
+    if(this.opcode == Opcode.Goto) {
+      const options = this.parseOptions(properties, 2);
+      this.true_block = options[0];
+      // options[1] is back_edge flag and we don't use it here.
+    } else {
+      const options = this.parseOptions(properties, 3);
+      this.true_block = options[0];
+      this.false_block = options[1];
+      this.hint = toEnum(BranchHint, options[2]);
+    }
+  }
+
+  public override Print(id: number, input: InputPrinter): string {
+    if(this.opcode == Opcode.Goto) {
+      return `${id}: Goto ${this.true_block}`;
+    } else {
+      switch(this.hint) {
+        case BranchHint.None:
+          return `${id}: Branch(${input(0)}) ${this.true_block}, ${this.false_block}`;
+        case BranchHint.True:
+          return `${id}: Branch(${input(0)}) [${this.true_block}], ${this.false_block}`;
+        case BranchHint.False:
+          return `${id}: Branch(${input(0)}) ${this.true_block}, [${this.false_block}]`;
+      }
+    }
+  }
+}
+
+class CompactOperationPrinter_DeoptimizeIf extends CompactOperationPrinter {
+  negated: boolean;
+
+  constructor(operation: TurboshaftGraphOperation, properties: string) {
+    super(operation);
+    const options = this.parseOptions(properties);
+    this.negated = options[0] == "negated";
+  }
+
+  public override Print(id: number, input: InputPrinter): string {
+    return `${id}: DeoptimizeIf(${this.negated ? "!" : ""}${input(0)}, ${input(1)})`;
   }
 }
 
@@ -262,11 +370,9 @@ class CompactOperationPrinter_Shift extends CompactOperationPrinter {
         subscript += "w64";
         break;
     }
- 
+
     return `v${id} = ${input(0)} ${symbol}${this.sub(subscript)} ${input(1)}`;
   }
-
-  public override PrintInLine(): string { return ""; }
 }
 
 enum WordBinop_Kind {
@@ -509,6 +615,39 @@ class CompactOperationPrinter_Store extends CompactOperationPrinter {
   }
 }
 
+enum TaggedBitcastKind {
+  Smi = "Smi",
+  HeapObject = "HeapObject",
+  TagAndSmiBits = "TagAndSmiBits",
+  Any = "Any"
+}
+
+class CompactOperationPrinter_TaggedBitcast extends CompactOperationPrinter {
+  from: RegisterRepresentation;
+  to: RegisterRepresentation;
+  kind: TaggedBitcastKind;
+
+  constructor(operation: TurboshaftGraphOperation, properties: string) {
+    super(operation);
+
+    const options = this.parseOptions(properties);
+    this.from = toEnum(RegisterRepresentation, options[0]);
+    this.to = toEnum(RegisterRepresentation, options[1]);
+    this.kind = toEnum(TaggedBitcastKind, options[2]);
+  }
+
+  public override Print(id: number, input: InputPrinter): string {
+    let kind;
+    switch(this.kind) {
+      case TaggedBitcastKind.Smi: kind = "smi"; break;
+      case TaggedBitcastKind.HeapObject: kind = "ho"; break;
+      case TaggedBitcastKind.TagAndSmiBits: kind = "t+bits"; break;
+      case TaggedBitcastKind.Any: kind = "any"; break;
+    }
+    return `v${id} = bitcast&lt;${kind}${this.sub(rrString(this.to))}&gt;(${input(0)}${this.sub(rrString(this.from))})`
+  }
+}
+
 export class TurboshaftGraphOperation extends Node<TurboshaftGraphEdge<TurboshaftGraphOperation>> {
   title: string;
   block: TurboshaftGraphBlock;
@@ -633,6 +772,13 @@ export class TurboshaftGraphOperation extends Node<TurboshaftGraphEdge<Turboshaf
           return new CompactOperationPrinter_Load(this, properties);
         case Opcode.Store:
           return new CompactOperationPrinter_Store(this, properties);
+        case Opcode.DeoptimizeIf:
+          return new CompactOperationPrinter_DeoptimizeIf(this, properties);
+        case Opcode.Goto:
+        case Opcode.Branch:
+          return new CompactOperationPrinter_Goto_Branch(this, properties);
+        case Opcode.TaggedBitcast:
+          return new CompactOperationPrinter_TaggedBitcast(this, properties);
         default:
           return null;
       }

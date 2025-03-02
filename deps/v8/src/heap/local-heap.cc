@@ -28,11 +28,14 @@
 namespace v8 {
 namespace internal {
 
-namespace {
-thread_local LocalHeap* current_local_heap = nullptr;
-}  // namespace
+thread_local LocalHeap* g_current_local_heap_ V8_CONSTINIT = nullptr;
 
-LocalHeap* LocalHeap::Current() { return current_local_heap; }
+V8_TLS_DEFINE_GETTER(LocalHeap::Current, LocalHeap*, g_current_local_heap_)
+
+// static
+void LocalHeap::SetCurrent(LocalHeap* local_heap) {
+  g_current_local_heap_ = local_heap;
+}
 
 #ifdef DEBUG
 void LocalHeap::VerifyCurrent() const {
@@ -51,6 +54,9 @@ LocalHeap::LocalHeap(Heap* heap, ThreadKind kind,
       ptr_compr_cage_access_scope_(heap->isolate()),
       is_main_thread_(kind == ThreadKind::kMain),
       state_(ThreadState::Parked()),
+#if V8_OS_DARWIN
+      thread_handle_(pthread_self()),
+#endif
       allocation_failed_(false),
       nested_parked_scopes_(0),
       prev_(nullptr),
@@ -58,7 +64,10 @@ LocalHeap::LocalHeap(Heap* heap, ThreadKind kind,
       handles_(new LocalHandles),
       persistent_handles_(std::move(persistent_handles)),
       heap_allocator_(this) {
-  DCHECK_IMPLIES(!is_main_thread(), heap_->deserialization_complete());
+  DCHECK_IMPLIES(!is_main_thread(),
+                 (v8_flags.concurrent_builtin_generation &&
+                  heap->isolate()->IsGeneratingEmbeddedBuiltins()) ||
+                     heap_->deserialization_complete());
   if (!is_main_thread()) {
     heap_allocator_.Setup();
     SetUpMarkingBarrier();
@@ -81,8 +90,12 @@ LocalHeap::LocalHeap(Heap* heap, ThreadKind kind,
   if (persistent_handles_) {
     persistent_handles_->Attach(this);
   }
-  DCHECK_NULL(current_local_heap);
-  if (!is_main_thread()) current_local_heap = this;
+  DCHECK_NULL(LocalHeap::Current());
+  if (!is_main_thread()) {
+    saved_current_isolate_ = Isolate::TryGetCurrent();
+    Isolate::SetCurrent(heap_->isolate());
+    LocalHeap::SetCurrent(this);
+  }
 }
 
 LocalHeap::~LocalHeap() {
@@ -103,8 +116,10 @@ LocalHeap::~LocalHeap() {
   });
 
   if (!is_main_thread()) {
-    DCHECK_EQ(current_local_heap, this);
-    current_local_heap = nullptr;
+    DCHECK_EQ(Isolate::Current(), heap_->isolate());
+    Isolate::SetCurrent(saved_current_isolate_);
+    DCHECK_EQ(LocalHeap::Current(), this);
+    LocalHeap::SetCurrent(nullptr);
   }
 
   DCHECK(gc_epilogue_callbacks_.IsEmpty());
@@ -372,10 +387,10 @@ void LocalHeap::SleepInSafepoint() {
 
 #ifdef DEBUG
 bool LocalHeap::IsSafeForConservativeStackScanning() const {
-#ifdef V8_ENABLE_DIRECT_HANDLE
+#if defined(V8_ENABLE_DIRECT_HANDLE) && defined(ENABLE_SLOW_DCHECKS)
   // There must be no direct handles on the stack below the stack marker.
   if (DirectHandleBase::NumberOfHandles() > 0) return false;
-#endif
+#endif  // V8_ENABLE_DIRECT_HANDLE && ENABLE_SLOW_DCHECKS
   // Check if we are inside at least one ParkedScope.
   if (nested_parked_scopes_ > 0) {
     // The main thread can avoid the trampoline, if it's not the main thread of
@@ -423,6 +438,17 @@ void LocalHeap::MarkSharedLinearAllocationAreasBlack() {
 void LocalHeap::UnmarkSharedLinearAllocationsArea() {
   if (heap_allocator_.shared_space_allocator()) {
     heap_allocator_.shared_space_allocator()->UnmarkLinearAllocationArea();
+  }
+}
+
+void LocalHeap::FreeLinearAllocationAreasAndResetFreeLists() {
+  heap_allocator_.FreeLinearAllocationAreasAndResetFreeLists();
+}
+
+void LocalHeap::FreeSharedLinearAllocationAreasAndResetFreeLists() {
+  if (heap_allocator_.shared_space_allocator()) {
+    heap_allocator_.shared_space_allocator()
+        ->FreeLinearAllocationAreaAndResetFreeList();
   }
 }
 

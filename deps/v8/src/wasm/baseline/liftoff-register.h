@@ -55,7 +55,7 @@ static inline constexpr bool needs_fp_reg_pair(ValueKind kind) {
 
 static inline constexpr RegClass reg_class_for(ValueKind kind) {
   // Statically generate an array that we use for lookup at runtime.
-  constexpr size_t kNumValueKinds = static_cast<size_t>(kBottom);
+  constexpr size_t kNumValueKinds = static_cast<size_t>(kTop);
   constexpr auto kRegClasses =
       base::make_array<kNumValueKinds>([](std::size_t kind) {
         switch (kind) {
@@ -372,12 +372,13 @@ class LiftoffRegList {
 
   // Allow to construct LiftoffRegList from a number of
   // {Register|DoubleRegister|LiftoffRegister}.
-  template <
-      typename... Regs,
-      typename = std::enable_if_t<std::conjunction_v<std::disjunction<
-          std::is_same<Register, Regs>, std::is_same<DoubleRegister, Regs>,
-          std::is_same<LiftoffRegister, Regs>>...>>>
-  constexpr explicit LiftoffRegList(Regs... regs) {
+  template <typename... Regs>
+  constexpr explicit LiftoffRegList(Regs... regs)
+    requires(
+        std::conjunction_v<std::disjunction<
+            std::is_same<Register, Regs>, std::is_same<DoubleRegister, Regs>,
+            std::is_same<LiftoffRegister, Regs>>...>)
+  {
     (..., set(regs));
   }
 

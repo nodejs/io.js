@@ -102,7 +102,7 @@ TEST_F(DictionaryTemplateTest,
 }
 
 TEST_F(DictionaryTemplateTest, PrototypeContext) {
-  HandleScope scope(isolate());
+  HandleScope handle_scope(isolate());
 
   constexpr std::string_view property_names[] = {"a", "b"};
   Local<DictionaryTemplate> tpl =

@@ -208,7 +208,7 @@ void BaselineAssembler::Move(Register output, ExternalReference reference) {
   __ li(output, Operand(reference));
 }
 void BaselineAssembler::Move(Register output, Handle<HeapObject> value) {
-  __ li(output, Operand(value));
+  __ li(output, value);
 }
 void BaselineAssembler::Move(Register output, int32_t value) {
   __ li(output, Operand(value));
@@ -438,7 +438,8 @@ void BaselineAssembler::AddToInterruptBudgetAndJumpIfNotExceeded(
 }
 
 void BaselineAssembler::LdaContextSlot(Register context, uint32_t index,
-                                       uint32_t depth) {
+                                       uint32_t depth,
+                                       CompressionMode compression_mode) {
   for (; depth > 0; --depth) {
     LoadTaggedField(context, context, Context::kPreviousOffset);
   }

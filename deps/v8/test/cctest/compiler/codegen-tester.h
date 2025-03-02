@@ -135,8 +135,8 @@ class BufferedRawMachineAssemblerTester
       // Since we are returning values via storing to off-heap location
       // generate full-word store here.
       Store(MachineType::PointerRepresentation(),
-            RawMachineAssembler::Parameter(return_parameter_index_),
-            BitcastTaggedToWord(input), kNoWriteBarrier);
+            RawMachineAssembler::Parameter(return_parameter_index_), input,
+            kNoWriteBarrier);
 
     } else {
       Store(MachineTypeForC<ReturnType>().representation(),

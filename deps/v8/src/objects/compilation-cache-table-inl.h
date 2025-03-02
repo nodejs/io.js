@@ -19,11 +19,6 @@
 
 namespace v8::internal {
 
-CompilationCacheTable::CompilationCacheTable(Address ptr)
-    : HashTable<CompilationCacheTable, CompilationCacheShape>(ptr) {
-  SLOW_DCHECK(IsCompilationCacheTable(*this));
-}
-
 NEVER_READ_ONLY_SPACE_IMPL(CompilationCacheTable)
 
 Tagged<Object> CompilationCacheTable::PrimaryValueAt(InternalIndex entry) {
@@ -75,8 +70,8 @@ class ScriptCacheKey : public HashTableKey {
   bool IsMatch(Tagged<Object> other) override;
   bool MatchesScript(Tagged<Script> script);
 
-  Handle<Object> AsHandle(Isolate* isolate,
-                          DirectHandle<SharedFunctionInfo> shared);
+  DirectHandle<Object> AsHandle(Isolate* isolate,
+                                DirectHandle<SharedFunctionInfo> shared);
 
   static std::optional<Tagged<String>> SourceFromObject(Tagged<Object> obj) {
     DisallowGarbageCollection no_gc;

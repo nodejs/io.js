@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --no-liftoff --turboshaft-wasm --no-turboshaft-wasm-load-elimination
+// Flags: --no-liftoff --no-turboshaft-wasm-load-elimination
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 

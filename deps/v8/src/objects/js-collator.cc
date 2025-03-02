@@ -43,7 +43,8 @@ enum class Sensitivity {
 // enum for "caseFirst" option.
 enum class CaseFirst { kUndefined, kUpper, kLower, kFalse };
 
-Maybe<CaseFirst> GetCaseFirst(Isolate* isolate, Handle<JSReceiver> options,
+Maybe<CaseFirst> GetCaseFirst(Isolate* isolate,
+                              DirectHandle<JSReceiver> options,
                               const char* method_name) {
   return GetStringOption<CaseFirst>(
       isolate, options, "caseFirst", method_name, {"upper", "lower", "false"},
@@ -52,10 +53,11 @@ Maybe<CaseFirst> GetCaseFirst(Isolate* isolate, Handle<JSReceiver> options,
 }
 
 // TODO(gsathya): Consider internalizing the value strings.
-void CreateDataPropertyForOptions(Isolate* isolate, Handle<JSObject> options,
-                                  Handle<String> key, const char* value) {
+void CreateDataPropertyForOptions(Isolate* isolate,
+                                  DirectHandle<JSObject> options,
+                                  DirectHandle<String> key, const char* value) {
   DCHECK_NOT_NULL(value);
-  Handle<String> value_str =
+  DirectHandle<String> value_str =
       isolate->factory()->NewStringFromAsciiChecked(value);
 
   // This is a brand new JSObject that shouldn't already have the same
@@ -66,9 +68,10 @@ void CreateDataPropertyForOptions(Isolate* isolate, Handle<JSObject> options,
   USE(maybe);
 }
 
-void CreateDataPropertyForOptions(Isolate* isolate, Handle<JSObject> options,
-                                  Handle<String> key, bool value) {
-  Handle<Object> value_obj = isolate->factory()->ToBoolean(value);
+void CreateDataPropertyForOptions(Isolate* isolate,
+                                  DirectHandle<JSObject> options,
+                                  DirectHandle<String> key, bool value) {
+  DirectHandle<Object> value_obj = isolate->factory()->ToBoolean(value);
 
   // This is a brand new JSObject that shouldn't already have the same
   // key so this shouldn't fail.
@@ -81,9 +84,9 @@ void CreateDataPropertyForOptions(Isolate* isolate, Handle<JSObject> options,
 }  // anonymous namespace
 
 // static
-Handle<JSObject> JSCollator::ResolvedOptions(
+DirectHandle<JSObject> JSCollator::ResolvedOptions(
     Isolate* isolate, DirectHandle<JSCollator> collator) {
-  Handle<JSObject> options =
+  DirectHandle<JSObject> options =
       isolate->factory()->NewJSObject(isolate->object_function());
 
   icu::Collator* icu_collator = collator->icu_collator()->raw();
@@ -205,7 +208,7 @@ Handle<JSObject> JSCollator::ResolvedOptions(
   if (collator->locale()->length() != 0) {
     // Get the locale from collator->locale() since we know in some cases
     // collator won't be able to return the requested one, such as zh_CN.
-    Handle<String> locale_from_collator(collator->locale(), isolate);
+    DirectHandle<String> locale_from_collator(collator->locale(), isolate);
     Maybe<bool> maybe = JSReceiver::CreateDataProperty(
         isolate, options, isolate->factory()->locale_string(),
         locale_from_collator, Just(kDontThrow));
@@ -275,8 +278,8 @@ void SetCaseFirstOption(icu::Collator* icu_collator, CaseFirst case_first) {
 
 // static
 MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, DirectHandle<Map> map,
-                                        Handle<Object> locales,
-                                        Handle<Object> options_obj,
+                                        DirectHandle<Object> locales,
+                                        DirectHandle<Object> options_obj,
                                         const char* service) {
   // 1. Let requestedLocales be ? CanonicalizeLocaleList(locales).
   Maybe<std::vector<std::string>> maybe_requested_locales =
@@ -286,7 +289,7 @@ MaybeHandle<JSCollator> JSCollator::New(Isolate* isolate, DirectHandle<Map> map,
       maybe_requested_locales.FromJust();
 
   // 2. Set options to ? CoerceOptionsToObject(options).
-  Handle<JSReceiver> options;
+  DirectHandle<JSReceiver> options;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, options, CoerceOptionsToObject(isolate, options_obj, service));
 

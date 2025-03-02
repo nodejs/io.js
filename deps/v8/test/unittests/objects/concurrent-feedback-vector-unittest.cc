@@ -220,8 +220,9 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
       CheckedWait(vector_consumed);
       fprintf(stderr, "Main thread configuring monomorphic\n");
     }
-    nexus.ConfigureMonomorphic(
-        Handle<Name>(), Handle<Map>(o1->map(), i_isolate()), dummy_handler);
+    nexus.ConfigureMonomorphic(DirectHandle<Name>(),
+                               DirectHandle<Map>(o1->map(), i_isolate()),
+                               dummy_handler);
     EXPECT_EQ(InlineCacheState::MONOMORPHIC, nexus.ic_state());
 
     if (i == (kCycles - 1)) {
@@ -231,7 +232,7 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
     }
 
     // Go polymorphic.
-    std::vector<MapAndHandler> map_and_handlers;
+    MapsAndHandlers map_and_handlers;
     map_and_handlers.push_back(
         MapAndHandler(Handle<Map>(o1->map(), i_isolate()), dummy_handler));
     map_and_handlers.push_back(
@@ -240,7 +241,7 @@ TEST_F(ConcurrentFeedbackVectorTest, CheckLoadICStates) {
         MapAndHandler(Handle<Map>(o3->map(), i_isolate()), dummy_handler));
     map_and_handlers.push_back(
         MapAndHandler(Handle<Map>(o4->map(), i_isolate()), dummy_handler));
-    nexus.ConfigurePolymorphic(Handle<Name>(), map_and_handlers);
+    nexus.ConfigurePolymorphic(DirectHandle<Name>(), map_and_handlers);
     EXPECT_EQ(InlineCacheState::POLYMORPHIC, nexus.ic_state());
 
     if (i == (kCycles - 1)) {

@@ -8,14 +8,12 @@
 
 
 // A function to be called from Wasm code.
-auto neg_callback(
-  const wasm::Val args[], wasm::Val results[]
-) -> wasm::own<wasm::Trap> {
+auto neg_callback(const wasm::vec<wasm::Val>& args,
+                  wasm::vec<wasm::Val>& results) -> wasm::own<wasm::Trap> {
   std::cout << "Calling back..." << std::endl;
   results[0] = wasm::Val(-args[0].i32());
   return nullptr;
 }
-
 
 auto get_export_table(wasm::ownvec<wasm::Extern>& exports, size_t i) -> wasm::Table* {
   if (exports.size() <= i || !exports[i]->table()) {
@@ -51,8 +49,8 @@ void check(bool success) {
 auto call(
   const wasm::Func* func, wasm::Val&& arg1, wasm::Val&& arg2
 ) -> wasm::Val {
-  wasm::Val args[2] = {std::move(arg1), std::move(arg2)};
-  wasm::Val results[1];
+  auto args = wasm::vec<wasm::Val>::make(std::move(arg1), std::move(arg2));
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
   if (func->call(args, results)) {
     std::cout << "> Error on result, expected return" << std::endl;
     exit(1);
@@ -61,8 +59,8 @@ auto call(
 }
 
 void check_trap(const wasm::Func* func, wasm::Val&& arg1, wasm::Val&& arg2) {
-  wasm::Val args[2] = {std::move(arg1), std::move(arg2)};
-  wasm::Val results[1];
+  auto args = wasm::vec<wasm::Val>::make(std::move(arg1), std::move(arg2));
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
   if (! func->call(args, results)) {
     std::cout << "> Error on result, expected trap" << std::endl;
     exit(1);
@@ -100,7 +98,8 @@ void run() {
 
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
-  auto instance = wasm::Instance::make(store, module.get(), nullptr);
+  auto imports = wasm::vec<wasm::Extern*>::make();
+  auto instance = wasm::Instance::make(store, module.get(), imports);
   if (!instance) {
     std::cout << "> Error instantiating module!" << std::endl;
     exit(1);
@@ -117,10 +116,11 @@ void run() {
 
   // Create external function.
   std::cout << "Creating callback..." << std::endl;
-  auto neg_type = wasm::FuncType::make(
-    wasm::ownvec<wasm::ValType>::make(wasm::ValType::make(wasm::I32)),
-    wasm::ownvec<wasm::ValType>::make(wasm::ValType::make(wasm::I32))
-  );
+  auto neg_type =
+      wasm::FuncType::make(wasm::ownvec<wasm::ValType>::make(
+                               wasm::ValType::make(wasm::ValKind::I32)),
+                           wasm::ownvec<wasm::ValType>::make(
+                               wasm::ValType::make(wasm::ValKind::I32)));
   auto h = wasm::Func::make(store, neg_type.get(), neg_callback);
 
   // Try cloning.
@@ -174,7 +174,7 @@ void run() {
   // TODO(wasm+): Once Wasm allows multiple tables, turn this into import.
   std::cout << "Creating stand-alone table..." << std::endl;
   auto tabletype = wasm::TableType::make(
-    wasm::ValType::make(wasm::FUNCREF), wasm::Limits(5, 5));
+      wasm::ValType::make(wasm::ValKind::FUNCREF), wasm::Limits(5, 5));
   auto table2 = wasm::Table::make(store, tabletype.get());
   check(table2->size() == 5);
   check(! table2->grow(1));

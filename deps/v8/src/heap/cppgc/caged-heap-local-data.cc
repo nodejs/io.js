@@ -16,7 +16,7 @@ namespace internal {
 #if defined(CPPGC_YOUNG_GENERATION)
 
 static_assert(
-    std::is_trivially_default_constructible<AgeTable>::value,
+    std::is_trivially_default_constructible_v<AgeTable>,
     "To support lazy committing, AgeTable must be trivially constructible");
 
 void AgeTable::SetAgeForRange(uintptr_t offset_begin, uintptr_t offset_end,

@@ -14,10 +14,15 @@
 
 #include "absl/log/internal/check_op.h"
 
-#include <string.h>
-
+#include <cstring>
 #include <ostream>
+#include <string>
+#include <utility>
 
+#include "absl/base/config.h"
+#include "absl/base/nullability.h"
+#include "absl/debugging/leak_check.h"
+#include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
 
 #ifdef _MSC_VER
@@ -26,34 +31,30 @@
 #include <strings.h>  // for strcasecmp, but msvc does not have this header
 #endif
 
-#include <sstream>
-#include <string>
-
-#include "absl/base/config.h"
-#include "absl/strings/str_cat.h"
-
 namespace absl {
 ABSL_NAMESPACE_BEGIN
 namespace log_internal {
 
-#define ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(x) \
-  template std::string* MakeCheckOpString(x, x, const char*)
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(bool);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(int64_t);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(uint64_t);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(float);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(double);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(char);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(unsigned char);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const std::string&);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const absl::string_view&);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const char*);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const signed char*);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const unsigned char*);
-ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const void*);
-#undef ABSL_LOGGING_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING
+#define ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(x) \
+  template absl::Nonnull<const char*> MakeCheckOpString( \
+      x, x, absl::Nonnull<const char*>)
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(bool);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(int64_t);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(uint64_t);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(float);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(double);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(char);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(unsigned char);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const std::string&);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const absl::string_view&);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const char*);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const signed char*);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const unsigned char*);
+ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING(const void*);
+#undef ABSL_LOG_INTERNAL_DEFINE_MAKE_CHECK_OP_STRING
 
-CheckOpMessageBuilder::CheckOpMessageBuilder(const char* exprtext) {
+CheckOpMessageBuilder::CheckOpMessageBuilder(
+    absl::Nonnull<const char*> exprtext) {
   stream_ << exprtext << " (";
 }
 
@@ -62,9 +63,10 @@ std::ostream& CheckOpMessageBuilder::ForVar2() {
   return stream_;
 }
 
-std::string* CheckOpMessageBuilder::NewString() {
+absl::Nonnull<const char*> CheckOpMessageBuilder::NewString() {
   stream_ << ")";
-  return new std::string(stream_.str());
+  // There's no need to free this string since the process is crashing.
+  return absl::IgnoreLeak(new std::string(std::move(stream_).str()))->c_str();
 }
 
 void MakeCheckOpValueString(std::ostream& os, const char v) {
@@ -100,16 +102,19 @@ void MakeCheckOpValueString(std::ostream& os, const void* p) {
 }
 
 // Helper functions for string comparisons.
-#define DEFINE_CHECK_STROP_IMPL(name, func, expected)                      \
-  std::string* Check##func##expected##Impl(const char* s1, const char* s2, \
-                                           const char* exprtext) {         \
-    bool equal = s1 == s2 || (s1 && s2 && !func(s1, s2));                  \
-    if (equal == expected) {                                               \
-      return nullptr;                                                      \
-    } else {                                                               \
-      return new std::string(                                              \
-          absl::StrCat(exprtext, " (", s1, " vs. ", s2, ")"));             \
-    }                                                                      \
+#define DEFINE_CHECK_STROP_IMPL(name, func, expected)                          \
+  absl::Nullable<const char*> Check##func##expected##Impl(                     \
+      absl::Nullable<const char*> s1, absl::Nullable<const char*> s2,          \
+      absl::Nonnull<const char*> exprtext) {                                   \
+    bool equal = s1 == s2 || (s1 && s2 && !func(s1, s2));                      \
+    if (equal == expected) {                                                   \
+      return nullptr;                                                          \
+    } else {                                                                   \
+      /* There's no need to free this string since the process is crashing. */ \
+      return absl::IgnoreLeak(new std::string(absl::StrCat(exprtext, " (", s1, \
+                                                           " vs. ", s2, ")"))) \
+          ->c_str();                                                           \
+    }                                                                          \
   }
 DEFINE_CHECK_STROP_IMPL(CHECK_STREQ, strcmp, true)
 DEFINE_CHECK_STROP_IMPL(CHECK_STRNE, strcmp, false)

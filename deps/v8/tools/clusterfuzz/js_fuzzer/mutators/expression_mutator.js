@@ -40,8 +40,11 @@ class ExpressionMutator extends mutator.Mutator {
           if (!prev || !prev.node) {
             return;
           }
-          // Either select a previous or the current node to clone.
-          const [selected, destination] = random.shuffle([prev, path]);
+          // Either select a previous or the current node to clone. Bias
+          // towards the former, as the other way can lead to use of undefined
+          // variables.
+          const [selected, destination] = random.single(
+              [[prev, path], [prev, path], [prev, path], [path, prev]]);
           if (selected.isDeclaration()) {
             return;
           }

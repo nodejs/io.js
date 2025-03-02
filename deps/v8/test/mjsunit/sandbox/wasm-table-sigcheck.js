@@ -82,6 +82,6 @@ setField(t0, kWasmTableObjectTypeOffset, new_type);
 table0.set(0, func0);
 
 // If the process was still alive, this would cause the sandbox violation.
-instance.exports.boom(BigInt(Sandbox.targetPage));
+instance.exports.boom(0x414141414141n);
 
 assertUnreachable("Process should have been killed.");

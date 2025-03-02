@@ -49,7 +49,7 @@ describe('Mutate expressions', () => {
 
   it('clones previous to current', () => {
     // Keep the order of [previous, current], select previous.
-    sandbox.stub(random, 'shuffle').callsFake(a => a);
+    sandbox.stub(random, 'single').callsFake(a => a[0]);
     // Insert after. Keep returning true for the MUTATE_EXPRESSIONS check.
     sandbox.stub(random, 'choose').callsFake(a => a === 1);
 
@@ -58,7 +58,7 @@ describe('Mutate expressions', () => {
 
   it('clones current to previous', () => {
     // Switch the order of [previous, current], select current.
-    sandbox.stub(random, 'shuffle').callsFake(a => [a[1], a[0]]);
+    sandbox.stub(random, 'single').callsFake(a => a[3]);
     // Insert before.
     sandbox.stub(random, 'choose').callsFake(() => true);
 

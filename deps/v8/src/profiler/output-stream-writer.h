@@ -73,6 +73,7 @@ class OutputStreamWriter {
     }
   }
   void AddNumber(unsigned n) { AddNumberImpl<unsigned>(n, "%u"); }
+  void AddSize(size_t n) { AddNumberImpl<size_t>(n, "%zu"); }
   void Finalize() {
     if (aborted_) return;
     DCHECK(chunk_pos_ < chunk_size_);

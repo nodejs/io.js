@@ -5,7 +5,7 @@ Instantiating.
 Calling div function.
 Paused at:
 --- 0 ---
-Script wasm://wasm/a9a86c5e byte offset 46: Wasm opcode 0x6d (kExprI32DivS)
+Script wasm://wasm/64a0bc16 byte offset 46: Wasm opcode 0x6d (kExprI32DivS)
 scope at $div (0:46):
    $a: 1 (i32)
    $b: 0 (i32)
@@ -35,7 +35,7 @@ Paused at:
 -> resume
 Paused at:
 --- 0 ---
-Script wasm://wasm/a9a86c5e byte offset 46: Wasm opcode 0x6d (kExprI32DivS)
+Script wasm://wasm/64a0bc16 byte offset 46: Wasm opcode 0x6d (kExprI32DivS)
 scope at $div (0:46):
    $a: -2147483648 (i32)
    $b: -1 (i32)

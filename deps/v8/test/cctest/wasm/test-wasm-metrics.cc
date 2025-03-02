@@ -25,7 +25,9 @@ namespace {
 
 class MockPlatform final : public TestPlatform {
  public:
-  MockPlatform() : task_runner_(std::make_shared<MockTaskRunner>()) {}
+  MockPlatform()
+      : no_memory_reducer_(&v8_flags.memory_reducer, false),
+        task_runner_(std::make_shared<MockTaskRunner>()) {}
 
   ~MockPlatform() override {
     for (auto* job_handle : job_handles_) job_handle->ResetPlatform();
@@ -142,6 +144,7 @@ class MockPlatform final : public TestPlatform {
     MockPlatform* platform_;
   };
 
+  FlagScope<bool> no_memory_reducer_;
   std::shared_ptr<MockTaskRunner> task_runner_;
   std::unordered_set<MockJobHandle*> job_handles_;
 };
@@ -278,9 +281,7 @@ COMPILE_TEST(TestEventMetrics) {
   WasmModuleBuilder* builder = zone.New<WasmModuleBuilder>(&zone);
   WasmFunctionBuilder* f = builder->AddFunction(sigs.i_v());
   f->builder()->AddExport(base::CStrVector("main"), f);
-  uint8_t code[] = {WASM_I32V_2(0)};
-  f->EmitCode(code, sizeof(code));
-  f->Emit(kExprEnd);
+  f->EmitCode({WASM_I32V_2(0), WASM_END});
   ZoneBuffer buffer(&zone);
   builder->WriteTo(&buffer);
 
@@ -288,12 +289,12 @@ COMPILE_TEST(TestEventMetrics) {
   CompilationStatus status = CompilationStatus::kPending;
   std::string error_message;
   std::shared_ptr<NativeModule> native_module;
+  base::OwnedVector<const uint8_t> bytes = base::OwnedCopyOf(buffer);
   GetWasmEngine()->AsyncCompile(
       isolate, enabled_features, CompileTimeImports{},
       std::make_shared<TestCompileResolver>(&status, &error_message, isolate,
                                             &native_module),
-      ModuleWireBytes(buffer.begin(), buffer.end()), true,
-      "CompileAndInstantiateWasmModuleForTesting");
+      std::move(bytes), "CompileAndInstantiateWasmModuleForTesting");
 
   // Finish compilation tasks.
   while (status == CompilationStatus::kPending) {

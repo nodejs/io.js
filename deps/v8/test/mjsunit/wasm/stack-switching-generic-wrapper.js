@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --wasm-to-js-generic-wrapper --expose-gc --allow-natives-syntax
+// Flags: --wasm-generic-wrapper --expose-gc --allow-natives-syntax
 // Flags: --experimental-wasm-stack-switching
 
 // Test the stack-switching export wrapper in combination with the generic

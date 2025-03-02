@@ -95,7 +95,7 @@ class V8_EXPORT GCInfoTable final {
   // The limit (exclusive) of the currently allocated table.
   GCInfoIndex limit_ = 0;
 
-  v8::base::Mutex table_mutex_;
+  v8::base::SpinningMutex table_mutex_;
 };
 
 class V8_EXPORT GlobalGCInfoTable final {

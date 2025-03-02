@@ -285,7 +285,7 @@ transitioning javascript builtin MathFround(
 // ES6 #sec-math.f16round
 transitioning javascript builtin MathF16round(
     js-implicit context: NativeContext)(x: JSAny): Number {
-  const x16 = Convert<float16>(ToNumber_Inline(x));
+  const x16 = Convert<float16_raw_bits>(ToNumber_Inline(x));
   const x64 = Convert<float64>(x16);
   return Convert<Number>(x64);
 }
@@ -478,7 +478,7 @@ transitioning javascript builtin MathHypot(
         oneArgIsNaN = true;
       } else {
         const absValue = Float64Abs(value);
-        absValues.floats[i] = Convert<float64_or_hole>(absValue);
+        absValues.values[i] = Convert<float64_or_undefined_or_hole>(absValue);
         if (absValue > max) {
           max = absValue;
         }
@@ -498,7 +498,7 @@ transitioning javascript builtin MathHypot(
     let sum: float64 = 0;
     let compensation: float64 = 0;
     for (let i: intptr = 0; i < length; ++i) {
-      const n = absValues.floats[i].ValueUnsafeAssumeNotHole() / max;
+      const n = absValues.values[i].ValueUnsafeAssumeNotHole() / max;
       const summand = n * n - compensation;
       const preliminary = sum + summand;
       compensation = (preliminary - sum) - summand;
@@ -524,7 +524,7 @@ transitioning javascript builtin MathRandom(
   const array: FixedDoubleArray =
       *NativeContextSlot(ContextSlot::MATH_RANDOM_CACHE_INDEX);
   const random: float64 =
-      array.floats[Convert<intptr>(newSmiIndex)].ValueUnsafeAssumeNotHole();
+      array.values[Convert<intptr>(newSmiIndex)].ValueUnsafeAssumeNotHole();
   return AllocateHeapNumberWithValue(random);
 }
 }

@@ -43,13 +43,20 @@ SlotCallbackResult UpdateTypedSlotHelper::UpdateTypedSlot(
       SlotCallbackResult result = callback(FullMaybeObjectSlot(&new_target));
       DCHECK(!HasWeakHeapObjectTag(new_target));
       if (new_target != old_target) {
-        base::Memory<Tagged_t>(addr) =
-            V8HeapCompressionScheme::CompressObject(new_target.ptr());
+        jit_allocation.WriteValue<Tagged_t>(
+            addr, V8HeapCompressionScheme::CompressObject(new_target.ptr()));
       }
       return result;
     }
     case SlotType::kConstPoolEmbeddedObjectFull: {
-      return callback(FullMaybeObjectSlot(addr));
+      Tagged<HeapObject> old_target =
+          Cast<HeapObject>(Tagged<Object>(base::Memory<Address>(addr)));
+      Tagged<HeapObject> new_target = old_target;
+      SlotCallbackResult result = callback(FullMaybeObjectSlot(&new_target));
+      if (new_target != old_target) {
+        jit_allocation.WriteValue(addr, new_target.ptr());
+      }
+      return result;
     }
     case SlotType::kCleared:
       break;

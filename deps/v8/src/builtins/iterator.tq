@@ -281,4 +281,100 @@ transitioning javascript builtin IteratorPrototypeSetConstructor(
   // 2. Return undefined.
   return Undefined;
 }
+
+// https://tc39.es/proposal-explicit-resource-management/#sec-%iteratorprototype%-@@dispose
+transitioning javascript builtin IteratorPrototypeDispose(
+    js-implicit context: NativeContext, receiver: JSAny)(): JSAny {
+  // 1. Let O be the this value.
+  // 2. Let return be ? GetMethod(O, "return").
+  try {
+    const returnMethod =
+        GetMethod(receiver, kReturnString) otherwise IfUndefined;
+    // 3. If return is not undefined, then
+    //   a. Perform ? Call(return, O, « »).
+    Call(context, returnMethod, receiver);
+  } label IfUndefined {
+    // Do nothing here
+  }
+
+  // 4. Return NormalCompletion(undefined).
+  return Undefined;
+}
+
+extern macro AllocateRootFunctionWithContext(
+    constexpr intptr, FunctionContext, NativeContext): JSFunction;
+
+extern macro
+AsyncIteratorPrototypeAsyncDisposeResolveClosureSharedFunConstant():
+    SharedFunctionInfo;
+
+const kAsyncIteratorPrototypeAsyncDisposeResolveClosureSharedFun:
+    constexpr intptr
+    generates 'RootIndex::kAsyncIteratorPrototypeAsyncDisposeResolveClosureSharedFun'
+    ;
+
+type AsyncIteratorPrototypeAsyncDisposeResolveContext extends FunctionContext;
+const kAsyncIteratorPrototypeAsyncDisposeResolveContextLength:
+    constexpr intptr = ContextSlot::MIN_CONTEXT_SLOTS;
+
+javascript builtin AsyncIteratorPrototypeAsyncDisposeResolveClosure(
+    js-implicit context: NativeContext, receiver: JSAny)(): JSAny {
+  return Undefined;
+}
+
+// https://tc39.es/proposal-explicit-resource-management/#sec-%asynciteratorprototype%-@@asyncdispose
+transitioning javascript builtin AsyncIteratorPrototypeAsyncDispose(
+    js-implicit context: Context, receiver: JSAny)(): JSAny {
+  // 1. Let O be the this value.
+  // 2. Let promiseCapability be ! NewPromiseCapability(%Promise%).
+  const capability = promise::NewJSPromise();
+
+  try {
+    try {
+      // 3. Let return be GetMethod(O, "return").
+      // 4. IfAbruptRejectPromise(return, promiseCapability).
+      const returnMethod =
+          GetMethod(receiver, kReturnString) otherwise IfUndefined;
+      // 6. Else,
+      // a. Let result be Call(return, O, « undefined »).
+      // b. IfAbruptRejectPromise(result, promiseCapability).
+      const result = Call(context, returnMethod, receiver, Undefined);
+
+      // c. Let resultWrapper be Completion(PromiseResolve(%Promise%, result)).
+      // d. IfAbruptRejectPromise(resultWrapper, promiseCapability).
+      const promiseFun = *NativeContextSlot(
+          ContextSlot::PROMISE_FUNCTION_INDEX);
+      const resultWrapper = promise::PromiseResolve(promiseFun, result);
+
+      // e. Let unwrap be a new Abstract Closure that performs the following
+      // steps when called: i. Return undefined.
+      // f. Let onFulfilled be CreateBuiltinFunction(unwrap, 1, "", « »).
+      const resolveContext =
+          %RawDownCast<AsyncIteratorPrototypeAsyncDisposeResolveContext>(
+              AllocateSyntheticFunctionContext(
+                  %RawDownCast<NativeContext>(context),
+                  kAsyncIteratorPrototypeAsyncDisposeResolveContextLength));
+      const onFulfilled = AllocateRootFunctionWithContext(
+          kAsyncIteratorPrototypeAsyncDisposeResolveClosureSharedFun,
+          resolveContext, %RawDownCast<NativeContext>(context));
+
+      // g. Perform PerformPromiseThen(resultWrapper, onFulfilled, undefined,
+      // promiseCapability).
+      promise::PerformPromiseThenImpl(
+          UnsafeCast<JSPromise>(resultWrapper), onFulfilled,
+          UndefinedConstant(), capability);
+    } label IfUndefined {
+      // 5. If return is undefined, then
+      // a. Perform ! Call(promiseCapability.[[Resolve]], undefined, « undefined
+      // »).
+      promise::ResolvePromise(capability, Undefined);
+    }
+
+    // 7. Return promiseCapability.[[Promise]].
+    return capability;
+  } catch (e, _message) {
+    promise::RejectPromise(capability, e, False);
+    return capability;
+  }
+}
 }  // namespace iterator

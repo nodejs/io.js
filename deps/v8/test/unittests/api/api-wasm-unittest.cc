@@ -218,7 +218,8 @@ TEST_F(ApiWasmTest, WasmErrorIsSharedCrossOrigin) {
 TEST_F(ApiWasmTest, WasmEnableDisableImportedStrings) {
   Local<Context> context_local = Context::New(isolate());
   Context::Scope context_scope(context_local);
-  i::Handle<i::NativeContext> context = v8::Utils::OpenHandle(*context_local);
+  i::DirectHandle<i::NativeContext> context =
+      v8::Utils::OpenDirectHandle(*context_local);
   // Test enabling/disabling via flag.
   {
     i::FlagScope<bool> flag_strings(
@@ -257,7 +258,8 @@ TEST_F(ApiWasmTest, WasmEnableDisableImportedStrings) {
 TEST_F(ApiWasmTest, WasmEnableDisableJSPI) {
   Local<Context> context_local = Context::New(isolate());
   Context::Scope context_scope(context_local);
-  i::Handle<i::NativeContext> context = v8::Utils::OpenHandle(*context_local);
+  i::DirectHandle<i::NativeContext> context =
+      v8::Utils::OpenDirectHandle(*context_local);
   // Test enabling/disabling via flag.
   {
     i::FlagScope<bool> flag_strings(&i::v8_flags.experimental_wasm_jspi, true);
@@ -277,7 +279,8 @@ TEST_F(ApiWasmTest, WasmEnableDisableJSPI) {
 TEST_F(ApiWasmTest, WasmInstallJSPI) {
   Local<Context> context_local = Context::New(isolate());
   Context::Scope context_scope(context_local);
-  i::Handle<i::NativeContext> context = v8::Utils::OpenHandle(*context_local);
+  i::DirectHandle<i::NativeContext> context =
+      v8::Utils::OpenDirectHandle(*context_local);
 
   EXPECT_FALSE(i_isolate()->IsWasmJSPIEnabled(context));
   i::wasm::WasmEnabledFeatures features =

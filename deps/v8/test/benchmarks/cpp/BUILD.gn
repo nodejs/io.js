@@ -11,7 +11,10 @@ group("gn_all") {
 
   if (v8_enable_google_benchmark) {
     deps += [
+      ":bindings_benchmark",
+      ":dtoa_benchmark",
       ":empty_benchmark",
+      ":fast_api_benchmark",
       "cppgc:gn_all",
     ]
   }
@@ -56,6 +59,24 @@ if (v8_enable_google_benchmark) {
       "benchmark-utils.cc",
       "benchmark-utils.h",
       "bindings.cc",
+    ]
+
+    deps = [
+      "//:v8",
+      "//third_party/google_benchmark_chrome:google_benchmark",
+    ]
+  }
+
+  v8_executable("fast_api_benchmark") {
+    testonly = true
+
+    configs = []
+
+    sources = [
+      "benchmark-main.cc",
+      "benchmark-utils.cc",
+      "benchmark-utils.h",
+      "fast-api.cc",
     ]
 
     deps = [

@@ -73,6 +73,8 @@ transitioning javascript builtin TypedArrayPrototypeSubArray(
   const srcByteOffset: uintptr = source.byte_offset;
 
   // 17. Let beginByteOffset be srcByteOffset + beginIndex × elementSize.
+  // The subarray can only be too big if the API limits the size of typed
+  // arrays, but doesn't put a similar limit on the size of wasm byte arrays.
   const beginByteOffset =
       srcByteOffset + elementsInfo.CalculateByteLength(begin)
       otherwise ThrowRangeError(MessageTemplate::kInvalidArrayBufferLength);

@@ -31,16 +31,16 @@ asm(
     ".p2align 2                                         \n"
     "PushAllRegistersAndIterateStack:                   \n"
 #endif  // !defined(__APPLE__)
+#ifdef V8_ENABLE_CONTROL_FLOW_INTEGRITY
+    // Sign return address.
+    "  paciasp                                          \n"
+#endif
     // x19-x29 are callee-saved.
     "  stp x19, x20, [sp, #-16]!                        \n"
     "  stp x21, x22, [sp, #-16]!                        \n"
     "  stp x23, x24, [sp, #-16]!                        \n"
     "  stp x25, x26, [sp, #-16]!                        \n"
     "  stp x27, x28, [sp, #-16]!                        \n"
-#ifdef V8_ENABLE_CONTROL_FLOW_INTEGRITY
-    // Sign return address.
-    "  paciasp                                          \n"
-#endif
     "  stp fp, lr,   [sp, #-16]!                        \n"
     // Maintain frame pointer.
     "  mov fp, sp                                       \n"
@@ -53,12 +53,12 @@ asm(
     "  blr x7                                           \n"
     // Load return address and frame pointer.
     "  ldp fp, lr, [sp], #16                            \n"
+    // Drop all callee-saved registers.
+    "  add sp, sp, #80                                  \n"
 #ifdef V8_ENABLE_CONTROL_FLOW_INTEGRITY
     // Authenticate return address.
     "  autiasp                                          \n"
 #endif
-    // Drop all callee-saved registers.
-    "  add sp, sp, #80                                  \n"
     "  ret                                              \n"
 #if !defined(__APPLE__) && !defined(_WIN64)
     ".Lfunc_end0:                                       \n"

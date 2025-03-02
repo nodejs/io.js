@@ -17,6 +17,10 @@ extern transitioning runtime StringBuilderConcat(
     implicit context: Context)(FixedArray, Smi, String): String;
 extern transitioning runtime StringReplaceNonGlobalRegExpWithFunction(
     implicit context: Context)(String, JSRegExp, Callable): String;
+extern transitioning macro
+    RegExpBuiltinsAssembler::RegExpReplaceGlobalSimpleString(
+        implicit context: Context)(JSRegExp, String, RegExpData, String):
+        String;
 
 // matchesCapacity is the length of the matchesElements FixedArray, and
 // matchesElements is allowed to contain holes at the end.
@@ -136,7 +140,6 @@ transitioning macro RegExpReplaceFastString(
   // instance, {replace_value} is non-callable, and ToString({replace_value})
   // does not contain '$', i.e. we're doing a simple string replacement.
   let result: String = kEmptyString;
-  let lastMatchEnd: Smi = 0;
   let unicode: bool = false;
   const replaceLength: Smi = replaceString.length_smi;
   const fastRegexp = UnsafeCast<FastJSRegExp>(regexp);
@@ -145,44 +148,29 @@ transitioning macro RegExpReplaceFastString(
   if (global) {
     unicode = fastRegexp.unicode || fastRegexp.unicodeSets;
     fastRegexp.lastIndex = 0;
+
+    const data: RegExpData =
+        UnsafeCast<RegExpData>(LoadTrustedPointerFromObject(
+            fastRegexp, kJSRegExpRegExpDataOffset,
+            kRegExpDataIndirectPointerTag));
+    return RegExpReplaceGlobalSimpleString(regexp, string, data, replaceString);
   }
 
-  while (true) {
-    const match: RegExpMatchInfo =
-        RegExpPrototypeExecBodyWithoutResultFast(regexp, string)
-        otherwise break;
-    const matchStart: Smi = match.GetStartOfCapture(0);
-    const matchEnd: Smi = match.GetEndOfCapture(0);
+  dcheck(!global);
 
-    // TODO(jgruber): We could skip many of the checks that using SubString
-    // here entails.
-    result = result + SubString(string, lastMatchEnd, matchStart);
-    lastMatchEnd = matchEnd;
+  const match: RegExpMatchInfo =
+      RegExpPrototypeExecBodyWithoutResultFast(regexp, string)
+      otherwise return string;
+  const matchStart: Smi = match.GetStartOfCapture(0);
+  const matchEnd: Smi = match.GetEndOfCapture(0);
 
-    if (replaceLength != 0) result = result + replaceString;
+  // TODO(jgruber): We could skip many of the checks that using SubString
+  // here entails.
+  result = result + SubString(string, 0, matchStart);
 
-    // Non-global case ends here after the first replacement.
-    if (!global) break;
+  if (replaceLength != 0) result = result + replaceString;
 
-    // If match is the empty string, we have to increment lastIndex.
-    if (matchEnd == matchStart) {
-      typeswitch (regexp) {
-        case (fastRegexp: FastJSRegExp): {
-          fastRegexp.lastIndex =
-              AdvanceStringIndexFast(string, fastRegexp.lastIndex, unicode);
-        }
-        case (Object): {
-          const lastIndex: JSAny = SlowLoadLastIndex(regexp);
-          const thisIndex: Number = ToLength_Inline(lastIndex);
-          const nextIndex: Number =
-              AdvanceStringIndexSlow(string, thisIndex, unicode);
-          SlowStoreLastIndex(regexp, nextIndex);
-        }
-      }
-    }
-  }
-
-  return result + SubString(string, lastMatchEnd, string.length_smi);
+  return result + SubString(string, matchEnd, string.length_smi);
 }
 
 transitioning builtin RegExpReplace(

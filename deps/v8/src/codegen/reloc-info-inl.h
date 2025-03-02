@@ -12,6 +12,31 @@
 namespace v8 {
 namespace internal {
 
+template <typename ObjectVisitor>
+void RelocInfo::Visit(Tagged<InstructionStream> host, ObjectVisitor* visitor) {
+  Mode mode = rmode();
+  if (IsEmbeddedObjectMode(mode)) {
+    visitor->VisitEmbeddedPointer(host, this);
+  } else if (IsCodeTargetMode(mode)) {
+    visitor->VisitCodeTarget(host, this);
+  } else if (IsExternalReference(mode)) {
+    visitor->VisitExternalReference(host, this);
+  } else if (IsInternalReference(mode) || IsInternalReferenceEncoded(mode)) {
+    visitor->VisitInternalReference(host, this);
+  } else if (IsBuiltinEntryMode(mode)) {
+    visitor->VisitOffHeapTarget(host, this);
+  } else if (IsJSDispatchHandle(mode)) {
+#ifdef V8_ENABLE_LEAPTIERING
+    // This would need to pass the RelocInfo if dispatch entries were allowed
+    // to move and we needed to update this slot.
+    static_assert(!JSDispatchTable::kSupportsCompaction);
+    visitor->VisitJSDispatchTableEntry(host, js_dispatch_handle());
+#else
+    UNREACHABLE();
+#endif
+  }
+}
+
 void WritableRelocInfo::set_target_object(Tagged<InstructionStream> host,
                                           Tagged<HeapObject> target,
                                           WriteBarrierMode write_barrier_mode,

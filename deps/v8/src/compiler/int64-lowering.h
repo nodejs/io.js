@@ -8,9 +8,9 @@
 #include <memory>
 
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/simplified-operator.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {

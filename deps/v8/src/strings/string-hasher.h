@@ -16,30 +16,39 @@ class Vector;
 
 namespace internal {
 
+// A simple incremental string hasher. Slow but allows for special casing each
+// individual character.
+class RunningStringHasher final {
+ public:
+  explicit RunningStringHasher(uint32_t seed) : running_hash_(seed) {}
+
+  V8_INLINE void AddCharacter(uint16_t c);
+  V8_INLINE uint32_t Finalize();
+
+ private:
+  uint32_t running_hash_;
+};
+
 // Helper class for incrementally calculating string hashes in a form suitable
 // for storing into Name::raw_hash_field.
 class V8_EXPORT_PRIVATE StringHasher final {
  public:
   StringHasher() = delete;
   template <typename char_t>
-  static inline uint32_t HashSequentialString(const char_t* chars, int length,
-                                              uint64_t seed);
+  static inline uint32_t HashSequentialString(const char_t* chars,
+                                              uint32_t length, uint64_t seed);
 
   // Calculated hash value for a string consisting of 1 to
   // String::kMaxArrayIndexSize digits with no leading zeros (except "0").
   // value is represented decimal value.
-  static uint32_t MakeArrayIndexHash(uint32_t value, int length);
+  static V8_INLINE uint32_t MakeArrayIndexHash(uint32_t value, uint32_t length);
 
   // No string is allowed to have a hash of zero.  That value is reserved
   // for internal properties.  If the hash calculation yields zero then we
   // use 27 instead.
   static const int kZeroHash = 27;
 
-  // Reusable parts of the hashing algorithm.
-  V8_INLINE static uint32_t AddCharacterCore(uint32_t running_hash, uint16_t c);
-  V8_INLINE static uint32_t GetHashCore(uint32_t running_hash);
-
-  static inline uint32_t GetTrivialHash(int length);
+  static V8_INLINE uint32_t GetTrivialHash(uint32_t length);
 };
 
 // Useful for std containers that require something ()'able.

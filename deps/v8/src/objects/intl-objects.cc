@@ -33,6 +33,8 @@
 #include "src/objects/smi.h"
 #include "src/objects/string.h"
 #include "src/strings/string-case.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
 #include "unicode/basictz.h"
 #include "unicode/brkiter.h"
 #include "unicode/calendar.h"
@@ -51,6 +53,7 @@
 #include "unicode/ures.h"
 #include "unicode/ustring.h"
 #include "unicode/uvernum.h"  // U_ICU_VERSION_MAJOR_NUM
+#pragma GCC diagnostic pop
 
 #ifndef V8_INTL_SUPPORT
 #error Internationalization is expected to be enabled.
@@ -197,10 +200,11 @@ const UChar* GetUCharBufferFromFlat(const String::FlatContent& flat,
 }
 
 template <typename T>
-MaybeHandle<T> New(Isolate* isolate, Handle<JSFunction> constructor,
-                   Handle<Object> locales, Handle<Object> options,
-                   const char* method_name) {
-  Handle<Map> map;
+MaybeDirectHandle<T> New(Isolate* isolate, DirectHandle<JSFunction> constructor,
+                         DirectHandle<Object> locales,
+                         DirectHandle<Object> options,
+                         const char* method_name) {
+  DirectHandle<Map> map;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, map,
       JSFunction::GetDerivedMap(isolate, constructor, constructor));
@@ -225,7 +229,6 @@ icu::UnicodeString Intl::ToICUUnicodeString(Isolate* isolate,
   // We read the length from the heap, so it may be untrusted (in the sandbox
   // attacker model) and we therefore need to use an unsigned int here when
   // comparing it against the kShortStringSize.
-  // TODO(saelo): consider using uint32_t for the size in String objects.
   uint32_t length = string->length();
   DCHECK_LE(offset, length);
   if (flat.IsOneByte() && length <= kShortStringSize) {
@@ -260,13 +263,13 @@ icu::StringPiece ToICUStringPiece(Isolate* isolate, DirectHandle<String> string,
 MaybeHandle<String> LocaleConvertCase(Isolate* isolate, DirectHandle<String> s,
                                       bool is_to_upper, const char* lang) {
   auto case_converter = is_to_upper ? u_strToUpper : u_strToLower;
-  int32_t src_length = s->length();
-  int32_t dest_length = src_length;
+  uint32_t src_length = s->length();
+  uint32_t dest_length = src_length;
   UErrorCode status;
   Handle<SeqTwoByteString> result;
   std::unique_ptr<base::uc16[]> sap;
 
-  if (dest_length == 0) return ReadOnlyRoots(isolate).empty_string_handle();
+  if (dest_length == 0) return isolate->factory()->empty_string();
 
   // This is not a real loop. It'll be executed only once (no overflow) or
   // twice (overflow).
@@ -355,7 +358,8 @@ Tagged<String> Intl::ConvertOneByteToLower(Tagged<String> src,
   return dst;
 }
 
-MaybeHandle<String> Intl::ConvertToLower(Isolate* isolate, Handle<String> s) {
+MaybeHandle<String> Intl::ConvertToLower(Isolate* isolate,
+                                         DirectHandle<String> s) {
   if (!s->IsOneByteRepresentation()) {
     // Use a slower implementation for strings with characters beyond U+00FF.
     return LocaleConvertCase(isolate, s, false, "");
@@ -377,16 +381,17 @@ MaybeHandle<String> Intl::ConvertToLower(Isolate* isolate, Handle<String> s) {
   bool is_short = length < static_cast<int>(sizeof(uintptr_t));
   if (is_short) {
     bool is_lower_ascii = FindFirstUpperOrNonAscii(*s, length) == length;
-    if (is_lower_ascii) return s;
+    if (is_lower_ascii) return indirect_handle(s, isolate);
   }
 
   DirectHandle<SeqOneByteString> result =
       isolate->factory()->NewRawOneByteString(length).ToHandleChecked();
 
-  return Handle<String>(Intl::ConvertOneByteToLower(*s, *result), isolate);
+  return handle(Intl::ConvertOneByteToLower(*s, *result), isolate);
 }
 
-MaybeHandle<String> Intl::ConvertToUpper(Isolate* isolate, Handle<String> s) {
+MaybeDirectHandle<String> Intl::ConvertToUpper(Isolate* isolate,
+                                               DirectHandle<String> s) {
   int32_t length = s->length();
   if (s->IsOneByteRepresentation() && length > 0) {
     Handle<SeqOneByteString> result =
@@ -407,7 +412,7 @@ MaybeHandle<String> Intl::ConvertToUpper(Isolate* isolate, Handle<String> s) {
             reinterpret_cast<const char*>(src.begin()), length,
             &has_changed_character);
         if (index_to_first_unprocessed == length) {
-          return has_changed_character ? result : s;
+          return has_changed_character ? result : indirect_handle(s, isolate);
         }
         // If not ASCII, we keep the result up to index_to_first_unprocessed and
         // process the rest.
@@ -488,15 +493,15 @@ MaybeHandle<String> Intl::ToString(Isolate* isolate,
       reinterpret_cast<const uint16_t*>(string.getBuffer()), string.length()));
 }
 
-MaybeHandle<String> Intl::ToString(Isolate* isolate,
-                                   const icu::UnicodeString& string,
-                                   int32_t begin, int32_t end) {
+MaybeDirectHandle<String> Intl::ToString(Isolate* isolate,
+                                         const icu::UnicodeString& string,
+                                         int32_t begin, int32_t end) {
   return Intl::ToString(isolate, string.tempSubStringBetween(begin, end));
 }
 
 namespace {
 
-Handle<JSObject> InnerAddElement(Isolate* isolate, Handle<JSArray> array,
+Handle<JSObject> InnerAddElement(Isolate* isolate, DirectHandle<JSArray> array,
                                  int index,
                                  DirectHandle<String> field_type_string,
                                  DirectHandle<String> value) {
@@ -522,23 +527,23 @@ Handle<JSObject> InnerAddElement(Isolate* isolate, Handle<JSArray> array,
 
 }  // namespace
 
-void Intl::AddElement(Isolate* isolate, Handle<JSArray> array, int index,
+void Intl::AddElement(Isolate* isolate, DirectHandle<JSArray> array, int index,
                       DirectHandle<String> field_type_string,
                       DirectHandle<String> value) {
   // Same as $array[$index] = {type: $field_type_string, value: $value};
   InnerAddElement(isolate, array, index, field_type_string, value);
 }
 
-void Intl::AddElement(Isolate* isolate, Handle<JSArray> array, int index,
+void Intl::AddElement(Isolate* isolate, DirectHandle<JSArray> array, int index,
                       DirectHandle<String> field_type_string,
                       DirectHandle<String> value,
-                      Handle<String> additional_property_name,
+                      DirectHandle<String> additional_property_name,
                       DirectHandle<String> additional_property_value) {
   // Same as $array[$index] = {
   //   type: $field_type_string, value: $value,
   //   $additional_property_name: $additional_property_value
   // }
-  Handle<JSObject> element =
+  DirectHandle<JSObject> element =
       InnerAddElement(isolate, array, index, field_type_string, value);
   JSObject::AddProperty(isolate, element, additional_property_name,
                         additional_property_value, NONE);
@@ -607,7 +612,7 @@ std::set<std::string> Intl::BuildLocaleSet(
   for (const std::string& locale : icu_available_locales) {
     if (path != nullptr || validate_key != nullptr) {
       if (!ValidateResource(icu::Locale(locale.c_str()), path, validate_key)) {
-        // FIXME(chromium:1215606) Find a beter fix for nb->no fallback
+        // FIXME(chromium:1215606) Find a better fix for nb->no fallback
         if (locale != "nb") {
           continue;
         }
@@ -638,11 +643,10 @@ Maybe<std::string> Intl::ToLanguageTag(const icu::Locale& locale) {
 }
 
 // See ecma402/#legacy-constructor.
-MaybeHandle<Object> Intl::LegacyUnwrapReceiver(Isolate* isolate,
-                                               Handle<JSReceiver> receiver,
-                                               Handle<JSFunction> constructor,
-                                               bool has_initialized_slot) {
-  Handle<Object> obj_ordinary_has_instance;
+MaybeDirectHandle<Object> Intl::LegacyUnwrapReceiver(
+    Isolate* isolate, DirectHandle<JSReceiver> receiver,
+    DirectHandle<JSFunction> constructor, bool has_initialized_slot) {
+  DirectHandle<Object> obj_ordinary_has_instance;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, obj_ordinary_has_instance,
       Object::OrdinaryHasInstance(isolate, constructor, receiver));
@@ -653,7 +657,7 @@ MaybeHandle<Object> Intl::LegacyUnwrapReceiver(Isolate* isolate,
   //    and ? OrdinaryHasInstance(constructor, receiver) is true, then
   if (!has_initialized_slot && ordinary_has_instance) {
     // 2. a. Let new_receiver be ? Get(receiver, %Intl%.[[FallbackSymbol]]).
-    Handle<Object> new_receiver;
+    DirectHandle<Object> new_receiver;
     ASSIGN_RETURN_ON_EXCEPTION(
         isolate, new_receiver,
         JSReceiver::GetProperty(isolate, receiver,
@@ -716,14 +720,14 @@ Maybe<std::string> CanonicalizeLanguageTag(Isolate* isolate,
   std::transform(locale.begin(), locale.end(), locale.begin(), ToAsciiLower);
 
   // // ECMA 402 6.2.3
-  // TODO(jshin): uloc_{for,to}TanguageTag can fail even for a structually valid
-  // language tag if it's too long (much longer than 100 chars). Even if we
-  // allocate a longer buffer, ICU will still fail if it's too long. Either
+  // TODO(jshin): uloc_{for,to}LanguageTag can fail even for a structurally
+  // valid language tag if it's too long (much longer than 100 chars). Even if
+  // we allocate a longer buffer, ICU will still fail if it's too long. Either
   // propose to Ecma 402 to put a limit on the locale length or change ICU to
   // handle long locale names better. See
   // https://unicode-org.atlassian.net/browse/ICU-13417
   UErrorCode error = U_ZERO_ERROR;
-  // uloc_forLanguageTag checks the structrual validity. If the input BCP47
+  // uloc_forLanguageTag checks the structural validity. If the input BCP47
   // language tag is parsed all the way to the end, it indicates that the input
   // is structurally valid. Due to a couple of bugs, we can't use it
   // without Chromium patches or ICU 62 or earlier.
@@ -763,8 +767,8 @@ Maybe<std::string> CanonicalizeLanguageTag(Isolate* isolate,
 }
 
 Maybe<std::string> CanonicalizeLanguageTag(Isolate* isolate,
-                                           Handle<Object> locale_in) {
-  Handle<String> locale_str;
+                                           DirectHandle<Object> locale_in) {
+  DirectHandle<String> locale_str;
   // This does part of the validity checking spec'ed in CanonicalizeLocaleList:
   // 7c ii. If Type(kValue) is not String or Object, throw a TypeError
   // exception.
@@ -796,7 +800,8 @@ Maybe<std::string> CanonicalizeLanguageTag(Isolate* isolate,
 }  // anonymous namespace
 
 Maybe<std::vector<std::string>> Intl::CanonicalizeLocaleList(
-    Isolate* isolate, Handle<Object> locales, bool only_return_one_result) {
+    Isolate* isolate, DirectHandle<Object> locales,
+    bool only_return_one_result) {
   // 1. If locales is undefined, then
   if (IsUndefined(*locales, isolate)) {
     // 1a. Return a new empty List.
@@ -826,12 +831,12 @@ Maybe<std::vector<std::string>> Intl::CanonicalizeLocaleList(
   }
   // 4. Else,
   // 4a. Let O be ? ToObject(locales).
-  Handle<JSReceiver> o;
+  DirectHandle<JSReceiver> o;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(isolate, o,
                                    Object::ToObject(isolate, locales),
                                    Nothing<std::vector<std::string>>());
   // 5. Let len be ? ToLength(? Get(O, "length")).
-  Handle<Object> length_obj;
+  DirectHandle<Object> length_obj;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(isolate, length_obj,
                                    Object::GetLengthFromArrayLike(isolate, o),
                                    Nothing<std::vector<std::string>>());
@@ -853,7 +858,7 @@ Maybe<std::vector<std::string>> Intl::CanonicalizeLocaleList(
     // 7c. If kPresent is true, then
     if (!maybe_found.FromJust()) continue;
     // 7c i. Let kValue be ? Get(O, Pk).
-    Handle<Object> k_value;
+    DirectHandle<Object> k_value;
     ASSIGN_RETURN_ON_EXCEPTION_VALUE(isolate, k_value, Object::GetProperty(&it),
                                      Nothing<std::vector<std::string>>());
     // 7c ii. If Type(kValue) is not String or Object, throw a TypeError
@@ -889,14 +894,12 @@ Maybe<std::vector<std::string>> Intl::CanonicalizeLocaleList(
 
 // ecma402 #sup-string.prototype.tolocalelowercase
 // ecma402 #sup-string.prototype.tolocaleuppercase
-MaybeHandle<String> Intl::StringLocaleConvertCase(Isolate* isolate,
-                                                  Handle<String> s,
-                                                  bool to_upper,
-                                                  Handle<Object> locales) {
+MaybeDirectHandle<String> Intl::StringLocaleConvertCase(
+    Isolate* isolate, DirectHandle<String> s, bool to_upper,
+    DirectHandle<Object> locales) {
   std::vector<std::string> requested_locales;
-  if (!CanonicalizeLocaleList(isolate, locales, true).To(&requested_locales)) {
-    return MaybeHandle<String>();
-  }
+  if (!CanonicalizeLocaleList(isolate, locales, true).To(&requested_locales))
+    return {};
   std::string requested_locale = requested_locales.empty()
                                      ? isolate->DefaultLocale()
                                      : requested_locales[0];
@@ -987,9 +990,12 @@ template Intl::CompareStringsOptions Intl::CompareStringsOptionsFor(
 template Intl::CompareStringsOptions Intl::CompareStringsOptionsFor(
     LocalIsolate*, DirectHandle<Object>, DirectHandle<Object>);
 
-std::optional<int> Intl::StringLocaleCompare(
-    Isolate* isolate, Handle<String> string1, Handle<String> string2,
-    Handle<Object> locales, Handle<Object> options, const char* method_name) {
+std::optional<int> Intl::StringLocaleCompare(Isolate* isolate,
+                                             DirectHandle<String> string1,
+                                             DirectHandle<String> string2,
+                                             DirectHandle<Object> locales,
+                                             DirectHandle<Object> options,
+                                             const char* method_name) {
   // We only cache the instance when locales is a string/undefined and
   // options is undefined, as that is the only case when the specified
   // side-effects of examining those arguments are unobservable.
@@ -1012,13 +1018,13 @@ std::optional<int> Intl::StringLocaleCompare(
     }
   }
 
-  Handle<JSFunction> constructor = Handle<JSFunction>(
+  DirectHandle<JSFunction> constructor(
       Cast<JSFunction>(
           isolate->context()->native_context()->intl_collator_function()),
       isolate);
 
-  Handle<JSCollator> collator;
-  MaybeHandle<JSCollator> maybe_collator =
+  DirectHandle<JSCollator> collator;
+  MaybeDirectHandle<JSCollator> maybe_collator =
       New<JSCollator>(isolate, constructor, locales, options, method_name);
   if (!maybe_collator.ToHandle(&collator)) return {};
   if (can_cache) {
@@ -1308,7 +1314,7 @@ bool CollatorAllowsFastComparison(const icu::Collator& icu_collator) {
 #endif  // DEBUG
 
 // Fast comparison is implemented for charcodes for which the L1 collation
-// weight (see kCollactionWeightsL1 above) is not 0.
+// weight (see kCollationWeightsL1 above) is not 0.
 //
 // Note it's possible to partially process strings as long as their leading
 // characters all satisfy the above criteria. In that case, and if the L3
@@ -1436,7 +1442,8 @@ const int Intl::kAsciiCollationWeightsLength = kCollationWeightsLength;
 
 // ecma402/#sec-collator-comparestrings
 int Intl::CompareStrings(Isolate* isolate, const icu::Collator& icu_collator,
-                         Handle<String> string1, Handle<String> string2,
+                         DirectHandle<String> string1,
+                         DirectHandle<String> string2,
                          CompareStringsOptions compare_strings_options) {
   // Early return for identical strings.
   if (string1.is_identical_to(string2)) {
@@ -1480,11 +1487,9 @@ int Intl::CompareStrings(Isolate* isolate, const icu::Collator& icu_collator,
 }
 
 // ecma402/#sup-properties-of-the-number-prototype-object
-MaybeHandle<String> Intl::NumberToLocaleString(Isolate* isolate,
-                                               Handle<Object> num,
-                                               Handle<Object> locales,
-                                               Handle<Object> options,
-                                               const char* method_name) {
+MaybeDirectHandle<String> Intl::NumberToLocaleString(
+    Isolate* isolate, Handle<Object> num, DirectHandle<Object> locales,
+    DirectHandle<Object> options, const char* method_name) {
   Handle<Object> numeric_obj;
   ASSIGN_RETURN_ON_EXCEPTION(isolate, numeric_obj,
                              Object::ToNumeric(isolate, num));
@@ -1506,18 +1511,18 @@ MaybeHandle<String> Intl::NumberToLocaleString(Isolate* isolate,
     }
   }
 
-  Handle<JSFunction> constructor = Handle<JSFunction>(
+  DirectHandle<JSFunction> constructor(
       Cast<JSFunction>(
           isolate->context()->native_context()->intl_number_format_function()),
       isolate);
-  Handle<JSNumberFormat> number_format;
+  DirectHandle<JSNumberFormat> number_format;
   // 2. Let numberFormat be ? Construct(%NumberFormat%, « locales, options »).
   StackLimitCheck stack_check(isolate);
   // New<JSNumberFormat>() requires a lot of stack space.
   const int kStackSpaceRequiredForNewJSNumberFormat = 16 * KB;
   if (stack_check.JsHasOverflowed(kStackSpaceRequiredForNewJSNumberFormat)) {
     isolate->StackOverflow();
-    return MaybeHandle<String>();
+    return {};
   }
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, number_format,
@@ -1567,7 +1572,7 @@ bool IsValidRoundingIncrement(int value) {
 }  // namespace
 
 Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
-    Isolate* isolate, Handle<JSReceiver> options, int mnfd_default,
+    Isolate* isolate, DirectHandle<JSReceiver> options, int mnfd_default,
     int mxfd_default, bool notation_is_compact, const char* service) {
   Factory* factory = isolate->factory();
   Intl::NumberFormatDigitOptions digit_options;
@@ -1582,7 +1587,7 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
   }
 
   // 2. Let mnfd be ? Get(options, "minimumFractionDigits").
-  Handle<Object> mnfd_obj;
+  DirectHandle<Object> mnfd_obj;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, mnfd_obj,
       JSReceiver::GetProperty(isolate, options,
@@ -1590,7 +1595,7 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
       Nothing<NumberFormatDigitOptions>());
 
   // 3. Let mxfd be ? Get(options, "maximumFractionDigits").
-  Handle<Object> mxfd_obj;
+  DirectHandle<Object> mxfd_obj;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, mxfd_obj,
       JSReceiver::GetProperty(isolate, options,
@@ -1598,7 +1603,7 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
       Nothing<NumberFormatDigitOptions>());
 
   // 4.  Let mnsd be ? Get(options, "minimumSignificantDigits").
-  Handle<Object> mnsd_obj;
+  DirectHandle<Object> mnsd_obj;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, mnsd_obj,
       JSReceiver::GetProperty(isolate, options,
@@ -1606,7 +1611,7 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
       Nothing<NumberFormatDigitOptions>());
 
   // 5. Let mxsd be ? Get(options, "maximumSignificantDigits").
-  Handle<Object> mxsd_obj;
+  DirectHandle<Object> mxsd_obj;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, mxsd_obj,
       JSReceiver::GetProperty(isolate, options,
@@ -1741,12 +1746,12 @@ Maybe<Intl::NumberFormatDigitOptions> Intl::SetNumberFormatDigitOptions(
     }
   }
 
-  Handle<String> mxfd_str = factory->maximumFractionDigits_string();
+  DirectHandle<String> mxfd_str = factory->maximumFractionDigits_string();
   // 25. If needFd is true, then
   if (need_fd) {
     // a. If hasFd is true, then
     if (has_fd) {
-      Handle<String> mnfd_str = factory->minimumFractionDigits_string();
+      DirectHandle<String> mnfd_str = factory->minimumFractionDigits_string();
       // i. Let mnfd be ? DefaultNumberOption(mnfd, 0, 100, undefined).
       int mnfd;
       if (!DefaultNumberOption(isolate, mnfd_obj, 0, 100, -1, mnfd_str)
@@ -2077,12 +2082,12 @@ std::vector<std::string> BestFitSupportedLocales(
 }
 
 // ecma262 #sec-createarrayfromlist
-MaybeHandle<JSArray> CreateArrayFromList(Isolate* isolate,
-                                         std::vector<std::string> elements,
-                                         PropertyAttributes attr) {
+MaybeDirectHandle<JSArray> CreateArrayFromList(
+    Isolate* isolate, std::vector<std::string> elements,
+    PropertyAttributes attr) {
   Factory* factory = isolate->factory();
   // Let array be ! ArrayCreate(0).
-  Handle<JSArray> array = factory->NewJSArray(0);
+  DirectHandle<JSArray> array = factory->NewJSArray(0);
 
   uint32_t length = static_cast<uint32_t>(elements.size());
   // 3. Let n be 0.
@@ -2093,23 +2098,23 @@ MaybeHandle<JSArray> CreateArrayFromList(Isolate* isolate,
     DirectHandle<String> value =
         factory->NewStringFromUtf8(base::CStrVector(part.c_str()))
             .ToHandleChecked();
-    MAYBE_RETURN(JSObject::AddDataElement(array, i, value, attr),
-                 MaybeHandle<JSArray>());
+    MAYBE_RETURN(JSObject::AddDataElement(array, i, value, attr), {});
   }
   // 5. Return array.
-  return MaybeHandle<JSArray>(array);
+  return array;
 }
 
 // ECMA 402 9.2.9 SupportedLocales(availableLocales, requestedLocales, options)
 // https://tc39.github.io/ecma402/#sec-supportedlocales
-MaybeHandle<JSObject> SupportedLocales(
+MaybeDirectHandle<JSObject> SupportedLocales(
     Isolate* isolate, const char* method_name,
     const std::set<std::string>& available_locales,
-    const std::vector<std::string>& requested_locales, Handle<Object> options) {
+    const std::vector<std::string>& requested_locales,
+    DirectHandle<Object> options) {
   std::vector<std::string> supported_locales;
 
   // 1. Set options to ? CoerceOptionsToObject(options).
-  Handle<JSReceiver> options_obj;
+  DirectHandle<JSReceiver> options_obj;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, options_obj,
       CoerceOptionsToObject(isolate, options, method_name));
@@ -2118,7 +2123,7 @@ MaybeHandle<JSObject> SupportedLocales(
   //       « "lookup", "best fit" », "best fit").
   Maybe<Intl::MatcherOption> maybe_locale_matcher =
       Intl::GetLocaleMatcher(isolate, options_obj, method_name);
-  MAYBE_RETURN(maybe_locale_matcher, MaybeHandle<JSObject>());
+  MAYBE_RETURN(maybe_locale_matcher, {});
   Intl::MatcherOption matcher = maybe_locale_matcher.FromJust();
 
   // 3. If matcher is "best fit", then
@@ -2144,12 +2149,12 @@ MaybeHandle<JSObject> SupportedLocales(
 }  // namespace
 
 // ecma-402 #sec-intl.getcanonicallocales
-MaybeHandle<JSArray> Intl::GetCanonicalLocales(Isolate* isolate,
-                                               Handle<Object> locales) {
+MaybeDirectHandle<JSArray> Intl::GetCanonicalLocales(
+    Isolate* isolate, DirectHandle<Object> locales) {
   // 1. Let ll be ? CanonicalizeLocaleList(locales).
   Maybe<std::vector<std::string>> maybe_ll =
       CanonicalizeLocaleList(isolate, locales, false);
-  MAYBE_RETURN(maybe_ll, MaybeHandle<JSArray>());
+  MAYBE_RETURN(maybe_ll, {});
 
   // 2. Return CreateArrayFromList(ll).
   return CreateArrayFromList(isolate, maybe_ll.FromJust(),
@@ -2158,7 +2163,7 @@ MaybeHandle<JSArray> Intl::GetCanonicalLocales(Isolate* isolate,
 
 namespace {
 
-MaybeHandle<JSArray> AvailableCollations(Isolate* isolate) {
+MaybeDirectHandle<JSArray> AvailableCollations(Isolate* isolate) {
   UErrorCode status = U_ZERO_ERROR;
   std::unique_ptr<icu::StringEnumeration> enumeration(
       icu::Collator::getKeywordValues("collation", status));
@@ -2169,8 +2174,8 @@ MaybeHandle<JSArray> AvailableCollations(Isolate* isolate) {
                          Intl::RemoveCollation, true);
 }
 
-MaybeHandle<JSArray> VectorToJSArray(Isolate* isolate,
-                                     const std::vector<std::string>& array) {
+MaybeDirectHandle<JSArray> VectorToJSArray(
+    Isolate* isolate, const std::vector<std::string>& array) {
   Factory* factory = isolate->factory();
   DirectHandle<FixedArray> fixed_array =
       factory->NewFixedArray(static_cast<int32_t>(array.size()));
@@ -2235,11 +2240,11 @@ const std::vector<std::string>& GetAvailableCurrencies() {
 }
 }  // namespace
 
-MaybeHandle<JSArray> AvailableCurrencies(Isolate* isolate) {
+MaybeDirectHandle<JSArray> AvailableCurrencies(Isolate* isolate) {
   return VectorToJSArray(isolate, GetAvailableCurrencies());
 }
 
-MaybeHandle<JSArray> AvailableNumberingSystems(Isolate* isolate) {
+MaybeDirectHandle<JSArray> AvailableNumberingSystems(Isolate* isolate) {
   UErrorCode status = U_ZERO_ERROR;
   std::unique_ptr<icu::StringEnumeration> enumeration(
       icu::NumberingSystem::getAvailableNames(status));
@@ -2259,7 +2264,7 @@ MaybeHandle<JSArray> AvailableNumberingSystems(Isolate* isolate) {
       true);
 }
 
-MaybeHandle<JSArray> AvailableTimeZones(Isolate* isolate) {
+MaybeDirectHandle<JSArray> AvailableTimeZones(Isolate* isolate) {
   UErrorCode status = U_ZERO_ERROR;
   std::unique_ptr<icu::StringEnumeration> enumeration(
       icu::TimeZone::createTimeZoneIDEnumeration(
@@ -2270,7 +2275,7 @@ MaybeHandle<JSArray> AvailableTimeZones(Isolate* isolate) {
   return Intl::ToJSArray(isolate, nullptr, enumeration.get(), nullptr, true);
 }
 
-MaybeHandle<JSArray> AvailableUnits(Isolate* isolate) {
+MaybeDirectHandle<JSArray> AvailableUnits(Isolate* isolate) {
   Factory* factory = isolate->factory();
   std::set<std::string> sanctioned(Intl::SanctionedSimpleUnits());
   DirectHandle<FixedArray> fixed_array =
@@ -2286,11 +2291,11 @@ MaybeHandle<JSArray> AvailableUnits(Isolate* isolate) {
 }  // namespace
 
 // ecma-402 #sec-intl.supportedvaluesof
-MaybeHandle<JSArray> Intl::SupportedValuesOf(Isolate* isolate,
-                                             Handle<Object> key_obj) {
+MaybeDirectHandle<JSArray> Intl::SupportedValuesOf(
+    Isolate* isolate, DirectHandle<Object> key_obj) {
   Factory* factory = isolate->factory();
   // 1. 1. Let key be ? ToString(key).
-  Handle<String> key_str;
+  DirectHandle<String> key_str;
   ASSIGN_RETURN_ON_EXCEPTION(isolate, key_str,
                              Object::ToString(isolate, key_obj));
   // 2. If key is "calendar", then
@@ -2334,16 +2339,16 @@ MaybeHandle<JSArray> Intl::SupportedValuesOf(Isolate* isolate,
 }
 
 // ECMA 402 Intl.*.supportedLocalesOf
-MaybeHandle<JSObject> Intl::SupportedLocalesOf(
+MaybeDirectHandle<JSObject> Intl::SupportedLocalesOf(
     Isolate* isolate, const char* method_name,
-    const std::set<std::string>& available_locales, Handle<Object> locales,
-    Handle<Object> options) {
+    const std::set<std::string>& available_locales,
+    DirectHandle<Object> locales, DirectHandle<Object> options) {
   // Let availableLocales be %Collator%.[[AvailableLocales]].
 
   // Let requestedLocales be ? CanonicalizeLocaleList(locales).
   Maybe<std::vector<std::string>> requested_locales =
       CanonicalizeLocaleList(isolate, locales, false);
-  MAYBE_RETURN(requested_locales, MaybeHandle<JSObject>());
+  MAYBE_RETURN(requested_locales, {});
 
   // Return ? SupportedLocales(availableLocales, requestedLocales, options).
   return SupportedLocales(isolate, method_name, available_locales,
@@ -2547,7 +2552,7 @@ std::string LookupMatcher(Isolate* isolate,
 
 // This function doesn't correspond exactly with the spec. Instead
 // we use ICU to do all the string manipulations that the spec
-// peforms.
+// performs.
 //
 // The spec uses this function to normalize values for various
 // relevant extension keys (such as disallowing "search" for
@@ -2581,13 +2586,14 @@ Maybe<Intl::ResolvedLocale> Intl::ResolveLocale(
       Intl::ResolvedLocale{canonicalized_locale, icu_locale, extensions});
 }
 
-Handle<Managed<icu::UnicodeString>> Intl::SetTextToBreakIterator(
-    Isolate* isolate, Handle<String> text, icu::BreakIterator* break_iterator) {
+DirectHandle<Managed<icu::UnicodeString>> Intl::SetTextToBreakIterator(
+    Isolate* isolate, DirectHandle<String> text,
+    icu::BreakIterator* break_iterator) {
   text = String::Flatten(isolate, text);
   std::shared_ptr<icu::UnicodeString> u_text{static_cast<icu::UnicodeString*>(
       Intl::ToICUUnicodeString(isolate, text).clone())};
 
-  Handle<Managed<icu::UnicodeString>> new_u_text =
+  DirectHandle<Managed<icu::UnicodeString>> new_u_text =
       Managed<icu::UnicodeString>::From(isolate, 0, u_text);
 
   break_iterator->setText(*u_text);
@@ -2595,8 +2601,9 @@ Handle<Managed<icu::UnicodeString>> Intl::SetTextToBreakIterator(
 }
 
 // ecma262 #sec-string.prototype.normalize
-MaybeHandle<String> Intl::Normalize(Isolate* isolate, Handle<String> string,
-                                    Handle<Object> form_input) {
+MaybeDirectHandle<String> Intl::Normalize(Isolate* isolate,
+                                          DirectHandle<String> string,
+                                          DirectHandle<Object> form_input) {
   const char* form_name;
   UNormalization2Mode form_mode;
   if (IsUndefined(*form_input, isolate)) {
@@ -2604,7 +2611,7 @@ MaybeHandle<String> Intl::Normalize(Isolate* isolate, Handle<String> string,
     form_name = "nfc";
     form_mode = UNORM2_COMPOSE;
   } else {
-    Handle<String> form;
+    DirectHandle<String> form;
     ASSIGN_RETURN_ON_EXCEPTION(isolate, form,
                                Object::ToString(isolate, form_input));
 
@@ -2624,7 +2631,7 @@ MaybeHandle<String> Intl::Normalize(Isolate* isolate, Handle<String> string,
       form_name = "nfkc";
       form_mode = UNORM2_DECOMPOSE;
     } else {
-      Handle<String> valid_forms =
+      DirectHandle<String> valid_forms =
           isolate->factory()->NewStringFromStaticChars("NFC, NFD, NFKC, NFKD");
       THROW_NEW_ERROR(
           isolate,
@@ -2632,7 +2639,7 @@ MaybeHandle<String> Intl::Normalize(Isolate* isolate, Handle<String> string,
     }
   }
 
-  int length = string->length();
+  uint32_t length = string->length();
   string = String::Flatten(isolate, string);
   icu::UnicodeString result;
   std::unique_ptr<base::uc16[]> sap;
@@ -2643,7 +2650,7 @@ MaybeHandle<String> Intl::Normalize(Isolate* isolate, Handle<String> string,
       icu::Normalizer2::getInstance(nullptr, form_name, form_mode, status);
   DCHECK(U_SUCCESS(status));
   DCHECK_NOT_NULL(normalizer);
-  int32_t normalized_prefix_length =
+  uint32_t normalized_prefix_length =
       normalizer->spanQuickCheckYes(input, status);
   // Quick return if the input is already normalized.
   if (length == normalized_prefix_length) return string;
@@ -2755,9 +2762,9 @@ base::TimezoneCache* Intl::CreateTimeZoneCache() {
                                     : base::OS::CreateTimezoneCache();
 }
 
-Maybe<Intl::MatcherOption> Intl::GetLocaleMatcher(Isolate* isolate,
-                                                  Handle<JSReceiver> options,
-                                                  const char* method_name) {
+Maybe<Intl::MatcherOption> Intl::GetLocaleMatcher(
+    Isolate* isolate, DirectHandle<JSReceiver> options,
+    const char* method_name) {
   return GetStringOption<Intl::MatcherOption>(
       isolate, options, "localeMatcher", method_name, {"best fit", "lookup"},
       {Intl::MatcherOption::kBestFit, Intl::MatcherOption::kLookup},
@@ -2765,7 +2772,7 @@ Maybe<Intl::MatcherOption> Intl::GetLocaleMatcher(Isolate* isolate,
 }
 
 Maybe<bool> Intl::GetNumberingSystem(Isolate* isolate,
-                                     Handle<JSReceiver> options,
+                                     DirectHandle<JSReceiver> options,
                                      const char* method_name,
                                      std::unique_ptr<char[]>* result) {
   const std::vector<const char*> empty_values = {};
@@ -2810,10 +2817,10 @@ const std::set<std::string>& Intl::GetAvailableLocalesForDateFormat() {
 
 constexpr uint16_t kInfinityChar = 0x221e;
 
-Handle<String> Intl::NumberFieldToType(Isolate* isolate,
-                                       const NumberFormatSpan& part,
-                                       const icu::UnicodeString& text,
-                                       bool is_nan) {
+DirectHandle<String> Intl::NumberFieldToType(Isolate* isolate,
+                                             const NumberFormatSpan& part,
+                                             const icu::UnicodeString& text,
+                                             bool is_nan) {
   switch (static_cast<UNumberFormatFields>(part.field_id)) {
     case UNUM_INTEGER_FIELD:
       if (is_nan) return isolate->factory()->nan_string();
@@ -2866,7 +2873,7 @@ Handle<String> Intl::NumberFieldToType(Isolate* isolate,
 }
 
 // A helper function to convert the FormattedValue for several Intl objects.
-MaybeHandle<String> Intl::FormattedToString(
+MaybeDirectHandle<String> Intl::FormattedToString(
     Isolate* isolate, const icu::FormattedValue& formatted) {
   UErrorCode status = U_ZERO_ERROR;
   icu::UnicodeString result = formatted.toString(status);
@@ -2876,7 +2883,7 @@ MaybeHandle<String> Intl::FormattedToString(
   return Intl::ToString(isolate, result);
 }
 
-MaybeHandle<JSArray> Intl::ToJSArray(
+MaybeDirectHandle<JSArray> Intl::ToJSArray(
     Isolate* isolate, const char* unicode_key,
     icu::StringEnumeration* enumeration,
     const std::function<bool(const char*)>& removes, bool sort) {
@@ -3041,18 +3048,19 @@ bool Intl::FormatRangeSourceTracker::FieldContains(int32_t field, int32_t start,
          (start_[field] <= limit) && (limit <= limit_[field]);
 }
 
-Handle<String> Intl::SourceString(Isolate* isolate, FormatRangeSource source) {
+DirectHandle<String> Intl::SourceString(Isolate* isolate,
+                                        FormatRangeSource source) {
   switch (source) {
     case FormatRangeSource::kShared:
-      return ReadOnlyRoots(isolate).shared_string_handle();
+      return isolate->factory()->shared_string();
     case FormatRangeSource::kStartRange:
-      return ReadOnlyRoots(isolate).startRange_string_handle();
+      return isolate->factory()->startRange_string();
     case FormatRangeSource::kEndRange:
-      return ReadOnlyRoots(isolate).endRange_string_handle();
+      return isolate->factory()->endRange_string();
   }
 }
 
-Handle<String> Intl::DefaultTimeZone(Isolate* isolate) {
+DirectHandle<String> Intl::DefaultTimeZone(Isolate* isolate) {
   icu::UnicodeString id;
   {
     std::unique_ptr<icu::TimeZone> tz(icu::TimeZone::createDefault());
@@ -3084,7 +3092,7 @@ const icu::BasicTimeZone* CreateBasicTimeZoneFromIndex(
 // need to ceil to the millisecond in the near future of the nanosecond_epoch.
 enum class Direction { kPast, kFuture };
 int64_t ApproximateMillisecondEpoch(Isolate* isolate,
-                                    Handle<BigInt> nanosecond_epoch,
+                                    DirectHandle<BigInt> nanosecond_epoch,
                                     Direction direction = Direction::kPast) {
   DirectHandle<BigInt> one_million = BigInt::FromUint64(isolate, 1000000);
   int64_t ms = BigInt::Divide(isolate, nanosecond_epoch, one_million)
@@ -3114,7 +3122,7 @@ int64_t ApproximateMillisecondEpoch(Isolate* isolate,
 
 // Helper function to convert the milliseconds in int64_t
 // to a BigInt in nanoseconds.
-Handle<BigInt> MillisecondToNanosecond(Isolate* isolate, int64_t ms) {
+DirectHandle<BigInt> MillisecondToNanosecond(Isolate* isolate, int64_t ms) {
   return BigInt::Multiply(isolate, BigInt::FromInt64(isolate, ms),
                           BigInt::FromUint64(isolate, 1000000))
       .ToHandleChecked();
@@ -3122,9 +3130,9 @@ Handle<BigInt> MillisecondToNanosecond(Isolate* isolate, int64_t ms) {
 
 }  // namespace
 
-Handle<Object> Intl::GetTimeZoneOffsetTransitionNanoseconds(
-    Isolate* isolate, int32_t time_zone_index, Handle<BigInt> nanosecond_epoch,
-    Intl::Transition transition) {
+DirectHandle<Object> Intl::GetTimeZoneOffsetTransitionNanoseconds(
+    Isolate* isolate, int32_t time_zone_index,
+    DirectHandle<BigInt> nanosecond_epoch, Intl::Transition transition) {
   std::unique_ptr<const icu::BasicTimeZone> basic_time_zone(
       CreateBasicTimeZoneFromIndex(time_zone_index));
 
@@ -3166,9 +3174,9 @@ Handle<Object> Intl::GetTimeZoneOffsetTransitionNanoseconds(
   return MillisecondToNanosecond(isolate, time_ms);
 }
 
-std::vector<Handle<BigInt>> Intl::GetTimeZonePossibleOffsetNanoseconds(
+DirectHandleVector<BigInt> Intl::GetTimeZonePossibleOffsetNanoseconds(
     Isolate* isolate, int32_t time_zone_index,
-    Handle<BigInt> nanosecond_epoch) {
+    DirectHandle<BigInt> nanosecond_epoch) {
   std::unique_ptr<const icu::BasicTimeZone> basic_time_zone(
       CreateBasicTimeZoneFromIndex(time_zone_index));
   int64_t time_ms = ApproximateMillisecondEpoch(isolate, nanosecond_epoch);
@@ -3179,7 +3187,7 @@ std::vector<Handle<BigInt>> Intl::GetTimeZonePossibleOffsetNanoseconds(
                                       UCAL_TZ_LOCAL_FORMER, raw_offset,
                                       dst_offset, status);
   DCHECK(U_SUCCESS(status));
-  // offset for time_ms interpretted as before a time zone
+  // offset for time_ms interpreted as before a time zone
   // transition
   int64_t offset_former = raw_offset + dst_offset;
 
@@ -3187,11 +3195,11 @@ std::vector<Handle<BigInt>> Intl::GetTimeZonePossibleOffsetNanoseconds(
                                       UCAL_TZ_LOCAL_LATTER, raw_offset,
                                       dst_offset, status);
   DCHECK(U_SUCCESS(status));
-  // offset for time_ms interpretted as after a time zone
+  // offset for time_ms interpreted as after a time zone
   // transition
   int64_t offset_latter = raw_offset + dst_offset;
 
-  std::vector<Handle<BigInt>> result;
+  DirectHandleVector<BigInt> result(isolate);
   if (offset_former == offset_latter) {
     // For most of the time, when either interpretation are the same, we are not
     // in a moment of offset transition based on rule changing: Just return that
@@ -3212,9 +3220,9 @@ std::vector<Handle<BigInt>> Intl::GetTimeZonePossibleOffsetNanoseconds(
   return result;
 }
 
-int64_t Intl::GetTimeZoneOffsetNanoseconds(Isolate* isolate,
-                                           int32_t time_zone_index,
-                                           Handle<BigInt> nanosecond_epoch) {
+int64_t Intl::GetTimeZoneOffsetNanoseconds(
+    Isolate* isolate, int32_t time_zone_index,
+    DirectHandle<BigInt> nanosecond_epoch) {
   std::unique_ptr<const icu::BasicTimeZone> basic_time_zone(
       CreateBasicTimeZoneFromIndex(time_zone_index));
   int64_t time_ms = ApproximateMillisecondEpoch(isolate, nanosecond_epoch);

@@ -85,7 +85,7 @@ class ConcurrentStringThread final : public v8::base::Thread {
     sema_started_->Signal();
     // Check the three operations we do from the StringRef concurrently: get the
     // string, the nth character, and convert into a double.
-    EXPECT_EQ(str_->length(kAcquireLoad), static_cast<int>(length_));
+    EXPECT_EQ(str_->length(kAcquireLoad), static_cast<uint32_t>(length_));
     for (unsigned int i = 0; i < length_; ++i) {
       EXPECT_EQ(str_->Get(i, &local_isolate), chars_[i]);
     }
@@ -119,7 +119,7 @@ TEST_F(ConcurrentStringTest, InspectOneByteExternalizing) {
   Handle<String> persistent_string = ph->NewHandle(one_byte_string);
 
   std::vector<uint16_t> chars;
-  for (int i = 0; i < one_byte_string->length(); ++i) {
+  for (uint32_t i = 0; i < one_byte_string->length(); ++i) {
     chars.push_back(one_byte_string->Get(i));
   }
 
@@ -135,7 +135,7 @@ TEST_F(ConcurrentStringTest, InspectOneByteExternalizing) {
   // We need to use StrDup in this case since the TestOneByteResource will get
   // ownership of raw_string otherwise.
   EXPECT_TRUE(one_byte_string->MakeExternal(
-      new TestOneByteResource(i::StrDup(raw_string))));
+      i_isolate(), new TestOneByteResource(i::StrDup(raw_string))));
   EXPECT_TRUE(IsExternalOneByteString(*one_byte_string));
   EXPECT_TRUE(IsInternalizedString(*one_byte_string));
 
@@ -170,7 +170,7 @@ TEST_F(ConcurrentStringTest, InspectTwoByteExternalizing) {
 
   Handle<String> persistent_string = ph->NewHandle(two_bytes_string);
   std::vector<uint16_t> chars;
-  for (int i = 0; i < two_bytes_string->length(); ++i) {
+  for (uint32_t i = 0; i < two_bytes_string->length(); ++i) {
     chars.push_back(two_bytes_string->Get(i));
   }
   base::Semaphore sema_started(0);
@@ -183,7 +183,7 @@ TEST_F(ConcurrentStringTest, InspectTwoByteExternalizing) {
 
   // Externalize it to a two-bytes external string.
   EXPECT_TRUE(two_bytes_string->MakeExternal(
-      new TestTwoByteResource(AsciiToTwoByteString(raw_string))));
+      i_isolate(), new TestTwoByteResource(AsciiToTwoByteString(raw_string))));
   EXPECT_TRUE(IsExternalTwoByteString(*two_bytes_string));
   EXPECT_TRUE(IsInternalizedString(*two_bytes_string));
 
@@ -223,7 +223,7 @@ TEST_F(ConcurrentStringTest, InspectOneByteExternalizing_ThinString) {
   Handle<String> persistent_string = ph->NewHandle(thin_string);
 
   std::vector<uint16_t> chars;
-  for (int i = 0; i < thin_string->length(); ++i) {
+  for (uint32_t i = 0; i < thin_string->length(); ++i) {
     chars.push_back(thin_string->Get(i));
   }
 
@@ -239,7 +239,7 @@ TEST_F(ConcurrentStringTest, InspectOneByteExternalizing_ThinString) {
   // We need to use StrDup in this case since the TestOneByteResource will get
   // ownership of raw_string otherwise.
   EXPECT_TRUE(internalized_string->MakeExternal(
-      new TestOneByteResource(i::StrDup(raw_string))));
+      i_isolate(), new TestOneByteResource(i::StrDup(raw_string))));
   EXPECT_TRUE(IsExternalOneByteString(*internalized_string));
   EXPECT_TRUE(IsInternalizedString(*internalized_string));
 
@@ -286,7 +286,7 @@ TEST_F(ConcurrentStringTest, InspectTwoByteExternalizing_ThinString) {
 
   Handle<String> persistent_string = ph->NewHandle(thin_string);
   std::vector<uint16_t> chars;
-  for (int i = 0; i < thin_string->length(); ++i) {
+  for (uint32_t i = 0; i < thin_string->length(); ++i) {
     chars.push_back(thin_string->Get(i));
   }
   base::Semaphore sema_started(0);
@@ -299,7 +299,7 @@ TEST_F(ConcurrentStringTest, InspectTwoByteExternalizing_ThinString) {
 
   // Externalize it to a two-bytes external string.
   EXPECT_TRUE(internalized_string->MakeExternal(
-      new TestTwoByteResource(AsciiToTwoByteString(raw_string))));
+      i_isolate(), new TestTwoByteResource(AsciiToTwoByteString(raw_string))));
   EXPECT_TRUE(IsExternalTwoByteString(*internalized_string));
   EXPECT_TRUE(IsInternalizedString(*internalized_string));
 

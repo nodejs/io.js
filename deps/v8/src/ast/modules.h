@@ -5,7 +5,7 @@
 #ifndef V8_AST_MODULES_H_
 #define V8_AST_MODULES_H_
 
-#include "src/parsing/import-assertions.h"
+#include "src/parsing/import-attributes.h"
 #include "src/parsing/scanner.h"  // Only for Scanner::Location.
 #include "src/zone/zone-containers.h"
 
@@ -115,7 +115,7 @@ class SourceTextModuleDescriptor : public ZoneObject {
           cell_index(0) {}
 
     template <typename IsolateT>
-    Handle<SourceTextModuleInfoEntry> Serialize(IsolateT* isolate) const;
+    DirectHandle<SourceTextModuleInfoEntry> Serialize(IsolateT* isolate) const;
   };
 
   enum CellIndexKind { kInvalid, kExport, kImport };
@@ -134,7 +134,8 @@ class SourceTextModuleDescriptor : public ZoneObject {
           index_(index) {}
 
     template <typename IsolateT>
-    Handle<v8::internal::ModuleRequest> Serialize(IsolateT* isolate) const;
+    DirectHandle<v8::internal::ModuleRequest> Serialize(
+        IsolateT* isolate) const;
 
     const AstRawString* specifier() const { return specifier_; }
     const ImportAttributes* import_attributes() const {
@@ -228,8 +229,8 @@ class SourceTextModuleDescriptor : public ZoneObject {
   }
 
   template <typename IsolateT>
-  Handle<FixedArray> SerializeRegularExports(IsolateT* isolate,
-                                             Zone* zone) const;
+  DirectHandle<FixedArray> SerializeRegularExports(IsolateT* isolate,
+                                                   Zone* zone) const;
 
  private:
   ModuleRequestMap module_requests_;

@@ -6,8 +6,21 @@
 
 #include "src/codegen/mips64/constants-mips64.h"
 
+#include "src/common/code-memory-access-inl.h"
+
 namespace v8 {
 namespace internal {
+
+void InstructionBase::SetInstructionBits(
+    Instr new_instr, WritableJitAllocation* jit_allocation) {
+  // Usually this is aligned, but when de/serializing that's not guaranteed.
+  if (jit_allocation) {
+    jit_allocation->WriteUnalignedValue(reinterpret_cast<Address>(this),
+                                        new_instr);
+  } else {
+    base::WriteUnalignedValue(reinterpret_cast<Address>(this), new_instr);
+  }
+}
 
 // -----------------------------------------------------------------------------
 // Registers.

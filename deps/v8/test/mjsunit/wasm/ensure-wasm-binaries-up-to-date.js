@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm
-
 // Ensure checked in wasm binaries used by integration tests from v8 hosts
 // (such as chromium) are up to date.
 

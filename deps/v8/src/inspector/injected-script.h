@@ -52,7 +52,6 @@ class V8InspectorImpl;
 class V8InspectorSessionImpl;
 class ValueMirror;
 
-using protocol::Maybe;
 using protocol::Response;
 
 class EvaluateCallback {
@@ -60,7 +59,7 @@ class EvaluateCallback {
   static void sendSuccess(
       std::weak_ptr<EvaluateCallback> callback, InjectedScript* injectedScript,
       std::unique_ptr<protocol::Runtime::RemoteObject> result,
-      protocol::Maybe<protocol::Runtime::ExceptionDetails> exceptionDetails);
+      std::unique_ptr<protocol::Runtime::ExceptionDetails> exceptionDetails);
   static void sendFailure(std::weak_ptr<EvaluateCallback> callback,
                           InjectedScript* injectedScript,
                           const protocol::DispatchResponse& response);
@@ -70,7 +69,7 @@ class EvaluateCallback {
  private:
   virtual void sendSuccess(
       std::unique_ptr<protocol::Runtime::RemoteObject> result,
-      protocol::Maybe<protocol::Runtime::ExceptionDetails>
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>
           exceptionDetails) = 0;
   virtual void sendFailure(const protocol::DispatchResponse& response) = 0;
 };
@@ -90,7 +89,7 @@ class InjectedScript final {
       const WrapOptions& wrapOptions,
       std::unique_ptr<protocol::Array<protocol::Runtime::PropertyDescriptor>>*
           result,
-      Maybe<protocol::Runtime::ExceptionDetails>*);
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>*);
 
   Response getInternalAndPrivateProperties(
       v8::Local<v8::Value>, const String16& groupName,
@@ -136,18 +135,18 @@ class InjectedScript final {
 
   Response createExceptionDetails(
       const v8::TryCatch&, const String16& groupName,
-      Maybe<protocol::Runtime::ExceptionDetails>* result);
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>* result);
   Response createExceptionDetails(
       v8::Local<v8::Message> message, v8::Local<v8::Value> exception,
       const String16& groupName,
-      Maybe<protocol::Runtime::ExceptionDetails>* result);
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>* result);
 
   Response wrapEvaluateResult(
       v8::MaybeLocal<v8::Value> maybeResultValue, const v8::TryCatch&,
       const String16& objectGroup, const WrapOptions& wrapOptions,
       bool throwOnSideEffect,
       std::unique_ptr<protocol::Runtime::RemoteObject>* result,
-      Maybe<protocol::Runtime::ExceptionDetails>*);
+      std::unique_ptr<protocol::Runtime::ExceptionDetails>*);
   v8::Local<v8::Value> lastEvaluationResult() const;
   void setLastEvaluationResult(v8::Local<v8::Value> result);
 

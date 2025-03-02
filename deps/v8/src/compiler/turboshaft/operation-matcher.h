@@ -10,6 +10,7 @@
 #include <type_traits>
 
 #include "src/compiler/turboshaft/graph.h"
+#include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/operations.h"
 #include "src/compiler/turboshaft/representations.h"
 
@@ -20,25 +21,25 @@ class OperationMatcher {
   explicit OperationMatcher(const Graph& graph) : graph_(graph) {}
 
   template <class Op>
-  bool Is(OpIndex op_idx) const {
+  bool Is(V<AnyOrNone> op_idx) const {
     return graph_.Get(op_idx).Is<Op>();
   }
 
   template <class Op>
-  const underlying_operation_t<Op>* TryCast(OpIndex op_idx) const {
+  const underlying_operation_t<Op>* TryCast(V<AnyOrNone> op_idx) const {
     return graph_.Get(op_idx).TryCast<Op>();
   }
 
   template <class Op>
-  const underlying_operation_t<Op>& Cast(OpIndex op_idx) const {
+  const underlying_operation_t<Op>& Cast(V<AnyOrNone> op_idx) const {
     return graph_.Get(op_idx).Cast<Op>();
   }
 
-  const Operation& Get(OpIndex op_idx) const { return graph_.Get(op_idx); }
+  const Operation& Get(V<AnyOrNone> op_idx) const { return graph_.Get(op_idx); }
 
-  OpIndex Index(const Operation& op) const { return graph_.Index(op); }
+  V<AnyOrNone> Index(const Operation& op) const { return graph_.Index(op); }
 
-  bool MatchZero(OpIndex matched) const {
+  bool MatchZero(V<Any> matched) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     switch (op->kind) {
@@ -56,19 +57,19 @@ class OperationMatcher {
     }
   }
 
-  bool MatchIntegralZero(OpIndex matched) const {
+  bool MatchIntegralZero(V<Any> matched) const {
     int64_t constant;
     return MatchSignedIntegralConstant(matched, &constant) && constant == 0;
   }
 
-  bool MatchSmiZero(OpIndex matched) const {
+  bool MatchSmiZero(V<Any> matched) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind != ConstantOp::Kind::kSmi) return false;
     return op->smi().value() == 0;
   }
 
-  bool MatchFloat32Constant(OpIndex matched, float* constant) const {
+  bool MatchFloat32Constant(V<Any> matched, float* constant) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind != ConstantOp::Kind::kFloat32) return false;
@@ -76,7 +77,7 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchFloat32Constant(OpIndex matched, i::Float32* constant) const {
+  bool MatchFloat32Constant(V<Any> matched, i::Float32* constant) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind != ConstantOp::Kind::kFloat32) return false;
@@ -84,7 +85,7 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchFloat64Constant(OpIndex matched, double* constant) const {
+  bool MatchFloat64Constant(V<Any> matched, double* constant) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind != ConstantOp::Kind::kFloat64) return false;
@@ -92,7 +93,7 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchFloat64Constant(OpIndex matched, i::Float64* constant) const {
+  bool MatchFloat64Constant(V<Any> matched, i::Float64* constant) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind != ConstantOp::Kind::kFloat64) return false;
@@ -100,7 +101,7 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchFloat(OpIndex matched, double* value) const {
+  bool MatchFloat(V<Any> matched, double* value) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind == ConstantOp::Kind::kFloat64) {
@@ -113,19 +114,19 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchFloat(OpIndex matched, double value) const {
+  bool MatchFloat(V<Any> matched, double value) const {
     double k;
     if (!MatchFloat(matched, &k)) return false;
     return base::bit_cast<uint64_t>(value) == base::bit_cast<uint64_t>(k) ||
            (std::isnan(k) && std::isnan(value));
   }
 
-  bool MatchNaN(OpIndex matched) const {
+  bool MatchNaN(V<Float> matched) const {
     double k;
     return MatchFloat(matched, &k) && std::isnan(k);
   }
 
-  bool MatchHeapConstant(OpIndex matched,
+  bool MatchHeapConstant(V<Any> matched,
                          Handle<HeapObject>* tagged = nullptr) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
@@ -139,7 +140,7 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchIntegralWordConstant(OpIndex matched, WordRepresentation rep,
+  bool MatchIntegralWordConstant(V<Any> matched, WordRepresentation rep,
                                  uint64_t* unsigned_constant,
                                  int64_t* signed_constant = nullptr) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
@@ -173,12 +174,12 @@ class OperationMatcher {
     UNREACHABLE();
   }
 
-  bool MatchIntegralWordConstant(OpIndex matched, WordRepresentation rep,
+  bool MatchIntegralWordConstant(V<Any> matched, WordRepresentation rep,
                                  int64_t* signed_constant) const {
     return MatchIntegralWordConstant(matched, rep, nullptr, signed_constant);
   }
 
-  bool MatchIntegralWord32Constant(OpIndex matched, uint32_t* constant) const {
+  bool MatchIntegralWord32Constant(V<Any> matched, uint32_t* constant) const {
     if (uint64_t value; MatchIntegralWordConstant(
             matched, WordRepresentation::Word32(), &value)) {
       *constant = static_cast<uint32_t>(value);
@@ -187,12 +188,12 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchIntegralWord64Constant(OpIndex matched, uint64_t* constant) const {
+  bool MatchIntegralWord64Constant(V<Any> matched, uint64_t* constant) const {
     return MatchIntegralWordConstant(matched, WordRepresentation::Word64(),
                                      constant);
   }
 
-  bool MatchIntegralWord32Constant(OpIndex matched, uint32_t constant) const {
+  bool MatchIntegralWord32Constant(V<Any> matched, uint32_t constant) const {
     if (uint64_t value; MatchIntegralWordConstant(
             matched, WordRepresentation::Word32(), &value)) {
       return static_cast<uint32_t>(value) == constant;
@@ -200,12 +201,12 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchIntegralWord64Constant(OpIndex matched, int64_t* constant) const {
+  bool MatchIntegralWord64Constant(V<Any> matched, int64_t* constant) const {
     return MatchIntegralWordConstant(matched, WordRepresentation::Word64(),
                                      constant);
   }
 
-  bool MatchIntegralWord32Constant(OpIndex matched, int32_t* constant) const {
+  bool MatchIntegralWord32Constant(V<Any> matched, int32_t* constant) const {
     if (int64_t value; MatchIntegralWordConstant(
             matched, WordRepresentation::Word32(), &value)) {
       *constant = static_cast<int32_t>(value);
@@ -215,7 +216,7 @@ class OperationMatcher {
   }
 
   template <typename T = intptr_t>
-  bool MatchIntegralWordPtrConstant(OpIndex matched, T* constant) const {
+  bool MatchIntegralWordPtrConstant(V<Any> matched, T* constant) const {
     if constexpr (Is64()) {
       static_assert(sizeof(T) == sizeof(int64_t));
       int64_t v;
@@ -231,7 +232,7 @@ class OperationMatcher {
     }
   }
 
-  bool MatchSignedIntegralConstant(OpIndex matched, int64_t* constant) const {
+  bool MatchSignedIntegralConstant(V<Any> matched, int64_t* constant) const {
     if (const ConstantOp* c = TryCast<ConstantOp>(matched)) {
       if (c->kind == ConstantOp::Kind::kWord32 ||
           c->kind == ConstantOp::Kind::kWord64) {
@@ -242,8 +243,7 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchUnsignedIntegralConstant(OpIndex matched,
-                                     uint64_t* constant) const {
+  bool MatchUnsignedIntegralConstant(V<Any> matched, uint64_t* constant) const {
     if (const ConstantOp* c = TryCast<ConstantOp>(matched)) {
       if (c->kind == ConstantOp::Kind::kWord32 ||
           c->kind == ConstantOp::Kind::kWord64) {
@@ -254,7 +254,7 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchExternalConstant(OpIndex matched,
+  bool MatchExternalConstant(V<Any> matched,
                              ExternalReference* reference) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
@@ -263,7 +263,7 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchWasmStubCallConstant(OpIndex matched, uint64_t* stub_id) const {
+  bool MatchWasmStubCallConstant(V<Any> matched, uint64_t* stub_id) const {
     const ConstantOp* op = TryCast<ConstantOp>(matched);
     if (!op) return false;
     if (op->kind != ConstantOp::Kind::kRelocatableWasmStubCall) {
@@ -273,19 +273,21 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchChange(OpIndex matched, OpIndex* input, ChangeOp::Kind kind,
+  template <typename T>
+  bool MatchChange(V<Any> matched, V<T>* input, ChangeOp::Kind kind,
                    RegisterRepresentation from,
                    RegisterRepresentation to) const {
     const ChangeOp* op = TryCast<ChangeOp>(matched);
     if (!op || op->kind != kind || op->from != from || op->to != to) {
       return false;
     }
-    *input = op->input();
+    *input = op->input<T>();
     return true;
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchWordBinop(OpIndex matched, V<T>* left, V<T>* right,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchWordBinop(V<Any> matched, V<T>* left, V<T>* right,
                       WordBinopOp::Kind* kind, WordRepresentation* rep) const {
     const WordBinopOp* op = TryCast<WordBinopOp>(matched);
     if (!op) return false;
@@ -296,8 +298,9 @@ class OperationMatcher {
     return true;
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchWordBinop(OpIndex matched, V<T>* left, V<T>* right,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchWordBinop(V<Any> matched, V<T>* left, V<T>* right,
                       WordBinopOp::Kind kind, WordRepresentation rep) const {
     const WordBinopOp* op = TryCast<WordBinopOp>(matched);
     if (!op || kind != op->kind) {
@@ -314,33 +317,38 @@ class OperationMatcher {
     return true;
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchWordAdd(OpIndex matched, V<T>* left, V<T>* right,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchWordAdd(V<Any> matched, V<T>* left, V<T>* right,
                     WordRepresentation rep) const {
     return MatchWordBinop(matched, left, right, WordBinopOp::Kind::kAdd, rep);
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchWordSub(OpIndex matched, V<T>* left, V<T>* right,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchWordSub(V<Any> matched, V<T>* left, V<T>* right,
                     WordRepresentation rep) const {
     return MatchWordBinop(matched, left, right, WordBinopOp::Kind::kSub, rep);
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchWordMul(OpIndex matched, V<T>* left, V<T>* right,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchWordMul(V<Any> matched, V<T>* left, V<T>* right,
                     WordRepresentation rep) const {
     return MatchWordBinop(matched, left, right, WordBinopOp::Kind::kMul, rep);
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchBitwiseAnd(OpIndex matched, V<T>* left, V<T>* right,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchBitwiseAnd(V<Any> matched, V<T>* left, V<T>* right,
                        WordRepresentation rep) const {
     return MatchWordBinop(matched, left, right, WordBinopOp::Kind::kBitwiseAnd,
                           rep);
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchBitwiseAndWithConstant(OpIndex matched, V<T>* value,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchBitwiseAndWithConstant(V<Any> matched, V<T>* value,
                                    uint64_t* constant,
                                    WordRepresentation rep) const {
     V<T> left, right;
@@ -356,7 +364,7 @@ class OperationMatcher {
   }
 
   template <typename T>
-  bool MatchEqual(OpIndex matched, V<T>* left, V<T>* right) const {
+  bool MatchEqual(V<Any> matched, V<T>* left, V<T>* right) const {
     const ComparisonOp* op = TryCast<ComparisonOp>(matched);
     if (!op || op->kind != ComparisonOp::Kind::kEqual || op->rep != V<T>::rep) {
       return false;
@@ -366,20 +374,20 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchFloatUnary(OpIndex matched, V<Float>* input,
-                       FloatUnaryOp::Kind kind, FloatRepresentation rep) const {
+  bool MatchFloatUnary(V<Any> matched, V<Float>* input, FloatUnaryOp::Kind kind,
+                       FloatRepresentation rep) const {
     const FloatUnaryOp* op = TryCast<FloatUnaryOp>(matched);
     if (!op || op->kind != kind || op->rep != rep) return false;
     *input = op->input();
     return true;
   }
 
-  bool MatchFloatRoundDown(OpIndex matched, V<Float>* input,
+  bool MatchFloatRoundDown(V<Any> matched, V<Float>* input,
                            FloatRepresentation rep) const {
     return MatchFloatUnary(matched, input, FloatUnaryOp::Kind::kRoundDown, rep);
   }
 
-  bool MatchFloatBinary(OpIndex matched, V<Float>* left, V<Float>* right,
+  bool MatchFloatBinary(V<Any> matched, V<Float>* left, V<Float>* right,
                         FloatBinopOp::Kind kind,
                         FloatRepresentation rep) const {
     const FloatBinopOp* op = TryCast<FloatBinopOp>(matched);
@@ -389,19 +397,21 @@ class OperationMatcher {
     return true;
   }
 
-  bool MatchFloatSub(OpIndex matched, V<Float>* left, V<Float>* right,
+  bool MatchFloatSub(V<Any> matched, V<Float>* left, V<Float>* right,
                      FloatRepresentation rep) const {
     return MatchFloatBinary(matched, left, right, FloatBinopOp::Kind::kSub,
                             rep);
   }
 
-  bool MatchConstantShift(OpIndex matched, OpIndex* input, ShiftOp::Kind* kind,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchConstantShift(V<Any> matched, V<T>* input, ShiftOp::Kind* kind,
                           WordRepresentation* rep, int* amount) const {
     const ShiftOp* op = TryCast<ShiftOp>(matched);
     if (uint32_t rhs_constant;
         op && MatchIntegralWord32Constant(op->right(), &rhs_constant) &&
         rhs_constant < static_cast<uint64_t>(op->rep.bit_width())) {
-      *input = op->left();
+      *input = op->left<T>();
       *kind = op->kind;
       *rep = op->rep;
       *amount = static_cast<int>(rhs_constant);
@@ -410,8 +420,11 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchConstantShift(OpIndex matched, OpIndex* input, ShiftOp::Kind kind,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchConstantShift(V<Any> matched, V<T>* input, ShiftOp::Kind kind,
                           WordRepresentation rep, int* amount) const {
+    DCHECK(IsValidTypeFor<T>(rep));
     const ShiftOp* op = TryCast<ShiftOp>(matched);
     if (uint32_t rhs_constant;
         op && op->kind == kind &&
@@ -420,60 +433,68 @@ class OperationMatcher {
                             op->rep == WordRepresentation::Word64())) &&
         MatchIntegralWord32Constant(op->right(), &rhs_constant) &&
         rhs_constant < static_cast<uint64_t>(rep.bit_width())) {
-      *input = op->left();
+      *input = op->left<T>();
       *amount = static_cast<int>(rhs_constant);
       return true;
     }
     return false;
   }
 
-  bool MatchConstantRightShift(OpIndex matched, OpIndex* input,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchConstantRightShift(V<Any> matched, V<T>* input,
                                WordRepresentation rep, int* amount) const {
+    DCHECK(IsValidTypeFor<T>(rep));
     const ShiftOp* op = TryCast<ShiftOp>(matched);
     if (uint32_t rhs_constant;
         op && ShiftOp::IsRightShift(op->kind) && op->rep == rep &&
         MatchIntegralWord32Constant(op->right(), &rhs_constant) &&
         rhs_constant < static_cast<uint32_t>(rep.bit_width())) {
-      *input = op->left();
+      *input = op->left<T>();
       *amount = static_cast<int>(rhs_constant);
       return true;
     }
     return false;
   }
 
-  bool MatchConstantLeftShift(OpIndex matched, OpIndex* input,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchConstantLeftShift(V<Any> matched, V<T>* input,
                               WordRepresentation rep, int* amount) const {
+    DCHECK(IsValidTypeFor<T>(rep));
     const ShiftOp* op = TryCast<ShiftOp>(matched);
     if (uint32_t rhs_constant;
         op && op->kind == ShiftOp::Kind::kShiftLeft && op->rep == rep &&
         MatchIntegralWord32Constant(op->right(), &rhs_constant) &&
         rhs_constant < static_cast<uint32_t>(rep.bit_width())) {
-      *input = op->left();
+      *input = op->left<T>();
       *amount = static_cast<int>(rhs_constant);
       return true;
     }
     return false;
   }
 
-  template <class T, typename = std::enable_if_t<IsWord<T>()>>
-  bool MatchConstantShiftRightArithmeticShiftOutZeros(OpIndex matched,
+  template <class T>
+    requires(IsWord<T>())
+  bool MatchConstantShiftRightArithmeticShiftOutZeros(V<Any> matched,
                                                       V<T>* input,
                                                       WordRepresentation rep,
                                                       uint16_t* amount) const {
+    DCHECK(IsValidTypeFor<T>(rep));
     const ShiftOp* op = TryCast<ShiftOp>(matched);
     if (uint32_t rhs_constant;
         op && op->kind == ShiftOp::Kind::kShiftRightArithmeticShiftOutZeros &&
         op->rep == rep &&
         MatchIntegralWord32Constant(op->right(), &rhs_constant) &&
         rhs_constant < static_cast<uint64_t>(rep.bit_width())) {
-      *input = V<T>::Cast(op->left());
+      *input = op->left<T>();
       *amount = static_cast<uint16_t>(rhs_constant);
       return true;
     }
     return false;
   }
 
-  bool MatchPhi(OpIndex matched,
+  bool MatchPhi(V<Any> matched,
                 std::optional<int> input_count = std::nullopt) const {
     if (const PhiOp* phi = TryCast<PhiOp>(matched)) {
       return !input_count.has_value() || phi->input_count == *input_count;
@@ -481,7 +502,7 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchPowerOfTwoWordConstant(OpIndex matched, int64_t* ret_cst,
+  bool MatchPowerOfTwoWordConstant(V<Any> matched, int64_t* ret_cst,
                                    WordRepresentation rep) const {
     int64_t loc_cst;
     if (MatchIntegralWordConstant(matched, rep, &loc_cst)) {
@@ -493,7 +514,7 @@ class OperationMatcher {
     return false;
   }
 
-  bool MatchPowerOfTwoWord32Constant(OpIndex matched, int32_t* divisor) const {
+  bool MatchPowerOfTwoWord32Constant(V<Any> matched, int32_t* divisor) const {
     int64_t cst;
     if (MatchPowerOfTwoWordConstant(matched, &cst,
                                     WordRepresentation::Word32())) {

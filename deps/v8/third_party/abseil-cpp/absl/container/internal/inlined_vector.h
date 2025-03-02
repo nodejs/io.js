@@ -83,8 +83,10 @@ using IsMoveAssignOk = std::is_move_assignable<ValueType<A>>;
 template <typename A>
 using IsSwapOk = absl::type_traits_internal::IsSwappable<ValueType<A>>;
 
-template <typename A, bool IsTriviallyDestructible =
-                          absl::is_trivially_destructible<ValueType<A>>::value>
+template <typename A,
+          bool IsTriviallyDestructible =
+              absl::is_trivially_destructible<ValueType<A>>::value &&
+              std::is_same<A, std::allocator<ValueType<A>>>::value>
 struct DestroyAdapter;
 
 template <typename A>

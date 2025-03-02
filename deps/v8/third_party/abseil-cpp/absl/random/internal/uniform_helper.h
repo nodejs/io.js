@@ -201,8 +201,8 @@ is_uniform_range_valid(FloatType a, FloatType b) {
 }
 
 template <typename IntType>
-absl::enable_if_t<IsIntegral<IntType>::value, bool>
-is_uniform_range_valid(IntType a, IntType b) {
+absl::enable_if_t<IsIntegral<IntType>::value, bool> is_uniform_range_valid(
+    IntType a, IntType b) {
   return a <= b;
 }
 

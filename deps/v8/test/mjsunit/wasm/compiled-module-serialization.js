@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Force TurboFan code for serialization.
-// Flags: --expose-wasm --allow-natives-syntax --expose-gc --no-liftoff
+// Flags: --allow-natives-syntax --expose-gc --no-liftoff
 // Flags: --no-wasm-lazy-compilation
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");

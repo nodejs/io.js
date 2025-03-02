@@ -11,19 +11,13 @@
 namespace v8 {
 namespace internal {
 
-// These checks are here to ensure that the lower 32 bits of any real heap
-// object can't overlap with the lower 32 bits of cleared weak reference value
-// and therefore it's enough to compare only the lower 32 bits of a
-// Tagged<MaybeObject> in order to figure out if it's a cleared weak reference
-// or not.
-static_assert(kClearedWeakHeapObjectLower32 > 0);
-static_assert(kClearedWeakHeapObjectLower32 < PageMetadata::kHeaderSize);
-
 PageMetadata::PageMetadata(Heap* heap, BaseSpace* space, size_t size,
                            Address area_start, Address area_end,
                            VirtualMemory reservation)
     : MutablePageMetadata(heap, space, size, area_start, area_end,
-                          std::move(reservation), PageSize::kRegular) {}
+                          std::move(reservation), PageSize::kRegular) {
+  DCHECK(!IsLargePage());
+}
 
 void PageMetadata::AllocateFreeListCategories() {
   DCHECK_NULL(categories_);
@@ -153,6 +147,7 @@ size_t PageMetadata::ShrinkToHighWaterMark() {
 }
 
 void PageMetadata::CreateBlackArea(Address start, Address end) {
+  DCHECK(!v8_flags.black_allocated_pages);
   DCHECK_NE(NEW_SPACE, owner_identity());
   DCHECK(v8_flags.sticky_mark_bits ||
          heap()->incremental_marking()->black_allocation());
@@ -167,6 +162,7 @@ void PageMetadata::CreateBlackArea(Address start, Address end) {
 }
 
 void PageMetadata::DestroyBlackArea(Address start, Address end) {
+  DCHECK(!v8_flags.black_allocated_pages);
   DCHECK_NE(NEW_SPACE, owner_identity());
   DCHECK(v8_flags.sticky_mark_bits ||
          heap()->incremental_marking()->black_allocation());

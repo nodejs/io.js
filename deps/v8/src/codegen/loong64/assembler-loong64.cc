@@ -2093,29 +2093,19 @@ void Assembler::AdjustBaseAndOffset(MemOperand* src) {
   src->offset_ = 0;
 }
 
-int Assembler::RelocateInternalReference(RelocInfo::Mode rmode, Address pc,
-                                         intptr_t pc_delta) {
-  DCHECK(RelocInfo::IsInternalReference(rmode));
-  int64_t* p = reinterpret_cast<int64_t*>(pc);
-  if (*p == kEndOfJumpChain) {
-    return 0;  // Number of instructions patched.
-  }
-  *p += pc_delta;
-  return 2;  // Number of instructions patched.
-}
-
-void Assembler::RelocateRelativeReference(RelocInfo::Mode rmode, Address pc,
-                                          intptr_t pc_delta) {
+void Assembler::RelocateRelativeReference(
+    RelocInfo::Mode rmode, Address pc, intptr_t pc_delta,
+    WritableJitAllocation* jit_allocation) {
   DCHECK(RelocInfo::IsRelativeCodeTarget(rmode) ||
          RelocInfo::IsNearBuiltinEntry(rmode));
   Instr instr = instr_at(pc);
   int32_t offset = instr & kImm26Mask;
   offset = (((offset & 0x3ff) << 22 >> 6) | ((offset >> 10) & kImm16Mask)) << 2;
   offset -= pc_delta;
-  uint32_t* p = reinterpret_cast<uint32_t*>(pc);
   offset >>= 2;
   offset = ((offset & kImm16Mask) << kRkShift) | ((offset & kImm26Mask) >> 16);
-  *p = (instr & ~kImm26Mask) | offset;
+  Instr new_instr = (instr & ~kImm26Mask) | offset;
+  instr_at_put(pc, new_instr, jit_allocation);
   return;
 }
 
@@ -2323,6 +2313,7 @@ uint32_t Assembler::target_compressed_address_at(Address pc) {
 // and flush the i-cache.
 //
 void Assembler::set_target_value_at(Address pc, uint64_t target,
+                                    WritableJitAllocation* jit_allocation,
                                     ICacheFlushMode icache_flush_mode) {
   // There is an optimization where only 3 instructions are used to load address
   // in code on LOONG64 because only 48-bits of address is effectively used.
@@ -2339,13 +2330,13 @@ void Assembler::set_target_value_at(Address pc, uint64_t target,
 #endif
 
   Instr instr = instr_at(pc);
-  uint32_t* p = reinterpret_cast<uint32_t*>(pc);
   if (IsB(instr)) {
     int32_t offset = (target - pc) >> 2;
     CHECK(is_int26(offset));
     offset =
         ((offset & kImm16Mask) << kRkShift) | ((offset & kImm26Mask) >> 16);
-    *p = (instr & ~kImm26Mask) | offset;
+    Instr new_instr = (instr & ~kImm26Mask) | offset;
+    instr_at_put(pc, new_instr, jit_allocation);
     if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
       FlushInstructionCache(pc, kInstrSize);
     }
@@ -2357,10 +2348,15 @@ void Assembler::set_target_value_at(Address pc, uint64_t target,
   // lu12i_w rd, middle-20.
   // ori rd, rd, low-12.
   // lu32i_d rd, high-20.
-  *p = LU12I_W | (((target >> 12) & 0xfffff) << kRjShift) | rd_code;
-  *(p + 1) =
+  Instr new_instr0 =
+      LU12I_W | (((target >> 12) & 0xfffff) << kRjShift) | rd_code;
+  Instr new_instr1 =
       ORI | (target & 0xfff) << kRkShift | (rd_code << kRjShift) | rd_code;
-  *(p + 2) = LU32I_D | (((target >> 32) & 0xfffff) << kRjShift) | rd_code;
+  Instr new_instr2 =
+      LU32I_D | (((target >> 32) & 0xfffff) << kRjShift) | rd_code;
+  instr_at_put(pc, new_instr0, jit_allocation);
+  instr_at_put(pc + kInstrSize, new_instr1, jit_allocation);
+  instr_at_put(pc + kInstrSize * 2, new_instr2, jit_allocation);
 
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc, 3 * kInstrSize);
@@ -2368,7 +2364,8 @@ void Assembler::set_target_value_at(Address pc, uint64_t target,
 }
 
 void Assembler::set_target_compressed_value_at(
-    Address pc, uint32_t target, ICacheFlushMode icache_flush_mode) {
+    Address pc, uint32_t target, WritableJitAllocation* jit_allocation,
+    ICacheFlushMode icache_flush_mode) {
 #ifdef DEBUG
   // Check we have the result from a li macro-instruction.
   Instr instr0 = instr_at(pc);
@@ -2377,15 +2374,17 @@ void Assembler::set_target_compressed_value_at(
 #endif
 
   Instr instr = instr_at(pc);
-  uint32_t* p = reinterpret_cast<uint32_t*>(pc);
   uint32_t rd_code = GetRd(instr);
 
   // Must use 2 instructions to insure patchable code.
   // lu12i_w rd, high-20.
   // ori rd, rd, low-12.
-  *p = LU12I_W | (((target >> 12) & 0xfffff) << kRjShift) | rd_code;
-  *(p + 1) =
+  Instr new_instr0 =
+      LU12I_W | (((target >> 12) & 0xfffff) << kRjShift) | rd_code;
+  Instr new_instr1 =
       ORI | (target & 0xfff) << kRkShift | (rd_code << kRjShift) | rd_code;
+  instr_at_put(pc, new_instr0, jit_allocation);
+  instr_at_put(pc + kInstrSize, new_instr1, jit_allocation);
 
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc, 2 * kInstrSize);

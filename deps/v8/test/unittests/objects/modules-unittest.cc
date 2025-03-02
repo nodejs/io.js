@@ -150,27 +150,27 @@ MaybeLocal<Module> ResolveCallbackWithImportAttributes(
   } else if (specifier->StrictEquals(
                  String::NewFromUtf8(isolate, "./bar.js").ToLocalChecked())) {
     CHECK_EQ(3, import_attributes->Length());
-    Local<String> assertion_key =
+    Local<String> attribute_key =
         import_attributes->Get(context, 0).As<Value>().As<String>();
     CHECK(String::NewFromUtf8(isolate, "a")
               .ToLocalChecked()
-              ->StrictEquals(assertion_key));
-    Local<String> assertion_value =
+              ->StrictEquals(attribute_key));
+    Local<String> attribute_value =
         import_attributes->Get(context, 1).As<Value>().As<String>();
     CHECK(String::NewFromUtf8(isolate, "b")
               .ToLocalChecked()
-              ->StrictEquals(assertion_value));
-    Local<Data> assertion_source_offset_object =
+              ->StrictEquals(attribute_value));
+    Local<Data> attribute_source_offset_object =
         import_attributes->Get(context, 2);
-    Local<Int32> assertion_source_offset_int32 =
-        assertion_source_offset_object.As<Value>()
+    Local<Int32> attribute_source_offset_int32 =
+        attribute_source_offset_object.As<Value>()
             ->ToInt32(context)
             .ToLocalChecked();
-    int32_t assertion_source_offset = assertion_source_offset_int32->Value();
-    CHECK_EQ(65, assertion_source_offset);
-    Location loc = referrer->SourceOffsetToLocation(assertion_source_offset);
+    int32_t attribute_source_offset = attribute_source_offset_int32->Value();
+    CHECK_EQ(61, attribute_source_offset);
+    Location loc = referrer->SourceOffsetToLocation(attribute_source_offset);
     CHECK_EQ(1, loc.GetLineNumber());
-    CHECK_EQ(35, loc.GetColumnNumber());
+    CHECK_EQ(33, loc.GetColumnNumber());
 
     return barModule_global.Get(isolate);
   } else {
@@ -180,17 +180,17 @@ MaybeLocal<Module> ResolveCallbackWithImportAttributes(
   }
 }
 
-TEST_F(ModuleTest, ModuleInstantiationWithImportAssertions) {
-  bool prev_import_assertions = i::v8_flags.harmony_import_assertions;
-  i::v8_flags.harmony_import_assertions = true;
+TEST_F(ModuleTest, ModuleInstantiationWithImportAttributes) {
+  bool prev_import_attributes = i::v8_flags.harmony_import_attributes;
+  i::v8_flags.harmony_import_attributes = true;
   HandleScope scope(isolate());
   v8::TryCatch try_catch(isolate());
 
   Local<Module> module;
   {
     Local<String> source_text = NewString(
-        "import './foo.js' assert { };\n"
-        "export {} from './bar.js' assert { a: 'b' };");
+        "import './foo.js' with { };\n"
+        "export {} from './bar.js' with { a: 'b' };");
     ScriptOrigin origin = ModuleOrigin(NewString("file.js"), isolate());
     ScriptCompiler::Source source(source_text, origin);
     module = ScriptCompiler::CompileModule(isolate(), &source).ToLocalChecked();
@@ -213,7 +213,7 @@ TEST_F(ModuleTest, ModuleInstantiationWithImportAssertions) {
     CHECK(
         NewString("./bar.js")->StrictEquals(module_request_1->GetSpecifier()));
     offset = module_request_1->GetSourceOffset();
-    CHECK_EQ(45, offset);
+    CHECK_EQ(43, offset);
     loc = module->SourceOffsetToLocation(offset);
     CHECK_EQ(1, loc.GetLineNumber());
     CHECK_EQ(15, loc.GetColumnNumber());
@@ -221,18 +221,18 @@ TEST_F(ModuleTest, ModuleInstantiationWithImportAssertions) {
     Local<FixedArray> import_attributes_1 =
         module_request_1->GetImportAttributes();
     CHECK_EQ(3, import_attributes_1->Length());
-    Local<String> assertion_key =
+    Local<String> attribute_key =
         import_attributes_1->Get(context(), 0).As<String>();
-    CHECK(NewString("a")->StrictEquals(assertion_key));
-    Local<String> assertion_value =
+    CHECK(NewString("a")->StrictEquals(attribute_key));
+    Local<String> attribute_value =
         import_attributes_1->Get(context(), 1).As<String>();
-    CHECK(NewString("b")->StrictEquals(assertion_value));
-    int32_t assertion_source_offset =
+    CHECK(NewString("b")->StrictEquals(attribute_value));
+    int32_t attribute_source_offset =
         import_attributes_1->Get(context(), 2).As<Int32>()->Value();
-    CHECK_EQ(65, assertion_source_offset);
-    loc = module->SourceOffsetToLocation(assertion_source_offset);
+    CHECK_EQ(61, attribute_source_offset);
+    loc = module->SourceOffsetToLocation(attribute_source_offset);
     CHECK_EQ(1, loc.GetLineNumber());
-    CHECK_EQ(35, loc.GetColumnNumber());
+    CHECK_EQ(33, loc.GetColumnNumber());
   }
 
   // foo.js
@@ -270,12 +270,12 @@ TEST_F(ModuleTest, ModuleInstantiationWithImportAssertions) {
   // gmock-support.h, we could use IsInt32 to replace
   // this.
   {
-    Local<Value> result = RunJS("Object.expando");
-    CHECK(result->IsInt32());
-    CHECK_EQ(42, result->Int32Value(context()).FromJust());
+    Local<Value> res = RunJS("Object.expando");
+    CHECK(res->IsInt32());
+    CHECK_EQ(42, res->Int32Value(context()).FromJust());
   }
   CHECK(!try_catch.HasCaught());
-  i::v8_flags.harmony_import_assertions = prev_import_assertions;
+  i::v8_flags.harmony_import_attributes = prev_import_attributes;
 
   fooModule_global.Reset();
   barModule_global.Reset();
@@ -407,9 +407,9 @@ TEST_F(ModuleTest, ModuleEvaluation) {
   // gmock-support.h, we could use IsInt32 to replace
   // this.
   {
-    Local<Value> result = RunJS("Object.expando");
-    CHECK(result->IsInt32());
-    CHECK_EQ(10, result->Int32Value(context()).FromJust());
+    Local<Value> res = RunJS("Object.expando");
+    CHECK(res->IsInt32());
+    CHECK_EQ(10, res->Int32Value(context()).FromJust());
   }
   CHECK(!try_catch.HasCaught());
 }
@@ -443,9 +443,9 @@ TEST_F(ModuleTest, ModuleEvaluationError1) {
     // gmock-support.h, we could use IsInt32 to replace
     // this.
     {
-      Local<Value> result = RunJS("Object.x");
-      CHECK(result->IsInt32());
-      CHECK_EQ(1, result->Int32Value(context()).FromJust());
+      Local<Value> res = RunJS("Object.x");
+      CHECK(res->IsInt32());
+      CHECK_EQ(1, res->Int32Value(context()).FromJust());
     }
     // With top level await, we do not throw and errored evaluation returns
     // a rejected promise with the exception.
@@ -465,9 +465,9 @@ TEST_F(ModuleTest, ModuleEvaluationError1) {
     // gmock-support.h, we could use IsInt32 to replace
     // this.
     {
-      Local<Value> result = RunJS("Object.x");
-      CHECK(result->IsInt32());
-      CHECK_EQ(1, result->Int32Value(context()).FromJust());
+      Local<Value> res = RunJS("Object.x");
+      CHECK(res->IsInt32());
+      CHECK_EQ(1, res->Int32Value(context()).FromJust());
     }
 
     // With top level await, we do not throw and errored evaluation returns
@@ -707,7 +707,7 @@ TEST_F(ModuleTest, ModuleNamespace) {
   Local<Value> ns = module->GetModuleNamespace();
   CHECK_EQ(Module::kInstantiated, module->GetStatus());
   Local<v8::Object> nsobj = ns->ToObject(context()).ToLocalChecked();
-  CHECK_EQ(nsobj->GetCreationContext().ToLocalChecked(), context());
+  CHECK_EQ(nsobj->GetCreationContext(isolate()).ToLocalChecked(), context());
 
   // a, b
   CHECK(nsobj->Get(context(), NewString("a")).ToLocalChecked()->IsUndefined());
@@ -1206,6 +1206,27 @@ TEST_F(ModuleTest, IsGraphAsyncTopLevelAwait) {
   cycle_self_module_global.Reset();
   cycle_one_module_global.Reset();
   cycle_two_module_global.Reset();
+}
+
+TEST_F(ModuleTest, HasTopLevelAwait) {
+  HandleScope scope(isolate());
+  {
+    Local<String> source_text = NewString("await notExecuted();");
+    ScriptOrigin origin = ModuleOrigin(NewString("async_leaf.js"), isolate());
+    ScriptCompiler::Source source(source_text, origin);
+    Local<Module> async_leaf_module =
+        ScriptCompiler::CompileModule(isolate(), &source).ToLocalChecked();
+    CHECK(async_leaf_module->HasTopLevelAwait());
+  }
+
+  {
+    Local<String> source_text = NewString("notExecuted();");
+    ScriptOrigin origin = ModuleOrigin(NewString("sync_leaf.js"), isolate());
+    ScriptCompiler::Source source(source_text, origin);
+    Local<Module> sync_leaf_module =
+        ScriptCompiler::CompileModule(isolate(), &source).ToLocalChecked();
+    CHECK(!sync_leaf_module->HasTopLevelAwait());
+  }
 }
 
 TEST_F(ModuleTest, AsyncEvaluatingInEvaluateEntryPoint) {

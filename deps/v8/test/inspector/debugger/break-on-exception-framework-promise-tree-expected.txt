@@ -5,8 +5,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -20,8 +20,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 frameworkUncaught (framework.js:10:8)
@@ -33,6 +35,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkUncaught (framework.js:10:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -43,8 +53,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -58,8 +68,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 frameworkUncaught (framework.js:10:8)
@@ -71,6 +83,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkUncaught (framework.js:10:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -81,8 +101,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -96,8 +116,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 frameworkUncaught (framework.js:10:8)
@@ -109,6 +131,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkUncaught (framework.js:10:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -134,8 +164,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -149,8 +179,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 frameworkUncaught (framework.js:10:8)
@@ -162,6 +194,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkUncaught (framework.js:10:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -172,8 +212,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -189,6 +229,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkCaught (framework.js:14:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -199,8 +247,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -216,6 +264,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkCaught (framework.js:14:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -226,8 +282,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -243,6 +299,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkCaught (framework.js:14:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -268,8 +332,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -285,6 +349,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+frameworkCaught (framework.js:14:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -295,8 +367,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -310,8 +382,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 caughtInUser (user.js:66:10)
@@ -329,8 +403,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -344,8 +418,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 caughtInUser (user.js:66:10)
@@ -378,8 +454,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -393,8 +469,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 caughtInUser (user.js:66:10)
@@ -427,8 +505,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -442,8 +520,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 caughtInUser (user.js:66:10)
@@ -461,8 +541,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -484,8 +564,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -522,8 +602,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -560,8 +640,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -583,8 +663,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -598,8 +678,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 uncaughtInUser (user.js:81:8)
@@ -611,6 +693,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUser (user.js:81:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -621,8 +711,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -636,8 +726,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 uncaughtInUser (user.js:81:8)
@@ -649,6 +741,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUser (user.js:81:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -674,8 +774,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -689,8 +789,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 uncaughtInUser (user.js:81:8)
@@ -702,6 +804,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUser (user.js:81:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -727,8 +837,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -742,8 +852,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 uncaughtInUser (user.js:81:8)
@@ -755,6 +867,14 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUser (user.js:81:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -765,8 +885,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -782,6 +902,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUserCaughtInFramework (user.js:85:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -792,8 +920,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -809,6 +937,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUserCaughtInFramework (user.js:85:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -834,8 +970,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -851,6 +987,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUserCaughtInFramework (user.js:85:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -876,8 +1020,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -893,6 +1037,14 @@ console: Caught at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+uncaughtInUserCaughtInFramework (user.js:85:8)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -903,8 +1055,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -918,8 +1070,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 branchInUser (user.js:89:12)
@@ -933,6 +1087,14 @@ console: Caught in user code at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+branchInUser (user.js:89:12)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -943,8 +1105,8 @@ Running test: testCase
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -958,8 +1120,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 branchInUser (user.js:89:12)
@@ -973,6 +1137,14 @@ console: Caught in user code at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+branchInUser (user.js:89:12)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -998,8 +1170,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -1013,8 +1185,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 branchInUser (user.js:89:12)
@@ -1028,6 +1202,14 @@ console: Caught in user code at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+branchInUser (user.js:89:12)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)
@@ -1053,8 +1235,8 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
@@ -1068,8 +1250,10 @@ testWrapper (framework.js:59:8)
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
--- Promise.then --
-branchPromise (framework.js:31:15)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
 frameworkAsync (framework.js:37:8)
 complicatedThrow (framework.js:41:9)
 branchInUser (user.js:89:12)
@@ -1083,6 +1267,14 @@ console: Caught in user code at Error: Failed
 Uncaught exception: Uncaught Error: Failed
 -- <empty> --
 uncaughtAsync (framework.js:19:8)
+-- await --
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+branchPromise (framework.js:27:21)
+frameworkAsync (framework.js:37:8)
+complicatedThrow (framework.js:41:9)
+branchInUser (user.js:89:12)
+runWithResolution (framework.js:50:12)
 -- setTimeout --
 (anonymous) (framework.js:59:31)
 testWrapper (framework.js:59:8)

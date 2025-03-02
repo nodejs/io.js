@@ -11,7 +11,7 @@
 
 #include <ostream>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/vector.h"
 #include "src/codegen/linkage-location.h"
 #include "src/codegen/register.h"
@@ -87,11 +87,22 @@ base::Vector<const char> GetDebugName(Zone* zone,
                                       const wasm::WasmModule* module,
                                       const wasm::WireBytesStorage* wire_bytes,
                                       int index);
-enum WasmCallKind { kWasmFunction, kWasmImportWrapper, kWasmCapiFunction };
+enum WasmCallKind {
+  kWasmFunction,
+  kWasmIndirectFunction,
+  kWasmImportWrapper,
+  kWasmCapiFunction
+};
 
-V8_EXPORT_PRIVATE CallDescriptor* GetWasmCallDescriptor(
-    Zone* zone, const wasm::FunctionSig* signature,
-    WasmCallKind kind = kWasmFunction, bool need_frame_state = false);
+template <typename T>
+CallDescriptor* GetWasmCallDescriptor(Zone* zone, const Signature<T>* signature,
+                                      WasmCallKind kind = kWasmFunction,
+                                      bool need_frame_state = false);
+
+extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+    CallDescriptor* GetWasmCallDescriptor(Zone*,
+                                          const Signature<wasm::ValueType>*,
+                                          WasmCallKind, bool);
 
 template <typename T>
 LocationSignature* BuildLocations(Zone* zone, const Signature<T>* sig,

@@ -25,15 +25,18 @@
 #include "src/execution/protectors-inl.h"
 #include "src/execution/tiering-manager.h"
 #include "src/flags/flags.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/heap/pretenuring-handler-inl.h"
 #include "src/ic/stub-cache.h"
 #include "src/objects/bytecode-array.h"
 #include "src/objects/js-collection-inl.h"
+#include "src/profiler/heap-profiler.h"
 #include "src/utils/utils.h"
 #ifdef V8_ENABLE_MAGLEV
 #include "src/maglev/maglev-concurrent-dispatcher.h"
 #endif  // V8_ENABLE_MAGLEV
+#include "src/objects/js-array-buffer-inl.h"
 #include "src/objects/js-atomics-synchronization-inl.h"
 #include "src/objects/js-function-inl.h"
 #include "src/objects/js-regexp-inl.h"
@@ -139,6 +142,13 @@ RUNTIME_FUNCTION(Runtime_ConstructDouble) {
   return *isolate->factory()->NewNumber(base::uint64_to_double(result));
 }
 
+RUNTIME_FUNCTION(Runtime_StringIsFlat) {
+  HandleScope scope(isolate);
+  DCHECK_EQ(args.length(), 1);
+  DirectHandle<String> s = args.at<String>(0);
+  return isolate->heap()->ToBoolean(s->IsFlat());
+}
+
 RUNTIME_FUNCTION(Runtime_ConstructConsString) {
   HandleScope scope(isolate);
   // This isn't exposed to fuzzers so doesn't need to handle invalid arguments.
@@ -159,7 +169,6 @@ RUNTIME_FUNCTION(Runtime_ConstructSlicedString) {
   Handle<String> string = args.at<String>(0);
   int index = args.smi_value_at(1);
 
-  CHECK(string->IsOneByteRepresentation());
   CHECK_LT(index, string->length());
 
   DirectHandle<String> sliced_string =
@@ -185,12 +194,12 @@ RUNTIME_FUNCTION(Runtime_ConstructThinString) {
   // This isn't exposed to fuzzers so doesn't need to handle invalid arguments.
   DCHECK_EQ(args.length(), 1);
   Handle<String> string = args.at<String>(0);
-  CHECK(string->IsOneByteRepresentation());
   if (!IsConsString(*string)) {
-    const bool kIsOneByte = true;
-    string =
-        isolate->factory()->NewConsString(isolate->factory()->empty_string(),
-                                          string, string->length(), kIsOneByte);
+    string = isolate->factory()->NewConsString(
+        isolate->factory()->empty_string(), string, string->length(),
+        string->IsOneByteRepresentation(),
+        // Pretenure to ensure it stays thin.
+        AllocationType::kOld);
   }
   CHECK(IsConsString(*string));
   DirectHandle<String> internalized =
@@ -210,8 +219,17 @@ RUNTIME_FUNCTION(Runtime_DeoptimizeFunction) {
   if (!IsJSFunction(*function_object)) return CrashUnlessFuzzing(isolate);
   auto function = Cast<JSFunction>(function_object);
 
+  if (function->IsTieringRequestedOrInProgress(isolate)) {
+    if (function->tiering_in_progress()) {
+      // Abort optimization so that calling DeoptimizeFunction on a function
+      // currently being optimized ends up with a non-optimized function.
+      isolate->AbortConcurrentOptimization(BlockingBehavior::kBlock);
+    }
+    function->ResetTieringRequests(isolate);
+  }
+
   if (function->HasAttachedOptimizedCode(isolate)) {
-    Deoptimizer::DeoptimizeFunction(*function);
+    Deoptimizer::DeoptimizeFunction(*function, LazyDeoptimizeReason::kTesting);
   }
 
   return ReadOnlyRoots(isolate).undefined_value();
@@ -220,15 +238,15 @@ RUNTIME_FUNCTION(Runtime_DeoptimizeFunction) {
 RUNTIME_FUNCTION(Runtime_DeoptimizeNow) {
   HandleScope scope(isolate);
 
-  Handle<JSFunction> function;
+  DirectHandle<JSFunction> function;
 
   // Find the JavaScript function on the top of the stack.
   JavaScriptStackFrameIterator it(isolate);
-  if (!it.done()) function = handle(it.frame()->function(), isolate);
+  if (!it.done()) function = direct_handle(it.frame()->function(), isolate);
   if (function.is_null()) return CrashUnlessFuzzing(isolate);
 
   if (function->HasAttachedOptimizedCode(isolate)) {
-    Deoptimizer::DeoptimizeFunction(*function);
+    Deoptimizer::DeoptimizeFunction(*function, LazyDeoptimizeReason::kTesting);
   }
 
   return ReadOnlyRoots(isolate).undefined_value();
@@ -258,7 +276,7 @@ RUNTIME_FUNCTION(Runtime_RuntimeEvaluateREPL) {
     return CrashUnlessFuzzing(isolate);
   }
   Handle<String> source = args.at<String>(0);
-  Handle<Object> result;
+  DirectHandle<Object> result;
   ASSIGN_RETURN_FAILURE_ON_EXCEPTION(
       isolate, result,
       DebugEvaluate::Global(isolate, source,
@@ -286,8 +304,9 @@ RUNTIME_FUNCTION(Runtime_IsAtomicsWaitAllowed) {
 
 namespace {
 
-bool CanOptimizeFunction(CodeKind target_kind, Handle<JSFunction> function,
-                         Isolate* isolate, IsCompiledScope* is_compiled_scope) {
+bool CanOptimizeFunction(CodeKind target_kind,
+                         DirectHandle<JSFunction> function, Isolate* isolate,
+                         IsCompiledScope* is_compiled_scope) {
   // The following conditions were lifted (in part) from the DCHECK inside
   // JSFunction::MarkForOptimization().
 
@@ -298,7 +317,7 @@ bool CanOptimizeFunction(CodeKind target_kind, Handle<JSFunction> function,
     return CrashUnlessFuzzingReturnFalse(isolate);
   }
 
-  if (target_kind == CodeKind::TURBOFAN && !v8_flags.turbofan) return false;
+  if (target_kind == CodeKind::TURBOFAN_JS && !v8_flags.turbofan) return false;
   if (target_kind == CodeKind::MAGLEV && !maglev::IsMaglevEnabled()) {
     return false;
   }
@@ -326,8 +345,7 @@ bool CanOptimizeFunction(CodeKind target_kind, Handle<JSFunction> function,
   }
 
   if (function->HasAvailableCodeKind(isolate, target_kind) ||
-      function->HasAvailableHigherTierCodeThan(isolate, target_kind) ||
-      IsInProgress(function->tiering_state())) {
+      function->HasAvailableHigherTierCodeThan(isolate, target_kind)) {
     DCHECK(function->HasAttachedOptimizedCode(isolate) ||
            function->ChecksTieringState(isolate));
     return false;
@@ -343,9 +361,9 @@ Tagged<Object> OptimizeFunctionOnNextCall(RuntimeArguments& args,
     return CrashUnlessFuzzing(isolate);
   }
 
-  Handle<Object> function_object = args.at(0);
+  DirectHandle<Object> function_object = args.at(0);
   if (!IsJSFunction(*function_object)) return CrashUnlessFuzzing(isolate);
-  Handle<JSFunction> function = Cast<JSFunction>(function_object);
+  DirectHandle<JSFunction> function = Cast<JSFunction>(function_object);
 
   IsCompiledScope is_compiled_scope(
       function->shared()->is_compiled_scope(isolate));
@@ -356,7 +374,7 @@ Tagged<Object> OptimizeFunctionOnNextCall(RuntimeArguments& args,
 
   ConcurrencyMode concurrency_mode = ConcurrencyMode::kSynchronous;
   if (args.length() == 2) {
-    Handle<Object> type = args.at(1);
+    DirectHandle<Object> type = args.at(1);
     if (!IsString(*type)) return CrashUnlessFuzzing(isolate);
     if (Cast<String>(type)->IsOneByteEqualTo(
             base::StaticCharVector("concurrent")) &&
@@ -378,13 +396,15 @@ Tagged<Object> OptimizeFunctionOnNextCall(RuntimeArguments& args,
 
   TraceManualRecompile(*function, target_kind, concurrency_mode);
   JSFunction::EnsureFeedbackVector(isolate, function, &is_compiled_scope);
-  function->MarkForOptimization(isolate, target_kind, concurrency_mode);
+  if (function->GetActiveTier(isolate) != target_kind) {
+    function->RequestOptimization(isolate, target_kind, concurrency_mode);
+  }
 
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
 bool EnsureCompiledAndFeedbackVector(Isolate* isolate,
-                                     Handle<JSFunction> function,
+                                     DirectHandle<JSFunction> function,
                                      IsCompiledScope* is_compiled_scope) {
   *is_compiled_scope =
       function->shared()->is_compiled_scope(function->GetIsolate());
@@ -415,9 +435,9 @@ RUNTIME_FUNCTION(Runtime_CompileBaseline) {
   if (args.length() != 1) {
     return CrashUnlessFuzzing(isolate);
   }
-  Handle<Object> function_object = args.at(0);
+  DirectHandle<Object> function_object = args.at(0);
   if (!IsJSFunction(*function_object)) return CrashUnlessFuzzing(isolate);
-  Handle<JSFunction> function = Cast<JSFunction>(function_object);
+  DirectHandle<JSFunction> function = Cast<JSFunction>(function_object);
 
   IsCompiledScope is_compiled_scope =
       function->shared(isolate)->is_compiled_scope(isolate);
@@ -463,7 +483,7 @@ RUNTIME_FUNCTION(Runtime_BenchMaglev) {
   PrintF("Maglev compile time: %g ms!\n",
          timer.Elapsed().InMillisecondsF() / count);
 
-  function->UpdateMaybeContextSpecializedCode(isolate, *code);
+  function->UpdateOptimizedCode(isolate, *code);
 
   return ReadOnlyRoots(isolate).undefined_value();
 }
@@ -477,16 +497,16 @@ RUNTIME_FUNCTION(Runtime_BenchMaglev) {
 RUNTIME_FUNCTION(Runtime_BenchTurbofan) {
   HandleScope scope(isolate);
   DCHECK_EQ(args.length(), 2);
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   int count = args.smi_value_at(1);
 
   base::ElapsedTimer timer;
   timer.Start();
   Compiler::CompileOptimized(isolate, function, ConcurrencyMode::kSynchronous,
-                             CodeKind::TURBOFAN);
+                             CodeKind::TURBOFAN_JS);
   for (int i = 1; i < count; ++i) {
     Compiler::CompileOptimized(isolate, function, ConcurrencyMode::kSynchronous,
-                               CodeKind::TURBOFAN);
+                               CodeKind::TURBOFAN_JS);
   }
 
   double compile_time = timer.Elapsed().InMillisecondsF() / count;
@@ -565,8 +585,9 @@ RUNTIME_FUNCTION(Runtime_OptimizeFunctionOnNextCall) {
   HandleScope scope(isolate);
   return OptimizeFunctionOnNextCall(
       args, isolate,
-      v8_flags.optimize_on_next_call_optimizes_to_maglev ? CodeKind::MAGLEV
-                                                         : CodeKind::TURBOFAN);
+      v8_flags.optimize_on_next_call_optimizes_to_maglev
+          ? CodeKind::MAGLEV
+          : CodeKind::TURBOFAN_JS);
 }
 
 RUNTIME_FUNCTION(Runtime_EnsureFeedbackVectorForFunction) {
@@ -574,7 +595,7 @@ RUNTIME_FUNCTION(Runtime_EnsureFeedbackVectorForFunction) {
   if (args.length() != 1 || !IsJSFunction(args[0])) {
     return CrashUnlessFuzzing(isolate);
   }
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   if (function->has_feedback_vector()) {
     return ReadOnlyRoots(isolate).undefined_value();
   }
@@ -589,7 +610,7 @@ RUNTIME_FUNCTION(Runtime_PrepareFunctionForOptimization) {
   if ((args.length() != 1 && args.length() != 2) || !IsJSFunction(args[0])) {
     return CrashUnlessFuzzing(isolate);
   }
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
 
   IsCompiledScope is_compiled_scope;
   if (!EnsureCompiledAndFeedbackVector(isolate, function, &is_compiled_scope)) {
@@ -666,7 +687,7 @@ BytecodeOffset OffsetOfNextJumpLoop(Isolate* isolate,
 RUNTIME_FUNCTION(Runtime_OptimizeOsr) {
   HandleScope handle_scope(isolate);
 
-  Handle<JSFunction> function;
+  DirectHandle<JSFunction> function;
 
   // The optional parameter determines the frame being targeted.
   int stack_depth = 0;
@@ -691,7 +712,7 @@ RUNTIME_FUNCTION(Runtime_OptimizeOsr) {
     } else if (it.frame()->is_maglev()) {
       function = MaglevFrame::cast(it.frame())->GetInnermostFunction();
     } else {
-      function = handle(it.frame()->function(), isolate);
+      function = direct_handle(it.frame()->function(), isolate);
     }
   }
   if (function.is_null()) return CrashUnlessFuzzing(isolate);
@@ -755,7 +776,7 @@ RUNTIME_FUNCTION(Runtime_OptimizeOsr) {
   if (it.frame()->is_maglev() || concurrent_osr) {
     BytecodeOffset osr_offset = BytecodeOffset::None();
     if (it.frame()->is_unoptimized()) {
-      UnoptimizedFrame* frame = UnoptimizedFrame::cast(it.frame());
+      UnoptimizedJSFrame* frame = UnoptimizedJSFrame::cast(it.frame());
       Handle<BytecodeArray> bytecode_array(frame->GetBytecodeArray(), isolate);
       const int current_offset = frame->GetBytecodeOffset();
       osr_offset =
@@ -791,7 +812,7 @@ RUNTIME_FUNCTION(Runtime_OptimizeOsr) {
                        : ConcurrencyMode::kSynchronous,
         (maglev::IsMaglevOsrEnabled() && !it.frame()->is_maglev())
             ? CodeKind::MAGLEV
-            : CodeKind::TURBOFAN);
+            : CodeKind::TURBOFAN_JS);
     USE(unused_result);
 
     // Finalize again to finish the queued job. The next call into
@@ -817,7 +838,7 @@ RUNTIME_FUNCTION(Runtime_BaselineOsr) {
 
   // Find the JavaScript function on the top of the stack.
   JavaScriptStackFrameIterator it(isolate);
-  Handle<JSFunction> function = handle(it.frame()->function(), isolate);
+  DirectHandle<JSFunction> function(it.frame()->function(), isolate);
   if (function.is_null()) return CrashUnlessFuzzing(isolate);
   if (!v8_flags.sparkplug || !v8_flags.use_osr) {
     return ReadOnlyRoots(isolate).undefined_value();
@@ -851,7 +872,7 @@ RUNTIME_FUNCTION(Runtime_NeverOptimizeFunction) {
     case CodeKind::INTERPRETED_FUNCTION:
       break;
     case CodeKind::BUILTIN:
-      if (InReadOnlySpace(*sfi)) {
+      if (HeapLayout::InReadOnlySpace(*sfi)) {
         // SFIs for builtin functions are in RO space and thus we cannot set
         // the never-optimize bit. But such SFIs cannot be optimized anyways.
         return CrashUnlessFuzzing(isolate);
@@ -904,22 +925,28 @@ RUNTIME_FUNCTION(Runtime_GetOptimizationStatus) {
   auto function = Cast<JSFunction>(function_object);
   status |= static_cast<int>(OptimizationStatus::kIsFunction);
 
-  switch (function->tiering_state()) {
-    case TieringState::kRequestTurbofan_Synchronous:
-      status |= static_cast<int>(OptimizationStatus::kMarkedForOptimization);
-      break;
-    case TieringState::kRequestTurbofan_Concurrent:
+  if (function->has_feedback_vector()) {
+    if (function->tiering_in_progress()) {
+      status |= static_cast<int>(OptimizationStatus::kOptimizingConcurrently);
+    } else if (function->GetRequestedOptimizationIfAny(
+                   isolate, ConcurrencyMode::kConcurrent) == CodeKind::MAGLEV) {
+      status |= static_cast<int>(
+          OptimizationStatus::kMarkedForConcurrentMaglevOptimization);
+    } else if (function->GetRequestedOptimizationIfAny(
+                   isolate, ConcurrencyMode::kSynchronous) ==
+               CodeKind::MAGLEV) {
+      status |=
+          static_cast<int>(OptimizationStatus::kMarkedForMaglevOptimization);
+    } else if (function->GetRequestedOptimizationIfAny(
+                   isolate, ConcurrencyMode::kConcurrent) ==
+               CodeKind::TURBOFAN_JS) {
       status |= static_cast<int>(
           OptimizationStatus::kMarkedForConcurrentOptimization);
-      break;
-    case TieringState::kInProgress:
-      status |= static_cast<int>(OptimizationStatus::kOptimizingConcurrently);
-      break;
-    case TieringState::kNone:
-    case TieringState::kRequestMaglev_Synchronous:
-    case TieringState::kRequestMaglev_Concurrent:
-      // TODO(v8:7700): Maglev support.
-      break;
+    } else if (function->GetRequestedOptimizationIfAny(
+                   isolate, ConcurrencyMode::kSynchronous) ==
+               CodeKind::TURBOFAN_JS) {
+      status |= static_cast<int>(OptimizationStatus::kMarkedForOptimization);
+    }
   }
 
   if (function->HasAttachedOptimizedCode(isolate)) {
@@ -976,6 +1003,7 @@ RUNTIME_FUNCTION(Runtime_GetOptimizationStatus) {
 
 RUNTIME_FUNCTION(Runtime_GetFunctionForCurrentFrame) {
   HandleScope scope(isolate);
+  // This isn't exposed to fuzzers so doesn't need to handle invalid arguments.
   DCHECK_EQ(args.length(), 0);
 
   JavaScriptStackFrameIterator it(isolate);
@@ -1027,15 +1055,16 @@ RUNTIME_FUNCTION(Runtime_ForceFlush) {
   }
 
   // Don't flush functions that are active on the stack.
-  for (JavaScriptStackFrameIterator it(isolate); !it.done(); it.Advance()) {
+  for (JavaScriptStackFrameIterator frame_it(isolate); !frame_it.done();
+       frame_it.Advance()) {
     std::vector<Tagged<SharedFunctionInfo>> infos;
-    it.frame()->GetFunctions(&infos);
-    for (auto it = infos.rbegin(); it != infos.rend(); ++it) {
-      if ((*it) == sfi) return CrashUnlessFuzzing(isolate);
+    frame_it.frame()->GetFunctions(&infos);
+    for (auto infos_it = infos.rbegin(); infos_it != infos.rend(); ++infos_it) {
+      if ((*infos_it) == sfi) return CrashUnlessFuzzing(isolate);
     }
   }
 
-  SharedFunctionInfo::DiscardCompiled(isolate, handle(sfi, isolate));
+  SharedFunctionInfo::DiscardCompiled(isolate, direct_handle(sfi, isolate));
   function->ResetIfCodeFlushed(isolate);
   return ReadOnlyRoots(isolate).undefined_value();
 }
@@ -1107,7 +1136,7 @@ RUNTIME_FUNCTION(Runtime_GetCallable) {
   if (args.length() != 1) {
     return CrashUnlessFuzzing(isolate);
   }
-  Handle<String> target_function_name = args.at<String>(0);
+  DirectHandle<String> target_function_name = args.at<String>(0);
   v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate*>(isolate);
   Local<v8::FunctionTemplate> t = v8::FunctionTemplate::New(v8_isolate);
   Local<v8::ObjectTemplate> instance_template = t->InstanceTemplate();
@@ -1128,6 +1157,9 @@ RUNTIME_FUNCTION(Runtime_ClearFunctionFeedback) {
   DCHECK_EQ(args.length(), 1);
   DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   function->ClearAllTypeFeedbackInfoForTesting();
+  // Typically tests use this function to start from scratch. Thus, we should
+  // also clear tiering requests.
+  function->ResetTieringRequests(isolate);
   return ReadOnlyRoots(isolate).undefined_value();
 }
 
@@ -1165,7 +1197,7 @@ RUNTIME_FUNCTION(Runtime_SetAllocationTimeout) {
 namespace {
 
 int FixedArrayLenFromSize(int size) {
-  return std::min({(size - FixedArray::kHeaderSize) / kTaggedSize,
+  return std::min({(size - OFFSET_OF_DATA_START(FixedArray)) / kTaggedSize,
                    FixedArray::kMaxRegularLength});
 }
 
@@ -1239,7 +1271,7 @@ RUNTIME_FUNCTION(Runtime_TakeHeapSnapshot) {
     filename = std::string(buffer.get());
   }
 
-  HeapProfiler* heap_profiler = isolate->heap_profiler();
+  HeapProfiler* heap_profiler = isolate->heap()->heap_profiler();
   // Since this API is intended for V8 devs, we do not treat globals as roots
   // here on purpose.
   v8::HeapProfiler::HeapSnapshotOptions options;
@@ -1386,6 +1418,7 @@ RUNTIME_FUNCTION(Runtime_PrintWithNameForAssert) {
     return CrashUnlessFuzzing(isolate);
   }
 
+  if (!IsString(args[0])) return CrashUnlessFuzzing(isolate);
   auto name = Cast<String>(args[0]);
 
   PrintF(" * ");
@@ -1523,11 +1556,14 @@ RUNTIME_FUNCTION(Runtime_DisassembleFunction) {
     return CrashUnlessFuzzing(isolate);
   }
   // Get the function and make sure it is compiled.
-  Handle<JSFunction> func = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> func = args.at<JSFunction>(0);
   IsCompiledScope is_compiled_scope;
+#ifndef V8_ENABLE_LEAPTIERING
   if (!func->is_compiled(isolate) && func->HasAvailableOptimizedCode(isolate)) {
-    func->UpdateCode(func->feedback_vector()->optimized_code(isolate));
+    func->UpdateOptimizedCode(isolate,
+                              func->feedback_vector()->optimized_code(isolate));
   }
+#endif  // !V8_ENABLE_LEAPTIERING
   CHECK(func->shared()->is_compiled() ||
         Compiler::Compile(isolate, func, Compiler::KEEP_EXCEPTION,
                           &is_compiled_scope));
@@ -1605,7 +1641,7 @@ RUNTIME_FUNCTION(Runtime_InLargeObjectSpace) {
 
 RUNTIME_FUNCTION(Runtime_HasElementsInALargeObjectSpace) {
   SealHandleScope shs(isolate);
-  if (args.length() != 1) {
+  if (args.length() != 1 || !IsJSArray(args[0])) {
     return CrashUnlessFuzzing(isolate);
   }
   auto array = Cast<JSArray>(args[0]);
@@ -1617,7 +1653,7 @@ RUNTIME_FUNCTION(Runtime_HasElementsInALargeObjectSpace) {
 
 RUNTIME_FUNCTION(Runtime_HasCowElements) {
   SealHandleScope shs(isolate);
-  if (args.length() != 1) {
+  if (args.length() != 1 || !IsJSArray(args[0])) {
     return CrashUnlessFuzzing(isolate);
   }
   auto array = Cast<JSArray>(args[0]);
@@ -1631,7 +1667,7 @@ RUNTIME_FUNCTION(Runtime_InYoungGeneration) {
     return CrashUnlessFuzzing(isolate);
   }
   Tagged<Object> obj = args[0];
-  return isolate->heap()->ToBoolean(ObjectInYoungGeneration(obj));
+  return isolate->heap()->ToBoolean(HeapLayout::InYoungGeneration(obj));
 }
 
 // Force pretenuring for the allocation site the passed object belongs to.
@@ -1644,16 +1680,14 @@ RUNTIME_FUNCTION(Runtime_PretenureAllocationSite) {
   Tagged<JSObject> object = Cast<JSObject>(arg);
 
   Heap* heap = object->GetHeap();
-  if (!v8_flags.sticky_mark_bits && !heap->InYoungGeneration(object)) {
+  if (!v8_flags.sticky_mark_bits && !HeapLayout::InYoungGeneration(object)) {
     // Object is not in new space, thus there is no memento and nothing to do.
     return ReturnFuzzSafe(ReadOnlyRoots(isolate).false_value(), isolate);
   }
 
   PretenuringHandler* pretenuring_handler = heap->pretenuring_handler();
-  Tagged<AllocationMemento> memento =
-      pretenuring_handler
-          ->FindAllocationMemento<PretenuringHandler::kForRuntime>(
-              object->map(), object);
+  Tagged<AllocationMemento> memento = PretenuringHandler::FindAllocationMemento<
+      PretenuringHandler::kForRuntime>(heap, object->map(), object);
   if (memento.is_null())
     return ReturnFuzzSafe(ReadOnlyRoots(isolate).false_value(), isolate);
   Tagged<AllocationSite> site = memento->GetAllocationSite();
@@ -1796,6 +1830,12 @@ RUNTIME_FUNCTION(Runtime_IsConcatSpreadableProtector) {
       Protectors::IsIsConcatSpreadableLookupChainIntact(isolate));
 }
 
+RUNTIME_FUNCTION(Runtime_TypedArrayLengthProtector) {
+  SealHandleScope shs(isolate);
+  return isolate->heap()->ToBoolean(
+      Protectors::IsTypedArrayLengthLookupChainIntact(isolate));
+}
+
 RUNTIME_FUNCTION(Runtime_TypedArraySpeciesProtector) {
   SealHandleScope shs(isolate);
   return isolate->heap()->ToBoolean(
@@ -1891,11 +1931,6 @@ RUNTIME_FUNCTION(Runtime_HeapObjectVerify) {
   return isolate->heap()->ToBoolean(true);
 }
 
-RUNTIME_FUNCTION(Runtime_ArrayBufferMaxByteLength) {
-  HandleScope shs(isolate);
-  return *isolate->factory()->NewNumber(JSArrayBuffer::kMaxByteLength);
-}
-
 RUNTIME_FUNCTION(Runtime_CompleteInobjectSlackTracking) {
   // TODO(353928347): This function is not currently exposed to fuzzers.
   // Investigate if it should be.
@@ -1948,8 +1983,8 @@ RUNTIME_FUNCTION(Runtime_EnableCodeLoggingForTesting) {
     void CallbackEvent(Handle<Name> name, Address entry_point) final {}
     void GetterCallbackEvent(Handle<Name> name, Address entry_point) final {}
     void SetterCallbackEvent(Handle<Name> name, Address entry_point) final {}
-    void RegExpCodeCreateEvent(Handle<AbstractCode> code,
-                               Handle<String> source) final {}
+    void RegExpCodeCreateEvent(Handle<AbstractCode> code, Handle<String> source,
+                               RegExpFlags flags) final {}
     void CodeMoveEvent(Tagged<InstructionStream> from,
                        Tagged<InstructionStream> to) final {}
     void BytecodeMoveEvent(Tagged<BytecodeArray> from,
@@ -2025,7 +2060,7 @@ RUNTIME_FUNCTION(Runtime_IsSharedString) {
   if (args.length() != 1 || !IsHeapObject(args[0])) {
     return CrashUnlessFuzzing(isolate);
   }
-  Handle<HeapObject> obj = args.at<HeapObject>(0);
+  DirectHandle<HeapObject> obj = args.at<HeapObject>(0);
   return isolate->heap()->ToBoolean(IsString(*obj) &&
                                     Cast<String>(obj)->IsShared());
 }
@@ -2039,8 +2074,9 @@ RUNTIME_FUNCTION(Runtime_ShareObject) {
   }
   Handle<HeapObject> obj = args.at<HeapObject>(0);
   ShouldThrow should_throw = v8_flags.fuzzing ? kDontThrow : kThrowOnError;
-  MaybeHandle<Object> maybe_shared = Object::Share(isolate, obj, should_throw);
-  Handle<Object> shared;
+  MaybeDirectHandle<Object> maybe_shared =
+      Object::Share(isolate, obj, should_throw);
+  DirectHandle<Object> shared;
   if (!maybe_shared.ToHandle(&shared)) {
     return CrashUnlessFuzzing(isolate);
   }
@@ -2064,6 +2100,44 @@ RUNTIME_FUNCTION(Runtime_IsInternalizedString) {
   }
   DirectHandle<HeapObject> obj = args.at<HeapObject>(0);
   return isolate->heap()->ToBoolean(IsInternalizedString(*obj));
+}
+
+RUNTIME_FUNCTION(Runtime_StringToCString) {
+  HandleScope scope(isolate);
+  if (args.length() != 1 || !IsString(args[0])) {
+    return CrashUnlessFuzzing(isolate);
+  }
+  DirectHandle<String> string = args.at<String>(0);
+
+  size_t output_length;
+  auto bytes = string->ToCString(&output_length);
+
+  DirectHandle<JSArrayBuffer> result =
+      isolate->factory()
+          ->NewJSArrayBufferAndBackingStore(output_length,
+                                            InitializedFlag::kUninitialized)
+          .ToHandleChecked();
+  memcpy(result->backing_store(), bytes.get(), output_length);
+  return *result;
+}
+
+RUNTIME_FUNCTION(Runtime_StringUtf8Value) {
+  HandleScope scope(isolate);
+  if (args.length() != 1 || !IsString(args[0])) {
+    return CrashUnlessFuzzing(isolate);
+  }
+  DirectHandle<String> string = args.at<String>(0);
+
+  v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate*>(isolate);
+  v8::String::Utf8Value value(v8_isolate, v8::Utils::ToLocal(string));
+
+  DirectHandle<JSArrayBuffer> result =
+      isolate->factory()
+          ->NewJSArrayBufferAndBackingStore(value.length(),
+                                            InitializedFlag::kUninitialized)
+          .ToHandleChecked();
+  memcpy(result->backing_store(), *value, value.length());
+  return *result;
 }
 
 RUNTIME_FUNCTION(Runtime_SharedGC) {
@@ -2156,19 +2230,24 @@ RUNTIME_FUNCTION(Runtime_GetFeedback) {
   if (args.length() != 1) {
     return CrashUnlessFuzzing(isolate);
   }
-  Handle<Object> function_object = args.at(0);
+  DirectHandle<Object> function_object = args.at(0);
   if (!IsJSFunction(*function_object)) return CrashUnlessFuzzing(isolate);
-  Handle<JSFunction> function = Cast<JSFunction>(function_object);
+  DirectHandle<JSFunction> function = Cast<JSFunction>(function_object);
 
   if (!function->has_feedback_vector()) {
     return CrashUnlessFuzzing(isolate);
   }
 
+#ifdef V8_JITLESS
+  // No feedback is collected in jitless mode, so tests calling %GetFeedback
+  // don't make sense.
+  return ReadOnlyRoots(isolate).undefined_value();
+#else
 #ifdef OBJECT_PRINT
-  Handle<FeedbackVector> feedback_vector =
-      handle(function->feedback_vector(), isolate);
+  DirectHandle<FeedbackVector> feedback_vector =
+      direct_handle(function->feedback_vector(), isolate);
 
-  Handle<FixedArray> result =
+  DirectHandle<FixedArray> result =
       isolate->factory()->NewFixedArray(feedback_vector->length());
   int result_ix = 0;
 
@@ -2177,11 +2256,11 @@ RUNTIME_FUNCTION(Runtime_GetFeedback) {
     FeedbackSlot slot = iter.Next();
     FeedbackSlotKind kind = iter.kind();
 
-    Handle<FixedArray> sub_result = isolate->factory()->NewFixedArray(2);
+    DirectHandle<FixedArray> sub_result = isolate->factory()->NewFixedArray(2);
     {
       std::ostringstream out;
       out << kind;
-      Handle<String> kind_string =
+      DirectHandle<String> kind_string =
           isolate->factory()->NewStringFromAsciiChecked(out.str().c_str());
       sub_result->set(0, *kind_string);
     }
@@ -2190,12 +2269,12 @@ RUNTIME_FUNCTION(Runtime_GetFeedback) {
     {
       std::ostringstream out;
       nexus.Print(out);
-      Handle<String> nexus_string =
+      DirectHandle<String> nexus_string =
           isolate->factory()->NewStringFromAsciiChecked(out.str().c_str());
       sub_result->set(1, *nexus_string);
     }
 
-    Handle<JSArray> sub_result_array =
+    DirectHandle<JSArray> sub_result_array =
         isolate->factory()->NewJSArrayWithElements(sub_result);
     result->set(result_ix++, *sub_result_array);
   }
@@ -2204,6 +2283,28 @@ RUNTIME_FUNCTION(Runtime_GetFeedback) {
 #else
   return ReadOnlyRoots(isolate).undefined_value();
 #endif  // OBJECT_PRINT
+#endif  // not V8_JITLESS
+}
+
+RUNTIME_FUNCTION(Runtime_IsNoWriteBarrierNeeded) {
+  HandleScope scope(isolate);
+  DisallowGarbageCollection no_gc;
+  if (args.length() != 1) {
+    return CrashUnlessFuzzing(isolate);
+  }
+  DirectHandle<Object> object = args.at(0);
+  if (!(*object).IsHeapObject()) {
+    return CrashUnlessFuzzing(isolate);
+  }
+  auto heap_object = Cast<HeapObject>(object);
+  if (HeapLayout::InReadOnlySpace(*heap_object)) {
+    return ReadOnlyRoots(isolate).true_value();
+  }
+  if (WriteBarrier::GetWriteBarrierModeForObject(*heap_object, no_gc) !=
+      WriteBarrierMode::SKIP_WRITE_BARRIER) {
+    return ReadOnlyRoots(isolate).false_value();
+  }
+  return ReadOnlyRoots(isolate).true_value();
 }
 
 }  // namespace internal

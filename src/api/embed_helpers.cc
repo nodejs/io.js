@@ -347,11 +347,7 @@ EmbedderSnapshotData::EmbedderSnapshotData(const SnapshotData* impl,
     : impl_(impl), owns_impl_(owns_impl) {}
 
 bool EmbedderSnapshotData::CanUseCustomSnapshotPerIsolate() {
-#ifdef NODE_V8_SHARED_RO_HEAP
   return false;
-#else
-  return true;
-#endif
 }
 
 }  // namespace node

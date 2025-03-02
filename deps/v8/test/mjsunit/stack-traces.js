@@ -496,3 +496,31 @@ try {
 } catch (err) {
   err.stack;
 }
+Error.prepareStackTrace = undefined
+
+// Test that static methods print correct type
+function testStaticMethodReceiver() {
+  function Foo() {}
+  Foo.bar = function bar() { FAIL }
+  Foo.bar();
+}
+// ReferenceError: FAIL is not defined
+//     at Foo.bar
+//     at testStaticMethodReceiver
+//     at testTrace
+testTrace("testStaticMethodReceiver", testStaticMethodReceiver,
+    ["Foo.bar"], ["Function.bar"]);
+
+// Test getTypeName returns receiver of static method call
+Error.prepareStackTrace = function(e, frames) {
+  assertEquals('Foo', frames[0].getTypeName());
+}
+try {
+  class Foo {
+    static bar() { FAIL }
+  }
+  Foo.bar();
+} catch (err) {
+  err.stack;
+}
+Error.prepareStackTrace = undefined

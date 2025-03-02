@@ -12,31 +12,29 @@
 #ifndef V8_BASE_SAFE_CONVERSIONS_ARM_IMPL_H_
 #define V8_BASE_SAFE_CONVERSIONS_ARM_IMPL_H_
 
-#include <cassert>
-#include <limits>
+#include <stdint.h>
+
 #include <type_traits>
 
 #include "src/base/safe_conversions_impl.h"
 
-namespace v8 {
-namespace base {
-namespace internal {
+namespace v8::base::internal {
 
 // Fast saturation to a destination type.
 template <typename Dst, typename Src>
 struct SaturateFastAsmOp {
   static constexpr bool is_supported =
-      std::is_signed<Src>::value && std::is_integral<Dst>::value &&
-      std::is_integral<Src>::value &&
+      kEnableAsmCode && std::is_signed_v<Src> && std::is_integral_v<Dst> &&
+      std::is_integral_v<Src> &&
       IntegerBitsPlusSign<Src>::value <= IntegerBitsPlusSign<int32_t>::value &&
       IntegerBitsPlusSign<Dst>::value <= IntegerBitsPlusSign<int32_t>::value &&
       !IsTypeInRangeForNumericType<Dst, Src>::value;
 
   __attribute__((always_inline)) static Dst Do(Src value) {
     int32_t src = value;
-    typename std::conditional<std::is_signed<Dst>::value, int32_t,
-                              uint32_t>::type result;
-    if (std::is_signed<Dst>::value) {
+    typename std::conditional<std::is_signed_v<Dst>, int32_t, uint32_t>::type
+        result;
+    if (std::is_signed_v<Dst>) {
       asm("ssat %[dst], %[shift], %[src]"
           : [dst] "=r"(result)
           : [src] "r"(src), [shift] "n"(IntegerBitsPlusSign<Dst>::value <= 32
@@ -53,8 +51,6 @@ struct SaturateFastAsmOp {
   }
 };
 
-}  // namespace internal
-}  // namespace base
-}  // namespace v8
+}  // namespace v8::base::internal
 
 #endif  // V8_BASE_SAFE_CONVERSIONS_ARM_IMPL_H_

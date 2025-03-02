@@ -140,8 +140,7 @@ class UtilsExtension : public InspectorIsolateData::SetupGlobalTask {
       }
 
       v8::String::Utf8Value str(info.GetIsolate(), str_obj);
-      int n =
-          static_cast<int>(fwrite(*str, sizeof(**str), str.length(), stdout));
+      size_t n = fwrite(*str, sizeof(**str), str.length(), stdout);
       if (n != str.length()) {
         FATAL("Error in fwrite\n");
       }

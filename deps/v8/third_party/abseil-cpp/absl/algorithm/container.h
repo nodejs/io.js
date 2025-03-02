@@ -131,6 +131,8 @@ struct IsUnorderedContainer<std::unordered_set<Key, Hash, KeyEqual, Allocator>>
 //
 // Container-based version of absl::linear_search() for performing a linear
 // search within a container.
+//
+// For a generalization that uses a predicate, see absl::c_any_of().
 template <typename C, typename EqualityComparable>
 ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool c_linear_search(
     const C& c, EqualityComparable&& value) {
@@ -290,7 +292,7 @@ ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20
 template <typename C1, typename C2>
 ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20
     container_algorithm_internal::ContainerIter<C1>
-    c_find_first_of(C1& container, C2& options) {
+    c_find_first_of(C1& container, const C2& options) {
   return std::find_first_of(container_algorithm_internal::c_begin(container),
                             container_algorithm_internal::c_end(container),
                             container_algorithm_internal::c_begin(options),
@@ -302,7 +304,7 @@ ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20
 template <typename C1, typename C2, typename BinaryPredicate>
 ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20
     container_algorithm_internal::ContainerIter<C1>
-    c_find_first_of(C1& container, C2& options, BinaryPredicate&& pred) {
+    c_find_first_of(C1& container, const C2& options, BinaryPredicate&& pred) {
   return std::find_first_of(container_algorithm_internal::c_begin(container),
                             container_algorithm_internal::c_end(container),
                             container_algorithm_internal::c_begin(options),

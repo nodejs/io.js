@@ -13,7 +13,6 @@
 #include "src/objects/allocation-site-scopes-inl.h"
 #include "src/objects/api-callbacks-inl.h"
 #include "src/objects/arguments-inl.h"
-#include "src/objects/bigint-inl.h"
 #include "src/objects/call-site-info-inl.h"
 #include "src/objects/cell-inl.h"
 #include "src/objects/code-inl.h"

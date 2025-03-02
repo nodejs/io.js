@@ -85,6 +85,7 @@ transitioning builtin ArrayTimSortIntoCopy(
 }
 
 // https://tc39.es/proposal-change-array-by-copy/#sec-array.prototype.toSorted
+@incrementUseCounter('v8::Isolate::kArrayByCopy')
 transitioning javascript builtin ArrayPrototypeToSorted(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   // 1. If comparefn is not undefined and IsCallable(comparefn) is false, throw

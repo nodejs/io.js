@@ -1063,7 +1063,7 @@ class Platform {
    * Allows the embedder to manage memory page allocations.
    * Returning nullptr will cause V8 to use the default page allocator.
    */
-  virtual PageAllocator* GetPageAllocator() = 0;
+  virtual PageAllocator* GetPageAllocator() { return nullptr; }
 
   /**
    * Allows the embedder to provide an allocator that uses per-thread memory
@@ -1116,6 +1116,7 @@ class Platform {
    * Embedders should override PostTaskOnWorkerThreadImpl() instead of
    * CallOnWorkerThread().
    */
+  V8_DEPRECATE_SOON("Use PostTaskOnWorkerThread instead.")
   void CallOnWorkerThread(
       std::unique_ptr<Task> task,
       const SourceLocation& location = SourceLocation::Current()) {
@@ -1129,6 +1130,7 @@ class Platform {
    * Embedders should override PostTaskOnWorkerThreadImpl() instead of
    * CallBlockingTaskOnWorkerThread().
    */
+  V8_DEPRECATE_SOON("Use PostTaskOnWorkerThread instead.")
   void CallBlockingTaskOnWorkerThread(
       std::unique_ptr<Task> task,
       const SourceLocation& location = SourceLocation::Current()) {
@@ -1143,6 +1145,7 @@ class Platform {
    * Embedders should override PostTaskOnWorkerThreadImpl() instead of
    * CallLowPriorityTaskOnWorkerThread().
    */
+  V8_DEPRECATE_SOON("Use PostTaskOnWorkerThread instead.")
   void CallLowPriorityTaskOnWorkerThread(
       std::unique_ptr<Task> task,
       const SourceLocation& location = SourceLocation::Current()) {
@@ -1158,12 +1161,38 @@ class Platform {
    * Embedders should override PostDelayedTaskOnWorkerThreadImpl() instead of
    * CallDelayedOnWorkerThread().
    */
+  V8_DEPRECATE_SOON("Use PostDelayedTaskOnWorkerThread instead.")
   void CallDelayedOnWorkerThread(
       std::unique_ptr<Task> task, double delay_in_seconds,
       const SourceLocation& location = SourceLocation::Current()) {
     PostDelayedTaskOnWorkerThreadImpl(TaskPriority::kUserVisible,
                                       std::move(task), delay_in_seconds,
                                       location);
+  }
+
+  /**
+   * Schedules a task to be invoked on a worker thread.
+   * Embedders should override PostTaskOnWorkerThreadImpl() instead of
+   * PostTaskOnWorkerThread().
+   */
+  void PostTaskOnWorkerThread(
+      TaskPriority priority, std::unique_ptr<Task> task,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostTaskOnWorkerThreadImpl(priority, std::move(task), location);
+  }
+
+  /**
+   * Schedules a task to be invoked on a worker thread after |delay_in_seconds|
+   * expires.
+   * Embedders should override PostDelayedTaskOnWorkerThreadImpl() instead of
+   * PostDelayedTaskOnWorkerThread().
+   */
+  void PostDelayedTaskOnWorkerThread(
+      TaskPriority priority, std::unique_ptr<Task> task,
+      double delay_in_seconds,
+      const SourceLocation& location = SourceLocation::Current()) {
+    PostDelayedTaskOnWorkerThreadImpl(priority, std::move(task),
+                                      delay_in_seconds, location);
   }
 
   /**

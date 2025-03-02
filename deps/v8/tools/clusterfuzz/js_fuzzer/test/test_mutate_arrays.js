@@ -17,7 +17,7 @@ const helpers = require('./helpers.js');
 const scriptMutator = require('../script_mutator.js');
 const sourceHelpers = require('../source_helpers.js');
 
-const {ArrayMutator} = require('../mutators/array_mutator.js');
+const arrayMutator = require('../mutators/array_mutator.js');
 
 const sandbox = sinon.createSandbox();
 
@@ -32,12 +32,15 @@ describe('Mutate arrays', () => {
         () => babylon.parseExpression('""'));
     helpers.deterministicRandom(sandbox);
 
+    // Ensure large arrays are not mutated. For testing make arrays > 3 large.
+    sandbox.stub(arrayMutator, 'MAX_ARRAY_LENGTH').value(3);
+
     const source = helpers.loadTestData('mutate_arrays.js');
 
     const settings = scriptMutator.defaultSettings();
     settings['MUTATE_ARRAYS'] = 1.0;
 
-    const mutator = new ArrayMutator(settings);
+    const mutator = new arrayMutator.ArrayMutator(settings);
     mutator.mutate(source);
 
     const mutated = sourceHelpers.generateCode(source);

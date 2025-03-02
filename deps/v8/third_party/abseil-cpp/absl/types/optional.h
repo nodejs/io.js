@@ -429,14 +429,16 @@ class optional : private optional_internal::optional_data<T>,
   // Accesses the underlying `T` value of an `optional`. If the `optional` is
   // empty, behavior is undefined.
   constexpr const T& operator*() const& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return ABSL_HARDENING_ASSERT(this->engaged_), reference();
+    ABSL_HARDENING_ASSERT(this->engaged_);
+    return reference();
   }
   T& operator*() & ABSL_ATTRIBUTE_LIFETIME_BOUND {
     ABSL_HARDENING_ASSERT(this->engaged_);
     return reference();
   }
   constexpr const T&& operator*() const&& ABSL_ATTRIBUTE_LIFETIME_BOUND {
-    return ABSL_HARDENING_ASSERT(this->engaged_), std::move(reference());
+    ABSL_HARDENING_ASSERT(this->engaged_);
+    return std::move(reference());
   }
   T&& operator*() && ABSL_ATTRIBUTE_LIFETIME_BOUND {
     ABSL_HARDENING_ASSERT(this->engaged_);

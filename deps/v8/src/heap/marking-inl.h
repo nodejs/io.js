@@ -12,7 +12,6 @@
 #include "src/heap/memory-chunk-layout.h"
 #include "src/heap/memory-chunk-metadata.h"
 #include "src/heap/spaces.h"
-#include "src/objects/instance-type-inl.h"
 
 namespace v8::internal {
 
@@ -25,7 +24,7 @@ inline void MarkingBitmap::SetBitsInCell<AccessMode::NON_ATOMIC>(
 template <>
 inline void MarkingBitmap::SetBitsInCell<AccessMode::ATOMIC>(
     uint32_t cell_index, MarkBit::CellType mask) {
-  base::AsAtomicWord::SetBits(cells() + cell_index, mask, mask);
+  base::AsAtomicWord::Relaxed_SetBits(cells() + cell_index, mask, mask);
 }
 
 template <>
@@ -37,8 +36,8 @@ inline void MarkingBitmap::ClearBitsInCell<AccessMode::NON_ATOMIC>(
 template <>
 inline void MarkingBitmap::ClearBitsInCell<AccessMode::ATOMIC>(
     uint32_t cell_index, MarkBit::CellType mask) {
-  base::AsAtomicWord::SetBits(cells() + cell_index,
-                              static_cast<MarkBit::CellType>(0u), mask);
+  base::AsAtomicWord::Relaxed_SetBits(cells() + cell_index,
+                                      static_cast<MarkBit::CellType>(0u), mask);
 }
 
 template <>
@@ -151,14 +150,21 @@ inline void MarkingBitmap::ClearRange(MarkBitIndex start_index,
 MarkingBitmap* MarkingBitmap::FromAddress(Address address) {
   Address metadata_address =
       MutablePageMetadata::FromAddress(address)->MetadataAddress();
-  return Cast(metadata_address + MemoryChunkLayout::kMarkingBitmapOffset);
+  return Cast(metadata_address + MutablePageMetadata::MarkingBitmapOffset());
 }
 
 // static
 MarkBit MarkingBitmap::MarkBitFromAddress(Address address) {
+  return MarkBitFromAddress(FromAddress(address), address);
+}
+
+// static
+MarkBit MarkingBitmap::MarkBitFromAddress(MarkingBitmap* bitmap,
+                                          Address address) {
+  DCHECK_EQ(bitmap, FromAddress(address));
   const auto index = AddressToIndex(address);
   const auto mask = IndexInCellMask(index);
-  MarkBit::CellType* cell = FromAddress(address)->cells() + IndexToCell(index);
+  MarkBit::CellType* cell = bitmap->cells() + IndexToCell(index);
   return MarkBit(cell, mask);
 }
 
@@ -266,103 +272,17 @@ MarkBit MarkBit::From(Tagged<HeapObject> heap_object) {
   return MarkingBitmap::MarkBitFromAddress(heap_object.ptr());
 }
 
-LiveObjectRange::iterator::iterator() : cage_base_(kNullAddress) {}
-
-LiveObjectRange::iterator::iterator(const PageMetadata* page)
-    : page_(page),
-      cells_(page->marking_bitmap()->cells()),
-      cage_base_(page->heap()->isolate()),
-      current_cell_index_(MarkingBitmap::IndexToCell(
-          MarkingBitmap::AddressToIndex(page->area_start()))),
-      current_cell_(cells_[current_cell_index_]) {
-  AdvanceToNextValidObject();
-}
-
-LiveObjectRange::iterator& LiveObjectRange::iterator::operator++() {
-  AdvanceToNextValidObject();
-  return *this;
-}
-
-LiveObjectRange::iterator LiveObjectRange::iterator::operator++(int) {
-  iterator retval = *this;
-  ++(*this);
-  return retval;
-}
-
-void LiveObjectRange::iterator::AdvanceToNextValidObject() {
-  // If we found a regular object we are done. In case of free space, we
-  // need to continue.
-  //
-  // Reading the instance type of the map is safe here even in the presence
-  // of the mutator writing a new Map because Map objects are published with
-  // release stores (or are otherwise read-only) and the map is retrieved  in
-  // `AdvanceToNextMarkedObject()` using an acquire load.
-  while (AdvanceToNextMarkedObject() &&
-         InstanceTypeChecker::IsFreeSpaceOrFiller(current_map_)) {
-  }
-}
-
-bool LiveObjectRange::iterator::AdvanceToNextMarkedObject() {
-  // The following block moves the iterator to the next cell from the current
-  // object. This means skipping all possibly set mark bits (in case of black
-  // allocation).
-  if (!current_object_.is_null()) {
-    // Compute an end address that is inclusive. This allows clearing the cell
-    // up and including the end address. This works for one word fillers as
-    // well as other objects.
-    Address next_object = current_object_.address() + current_size_;
-    current_object_ = HeapObject();
-    if (MemoryChunk::IsAligned(next_object)) {
-      return false;
-    }
-    // Area end may not be exactly aligned to kAlignment. We don't need to bail
-    // out for area_end() though as we are guaranteed to have a bit for the
-    // whole page.
-    DCHECK_LE(next_object, page_->area_end());
-    // Move to the corresponding cell of the end index.
-    const auto next_markbit_index = MarkingBitmap::AddressToIndex(next_object);
-    DCHECK_GE(MarkingBitmap::IndexToCell(next_markbit_index),
-              current_cell_index_);
-    current_cell_index_ = MarkingBitmap::IndexToCell(next_markbit_index);
-    DCHECK_LT(current_cell_index_, MarkingBitmap::kCellsCount);
-    // Mask out lower addresses in the cell.
-    const MarkBit::CellType mask =
-        MarkingBitmap::IndexInCellMask(next_markbit_index);
-    current_cell_ = cells_[current_cell_index_] & ~(mask - 1);
-  }
-  // The next block finds any marked object starting from the current cell.
-  const MemoryChunk* chunk = page_->Chunk();
-  while (true) {
-    if (current_cell_) {
-      const auto trailing_zeros = base::bits::CountTrailingZeros(current_cell_);
-      Address current_cell_base =
-          chunk->address() + MarkingBitmap::CellToBase(current_cell_index_);
-      Address object_address = current_cell_base + trailing_zeros * kTaggedSize;
-      // The object may be a filler which we want to skip.
-      current_object_ = HeapObject::FromAddress(object_address);
-      current_map_ = current_object_->map(cage_base_, kAcquireLoad);
-      DCHECK(MapWord::IsMapOrForwarded(current_map_));
-      current_size_ = ALIGN_TO_ALLOCATION_ALIGNMENT(
-          current_object_->SizeFromMap(current_map_));
-      CHECK(page_->ContainsLimit(object_address + current_size_));
-      return true;
-    }
-    if (++current_cell_index_ >= MarkingBitmap::kCellsCount) break;
-    current_cell_ = cells_[current_cell_index_];
-  }
-  return false;
-}
-
-LiveObjectRange::iterator LiveObjectRange::begin() { return iterator(page_); }
-
-LiveObjectRange::iterator LiveObjectRange::end() { return iterator(); }
-
 // static
 std::optional<MarkingHelper::WorklistTarget> MarkingHelper::ShouldMarkObject(
     Heap* heap, Tagged<HeapObject> object) {
   const auto* chunk = MemoryChunk::FromHeapObject(object);
   const auto flags = chunk->GetFlags();
   if (flags & MemoryChunk::READ_ONLY_HEAP) {
+    return {};
+  }
+  if (v8_flags.black_allocated_pages &&
+      V8_UNLIKELY(flags & MemoryChunk::BLACK_ALLOCATED)) {
+    DCHECK(!(flags & MemoryChunk::kIsInYoungGenerationMask));
     return {};
   }
   if (V8_LIKELY(!(flags & MemoryChunk::IN_WRITABLE_SHARED_SPACE))) {
@@ -384,6 +304,10 @@ MarkingHelper::LivenessMode MarkingHelper::GetLivenessMode(
   const auto* chunk = MemoryChunk::FromHeapObject(object);
   const auto flags = chunk->GetFlags();
   if (flags & MemoryChunk::READ_ONLY_HEAP) {
+    return MarkingHelper::LivenessMode::kAlwaysLive;
+  }
+  if (v8_flags.black_allocated_pages &&
+      (flags & MemoryChunk::BLACK_ALLOCATED)) {
     return MarkingHelper::LivenessMode::kAlwaysLive;
   }
   if (V8_LIKELY(!(flags & MemoryChunk::IN_WRITABLE_SHARED_SPACE))) {

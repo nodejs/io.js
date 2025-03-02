@@ -9,6 +9,9 @@
 #include "src/common/code-memory-access-inl.h"
 #include "src/objects/instruction-stream-inl.h"
 #include "src/utils/allocation.h"
+#ifdef V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-code-pointer-table-inl.h"
+#endif
 
 namespace v8 {
 namespace internal {
@@ -143,7 +146,7 @@ ThreadIsolation::JitPageReference ThreadIsolation::LookupJitPageLocked(
 // static
 ThreadIsolation::JitPageReference ThreadIsolation::LookupJitPage(Address addr,
                                                                  size_t size) {
-  base::MutexGuard guard(trusted_data_.jit_pages_mutex_);
+  base::SpinningMutexGuard guard(trusted_data_.jit_pages_mutex_);
   return LookupJitPageLocked(addr, size);
 }
 
@@ -156,7 +159,7 @@ WritableJitPage ThreadIsolation::LookupWritableJitPage(Address addr,
 // static
 std::optional<ThreadIsolation::JitPageReference>
 ThreadIsolation::TryLookupJitPage(Address addr, size_t size) {
-  base::MutexGuard guard(trusted_data_.jit_pages_mutex_);
+  base::SpinningMutexGuard guard(trusted_data_.jit_pages_mutex_);
   return TryLookupJitPageLocked(addr, size);
 }
 
@@ -324,6 +327,14 @@ ThreadIsolation::JitPageReference::LookupAllocation(base::Address addr,
   return it->second;
 }
 
+bool ThreadIsolation::JitPageReference::Contains(base::Address addr,
+                                                 size_t size,
+                                                 JitAllocationType type) const {
+  auto it = jit_page_->allocations_.find(addr);
+  return it != jit_page_->allocations_.end() && it->second.Size() == size &&
+         it->second.Type() == type;
+}
+
 void ThreadIsolation::JitPageReference::UnregisterAllocation(
     base::Address addr) {
   // TODO(sroettger): check that the memory is not in use (scan shadow stacks).
@@ -395,7 +406,7 @@ ThreadIsolation::JitPageReference::AllocationContaining(
 void ThreadIsolation::RegisterJitPage(Address address, size_t size) {
   CFIMetadataWriteScope write_scope("Adding new executable memory.");
 
-  base::MutexGuard guard(trusted_data_.jit_pages_mutex_);
+  base::SpinningMutexGuard guard(trusted_data_.jit_pages_mutex_);
   CheckForRegionOverlap(*trusted_data_.jit_pages_, address, size);
   JitPage* jit_page;
   ConstructNew(&jit_page, size);
@@ -408,7 +419,7 @@ void ThreadIsolation::UnregisterJitPage(Address address, size_t size) {
 
   JitPage* to_delete;
   {
-    base::MutexGuard guard(trusted_data_.jit_pages_mutex_);
+    base::SpinningMutexGuard guard(trusted_data_.jit_pages_mutex_);
     JitPageReference jit_page = LookupJitPageLocked(address, size);
 
     // We're merging jit pages together, so potentially split them back up
@@ -461,31 +472,25 @@ bool ThreadIsolation::MakeExecutable(Address address, size_t size) {
 
 // static
 WritableJitAllocation ThreadIsolation::RegisterJitAllocation(
-    Address obj, size_t size, JitAllocationType type) {
+    Address obj, size_t size, JitAllocationType type, bool enforce_write_api) {
   return WritableJitAllocation(
-      obj, size, type, WritableJitAllocation::JitAllocationSource::kRegister);
+      obj, size, type, WritableJitAllocation::JitAllocationSource::kRegister,
+      enforce_write_api);
 }
 
 // static
 WritableJitAllocation ThreadIsolation::RegisterInstructionStreamAllocation(
-    Address addr, size_t size) {
-  return RegisterJitAllocation(addr, size,
-                               JitAllocationType::kInstructionStream);
+    Address addr, size_t size, bool enforce_write_api) {
+  return RegisterJitAllocation(
+      addr, size, JitAllocationType::kInstructionStream, enforce_write_api);
 }
 
 // static
 WritableJitAllocation ThreadIsolation::LookupJitAllocation(
-    Address addr, size_t size, JitAllocationType type) {
+    Address addr, size_t size, JitAllocationType type, bool enforce_write_api) {
   return WritableJitAllocation(
-      addr, size, type, WritableJitAllocation::JitAllocationSource::kLookup);
-}
-
-// static
-WritableJumpTablePair ThreadIsolation::LookupJumpTableAllocations(
-    Address jump_table_address, size_t jump_table_size,
-    Address far_jump_table_address, size_t far_jump_table_size) {
-  return WritableJumpTablePair(jump_table_address, jump_table_size,
-                               far_jump_table_address, far_jump_table_size);
+      addr, size, type, WritableJitAllocation::JitAllocationSource::kLookup,
+      enforce_write_api);
 }
 
 // static
@@ -529,7 +534,7 @@ void ThreadIsolation::UnregisterWasmAllocation(Address addr, size_t size) {
 
 ThreadIsolation::JitPageReference ThreadIsolation::SplitJitPage(Address addr,
                                                                 size_t size) {
-  base::MutexGuard guard(trusted_data_.jit_pages_mutex_);
+  base::SpinningMutexGuard guard(trusted_data_.jit_pages_mutex_);
   return SplitJitPageLocked(addr, size);
 }
 
@@ -570,7 +575,7 @@ ThreadIsolation::SplitJitPages(Address addr1, size_t size1, Address addr2,
   // that the sizes don't overflow.
   CHECK_LE(addr1 + size1, addr2);
 
-  base::MutexGuard guard(trusted_data_.jit_pages_mutex_);
+  base::SpinningMutexGuard guard(trusted_data_.jit_pages_mutex_);
   return {SplitJitPageLocked(addr1, size1), SplitJitPageLocked(addr2, size2)};
 }
 
@@ -605,7 +610,7 @@ namespace {
 
 class MutexUnlocker {
  public:
-  explicit MutexUnlocker(base::Mutex& mutex) : mutex_(mutex) {
+  explicit MutexUnlocker(base::SpinningMutex& mutex) : mutex_(mutex) {
     mutex_.AssertHeld();
   }
 
@@ -615,7 +620,7 @@ class MutexUnlocker {
   }
 
  private:
-  base::Mutex& mutex_;
+  base::SpinningMutex& mutex_;
 };
 
 }  // namespace
@@ -628,8 +633,7 @@ bool ThreadIsolation::CanLookupStartOfJitAllocationAt(Address inner_pointer) {
   // potential dead locks. The profiler can try to do a lookup from a signal
   // handler. If that signal handler runs while the thread locked one of these
   // mutexes, it would result in a dead lock.
-  bool pages_mutex_locked = trusted_data_.jit_pages_mutex_->TryLock();
-  if (!pages_mutex_locked) {
+  if (!trusted_data_.jit_pages_mutex_->TryLock()) {
     return false;
   }
   MutexUnlocker pages_mutex_unlocker(*trusted_data_.jit_pages_mutex_);
@@ -644,13 +648,11 @@ bool ThreadIsolation::CanLookupStartOfJitAllocationAt(Address inner_pointer) {
   it--;
 
   JitPage* jit_page = it->second;
-  bool jit_page_locked = jit_page->mutex_.TryLock();
-  if (!jit_page_locked) {
-    return false;
+  if (jit_page->mutex_.TryLock()) {
+    jit_page->mutex_.Unlock();
+    return true;
   }
-  jit_page->mutex_.Unlock();
-
-  return true;
+  return false;
 }
 
 // static
@@ -661,6 +663,49 @@ WritableJitAllocation WritableJitAllocation::ForInstructionStream(
       ThreadIsolation::JitAllocationType::kInstructionStream,
       JitAllocationSource::kLookup);
 }
+
+#ifdef V8_ENABLE_WEBASSEMBLY
+
+// static
+WritableJumpTablePair ThreadIsolation::LookupJumpTableAllocations(
+    Address jump_table_address, size_t jump_table_size,
+    Address far_jump_table_address, size_t far_jump_table_size) {
+  return WritableJumpTablePair(jump_table_address, jump_table_size,
+                               far_jump_table_address, far_jump_table_size);
+}
+
+WritableJumpTablePair::~WritableJumpTablePair() {
+#ifdef DEBUG
+  if (jump_table_pages_.has_value()) {
+    // We disabled RWX write access for debugging. But we'll need it in the
+    // destructor again to release the jit page reference.
+    write_scope_.SetWritable();
+  }
+#endif
+}
+
+WritableJumpTablePair::WritableJumpTablePair(
+    Address jump_table_address, size_t jump_table_size,
+    Address far_jump_table_address, size_t far_jump_table_size,
+    WritableJumpTablePair::ForTestingTag)
+    : writable_jump_table_(WritableJitAllocation::ForNonExecutableMemory(
+          jump_table_address, jump_table_size,
+          ThreadIsolation::JitAllocationType::kWasmJumpTable)),
+      writable_far_jump_table_(WritableJitAllocation::ForNonExecutableMemory(
+          far_jump_table_address, far_jump_table_size,
+          ThreadIsolation::JitAllocationType::kWasmFarJumpTable)),
+      write_scope_("for testing") {}
+
+// static
+WritableJumpTablePair WritableJumpTablePair::ForTesting(
+    Address jump_table_address, size_t jump_table_size,
+    Address far_jump_table_address, size_t far_jump_table_size) {
+  return WritableJumpTablePair(jump_table_address, jump_table_size,
+                               far_jump_table_address, far_jump_table_size,
+                               ForTestingTag{});
+}
+
+#endif
 
 template <size_t offset>
 void WritableFreeSpace::ClearTagged(size_t count) const {

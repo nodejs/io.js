@@ -25,8 +25,8 @@ class V8_EXPORT_PRIVATE CodeFactory final {
   // stack and the arguments count is passed via register) which currently
   // can't be expressed in CallInterfaceDescriptor. Therefore only the code
   // is exported here.
-  static Handle<Code> RuntimeCEntry(Isolate* isolate, int result_size = 1,
-                                    bool switch_to_central_stack = false);
+  static DirectHandle<Code> RuntimeCEntry(Isolate* isolate, int result_size = 1,
+                                          bool switch_to_central_stack = false);
 
   static Handle<Code> CEntry(Isolate* isolate, int result_size = 1,
                              ArgvMode argv_mode = ArgvMode::kStack,

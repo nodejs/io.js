@@ -282,7 +282,7 @@ void CallOrConstructBuiltinsAssembler::CallOrConstructWithArrayLike(
     var_elements = CAST(CallRuntime(Runtime::kCreateListFromArrayLike, context,
                                     arguments_list));
     var_length = LoadAndUntagToWord32ObjectField(var_elements.value(),
-                                                 FixedArray::kLengthOffset);
+                                                 offsetof(FixedArray, length_));
     Goto(&if_done);
   }
 
@@ -480,9 +480,9 @@ void CallOrConstructBuiltinsAssembler::CallOrConstructWithSpread(
 template <class Descriptor>
 void CallOrConstructBuiltinsAssembler::CallReceiver(
     Builtin id, std::optional<TNode<Object>> receiver) {
-  static_assert(std::is_same<Descriptor,
-                             CallTrampoline_Baseline_CompactDescriptor>::value,
-                "Incompatible Descriptor");
+  static_assert(
+      std::is_same_v<Descriptor, CallTrampoline_Baseline_CompactDescriptor>,
+      "Incompatible Descriptor");
   auto bitfield = UncheckedParameter<Word32T>(Descriptor::kBitField);
   TNode<Int32T> argc =
       Signed(DecodeWord32<
@@ -875,6 +875,12 @@ TF_BUILTIN(HandleApiCallOrConstruct, CallOrConstructBuiltinsAssembler) {
   auto new_target = Parameter<Object>(Descriptor::kNewTarget);
   auto context = Parameter<Context>(Descriptor::kContext);
   auto argc = UncheckedParameter<Int32T>(Descriptor::kActualArgumentsCount);
+#ifdef V8_JS_LINKAGE_INCLUDES_DISPATCH_HANDLE
+  auto dispatch_handle =
+      UncheckedParameter<JSDispatchHandleT>(Descriptor::kDispatchHandle);
+#else
+  auto dispatch_handle = InvalidDispatchHandleConstant();
+#endif
 
   Label if_call(this), if_construct(this);
   Branch(IsUndefined(new_target), &if_call, &if_construct);
@@ -904,8 +910,8 @@ TF_BUILTIN(HandleApiCallOrConstruct, CallOrConstructBuiltinsAssembler) {
   {
     // Tail call to the stub while leaving all the incoming JS arguments on
     // the stack.
-    TailCallBuiltin(Builtin::kHandleApiConstruct, context, target, new_target,
-                    argc);
+    TailCallJSBuiltin(Builtin::kHandleApiConstruct, context, target, new_target,
+                      argc, dispatch_handle);
   }
 }
 

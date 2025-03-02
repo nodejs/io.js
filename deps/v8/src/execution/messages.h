@@ -30,6 +30,7 @@ class LookupIterator;
 class PrimitiveHeapObject;
 class SharedFunctionInfo;
 class SourceInfo;
+class StackTraceInfo;
 class WasmInstanceObject;
 
 class V8_EXPORT_PRIVATE MessageLocation {
@@ -41,7 +42,7 @@ class V8_EXPORT_PRIVATE MessageLocation {
   MessageLocation(Handle<Script> script, int start_pos, int end_pos,
                   Handle<SharedFunctionInfo> shared);
   // Constructor for when source positions were not collected but which can be
-  // reconstructed from the SharedFuncitonInfo and bytecode offset.
+  // reconstructed from the SharedFunctionInfo and bytecode offset.
   MessageLocation(Handle<Script> script, Handle<SharedFunctionInfo> shared,
                   int bytecode_offset);
   MessageLocation();
@@ -75,76 +76,79 @@ class ErrorUtils : public AllStatic {
   // |kDisabled| is useful when you don't need the stack information at all, for
   // example when creating a deserialized error.
   enum class StackTraceCollection { kEnabled, kDisabled };
-  static MaybeHandle<JSObject> Construct(Isolate* isolate,
-                                         Handle<JSFunction> target,
-                                         Handle<Object> new_target,
-                                         DirectHandle<Object> message,
-                                         Handle<Object> options);
+  static MaybeDirectHandle<JSObject> Construct(Isolate* isolate,
+                                               DirectHandle<JSFunction> target,
+                                               DirectHandle<Object> new_target,
+                                               DirectHandle<Object> message,
+                                               DirectHandle<Object> options);
   static MaybeHandle<JSObject> Construct(
-      Isolate* isolate, Handle<JSFunction> target, Handle<Object> new_target,
-      DirectHandle<Object> message, Handle<Object> options, FrameSkipMode mode,
-      Handle<Object> caller, StackTraceCollection stack_trace_collection);
+      Isolate* isolate, DirectHandle<JSFunction> target,
+      DirectHandle<Object> new_target, DirectHandle<Object> message,
+      DirectHandle<Object> options, FrameSkipMode mode,
+      DirectHandle<Object> caller, StackTraceCollection stack_trace_collection);
 
   enum class ToStringMessageSource {
     kPreferOriginalMessage,
     kCurrentMessageProperty
   };
   V8_EXPORT_PRIVATE static MaybeHandle<String> ToString(
-      Isolate* isolate, Handle<Object> recv,
+      Isolate* isolate, DirectHandle<Object> recv,
       ToStringMessageSource message_source =
           ToStringMessageSource::kCurrentMessageProperty);
 
   static Handle<JSObject> MakeGenericError(
-      Isolate* isolate, Handle<JSFunction> constructor, MessageTemplate index,
-      base::Vector<const DirectHandle<Object>> args, FrameSkipMode mode);
+      Isolate* isolate, DirectHandle<JSFunction> constructor,
+      MessageTemplate index, base::Vector<const DirectHandle<Object>> args,
+      FrameSkipMode mode);
 
-  static Handle<JSObject> ShadowRealmConstructTypeErrorCopy(
-      Isolate* isolate, Handle<Object> original, MessageTemplate index,
+  static DirectHandle<JSObject> ShadowRealmConstructTypeErrorCopy(
+      Isolate* isolate, DirectHandle<Object> original, MessageTemplate index,
       base::Vector<const DirectHandle<Object>> args);
 
   // Formats a textual stack trace from the given structured stack trace.
   // Note that this can call arbitrary JS code through Error.prepareStackTrace.
-  static MaybeHandle<Object> FormatStackTrace(Isolate* isolate,
-                                              Handle<JSObject> error,
-                                              DirectHandle<Object> stack_trace);
+  static MaybeDirectHandle<Object> FormatStackTrace(
+      Isolate* isolate, DirectHandle<JSObject> error,
+      DirectHandle<Object> stack_trace);
 
-  static Handle<JSObject> NewIteratorError(Isolate* isolate,
-                                           Handle<Object> source);
-  static Handle<JSObject> NewCalledNonCallableError(Isolate* isolate,
-                                                    Handle<Object> source);
-  static Handle<JSObject> NewConstructedNonConstructable(Isolate* isolate,
-                                                         Handle<Object> source);
+  static DirectHandle<JSObject> NewIteratorError(Isolate* isolate,
+                                                 DirectHandle<Object> source);
+  static DirectHandle<JSObject> NewCalledNonCallableError(
+      Isolate* isolate, DirectHandle<Object> source);
+  static DirectHandle<JSObject> NewConstructedNonConstructable(
+      Isolate* isolate, DirectHandle<Object> source);
   // Returns the Exception sentinel.
   static Tagged<Object> ThrowSpreadArgError(Isolate* isolate,
                                             MessageTemplate id,
-                                            Handle<Object> object);
+                                            DirectHandle<Object> object);
   // Returns the Exception sentinel.
   static Tagged<Object> ThrowLoadFromNullOrUndefined(
-      Isolate* isolate, Handle<Object> object, MaybeDirectHandle<Object> key);
+      Isolate* isolate, DirectHandle<Object> object,
+      MaybeDirectHandle<Object> key);
 
   // Returns true if given object has own |error_stack_symbol| property.
   static bool HasErrorStackSymbolOwnProperty(Isolate* isolate,
-                                             Handle<JSObject> object);
+                                             DirectHandle<JSObject> object);
 
   struct StackPropertyLookupResult {
     // The holder of the |error_stack_symbol| or empty handle.
-    MaybeHandle<JSObject> error_stack_symbol_holder;
+    MaybeDirectHandle<JSObject> error_stack_symbol_holder;
     // The value of the |error_stack_symbol| property or |undefined_value|.
     Handle<Object> error_stack;
   };
   // Gets |error_stack_symbol| property value by looking up the prototype chain.
   static StackPropertyLookupResult GetErrorStackProperty(
-      Isolate* isolate, Handle<JSReceiver> maybe_error_object);
+      Isolate* isolate, DirectHandle<JSReceiver> maybe_error_object);
 
-  static MaybeHandle<Object> GetFormattedStack(
-      Isolate* isolate, Handle<JSObject> maybe_error_object);
+  static MaybeDirectHandle<Object> GetFormattedStack(
+      Isolate* isolate, DirectHandle<JSObject> maybe_error_object);
   static void SetFormattedStack(Isolate* isolate,
-                                Handle<JSObject> maybe_error_object,
-                                Handle<Object> formatted_stack);
+                                DirectHandle<JSObject> maybe_error_object,
+                                DirectHandle<Object> formatted_stack);
 
   // Collects the stack trace and installs the stack property accessors.
   static MaybeHandle<Object> CaptureStackTrace(Isolate* isolate,
-                                               Handle<JSObject> object,
+                                               DirectHandle<JSObject> object,
                                                FrameSkipMode mode,
                                                Handle<Object> caller);
 };
@@ -168,7 +172,9 @@ class MessageHandler {
   // Returns a message object for the API to use.
   V8_EXPORT_PRIVATE static Handle<JSMessageObject> MakeMessageObject(
       Isolate* isolate, MessageTemplate type, const MessageLocation* location,
-      DirectHandle<Object> argument, DirectHandle<FixedArray> stack_frames);
+      DirectHandle<Object> argument,
+      DirectHandle<StackTraceInfo> stack_trace =
+          DirectHandle<StackTraceInfo>::null());
 
   // Report a formatted message (needs JS allocation).
   V8_EXPORT_PRIVATE static void ReportMessage(

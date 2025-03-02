@@ -141,7 +141,8 @@ Tagged<TrustedByteArray> IrRegExpData::bytecode(bool is_one_byte) const {
   return is_one_byte ? latin1_bytecode() : uc16_bytecode();
 }
 ACCESSORS(IrRegExpData, capture_name_map, Tagged<Object>, kCaptureNameMapOffset)
-void IrRegExpData::set_capture_name_map(Handle<FixedArray> capture_name_map) {
+void IrRegExpData::set_capture_name_map(
+    DirectHandle<FixedArray> capture_name_map) {
   if (capture_name_map.is_null()) {
     set_capture_name_map(Smi::zero());
   } else {

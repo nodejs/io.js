@@ -9,8 +9,10 @@
 
 auto operator<<(std::ostream& out, wasm::Mutability mut) -> std::ostream& {
   switch (mut) {
-    case wasm::VAR: return out << "var";
-    case wasm::CONST: return out << "const";
+    case wasm::Mutability::VAR:
+      return out << "var";
+    case wasm::Mutability::CONST:
+      return out << "const";
   }
   return out;
 }
@@ -23,12 +25,18 @@ auto operator<<(std::ostream& out, wasm::Limits limits) -> std::ostream& {
 
 auto operator<<(std::ostream& out, const wasm::ValType& type) -> std::ostream& {
   switch (type.kind()) {
-    case wasm::I32: return out << "i32";
-    case wasm::I64: return out << "i64";
-    case wasm::F32: return out << "f32";
-    case wasm::F64: return out << "f64";
-    case wasm::ANYREF: return out << "anyref";
-    case wasm::FUNCREF: return out << "funcref";
+    case wasm::ValKind::I32:
+      return out << "i32";
+    case wasm::ValKind::I64:
+      return out << "i64";
+    case wasm::ValKind::F32:
+      return out << "f32";
+    case wasm::ValKind::F64:
+      return out << "f64";
+    case wasm::ValKind::EXTERNREF:
+      return out << "externref";
+    case wasm::ValKind::FUNCREF:
+      return out << "funcref";
   }
   return out;
 }
@@ -48,16 +56,16 @@ auto operator<<(std::ostream& out, const wasm::ownvec<wasm::ValType>& types) -> 
 
 auto operator<<(std::ostream& out, const wasm::ExternType& type) -> std::ostream& {
   switch (type.kind()) {
-    case wasm::EXTERN_FUNC: {
+    case wasm::ExternKind::FUNC: {
       out << "func " << type.func()->params() << " -> " << type.func()->results();
     } break;
-    case wasm::EXTERN_GLOBAL: {
+    case wasm::ExternKind::GLOBAL: {
       out << "global " << type.global()->mutability() << " " << *type.global()->content();
     } break;
-    case wasm::EXTERN_TABLE: {
+    case wasm::ExternKind::TABLE: {
       out << "table " << type.table()->limits() << " " << *type.table()->element();
     } break;
-    case wasm::EXTERN_MEMORY: {
+    case wasm::ExternKind::MEMORY: {
       out << "memory " << type.memory()->limits();
     } break;
   }
@@ -101,7 +109,8 @@ void run() {
 
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
-  auto instance = wasm::Instance::make(store, module.get(), nullptr);
+  auto imports = wasm::vec<wasm::Extern*>::make();
+  auto instance = wasm::Instance::make(store, module.get(), imports);
   if (!instance) {
     std::cout << "> Error instantiating module!" << std::endl;
     exit(1);
@@ -118,7 +127,7 @@ void run() {
     std::cout << "> export " << i << " " << export_types[i]->name() << std::endl;
     std::cout << ">> initial: " << *export_types[i]->type() << std::endl;
     std::cout << ">> current: " << *exports[i]->type() << std::endl;
-    if (exports[i]->kind() == wasm::EXTERN_FUNC) {
+    if (exports[i]->kind() == wasm::ExternKind::FUNC) {
       auto func = exports[i]->func();
       std::cout << ">> in-arity: " << func->param_arity();
       std::cout << ", out-arity: " << func->result_arity() << std::endl;

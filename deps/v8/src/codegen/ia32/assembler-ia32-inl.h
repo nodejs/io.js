@@ -85,9 +85,14 @@ Tagged<HeapObject> RelocInfo::target_object(PtrComprCageBase cage_base) {
   return Cast<HeapObject>(Tagged<Object>(ReadUnalignedValue<Address>(pc_)));
 }
 
-Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
+DirectHandle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
   DCHECK(IsCodeTarget(rmode_) || IsFullEmbeddedObject(rmode_));
-  return Cast<HeapObject>(ReadUnalignedValue<Handle<Object>>(pc_));
+  return Cast<HeapObject>(ReadUnalignedValue<IndirectHandle<Object>>(pc_));
+}
+
+JSDispatchHandle RelocInfo::js_dispatch_handle() {
+  DCHECK(rmode_ == JS_DISPATCH_HANDLE);
+  return JSDispatchHandle(ReadUnalignedValue<JSDispatchHandle>(pc_));
 }
 
 void WritableRelocInfo::set_target_object(Tagged<HeapObject> target,
@@ -108,6 +113,20 @@ void WritableRelocInfo::set_target_external_reference(
     Address target, ICacheFlushMode icache_flush_mode) {
   DCHECK(rmode_ == RelocInfo::EXTERNAL_REFERENCE);
   WriteUnalignedValue(pc_, target);
+  if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
+    FlushInstructionCache(pc_, sizeof(Address));
+  }
+}
+
+WasmCodePointer RelocInfo::wasm_code_pointer_table_entry() const {
+  DCHECK(rmode_ == RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY);
+  return WasmCodePointer{ReadUnalignedValue<uint32_t>(pc_)};
+}
+
+void WritableRelocInfo::set_wasm_code_pointer_table_entry(
+    WasmCodePointer target, ICacheFlushMode icache_flush_mode) {
+  DCHECK(rmode_ == RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY);
+  WriteUnalignedValue(pc_, target.value());
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc_, sizeof(Address));
   }
@@ -136,8 +155,13 @@ uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
 
 void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
                                        uint32_t new_constant,
+                                       WritableJitAllocation* jit_allocation,
                                        ICacheFlushMode icache_flush_mode) {
-  WriteUnalignedValue<uint32_t>(pc, new_constant);
+  if (jit_allocation) {
+    jit_allocation->WriteUnalignedValue<uint32_t>(pc, new_constant);
+  } else {
+    WriteUnalignedValue<uint32_t>(pc, new_constant);
+  }
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc, sizeof(uint32_t));
   }
@@ -212,18 +236,16 @@ Address Assembler::target_address_at(Address pc, Address constant_pool) {
 
 void Assembler::set_target_address_at(Address pc, Address constant_pool,
                                       Address target,
+                                      WritableJitAllocation* jit_allocation,
                                       ICacheFlushMode icache_flush_mode) {
-  WriteUnalignedValue(pc, target - (pc + sizeof(int32_t)));
+  if (jit_allocation) {
+    jit_allocation->WriteUnalignedValue(pc, target - (pc + sizeof(int32_t)));
+  } else {
+    WriteUnalignedValue(pc, target - (pc + sizeof(int32_t)));
+  }
   if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
     FlushInstructionCache(pc, sizeof(int32_t));
   }
-}
-
-void Assembler::deserialization_set_special_target_at(
-    Address instruction_payload, Tagged<Code> code, Address target) {
-  set_target_address_at(instruction_payload,
-                        !code.is_null() ? code->constant_pool() : kNullAddress,
-                        target);
 }
 
 int Assembler::deserialization_special_target_size(
@@ -257,8 +279,9 @@ void Assembler::emit_near_disp(Label* L) {
 }
 
 void Assembler::deserialization_set_target_internal_reference_at(
-    Address pc, Address target, RelocInfo::Mode mode) {
-  WriteUnalignedValue(pc, target);
+    Address pc, Address target, WritableJitAllocation& jit_allocation,
+    RelocInfo::Mode mode) {
+  jit_allocation.WriteUnalignedValue(pc, target);
 }
 
 void Operand::set_sib(ScaleFactor scale, Register index, Register base) {

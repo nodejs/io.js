@@ -32,8 +32,9 @@ void check(T actual, U expected) {
 }
 
 auto call(const wasm::Func* func) -> wasm::Val {
-  wasm::Val results[1];
-  if (func->call(nullptr, results)) {
+  auto args = wasm::vec<wasm::Val>::make();
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
+  if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
   }
@@ -41,8 +42,9 @@ auto call(const wasm::Func* func) -> wasm::Val {
 }
 
 void call(const wasm::Func* func, wasm::Val&& arg) {
-  wasm::Val args[1] = {std::move(arg)};
-  if (func->call(args)) {
+  auto args = wasm::vec<wasm::Val>::make(std::move(arg));
+  auto results = wasm::vec<wasm::Val>::make();
+  if (func->call(args, results)) {
     std::cout << "> Error calling function!" << std::endl;
     exit(1);
   }
@@ -81,13 +83,13 @@ void run() {
   // Create external globals.
   std::cout << "Creating globals..." << std::endl;
   auto const_f32_type = wasm::GlobalType::make(
-    wasm::ValType::make(wasm::F32), wasm::CONST);
+      wasm::ValType::make(wasm::ValKind::F32), wasm::Mutability::CONST);
   auto const_i64_type = wasm::GlobalType::make(
-    wasm::ValType::make(wasm::I64), wasm::CONST);
+      wasm::ValType::make(wasm::ValKind::I64), wasm::Mutability::CONST);
   auto var_f32_type = wasm::GlobalType::make(
-    wasm::ValType::make(wasm::F32), wasm::VAR);
+      wasm::ValType::make(wasm::ValKind::F32), wasm::Mutability::VAR);
   auto var_i64_type = wasm::GlobalType::make(
-    wasm::ValType::make(wasm::I64), wasm::VAR);
+      wasm::ValType::make(wasm::ValKind::I64), wasm::Mutability::VAR);
   auto const_f32_import = wasm::Global::make(store, const_f32_type.get(), wasm::Val::f32(1));
   auto const_i64_import = wasm::Global::make(store, const_i64_type.get(), wasm::Val::i64(2));
   auto var_f32_import = wasm::Global::make(store, var_f32_type.get(), wasm::Val::f32(3));
@@ -95,10 +97,9 @@ void run() {
 
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
-  wasm::Extern* imports[] = {
-    const_f32_import.get(), const_i64_import.get(),
-    var_f32_import.get(), var_i64_import.get()
-  };
+  auto imports = wasm::vec<wasm::Extern*>::make(
+      const_f32_import.get(), const_i64_import.get(), var_f32_import.get(),
+      var_i64_import.get());
   auto instance = wasm::Instance::make(store, module.get(), imports);
   if (!instance) {
     std::cout << "> Error instantiating module!" << std::endl;

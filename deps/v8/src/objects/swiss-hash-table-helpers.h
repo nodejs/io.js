@@ -73,7 +73,7 @@ namespace swiss_table {
 
 // Denotes the group of the control table currently being probed.
 // Implements quadratic probing by advancing by i groups after the i-th
-// (unsuccesful) probe.
+// (unsuccessful) probe.
 template <size_t GroupSize>
 class ProbeSequence {
  public:

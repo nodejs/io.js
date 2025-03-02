@@ -10,8 +10,7 @@
 #include "src/trap-handler/trap-handler.h"
 #endif  // V8_ENABLE_WEBASSEMBLY
 
-namespace v8 {
-namespace internal {
+namespace v8::internal {
 
 #if V8_ENABLE_WEBASSEMBLY
 SaveAndClearThreadInWasmFlag::SaveAndClearThreadInWasmFlag(Isolate* isolate)
@@ -28,11 +27,6 @@ SaveAndClearThreadInWasmFlag::~SaveAndClearThreadInWasmFlag() {
     trap_handler::SetThreadInWasm();
   }
 }
-#else
-SaveAndClearThreadInWasmFlag::SaveAndClearThreadInWasmFlag(Isolate* isolate) {}
-
-SaveAndClearThreadInWasmFlag::~SaveAndClearThreadInWasmFlag() = default;
 #endif
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

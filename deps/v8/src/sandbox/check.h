@@ -24,8 +24,13 @@
 
 #ifdef DEBUG
 // It's unsafe to access sandbox memory during a SBXCHECK since such an access
-// will be inherently racy. If sandbox hardware support is enabled, we'll block
-// these accesses temporarily in debug builds.
+// will be inherently racy as we need to assume an attacker can modify the value
+// inside the sandbox right before and after the check. If you run into this,
+// you might want to read the value outside of the SBXCHECK first to ensure that
+// the SBXCHECK and the code that relies on it use the same value. And if in
+// doubt, feel free to add someone from the security team as a reviewer. If
+// sandbox hardware support is enabled, we'll block these accesses temporarily
+// in debug builds.
 #define BLOCK_SANDBOX_ACCESS_IN_DEBUG_MODE \
   auto block_access = v8::internal::SandboxHardwareSupport::MaybeBlockAccess()
 #else

@@ -8,9 +8,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <vector>
 
 #include "v8-internal.h"      // NOLINT(build/include_directory)
+#include "v8-isolate.h"       // NOLINT(build/include_directory)
 #include "v8-local-handle.h"  // NOLINT(build/include_directory)
 #include "v8config.h"         // NOLINT(build/include_directory)
 
@@ -37,6 +39,10 @@ struct GarbageCollectionSizes {
 
 struct GarbageCollectionFullCycle {
   int reason = -1;
+  // The priority of the isolate during the GC cycle. A nullopt value denotes a
+  // mixed priority cycle, meaning the Isolate's priority was changed while the
+  // cycle was in progress.
+  std::optional<v8::Isolate::Priority> priority = std::nullopt;
   GarbageCollectionPhases total;
   GarbageCollectionPhases total_cpp;
   GarbageCollectionPhases main_thread;
@@ -86,6 +92,10 @@ using GarbageCollectionFullMainThreadBatchedIncrementalSweep =
 
 struct GarbageCollectionYoungCycle {
   int reason = -1;
+  // The priority of the isolate during the GC cycle. A nullopt value denotes a
+  // mixed priority cycle, meaning the Isolate's priority was changed while the
+  // cycle was in progress.
+  std::optional<v8::Isolate::Priority> priority = std::nullopt;
   int64_t total_wall_clock_duration_in_us = -1;
   int64_t main_thread_wall_clock_duration_in_us = -1;
   double collection_rate_in_percent = -1.0;

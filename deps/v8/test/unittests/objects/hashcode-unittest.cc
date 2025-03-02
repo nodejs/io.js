@@ -11,10 +11,10 @@
 #include "src/objects/objects-inl.h"
 #include "src/objects/objects.h"
 #include "src/objects/ordered-hash-table.h"
-#include "src/third_party/siphash/halfsiphash.h"
 #include "src/utils/utils.h"
 #include "test/unittests/test-utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/siphash/halfsiphash.h"
 
 namespace v8 {
 namespace internal {
@@ -22,11 +22,11 @@ namespace internal {
 class HashcodeTest : public TestWithContext {
  public:
   template <typename T>
-  inline Handle<T> GetGlobal(const char* name) {
-    Handle<String> str_name =
+  inline DirectHandle<T> GetGlobal(const char* name) {
+    DirectHandle<String> str_name =
         i_isolate()->factory()->InternalizeUtf8String(name);
 
-    Handle<Object> value =
+    DirectHandle<Object> value =
         Object::GetProperty(i_isolate(), i_isolate()->global_object(), str_name)
             .ToHandleChecked();
     return Cast<T>(value);

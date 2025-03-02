@@ -58,13 +58,16 @@ Handle<OrderedNameDictionary> Add(Isolate* isolate,
 
 // version for
 // OrderedHashMap, OrderedHashSet
-template <typename T>
-bool HasKey(Isolate* isolate, Handle<T> table, Tagged<Object> key) {
+template <typename T, template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+bool HasKey(Isolate* isolate, HandleType<T> table, Tagged<Object> key) {
   return T::HasKey(isolate, *table, key);
 }
 
-template <>
-bool HasKey(Isolate* isolate, Handle<OrderedNameDictionary> table,
+template <template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<OrderedNameDictionary>,
+                                 DirectHandle<OrderedNameDictionary>>)
+bool HasKey(Isolate* isolate, HandleType<OrderedNameDictionary> table,
             Tagged<Object> key) {
   return table->FindEntry(isolate, key).is_found();
 }

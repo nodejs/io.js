@@ -120,27 +120,35 @@ struct Payload_OutlineSet {
 }  // namespace detail
 
 template <typename T>
-std::enable_if_t<std::is_floating_point<T>::value, T> next_smaller(T v) {
+T next_smaller(T v)
+  requires std::is_floating_point<T>::value
+{
   DCHECK(!std::isnan(v));
   DCHECK_LT(-std::numeric_limits<T>::infinity(), v);
   return std::nextafter(v, -std::numeric_limits<T>::infinity());
 }
 
 template <typename T>
-std::enable_if_t<std::is_floating_point<T>::value, T> next_larger(T v) {
+T next_larger(T v)
+  requires std::is_floating_point<T>::value
+{
   DCHECK(!std::isnan(v));
   DCHECK_LT(v, std::numeric_limits<T>::infinity());
   return std::nextafter(v, std::numeric_limits<T>::infinity());
 }
 
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, T> next_smaller(T v) {
+T next_smaller(T v)
+  requires std::is_integral<T>::value
+{
   DCHECK_LT(std::numeric_limits<T>::min(), v);
   return v - 1;
 }
 
 template <typename T>
-std::enable_if_t<std::is_integral<T>::value, T> next_larger(T v) {
+T next_larger(T v)
+  requires std::is_integral<T>::value
+{
   DCHECK_LT(v, std::numeric_limits<T>::max());
   return v + 1;
 }
@@ -362,17 +370,14 @@ class WordType : public Type {
   template <size_t N>
   static WordType Set(const base::SmallVector<word_t, N>& elements,
                       Zone* zone) {
-    return Set(base::Vector<const word_t>{elements.data(), elements.size()},
-               zone);
+    return Set(base::VectorOf(elements), zone);
   }
   static WordType Set(const std::vector<word_t>& elements, Zone* zone) {
-    return Set(base::Vector<const word_t>{elements.data(), elements.size()},
-               zone);
+    return Set(base::VectorOf(elements), zone);
   }
   static WordType Set(const std::initializer_list<word_t>& elements,
                       Zone* zone) {
-    return Set(base::Vector<const word_t>{elements.begin(), elements.size()},
-               zone);
+    return Set(base::VectorOf(elements), zone);
   }
   static WordType Set(base::Vector<const word_t> elements, Zone* zone) {
     DCHECK(detail::is_unique_and_sorted(elements));
@@ -565,21 +570,18 @@ class FloatType : public Type {
   template <size_t N>
   static FloatType Set(const base::SmallVector<float_t, N>& elements,
                        uint32_t special_values, Zone* zone) {
-    return Set(base::Vector<const float_t>{elements.data(), elements.size()},
-               special_values, zone);
+    return Set(base::VectorOf(elements), special_values, zone);
   }
   static FloatType Set(const std::initializer_list<float_t>& elements,
                        uint32_t special_values, Zone* zone) {
-    return Set(base::Vector<const float_t>{elements.begin(), elements.size()},
-               special_values, zone);
+    return Set(base::VectorOf(elements), special_values, zone);
   }
   static FloatType Set(const std::vector<float_t>& elements, Zone* zone) {
     return Set(elements, Special::kNoSpecialValues, zone);
   }
   static FloatType Set(const std::vector<float_t>& elements,
                        uint32_t special_values, Zone* zone) {
-    return Set(base::Vector<const float_t>{elements.data(), elements.size()},
-               special_values, zone);
+    return Set(base::VectorOf(elements), special_values, zone);
   }
   static FloatType Set(base::Vector<const float_t> elements,
                        uint32_t special_values, Zone* zone) {
@@ -837,8 +839,7 @@ class TupleType : public Type {
     return get_payload<Payload>().array[index];
   }
   base::Vector<Type> elements() const {
-    return base::Vector<Type>{get_payload<Payload>().array,
-                              static_cast<size_t>(size())};
+    return {get_payload<Payload>().array, static_cast<size_t>(size())};
   }
 
   // Misc

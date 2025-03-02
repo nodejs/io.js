@@ -4,7 +4,7 @@
 
 function test() {
   // Create a generator constructor with the maximum number of allowed parameters.
-  const args = new Array(65535);
+  const args = new Array(65526);
   function* gen() {}
   const c = gen.constructor.apply(null, args);
 

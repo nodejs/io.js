@@ -42,7 +42,7 @@ struct BytecodeHandlerData {
 using TurboshaftAssemblerGenerator =
     void (*)(compiler::turboshaft::PipelineData*, Isolate*,
              compiler::turboshaft::Graph&, Zone*);
-V8_EXPORT_PRIVATE Handle<Code> BuildWithTurboshaftAssemblerImpl(
+V8_EXPORT_PRIVATE DirectHandle<Code> BuildWithTurboshaftAssemblerImpl(
     Isolate* isolate, Builtin builtin, TurboshaftAssemblerGenerator generator,
     std::function<compiler::CallDescriptor*(Zone*)> call_descriptor_builder,
     const char* name, const AssemblerOptions& options,

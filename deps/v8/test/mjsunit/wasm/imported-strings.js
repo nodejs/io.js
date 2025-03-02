@@ -2,9 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-imported-strings
-// For {isOneByteString}:
-// Flags: --expose-externalize-string
+// Flags: --expose-externalize-string --allow-natives-syntax
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -28,6 +26,12 @@ let kSig_e_rii = makeSig([kWasmExternRef, kWasmI32, kWasmI32],
 let kSig_e_rr = makeSig([kWasmExternRef, kWasmExternRef], [kRefExtern]);
 let kSig_e_r = makeSig([kWasmExternRef], [kRefExtern]);
 
+function MakeExternalString(s) {
+  s = createExternalizableString(s);
+  externalizeString(s);
+  return s;
+}
+
 let interestingStrings = [
   '',
   'ascii',
@@ -41,6 +45,18 @@ let interestingStrings = [
   'ab \ud800',         // Lone lead surrogate at the end.
   'ab \udc00',         // Lone trail surrogate at the end.
   'a \udc00\ud800 b',  // Swapped surrogate pair.
+
+  %ConstructConsString('ascii left and', 'ascii right'),
+  %ConstructConsString('2 \ucccc b', 'must be long enough \ucccc a'),
+
+  %ConstructSlicedString('abcedhfenvejfwqfqw', 5),
+  %ConstructSlicedString('febwvnewkvjabc\uccccdfenvefqw', 8),
+
+  MakeExternalString('external one byte'),
+  MakeExternalString('external two byte \ucccc b'),
+
+  %ConstructThinString('this is thin and must be long enough'),
+  %ConstructThinString('this is two-byte \ucccc thin string'),
 ];
 
 function IsSurrogate(codepoint) {

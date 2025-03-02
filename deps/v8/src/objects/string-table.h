@@ -20,7 +20,7 @@ namespace internal {
 class StringTableKey {
  public:
   virtual ~StringTableKey() = default;
-  inline StringTableKey(uint32_t raw_hash_field, int length);
+  inline StringTableKey(uint32_t raw_hash_field, uint32_t length);
 
   uint32_t raw_hash_field() const {
     DCHECK_NE(0, raw_hash_field_);
@@ -28,14 +28,14 @@ class StringTableKey {
   }
 
   inline uint32_t hash() const;
-  int length() const { return length_; }
+  uint32_t length() const { return length_; }
 
  protected:
   inline void set_raw_hash_field(uint32_t raw_hash_field);
 
  private:
   uint32_t raw_hash_field_ = 0;
-  int length_;
+  uint32_t length_;
 };
 
 class SeqOneByteString;
@@ -99,7 +99,7 @@ class V8_EXPORT_PRIVATE StringTable {
   std::atomic<Data*> data_;
   // Write mutex is mutable so that readers of concurrently mutated values (e.g.
   // NumberOfElements) are allowed to lock it while staying const.
-  mutable base::Mutex write_mutex_;
+  mutable base::SpinningMutex write_mutex_;
   Isolate* isolate_;
 };
 

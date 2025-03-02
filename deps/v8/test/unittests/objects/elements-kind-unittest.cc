@@ -28,21 +28,27 @@ using ElementsKindTest = TestWithContext;
 
 namespace {
 
-template <typename T, typename M>
-bool EQUALS(Isolate* isolate, Handle<T> left, Handle<M> right) {
+template <typename T, typename M, template <typename> typename HandleType1,
+          template <typename> typename HandleType2>
+  requires(
+      std::conjunction_v<std::is_convertible<HandleType1<T>, DirectHandle<T>>,
+                         std::is_convertible<HandleType2<M>, DirectHandle<M>>>)
+bool EQUALS(Isolate* isolate, HandleType1<T> left, HandleType2<M> right) {
   if (*left == *right) return true;
   return Object::Equals(isolate, Cast<Object>(left), Cast<Object>(right))
       .FromJust();
 }
 
-template <typename T, typename M>
-bool EQUALS(Isolate* isolate, Handle<T> left, M right) {
-  return EQUALS(isolate, left, handle(right, isolate));
+template <typename T, typename M, template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<T>, DirectHandle<T>>)
+bool EQUALS(Isolate* isolate, HandleType<T> left, M right) {
+  return EQUALS(isolate, left, direct_handle(right, isolate));
 }
 
-template <typename T, typename M>
-bool EQUALS(Isolate* isolate, T left, Handle<M> right) {
-  return EQUALS(isolate, handle(left, isolate), right);
+template <typename T, typename M, template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<M>, DirectHandle<M>>)
+bool EQUALS(Isolate* isolate, T left, HandleType<M> right) {
+  return EQUALS(isolate, direct_handle(left, isolate), right);
 }
 
 bool ElementsKindIsHoleyElementsKindForRead(ElementsKind kind) {
@@ -99,19 +105,19 @@ TEST_F(ElementsKindTest, JSObjectAddingProperties) {
 
   Handle<FixedArray> empty_fixed_array(factory->empty_fixed_array());
   Handle<PropertyArray> empty_property_array(factory->empty_property_array());
-  Handle<JSFunction> function =
+  DirectHandle<JSFunction> function =
       factory->NewFunctionForTesting(factory->empty_string());
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
-  Handle<JSObject> object = factory->NewJSObject(function);
+  DirectHandle<JSObject> object = factory->NewJSObject(function);
   DirectHandle<Map> previous_map(object->map(), i_isolate());
   CHECK_EQ(HOLEY_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
 
-  // for the default constructor function no in-object properties are reserved
-  // hence adding a single property will initialize the property-array
-  Handle<String> name = MakeName("property", 0);
+  // For the default constructor function no in-object properties are reserved
+  // hence adding a single property will initialize the property-array.
+  DirectHandle<String> name = MakeName("property", 0);
   JSObject::DefinePropertyOrElementIgnoreAttributes(object, name, value, NONE)
       .Check();
   CHECK_NE(object->map(), *previous_map);
@@ -126,24 +132,24 @@ TEST_F(ElementsKindTest, JSObjectInObjectAddingProperties) {
 
   Handle<FixedArray> empty_fixed_array(factory->empty_fixed_array());
   Handle<PropertyArray> empty_property_array(factory->empty_property_array());
-  Handle<JSFunction> function =
+  DirectHandle<JSFunction> function =
       factory->NewFunctionForTesting(factory->empty_string());
   int nof_inobject_properties = 10;
-  // force in object properties by changing the expected_nof_properties
+  // Force in object properties by changing the expected_nof_properties
   // (we always reserve 8 inobject properties slack on top).
   function->shared()->set_expected_nof_properties(nof_inobject_properties - 8);
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
-  Handle<JSObject> object = factory->NewJSObject(function);
+  DirectHandle<JSObject> object = factory->NewJSObject(function);
   DirectHandle<Map> previous_map(object->map(), i_isolate());
   CHECK_EQ(HOLEY_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
 
-  // we have reserved space for in-object properties, hence adding up to
-  // |nof_inobject_properties| will not create a property store
+  // We have reserved space for in-object properties, hence adding up to
+  // |nof_inobject_properties| will not create a property store.
   for (int i = 0; i < nof_inobject_properties; i++) {
-    Handle<String> name = MakeName("property", i);
+    DirectHandle<String> name = MakeName("property", i);
     JSObject::DefinePropertyOrElementIgnoreAttributes(object, name, value, NONE)
         .Check();
   }
@@ -152,15 +158,15 @@ TEST_F(ElementsKindTest, JSObjectInObjectAddingProperties) {
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
 
-  // adding one more property will not fit in the in-object properties, thus
-  // creating a property store
+  // Adding one more property will not fit in the in-object properties, thus
+  // creating a property store.
   int index = nof_inobject_properties + 1;
-  Handle<String> name = MakeName("property", index);
+  DirectHandle<String> name = MakeName("property", index);
   JSObject::DefinePropertyOrElementIgnoreAttributes(object, name, value, NONE)
       .Check();
   CHECK_NE(object->map(), *previous_map);
   CHECK_EQ(HOLEY_ELEMENTS, object->map()->elements_kind());
-  // there must be at least 1 element in the properies store
+  // There must be at least 1 element in the properties store.
   CHECK_LE(1, object->property_array()->length());
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
 }
@@ -169,48 +175,48 @@ TEST_F(ElementsKindTest, JSObjectAddingElements) {
   Factory* factory = i_isolate()->factory();
   v8::HandleScope scope(isolate());
 
-  Handle<String> name;
+  DirectHandle<String> name;
   Handle<FixedArray> empty_fixed_array(factory->empty_fixed_array());
   Handle<PropertyArray> empty_property_array(factory->empty_property_array());
-  Handle<JSFunction> function =
+  DirectHandle<JSFunction> function =
       factory->NewFunctionForTesting(factory->empty_string());
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
-  Handle<JSObject> object = factory->NewJSObject(function);
+  DirectHandle<JSObject> object = factory->NewJSObject(function);
   DirectHandle<Map> previous_map(object->map(), i_isolate());
   CHECK_EQ(HOLEY_ELEMENTS, previous_map->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK(EQUALS(i_isolate(), object->elements(), empty_fixed_array));
 
-  // Adding an indexed element initializes the elements array
+  // Adding an indexed element initializes the elements array.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(object, name, value, NONE)
       .Check();
-  // no change in elements_kind => no map transition
+  // No change in elements_kind => no map transition.
   CHECK_EQ(object->map(), *previous_map);
   CHECK_EQ(HOLEY_ELEMENTS, object->map()->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK_LE(1, object->elements()->length());
 
-  // Adding more consecutive elements without a change in the backing store
+  // Adding more consecutive elements without a change in the backing store.
   int non_dict_backing_store_limit = 100;
   for (int i = 1; i < non_dict_backing_store_limit; i++) {
     name = MakeName("", i);
     JSObject::DefinePropertyOrElementIgnoreAttributes(object, name, value, NONE)
         .Check();
   }
-  // no change in elements_kind => no map transition
+  // No change in elements_kind => no map transition.
   CHECK_EQ(object->map(), *previous_map);
   CHECK_EQ(HOLEY_ELEMENTS, object->map()->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
   CHECK_LE(non_dict_backing_store_limit, object->elements()->length());
 
   // Adding an element at an very large index causes a change to
-  // DICTIONARY_ELEMENTS
+  // DICTIONARY_ELEMENTS.
   name = MakeString("100000000");
   JSObject::DefinePropertyOrElementIgnoreAttributes(object, name, value, NONE)
       .Check();
-  // change in elements_kind => map transition
+  // Change in elements_kind => map transition.
   CHECK_NE(object->map(), *previous_map);
   CHECK_EQ(DICTIONARY_ELEMENTS, object->map()->elements_kind());
   CHECK(EQUALS(i_isolate(), object->property_array(), empty_property_array));
@@ -225,7 +231,7 @@ TEST_F(ElementsKindTest, JSArrayAddingProperties) {
   Handle<PropertyArray> empty_property_array(factory->empty_property_array());
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
-  Handle<JSArray> array =
+  DirectHandle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
   DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_SMI_ELEMENTS, previous_map->elements_kind());
@@ -233,12 +239,12 @@ TEST_F(ElementsKindTest, JSArrayAddingProperties) {
   CHECK(EQUALS(i_isolate(), array->elements(), empty_fixed_array));
   CHECK_EQ(0, Smi::ToInt(array->length()));
 
-  // for the default constructor function no in-object properties are reserved
-  // hence adding a single property will initialize the property-array
-  Handle<String> name = MakeName("property", 0);
+  // For the default constructor function no in-object properties are reserved
+  // hence adding a single property will initialize the property-array.
+  DirectHandle<String> name = MakeName("property", 0);
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value, NONE)
       .Check();
-  // No change in elements_kind but added property => new map
+  // No change in elements_kind but added property => new map.
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(PACKED_SMI_ELEMENTS, array->map()->elements_kind());
   CHECK_LE(1, array->property_array()->length());
@@ -250,12 +256,12 @@ TEST_F(ElementsKindTest, JSArrayAddingElements) {
   Factory* factory = i_isolate()->factory();
   v8::HandleScope scope(isolate());
 
-  Handle<String> name;
+  DirectHandle<String> name;
   Handle<FixedArray> empty_fixed_array(factory->empty_fixed_array());
   Handle<PropertyArray> empty_property_array(factory->empty_property_array());
   Handle<Object> value(Smi::FromInt(42), i_isolate());
 
-  Handle<JSArray> array =
+  DirectHandle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
   DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_SMI_ELEMENTS, previous_map->elements_kind());
@@ -263,25 +269,25 @@ TEST_F(ElementsKindTest, JSArrayAddingElements) {
   CHECK(EQUALS(i_isolate(), array->elements(), empty_fixed_array));
   CHECK_EQ(0, Smi::ToInt(array->length()));
 
-  // Adding an indexed element initializes the elements array
+  // Adding an indexed element initializes the elements array.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value, NONE)
       .Check();
-  // no change in elements_kind => no map transition
+  // No change in elements_kind => no map transition.
   CHECK_EQ(array->map(), *previous_map);
   CHECK_EQ(PACKED_SMI_ELEMENTS, array->map()->elements_kind());
   CHECK(EQUALS(i_isolate(), array->property_array(), empty_property_array));
   CHECK_LE(1, array->elements()->length());
   CHECK_EQ(1, Smi::ToInt(array->length()));
 
-  // Adding more consecutive elements without a change in the backing store
+  // Adding more consecutive elements without a change in the backing store.
   int non_dict_backing_store_limit = 100;
   for (int i = 1; i < non_dict_backing_store_limit; i++) {
     name = MakeName("", i);
     JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value, NONE)
         .Check();
   }
-  // no change in elements_kind => no map transition
+  // No change in elements_kind => no map transition.
   CHECK_EQ(array->map(), *previous_map);
   CHECK_EQ(PACKED_SMI_ELEMENTS, array->map()->elements_kind());
   CHECK(EQUALS(i_isolate(), array->property_array(), empty_property_array));
@@ -289,12 +295,12 @@ TEST_F(ElementsKindTest, JSArrayAddingElements) {
   CHECK_EQ(non_dict_backing_store_limit, Smi::ToInt(array->length()));
 
   // Adding an element at an very large index causes a change to
-  // DICTIONARY_ELEMENTS
+  // DICTIONARY_ELEMENTS.
   int index = 100000000;
   name = MakeName("", index);
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value, NONE)
       .Check();
-  // change in elements_kind => map transition
+  // Change in elements_kind => map transition.
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(DICTIONARY_ELEMENTS, array->map()->elements_kind());
   CHECK(EQUALS(i_isolate(), array->property_array(), empty_property_array));
@@ -307,18 +313,18 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastSmiElements) {
   Factory* factory = i_isolate()->factory();
   v8::HandleScope scope(isolate());
 
-  Handle<String> name;
+  DirectHandle<String> name;
   Handle<Object> value_smi(Smi::FromInt(42), i_isolate());
   Handle<Object> value_string(MakeString("value"));
   Handle<Object> value_double = factory->NewNumber(3.1415);
 
-  Handle<JSArray> array =
+  DirectHandle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
   DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_SMI_ELEMENTS, previous_map->elements_kind());
   CHECK_EQ(0, Smi::ToInt(array->length()));
 
-  // `array[0] = smi_value` doesn't change the elements_kind
+  // `array[0] = smi_value` doesn't change the elements_kind.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_smi,
                                                     NONE)
@@ -328,15 +334,16 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastSmiElements) {
   CHECK_EQ(PACKED_SMI_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(1, Smi::ToInt(array->length()));
 
-  // `delete array[0]` does not alter length, but changes the elments_kind
+  // `delete array[0]` does not alter length, but changes the elements_kind.
   name = MakeString("0");
-  CHECK(JSReceiver::DeletePropertyOrElement(array, name).FromMaybe(false));
+  CHECK(JSReceiver::DeletePropertyOrElement(i_isolate(), array, name)
+            .FromMaybe(false));
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(HOLEY_SMI_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(1, Smi::ToInt(array->length()));
-  previous_map = handle(array->map(), i_isolate());
+  previous_map = direct_handle(array->map(), i_isolate());
 
-  // add a couple of elements again
+  // Add a couple of elements again.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_smi,
                                                     NONE)
@@ -349,7 +356,7 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastSmiElements) {
   CHECK_EQ(HOLEY_SMI_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(2, Smi::ToInt(array->length()));
 
-  // Adding a string to the array changes from FAST_HOLEY_SMI to FAST_HOLEY
+  // Adding a string to the array changes from FAST_HOLEY_SMI to FAST_HOLEY.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_string,
                                                     NONE)
@@ -357,16 +364,16 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastSmiElements) {
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(HOLEY_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(2, Smi::ToInt(array->length()));
-  previous_map = handle(array->map(), i_isolate());
+  previous_map = direct_handle(array->map(), i_isolate());
 
-  // We don't transition back to FAST_SMI even if we remove the string
+  // We don't transition back to FAST_SMI even if we remove the string.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_smi,
                                                     NONE)
       .Check();
   CHECK_EQ(array->map(), *previous_map);
 
-  // Adding a double doesn't change the map either
+  // Adding a double doesn't change the map either.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_double,
                                                     NONE)
@@ -378,17 +385,17 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingFastElements) {
   Factory* factory = i_isolate()->factory();
   v8::HandleScope scope(isolate());
 
-  Handle<String> name;
+  DirectHandle<String> name;
   Handle<Object> value_smi(Smi::FromInt(42), i_isolate());
   Handle<Object> value_string(MakeString("value"));
 
-  Handle<JSArray> array =
+  DirectHandle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_ELEMENTS, 0, 0);
   DirectHandle<Map> previous_map(array->map(), i_isolate());
   CHECK_EQ(PACKED_ELEMENTS, previous_map->elements_kind());
   CHECK_EQ(0, Smi::ToInt(array->length()));
 
-  // `array[0] = smi_value` doesn't change the elements_kind
+  // `array[0] = smi_value` doesn't change the elements_kind.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_smi,
                                                     NONE)
@@ -398,15 +405,16 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingFastElements) {
   CHECK_EQ(PACKED_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(1, Smi::ToInt(array->length()));
 
-  // `delete array[0]` does not alter length, but changes the elments_kind
+  // `delete array[0]` does not alter length, but changes the elements_kind.
   name = MakeString("0");
-  CHECK(JSReceiver::DeletePropertyOrElement(array, name).FromMaybe(false));
+  CHECK(JSReceiver::DeletePropertyOrElement(i_isolate(), array, name)
+            .FromMaybe(false));
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(HOLEY_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(1, Smi::ToInt(array->length()));
-  previous_map = handle(array->map(), i_isolate());
+  previous_map = direct_handle(array->map(), i_isolate());
 
-  // add a couple of elements, elements_kind stays HOLEY
+  // Add a couple of elements, elements_kind stays HOLEY.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_string,
                                                     NONE)
@@ -424,16 +432,17 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastDoubleElements) {
   Factory* factory = i_isolate()->factory();
   v8::HandleScope scope(isolate());
 
-  Handle<String> name;
+  DirectHandle<String> name;
   Handle<Object> value_smi(Smi::FromInt(42), i_isolate());
   Handle<Object> value_string(MakeString("value"));
   Handle<Object> value_double = factory->NewNumber(3.1415);
 
-  Handle<JSArray> array =
+  DirectHandle<JSArray> array =
       factory->NewJSArray(ElementsKind::PACKED_SMI_ELEMENTS, 0, 0);
   DirectHandle<Map> previous_map(array->map(), i_isolate());
 
-  // `array[0] = value_double` changes |elements_kind| to PACKED_DOUBLE_ELEMENTS
+  // `array[0] = value_double` changes |elements_kind| to
+  // PACKED_DOUBLE_ELEMENTS.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_double,
                                                     NONE)
@@ -441,9 +450,9 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastDoubleElements) {
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(PACKED_DOUBLE_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(1, Smi::ToInt(array->length()));
-  previous_map = handle(array->map(), i_isolate());
+  previous_map = direct_handle(array->map(), i_isolate());
 
-  // `array[1] = value_smi` doesn't alter the |elements_kind|
+  // `array[1] = value_smi` doesn't alter the |elements_kind|.
   name = MakeString("1");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_smi,
                                                     NONE)
@@ -452,15 +461,16 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastDoubleElements) {
   CHECK_EQ(PACKED_DOUBLE_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(2, Smi::ToInt(array->length()));
 
-  // `delete array[0]` does not alter length, but changes the elments_kind
+  // `delete array[0]` does not alter length, but changes the elements_kind.
   name = MakeString("0");
-  CHECK(JSReceiver::DeletePropertyOrElement(array, name).FromMaybe(false));
+  CHECK(JSReceiver::DeletePropertyOrElement(i_isolate(), array, name)
+            .FromMaybe(false));
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(HOLEY_DOUBLE_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(2, Smi::ToInt(array->length()));
-  previous_map = handle(array->map(), i_isolate());
+  previous_map = direct_handle(array->map(), i_isolate());
 
-  // filling the hole `array[0] = value_smi` again doesn't transition back
+  // Filling the hole `array[0] = value_smi` again doesn't transition back.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_double,
                                                     NONE)
@@ -469,7 +479,7 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastDoubleElements) {
   CHECK_EQ(HOLEY_DOUBLE_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(2, Smi::ToInt(array->length()));
 
-  // Adding a string to the array changes to elements_kind PACKED_ELEMENTS
+  // Adding a string to the array changes to elements_kind PACKED_ELEMENTS.
   name = MakeString("1");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_string,
                                                     NONE)
@@ -477,9 +487,9 @@ TEST_F(ElementsKindTest, JSArrayAddingElementsGeneralizingiFastDoubleElements) {
   CHECK_NE(array->map(), *previous_map);
   CHECK_EQ(HOLEY_ELEMENTS, array->map()->elements_kind());
   CHECK_EQ(2, Smi::ToInt(array->length()));
-  previous_map = handle(array->map(), i_isolate());
+  previous_map = direct_handle(array->map(), i_isolate());
 
-  // Adding a double doesn't change the map
+  // Adding a double doesn't change the map.
   name = MakeString("0");
   JSObject::DefinePropertyOrElementIgnoreAttributes(array, name, value_double,
                                                     NONE)

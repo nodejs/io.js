@@ -53,7 +53,7 @@ void WritableRelocInfo::apply(intptr_t delta) {
   if (IsInternalReference(rmode_)) {
     // Jump table entry
     Address target = Memory<Address>(pc_);
-    Memory<Address>(pc_) = target + delta;
+    jit_allocation_.WriteValue(pc_, target + delta);
   } else if (IsCodeTarget(rmode_)) {
     SixByteInstr instr =
         Instruction::InstructionBits(reinterpret_cast<const uint8_t*>(pc_));
@@ -63,13 +63,13 @@ void WritableRelocInfo::apply(intptr_t delta) {
     instr <<= 32;
     instr |= static_cast<uint32_t>(dis / 2);
     Instruction::SetInstructionBits<SixByteInstr>(
-        reinterpret_cast<uint8_t*>(pc_), instr);
+        reinterpret_cast<uint8_t*>(pc_), instr, &jit_allocation_);
   } else {
     // mov sequence
     DCHECK(IsInternalReferenceEncoded(rmode_));
     Address target = Assembler::target_address_at(pc_, constant_pool_);
     Assembler::set_target_address_at(pc_, constant_pool_, target + delta,
-                                     SKIP_ICACHE_FLUSH);
+                                     &jit_allocation_, SKIP_ICACHE_FLUSH);
   }
 }
 
@@ -114,9 +114,10 @@ Address RelocInfo::constant_pool_entry_address() { UNREACHABLE(); }
 
 void Assembler::set_target_compressed_address_at(
     Address pc, Address constant_pool, Tagged_t target,
-    ICacheFlushMode icache_flush_mode) {
-  Assembler::set_target_address_at(
-      pc, constant_pool, static_cast<Address>(target), icache_flush_mode);
+    WritableJitAllocation* jit_allocation, ICacheFlushMode icache_flush_mode) {
+  Assembler::set_target_address_at(pc, constant_pool,
+                                   static_cast<Address>(target), jit_allocation,
+                                   icache_flush_mode);
 }
 
 int RelocInfo::target_address_size() {
@@ -157,7 +158,7 @@ Handle<HeapObject> Assembler::compressed_embedded_object_handle_at(
   return GetEmbeddedObject(target_compressed_address_at(pc, const_pool));
 }
 
-Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
+DirectHandle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
   DCHECK(IsRelativeCodeTarget(rmode_) || IsCodeTarget(rmode_) ||
          IsEmbeddedObjectMode(rmode_));
   if (IsCodeTarget(rmode_) || IsRelativeCodeTarget(rmode_)) {
@@ -166,7 +167,7 @@ Handle<HeapObject> RelocInfo::target_object_handle(Assembler* origin) {
     if (IsCompressedEmbeddedObject(rmode_)) {
       return origin->compressed_embedded_object_handle_at(pc_, constant_pool_);
     }
-    return Handle<HeapObject>(reinterpret_cast<Address*>(
+    return DirectHandle<HeapObject>::FromSlot(reinterpret_cast<Address*>(
         Assembler::target_address_at(pc_, constant_pool_)));
   }
 }
@@ -177,12 +178,12 @@ void WritableRelocInfo::set_target_object(Tagged<HeapObject> target,
   if (IsCompressedEmbeddedObject(rmode_)) {
     Assembler::set_target_compressed_address_at(
         pc_, constant_pool_,
-        V8HeapCompressionScheme::CompressObject(target.ptr()),
+        V8HeapCompressionScheme::CompressObject(target.ptr()), &jit_allocation_,
         icache_flush_mode);
   } else {
     DCHECK(IsFullEmbeddedObject(rmode_));
     Assembler::set_target_address_at(pc_, constant_pool_, target.ptr(),
-                                     icache_flush_mode);
+                                     &jit_allocation_, icache_flush_mode);
   }
 }
 
@@ -195,7 +196,24 @@ void WritableRelocInfo::set_target_external_reference(
     Address target, ICacheFlushMode icache_flush_mode) {
   DCHECK(rmode_ == RelocInfo::EXTERNAL_REFERENCE);
   Assembler::set_target_address_at(pc_, constant_pool_, target,
-                                   icache_flush_mode);
+                                   &jit_allocation_, icache_flush_mode);
+}
+
+WasmCodePointer RelocInfo::wasm_code_pointer_table_entry() const {
+  DCHECK(rmode_ == WASM_CODE_POINTER_TABLE_ENTRY);
+  return WasmCodePointer{Assembler::uint32_constant_at(pc_, constant_pool_)};
+}
+
+void WritableRelocInfo::set_wasm_code_pointer_table_entry(
+    WasmCodePointer target, ICacheFlushMode icache_flush_mode) {
+  DCHECK(rmode_ == RelocInfo::WASM_CODE_POINTER_TABLE_ENTRY);
+  Assembler::set_uint32_constant_at(pc_, constant_pool_, target.value(),
+                                    &jit_allocation_, icache_flush_mode);
+}
+
+JSDispatchHandle RelocInfo::js_dispatch_handle() {
+  DCHECK(rmode_ == JS_DISPATCH_HANDLE);
+  return JSDispatchHandle(Assembler::uint32_constant_at(pc_, constant_pool_));
 }
 
 Builtin RelocInfo::target_builtin_at(Assembler* origin) { UNREACHABLE(); }
@@ -222,7 +240,6 @@ Address Assembler::target_address_at(Address pc, Address constant_pool) {
     return pc + dis;
   }
 
-#if V8_TARGET_ARCH_S390X
   int instr1_length =
       Instruction::InstructionLength(reinterpret_cast<const uint8_t*>(pc));
   Opcode op2 = Instruction::S390OpcodeValue(
@@ -234,26 +251,9 @@ Address Assembler::target_address_at(Address pc, Address constant_pool) {
     return static_cast<Address>(((instr_1 & 0xFFFFFFFF) << 32) |
                                 ((instr_2 & 0xFFFFFFFF)));
   }
-#else
-  // IILF loads 32-bits
-  if (IILF == op1 || CFI == op1) {
-    return static_cast<Address>((instr_1 & 0xFFFFFFFF));
-  }
-#endif
 
   UNIMPLEMENTED();
   return 0;
-}
-
-// This sets the branch destination (which gets loaded at the call address).
-// This is for calls and branches within generated code.  The serializer
-// has already deserialized the mov instructions etc.
-// There is a FIXED_SEQUENCE assumption here
-void Assembler::deserialization_set_special_target_at(
-    Address instruction_payload, Tagged<Code> code, Address target) {
-  set_target_address_at(instruction_payload,
-                        !code.is_null() ? code->constant_pool() : kNullAddress,
-                        target);
 }
 
 int Assembler::deserialization_special_target_size(
@@ -262,17 +262,20 @@ int Assembler::deserialization_special_target_size(
 }
 
 void Assembler::deserialization_set_target_internal_reference_at(
-    Address pc, Address target, RelocInfo::Mode mode) {
+    Address pc, Address target, WritableJitAllocation& jit_allocation,
+    RelocInfo::Mode mode) {
   if (RelocInfo::IsInternalReferenceEncoded(mode)) {
-    set_target_address_at(pc, kNullAddress, target, SKIP_ICACHE_FLUSH);
+    set_target_address_at(pc, kNullAddress, target, &jit_allocation,
+                          SKIP_ICACHE_FLUSH);
   } else {
-    Memory<Address>(pc) = target;
+    jit_allocation.WriteUnalignedValue<Address>(pc, target);
   }
 }
 
 // This code assumes the FIXED_SEQUENCE of IIHF/IILF
 void Assembler::set_target_address_at(Address pc, Address constant_pool,
                                       Address target,
+                                      WritableJitAllocation* jit_allocation,
                                       ICacheFlushMode icache_flush_mode) {
   // Check for instructions generated by Asm::mov()
   Opcode op1 =
@@ -287,13 +290,12 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
     int32_t halfwords = (target - pc) / 2;  // number of halfwords
     instr_1 |= static_cast<uint32_t>(halfwords);
     Instruction::SetInstructionBits<SixByteInstr>(
-        reinterpret_cast<uint8_t*>(pc), instr_1);
+        reinterpret_cast<uint8_t*>(pc), instr_1, jit_allocation);
     if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
       FlushInstructionCache(pc, 6);
     }
     patched = true;
   } else {
-#if V8_TARGET_ARCH_S390X
     int instr1_length =
         Instruction::InstructionLength(reinterpret_cast<const uint8_t*>(pc));
     Opcode op2 = Instruction::S390OpcodeValue(
@@ -308,7 +310,7 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
       instr_1 |= reinterpret_cast<uint64_t>(target) >> 32;
 
       Instruction::SetInstructionBits<SixByteInstr>(
-          reinterpret_cast<uint8_t*>(pc), instr_1);
+          reinterpret_cast<uint8_t*>(pc), instr_1, jit_allocation);
 
       // IILF
       instr_2 >>= 32;
@@ -316,58 +318,28 @@ void Assembler::set_target_address_at(Address pc, Address constant_pool,
       instr_2 |= reinterpret_cast<uint64_t>(target) & 0xFFFFFFFF;
 
       Instruction::SetInstructionBits<SixByteInstr>(
-          reinterpret_cast<uint8_t*>(pc + instr1_length), instr_2);
+          reinterpret_cast<uint8_t*>(pc + instr1_length), instr_2,
+          jit_allocation);
       if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
         FlushInstructionCache(pc, 12);
       }
       patched = true;
     }
-#else
-    // IILF loads 32-bits
-    if (IILF == op1 || CFI == op1) {
-      instr_1 >>= 32;  // Zero out the lower 32-bits
-      instr_1 <<= 32;
-      instr_1 |= reinterpret_cast<uint32_t>(target);
-
-      Instruction::SetInstructionBits<SixByteInstr>(
-          reinterpret_cast<uint8_t*>(pc), instr_1);
-      if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
-        FlushInstructionCache(pc, 6);
-      }
-      patched = true;
-    }
-#endif
   }
   if (!patched) UNREACHABLE();
 }
 
 uint32_t Assembler::uint32_constant_at(Address pc, Address constant_pool) {
-  Opcode op1 =
-      Instruction::S390OpcodeValue(reinterpret_cast<const uint8_t*>(pc));
-  // Set by MacroAssembler::mov.
-  CHECK(op1 == LGFI);
-  SixByteInstr instr_1 =
-      Instruction::InstructionBits(reinterpret_cast<const uint8_t*>(pc));
-  return static_cast<uint32_t>((instr_1 << 32) >> 32);
+  return static_cast<uint32_t>(Assembler::target_address_at(pc, constant_pool));
 }
 
 void Assembler::set_uint32_constant_at(Address pc, Address constant_pool,
                                        uint32_t new_constant,
+                                       WritableJitAllocation* jit_allocation,
                                        ICacheFlushMode icache_flush_mode) {
-  Opcode op1 =
-      Instruction::S390OpcodeValue(reinterpret_cast<const uint8_t*>(pc));
-  // Set by MacroAssembler::mov.
-  CHECK(op1 == LGFI);
-  SixByteInstr instr_1 =
-      Instruction::InstructionBits(reinterpret_cast<const uint8_t*>(pc));
-  instr_1 >>= 32;  // Zero out the lower 32-bits
-  instr_1 <<= 32;
-  instr_1 |= new_constant;
-  Instruction::SetInstructionBits<SixByteInstr>(reinterpret_cast<uint8_t*>(pc),
-                                                instr_1);
-  if (icache_flush_mode != SKIP_ICACHE_FLUSH) {
-    FlushInstructionCache(pc, 6);
-  }
+  Assembler::set_target_address_at(pc, constant_pool,
+                                   static_cast<Address>(new_constant),
+                                   jit_allocation, icache_flush_mode);
 }
 
 }  // namespace internal

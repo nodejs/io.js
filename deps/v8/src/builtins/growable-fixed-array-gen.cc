@@ -13,6 +13,32 @@ namespace internal {
 
 #include "src/codegen/define-code-stub-assembler-macros.inc"
 
+void GrowableFixedArray::Reserve(TNode<IntPtrT> required_capacity) {
+  Label out(this);
+
+  GotoIf(IntPtrGreaterThanOrEqual(var_capacity_.value(), required_capacity),
+         &out);
+
+  // Gotta grow.
+  TVARIABLE(IntPtrT, var_new_capacity, var_capacity_.value());
+  Label loop(this, &var_new_capacity);
+  Goto(&loop);
+
+  // First find the new capacity.
+  BIND(&loop);
+  {
+    var_new_capacity = NewCapacity(var_new_capacity.value());
+    GotoIf(IntPtrLessThan(var_new_capacity.value(), required_capacity), &loop);
+  }
+
+  // Now grow.
+  var_capacity_ = var_new_capacity.value();
+  var_array_ = ResizeFixedArray(var_length_.value(), var_capacity_.value());
+  Goto(&out);
+
+  BIND(&out);
+}
+
 void GrowableFixedArray::Push(const TNode<Object> value) {
   const TNode<IntPtrT> length = var_length_.value();
   const TNode<IntPtrT> capacity = var_capacity_.value();

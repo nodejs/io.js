@@ -40,8 +40,8 @@ enum class MockLogDefault { kIgnoreUnexpected, kDisallowUnexpected };
 
 // ScopedMockLog
 //
-// ScopedMockLog is a LogSink that intercepts LOG() messages issued during its
-// lifespan.
+// ScopedMockLog is a LogSink that intercepts LOG() messages issued by all
+// threads when active.
 //
 // Using this together with GoogleTest, it's easy to test how a piece of code
 // calls LOG(). The typical usage, noting the distinction between

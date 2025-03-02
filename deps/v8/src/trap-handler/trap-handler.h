@@ -13,18 +13,16 @@
 #include "include/v8config.h"
 #include "src/base/immediate-crash.h"
 
-namespace v8 {
-namespace internal {
-namespace trap_handler {
+namespace v8::internal::trap_handler {
 
 // X64 on Linux, Windows, MacOS, FreeBSD.
 #if V8_HOST_ARCH_X64 && V8_TARGET_ARCH_X64 &&                        \
     ((V8_OS_LINUX && !V8_OS_ANDROID) || V8_OS_WIN || V8_OS_DARWIN || \
      V8_OS_FREEBSD)
 #define V8_TRAP_HANDLER_SUPPORTED true
-// Arm64 (non-simulator) on Mac and Linux.
+// Arm64 (non-simulator) on Linux, Windows, MacOS.
 #elif V8_TARGET_ARCH_ARM64 && V8_HOST_ARCH_ARM64 && \
-    (V8_OS_DARWIN || (V8_OS_LINUX && !V8_OS_ANDROID))
+    ((V8_OS_LINUX && !V8_OS_ANDROID) || V8_OS_WIN || V8_OS_DARWIN)
 #define V8_TRAP_HANDLER_SUPPORTED true
 // Arm64 simulator on x64 on Linux, Mac, or Windows.
 //
@@ -115,11 +113,16 @@ int TH_EXPORT_PRIVATE RegisterHandlerData(
 /// kInvalidIndex.
 void TH_EXPORT_PRIVATE ReleaseHandlerData(int index);
 
-/// Sets the base and size of the V8 sandbox region. If set, these will be used
-/// by the trap handler: only faulting accesses to memory inside the V8 sandbox
-/// should be handled by the trap handler since all Wasm memory objects are
-/// located inside the sandbox.
-void TH_EXPORT_PRIVATE SetV8SandboxBaseAndSize(uintptr_t base, size_t size);
+/// Registers the base and size of the V8 sandbox region into list
+/// of sandboxes records. If successful, these will be used
+/// by the trap handler: only faulting accesses to memory inside the V8
+/// sandboxes should be handled by the trap handler since all Wasm memory
+/// objects are located inside the sandboxes.
+bool TH_EXPORT_PRIVATE RegisterV8Sandbox(uintptr_t base, size_t size);
+
+/// Unregisters the base and size of the V8 sandbox region decribed by base and
+/// size.
+void TH_EXPORT_PRIVATE UnregisterV8Sandbox(uintptr_t base, size_t size);
 
 // Initially false, set to true if when trap handlers are enabled. Never goes
 // back to false then.
@@ -191,8 +194,20 @@ TH_EXPORT_PRIVATE void RemoveTrapHandler();
 
 TH_EXPORT_PRIVATE size_t GetRecoveredTrapCount();
 
-}  // namespace trap_handler
-}  // namespace internal
-}  // namespace v8
+// Check that the current thread does not have the "in wasm" flag set, without
+// any other side effects. Note that e.g. "!IsTrapHandlerEnabled() ||
+// !IsThreadInWasm()" has the side effect of disabling later
+// EnableTrapHandler(). We need to allow later enabling though, because
+// allocations can happen *before* initializing the trap handler, and we want to
+// execute this check there.
+#if defined(BUILDING_V8_SHARED_PRIVATE) || defined(USING_V8_SHARED_PRIVATE)
+TH_EXPORT_PRIVATE void AssertThreadNotInWasm();
+#else
+inline void AssertThreadNotInWasm() {
+  TH_DCHECK(!g_is_trap_handler_enabled || !g_thread_in_wasm_code);
+}
+#endif
+
+}  // namespace v8::internal::trap_handler
 
 #endif  // V8_TRAP_HANDLER_TRAP_HANDLER_H_

@@ -64,7 +64,7 @@ static void FloodWithInc(Isolate* isolate, TestingAssemblerBuffer* buffer) {
   for (int i = 0; i < kNumInstr; ++i) {
     __ addi(r3, r3, Operand(1));
   }
-#elif V8_TARGET_ARCH_S390
+#elif V8_TARGET_ARCH_S390X
   for (int i = 0; i < kNumInstr; ++i) {
     __ agfi(r2, Operand(1));
   }

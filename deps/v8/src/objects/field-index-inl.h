@@ -10,6 +10,7 @@
 #include "src/objects/field-index.h"
 #include "src/objects/map-inl.h"
 #include "src/objects/objects-inl.h"
+#include "src/objects/tagged-field.h"
 
 namespace v8 {
 namespace internal {
@@ -30,7 +31,7 @@ FieldIndex FieldIndex::ForSmiLoadHandler(Tagged<Map> map, int32_t handler) {
   if (is_inobject) {
     first_inobject_offset = map->GetInObjectPropertyOffset(0);
   } else {
-    first_inobject_offset = FixedArray::kHeaderSize;
+    first_inobject_offset = OFFSET_OF_DATA_START(FixedArray);
   }
   return FieldIndex(
       is_inobject, LoadHandler::FieldIndexBits::decode(handler) * kTaggedSize,
@@ -49,7 +50,7 @@ FieldIndex FieldIndex::ForPropertyIndex(Tagged<Map> map, int property_index,
     first_inobject_offset = map->GetInObjectPropertyOffset(0);
     offset = map->GetInObjectPropertyOffset(property_index);
   } else {
-    first_inobject_offset = FixedArray::kHeaderSize;
+    first_inobject_offset = OFFSET_OF_DATA_START(FixedArray);
     property_index -= inobject_properties;
     offset = PropertyArray::OffsetOfElementAt(property_index);
   }
@@ -60,7 +61,7 @@ FieldIndex FieldIndex::ForPropertyIndex(Tagged<Map> map, int property_index,
 
 // Returns the index format accepted by the LoadFieldByIndex instruction.
 // (In-object: zero-based from (object start + JSObject::kHeaderSize),
-// out-of-object: zero-based from FixedArray::kHeaderSize.)
+// out-of-object: zero-based from OFFSET_OF_DATA_START(FixedArray).)
 int FieldIndex::GetLoadByFieldIndex() const {
   // For efficiency, the LoadByFieldIndex instruction takes an index that is
   // optimized for quick access. If the property is inline, the index is
@@ -72,7 +73,7 @@ int FieldIndex::GetLoadByFieldIndex() const {
   if (is_inobject()) {
     result -= JSObject::kHeaderSize / kTaggedSize;
   } else {
-    result -= FixedArray::kHeaderSize / kTaggedSize;
+    result -= OFFSET_OF_DATA_START(FixedArray) / kTaggedSize;
     result = -result - 1;
   }
   result = static_cast<uint32_t>(result) << 1;

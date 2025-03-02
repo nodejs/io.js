@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --trace-wasm --no-wasm-tier-up --liftoff
+// Flags: --no-wasm-inlining-call-indirect
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 

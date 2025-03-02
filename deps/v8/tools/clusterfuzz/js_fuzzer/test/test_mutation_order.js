@@ -39,7 +39,7 @@ describe('Toplevel mutations', () => {
       MUTATE_VARIABLES: 0.0,
       SCRIPT_MUTATOR_SHUFFLE: 1.0,
       SCRIPT_MUTATOR_EXTRA_MUTATIONS: 1.0,
-      engine: 'V8',
+      engine: 'v8',
       testing: true,
     };
 

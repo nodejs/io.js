@@ -1,0 +1,4 @@
+*modules-skip-3-import-attributes-fail.json:1: SyntaxError: Unexpected token ':'
+{ "life": 42 }
+        ^
+SyntaxError: Unexpected token ':'

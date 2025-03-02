@@ -200,7 +200,7 @@ class LiveRangeAndNextUseProcessor {
   // ranges.
 
   void MarkInputUses(JumpLoop* node, const ProcessingState& state) {
-    int i = state.block()->predecessor_id();
+    int predecessor_id = state.block()->predecessor_id();
     BasicBlock* target = node->target();
     uint32_t use = node->id();
 
@@ -213,8 +213,8 @@ class LiveRangeAndNextUseProcessor {
     if (target->has_phi()) {
       for (Phi* phi : *target->phis()) {
         DCHECK(phi->is_used());
-        ValueNode* input = phi->input(i).node();
-        MarkUse(input, use, &phi->input(i), outer_loop_used_nodes);
+        ValueNode* input = phi->input(predecessor_id).node();
+        MarkUse(input, use, &phi->input(predecessor_id), outer_loop_used_nodes);
       }
     }
 

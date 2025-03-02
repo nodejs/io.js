@@ -72,7 +72,7 @@ class RawMachineAssemblerTester : public CallHelper<ReturnType>,
 
   void GenerateCode() { Generate(); }
 
-  Handle<Code> GetCode() {
+  DirectHandle<Code> GetCode() {
     Generate();
     return code_.ToHandleChecked();
   }

@@ -22,14 +22,17 @@ namespace detail {
 // SlotType will be HeapObjectSlot, which is defined in "globals.h" as an
 // incomplete type. Its definition depends on whether pointer compression
 // is used. It needs to be defined before this type is used.
-template <typename SlotType>
+template <typename TSlotType>
 struct HeapObjectAndSlotPOD {
+  using SlotType = TSlotType;
   Tagged<HeapObject> heap_object;
   SlotType slot;
 };
 }  // namespace detail
 
 using HeapObjectAndSlot = detail::HeapObjectAndSlotPOD<HeapObjectSlot>;
+using TrustedObjectAndSlot =
+    detail::HeapObjectAndSlotPOD<ProtectedMaybeObjectSlot>;
 
 struct HeapObjectAndCode {
   Tagged<HeapObject> heap_object;
@@ -50,7 +53,7 @@ class TransitionArray;
 //
 // If you add a new entry, then you also need to implement the corresponding
 // Update*() function in the cc file for updating pointers after Scavenge.
-#define WEAK_OBJECT_WORKLISTS(F)                                              \
+#define WEAK_OBJECT_WORKLISTS_GENERIC(F)                                      \
   F(Tagged<TransitionArray>, transition_arrays, TransitionArrays)             \
   /* Keep track of all EphemeronHashTables in the heap to process             \
      them in the atomic pause. */                                             \
@@ -73,14 +76,24 @@ class TransitionArray;
   F(HeapObjectAndSlot, weak_references_non_trivial, WeakReferencesNonTrivial) \
   F(HeapObjectAndSlot, weak_references_non_trivial_unmarked,                  \
     WeakReferencesNonTrivialUnmarked)                                         \
+  F(TrustedObjectAndSlot, weak_references_trusted, WeakReferencesTrusted)     \
   F(HeapObjectAndCode, weak_objects_in_code, WeakObjectsInCode)               \
   F(Tagged<JSWeakRef>, js_weak_refs, JSWeakRefs)                              \
   F(Tagged<WeakCell>, weak_cells, WeakCells)                                  \
   F(Tagged<SharedFunctionInfo>, code_flushing_candidates,                     \
     CodeFlushingCandidates)                                                   \
-  F(Tagged<JSFunction>, baseline_flushing_candidates,                         \
-    BaselineFlushingCandidates)                                               \
   F(Tagged<JSFunction>, flushed_js_functions, FlushedJSFunctions)
+
+#ifdef V8_ENABLE_LEAPTIERING
+// Baseline code flushing for JSFunctions with leaptiering works by sweeping the
+// JSDispatchTable and does not need any additional tracking.
+#define WEAK_OBJECT_WORKLISTS(F) WEAK_OBJECT_WORKLISTS_GENERIC(F)
+#else
+#define WEAK_OBJECT_WORKLISTS(F)                      \
+  WEAK_OBJECT_WORKLISTS_GENERIC(F)                    \
+  F(Tagged<JSFunction>, baseline_flushing_candidates, \
+    BaselineFlushingCandidates)
+#endif  // V8_ENABLE_LEAPTIERING
 
 class WeakObjects final {
  private:

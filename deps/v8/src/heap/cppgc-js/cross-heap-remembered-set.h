@@ -40,8 +40,8 @@ class V8_EXPORT_PRIVATE CrossHeapRememberedSet final {
  private:
   cppgc::internal::HeapBase& heap_base_;
   // The vector keeps handles to remembered V8 objects that have outgoing
-  // references to the cppgc heap. Plese note that the handles are global.
-  std::vector<Handle<JSObject>> remembered_v8_to_cppgc_references_;
+  // references to the cppgc heap. Please note that the handles are global.
+  std::vector<IndirectHandle<JSObject>> remembered_v8_to_cppgc_references_;
 };
 
 template <typename F>

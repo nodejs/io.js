@@ -87,6 +87,12 @@
       }, {
         'v8_enable_private_mapping_fork_optimization': 0,
       }],
+
+      ['OS in "aix os400"', {
+        'v8_enable_leaptiering': 0,
+      }, {
+        'v8_enable_leaptiering': 1,
+      }],
     ],
 
     # Variables from BUILD.gn
@@ -133,6 +139,9 @@
 
     # Enable fast mksnapshot runs.
     'v8_enable_fast_mksnapshot%': 0,
+
+    # Enable using multiple threads to build builtins in mksnapshot.
+    'v8_enable_concurrent_mksnapshot%': 1,
 
     # Enable the registration of unwinding info for Windows/x64 and ARM64.
     'v8_win64_unwinding_info%': 1,
@@ -208,10 +217,6 @@
 
     # Controls the threshold for on-heap/off-heap Typed Arrays.
     'v8_typed_array_max_size_in_heap%': 64,
-
-    # Enable sharing read-only space across isolates.
-    # Sets -DV8_SHARED_RO_HEAP.
-    'v8_enable_shared_ro_heap%': 0,
 
     # Enable lazy source positions by default.
     'v8_enable_lazy_source_positions%': 1,
@@ -437,9 +442,6 @@
       ['v8_use_siphash==1', {
         'defines': ['V8_USE_SIPHASH',],
       }],
-      ['v8_enable_shared_ro_heap==1', {
-        'defines': ['V8_SHARED_RO_HEAP',],
-      }],
       ['dcheck_always_on!=0', {
         'defines': ['DEBUG',],
       }, {
@@ -486,6 +488,9 @@
       }],
       ['v8_enable_extensible_ro_snapshot==1', {
         'defines': ['V8_ENABLE_EXTENSIBLE_RO_SNAPSHOT',],
+      }],
+      ['v8_enable_leaptiering==1', {
+        'defines': ['V8_ENABLE_LEAPTIERING',],
       }],
       ['v8_enable_precise_zone_stats==1', {
         'defines': ['V8_ENABLE_PRECISE_ZONE_STATS',],

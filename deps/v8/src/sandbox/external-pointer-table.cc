@@ -94,9 +94,10 @@ uint32_t ExternalPointerTable::EvacuateAndSweepAndCompact(Space* space,
   // Lock the space. Technically this is not necessary since no other thread can
   // allocate entries at this point, but some of the methods we call on the
   // space assert that the lock is held.
-  base::MutexGuard guard(&space->mutex_);
+  base::SpinningMutexGuard guard(&space->mutex_);
   // Same for the invalidated fields mutex.
-  base::MutexGuard invalidated_fields_guard(&space->invalidated_fields_mutex_);
+  base::SpinningMutexGuard invalidated_fields_guard(
+      &space->invalidated_fields_mutex_);
 
   // There must not be any entry allocations while the table is being swept as
   // that would not be safe. Set the freelist to this special marker value to
@@ -114,8 +115,8 @@ uint32_t ExternalPointerTable::EvacuateAndSweepAndCompact(Space* space,
   // segments to the other space, to avoid invalidating the iterator.
   std::set<Segment> from_space_segments;
   if (from_space) {
-    base::MutexGuard from_space_guard(&from_space->mutex_);
-    base::MutexGuard from_space_invalidated_fields_guard(
+    base::SpinningMutexGuard from_space_guard(&from_space->mutex_);
+    base::SpinningMutexGuard from_space_invalidated_fields_guard(
         &from_space->invalidated_fields_mutex_);
 
     std::swap(from_space->segments_, from_space_segments);
@@ -214,7 +215,7 @@ uint32_t ExternalPointerTable::EvacuateAndSweepAndCompact(Space* space,
         // the entry that was evacuated must have been processed already (it
         // is in an evacuated segment, which are processed first as they are
         // at the end of the space). This will have cleared the marking bit.
-        DCHECK(at(i).GetRawPayload().ContainsPointer());
+        DCHECK(at(i).HasExternalPointer(kAnyExternalPointerTagRange));
         DCHECK(!at(i).GetRawPayload().HasMarkBitSet());
       } else if (!payload.HasMarkBitSet()) {
         FreeManagedResourceIfPresent(i);
@@ -248,6 +249,15 @@ uint32_t ExternalPointerTable::EvacuateAndSweepAndCompact(Space* space,
 
   // We cannot deallocate the segments during the above loop, so do it now.
   for (auto segment : segments_to_deallocate) {
+#ifdef DEBUG
+    // There should not be any live entries in the segments we are freeing.
+    // TODO(saelo): we should be able to assert here that we're not freeing any
+    // entries here. Otherwise, we'd have to FreeManagedResourceIfPresent.
+    // for (uint32_t i = segment.last_entry(); i >= segment.first_entry(); i--)
+    // {
+    //  CHECK(!at(i).HasExternalPointer(kAnyExternalPointerTag));
+    //}
+#endif
     FreeTableSegment(segment);
     space->segments_.erase(segment);
   }
@@ -312,9 +322,10 @@ void ExternalPointerTable::UpdateAllEvacuationEntries(
   // Lock the space. Technically this is not necessary since no other thread can
   // allocate entries at this point, but some of the methods we call on the
   // space assert that the lock is held.
-  base::MutexGuard guard(&space->mutex_);
+  base::SpinningMutexGuard guard(&space->mutex_);
   // Same for the invalidated fields mutex.
-  base::MutexGuard invalidated_fields_guard(&space->invalidated_fields_mutex_);
+  base::SpinningMutexGuard invalidated_fields_guard(
+      &space->invalidated_fields_mutex_);
 
   const uint32_t start_of_evacuation_area =
       space->start_of_evacuation_area_.load(std::memory_order_relaxed);

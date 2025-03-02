@@ -6,7 +6,7 @@ Error [ERR_INTERNAL_ASSERTION]: Unreachable!
 This is caused by either a bug in Node.js or incorrect usage of Node.js internals.
 Please open an issue with this stack trace at https://github.com/nodejs/node/issues
 
-    at Function.fail (node:internal/assert:*:*)
+    at assert.fail (node:internal/assert:*:*)
     at * (*test*message*internal_assert_fail.js:7:8)
     at *
     at *

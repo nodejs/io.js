@@ -22,5 +22,5 @@ r.__proto__.exec = function() {
 }
 Object.freeze(r.__proto__);
 
-foo();
 assertUnoptimized(foo);
+foo();

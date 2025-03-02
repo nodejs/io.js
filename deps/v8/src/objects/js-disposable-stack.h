@@ -53,8 +53,9 @@ class JSDisposableStackBase
   DEFINE_TORQUE_GENERATED_DISPOSABLE_STACK_STATUS()
   inline DisposableStackState state() const;
   inline void set_state(DisposableStackState value);
-  DECL_BOOLEAN_ACCESSORS(needsAwait)
-  DECL_BOOLEAN_ACCESSORS(hasAwaited)
+  DECL_BOOLEAN_ACCESSORS(needs_await)
+  DECL_BOOLEAN_ACCESSORS(has_awaited)
+  DECL_BOOLEAN_ACCESSORS(suppressed_error_created)
   DECL_INT_ACCESSORS(length)
 
   enum class AsyncDisposableStackContextSlots {
@@ -74,17 +75,17 @@ class JSDisposableStackBase
                   DirectHandle<JSDisposableStackBase> disposable_stack,
                   DirectHandle<Object> value, DirectHandle<Object> method,
                   DisposeMethodCallType type, DisposeMethodHint hint);
-  static MaybeHandle<Object> CheckValueAndGetDisposeMethod(
-      Isolate* isolate, Handle<Object> value, DisposeMethodHint hint);
-  static MaybeHandle<Object> DisposeResources(
+  static MaybeDirectHandle<Object> CheckValueAndGetDisposeMethod(
+      Isolate* isolate, DirectHandle<JSAny> value, DisposeMethodHint hint);
+  static MaybeDirectHandle<Object> DisposeResources(
       Isolate* isolate, DirectHandle<JSDisposableStackBase> disposable_stack,
       MaybeHandle<Object> maybe_continuation_error,
       DisposableStackResourcesType resources_type);
-  static Handle<JSReceiver> ResolveAPromiseWithValueAndReturnIt(
-      Isolate* isolate, Handle<Object> value);
+  static MaybeDirectHandle<JSReceiver> ResolveAPromiseWithValueAndReturnIt(
+      Isolate* isolate, DirectHandle<Object> value);
   static void HandleErrorInDisposal(
       Isolate* isolate, DirectHandle<JSDisposableStackBase> disposable_stack,
-      Handle<Object> current_error);
+      Handle<Object> current_error, DirectHandle<Object> current_error_message);
 
   TQ_OBJECT_CONSTRUCTORS(JSDisposableStackBase)
 };
@@ -108,7 +109,7 @@ class JSAsyncDisposableStack
   static Maybe<bool> NextDisposeAsyncIteration(
       Isolate* isolate,
       DirectHandle<JSDisposableStackBase> async_disposable_stack,
-      Handle<JSPromise> outer_promise);
+      DirectHandle<JSPromise> outer_promise);
 
   TQ_OBJECT_CONSTRUCTORS(JSAsyncDisposableStack)
 };

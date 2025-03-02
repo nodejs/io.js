@@ -23,7 +23,7 @@ BUILTIN(JsonParse) {
                                      Object::ToString(isolate, source));
   string = String::Flatten(isolate, string);
   RETURN_RESULT_OR_FAILURE(
-      isolate, String::IsOneByteRepresentationUnderneath(*string)
+      isolate, string->IsOneByteRepresentation()
                    ? JsonParser<uint8_t>::Parse(isolate, string, reviver)
                    : JsonParser<uint16_t>::Parse(isolate, string, reviver));
 }
@@ -31,8 +31,8 @@ BUILTIN(JsonParse) {
 // ES6 section 24.3.2 JSON.stringify.
 BUILTIN(JsonStringify) {
   HandleScope scope(isolate);
-  Handle<Object> object = args.atOrUndefined(isolate, 1);
-  Handle<Object> replacer = args.atOrUndefined(isolate, 2);
+  Handle<JSAny> object = Cast<JSAny>(args.atOrUndefined(isolate, 1));
+  Handle<JSAny> replacer = Cast<JSAny>(args.atOrUndefined(isolate, 2));
   Handle<Object> indent = args.atOrUndefined(isolate, 3);
   RETURN_RESULT_OR_FAILURE(isolate,
                            JsonStringify(isolate, object, replacer, indent));

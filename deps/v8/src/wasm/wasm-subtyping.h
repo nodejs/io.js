@@ -21,6 +21,8 @@ V8_NOINLINE V8_EXPORT_PRIVATE bool IsSubtypeOfImpl(
 V8_NOINLINE V8_EXPORT_PRIVATE bool IsHeapSubtypeOfImpl(
     HeapType sub_heap, HeapType super_heap, const WasmModule* sub_module,
     const WasmModule* super_module);
+V8_NOINLINE V8_EXPORT_PRIVATE bool IsSubtypeOfImpl(
+    CanonicalValueType subtype, CanonicalValueType supertype);
 
 // Checks if type1, defined in module1, is equivalent with type2, defined in
 // module2.
@@ -71,11 +73,18 @@ V8_INLINE bool IsSubtypeOf(ValueType subtype, ValueType supertype,
 }
 
 // Checks if {subtype} is a subtype of {supertype} (both defined in {module}).
+// TODO(369369573): Make sure this overload is not misused.
 V8_INLINE bool IsSubtypeOf(ValueType subtype, ValueType supertype,
                            const WasmModule* module) {
   // If the types are trivially identical, exit early.
   if (V8_LIKELY(subtype == supertype)) return true;
   return IsSubtypeOfImpl(subtype, supertype, module, module);
+}
+
+V8_INLINE bool IsSubtypeOf(CanonicalValueType subtype,
+                           CanonicalValueType supertype) {
+  if (subtype == supertype) return true;
+  return IsSubtypeOfImpl(subtype, supertype);
 }
 
 V8_INLINE bool TypesUnrelated(ValueType type1, ValueType type2,
@@ -118,8 +127,8 @@ V8_INLINE bool HeapTypesUnrelated(HeapType heap1, HeapType heap2,
 //   equivalence of element types for mutable arrays.
 // - Functions: equal number of parameter and return types. Contravariance for
 //   respective parameter types, covariance for respective return types.
-V8_EXPORT_PRIVATE bool ValidSubtypeDefinition(uint32_t subtype_index,
-                                              uint32_t supertype_index,
+V8_EXPORT_PRIVATE bool ValidSubtypeDefinition(ModuleTypeIndex subtype_index,
+                                              ModuleTypeIndex supertype_index,
                                               const WasmModule* sub_module,
                                               const WasmModule* super_module);
 
@@ -148,7 +157,8 @@ inline std::ostream& operator<<(std::ostream& oss, TypeInModule type) {
              << reinterpret_cast<intptr_t>(type.module);
 }
 
-// Returns {kWasmBottom} if the union of {type1} and {type2} is not defined.
+// Returns the common ancestor of {type1} and {type2}. Returns kTop if they
+// don't have a common ancestor.
 V8_EXPORT_PRIVATE TypeInModule Union(ValueType type1, ValueType type2,
                                      const WasmModule* module1,
                                      const WasmModule* module2);

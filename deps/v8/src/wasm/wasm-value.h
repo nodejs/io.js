@@ -20,31 +20,33 @@ namespace v8 {
 namespace internal {
 namespace wasm {
 
+struct WasmModule;
+
 // Macro for defining WasmValue methods for different types.
 // Elements:
 // - name (for to_<name>() method)
 // - wasm type
 // - c type
 #define FOREACH_PRIMITIVE_WASMVAL_TYPE(V) \
-  V(i8, kWasmI8, int8_t)                  \
-  V(i16, kWasmI16, int16_t)               \
-  V(i32, kWasmI32, int32_t)               \
-  V(u32, kWasmI32, uint32_t)              \
-  V(i64, kWasmI64, int64_t)               \
-  V(u64, kWasmI64, uint64_t)              \
-  V(f16, kWasmF16, uint16_t)              \
-  V(f32, kWasmF32, float)                 \
-  V(f32_boxed, kWasmF32, Float32)         \
-  V(f64, kWasmF64, double)                \
-  V(f64_boxed, kWasmF64, Float64)         \
-  V(s128, kWasmS128, Simd128)
+  V(i8, kCanonicalI8, int8_t)             \
+  V(i16, kCanonicalI16, int16_t)          \
+  V(i32, kCanonicalI32, int32_t)          \
+  V(u32, kCanonicalI32, uint32_t)         \
+  V(i64, kCanonicalI64, int64_t)          \
+  V(u64, kCanonicalI64, uint64_t)         \
+  V(f16, kCanonicalF16, uint16_t)         \
+  V(f32, kCanonicalF32, float)            \
+  V(f32_boxed, kCanonicalF32, Float32)    \
+  V(f64, kCanonicalF64, double)           \
+  V(f64_boxed, kCanonicalF64, Float64)    \
+  V(s128, kCanonicalS128, Simd128)
 
 ASSERT_TRIVIALLY_COPYABLE(Handle<Object>);
 
 // A wasm value with type information.
 class WasmValue {
  public:
-  WasmValue() : type_(kWasmVoid), bit_pattern_{} {}
+  WasmValue() : type_(CanonicalValueType::Primitive(kVoid)), bit_pattern_{} {}
 
 #define DEFINE_TYPE_SPECIFIC_METHODS(name, localtype, ctype)                  \
   explicit WasmValue(ctype v) : type_(localtype), bit_pattern_{} {            \
@@ -65,13 +67,14 @@ class WasmValue {
   FOREACH_PRIMITIVE_WASMVAL_TYPE(DEFINE_TYPE_SPECIFIC_METHODS)
 #undef DEFINE_TYPE_SPECIFIC_METHODS
 
-  WasmValue(const uint8_t* raw_bytes, ValueType type)
+  WasmValue(const uint8_t* raw_bytes, CanonicalValueType type)
       : type_(type), bit_pattern_{} {
     DCHECK(type_.is_numeric());
     memcpy(bit_pattern_, raw_bytes, type.value_kind_size());
   }
 
-  WasmValue(Handle<Object> ref, ValueType type) : type_(type), bit_pattern_{} {
+  WasmValue(Handle<Object> ref, CanonicalValueType type)
+      : type_(type), bit_pattern_{} {
     static_assert(sizeof(Handle<Object>) <= sizeof(bit_pattern_),
                   "bit_pattern_ must be large enough to fit a Handle");
     DCHECK(type.is_reference());
@@ -85,7 +88,9 @@ class WasmValue {
         reinterpret_cast<Address>(bit_pattern_));
   }
 
-  ValueType type() const { return type_; }
+  CanonicalValueType type() const { return type_; }
+
+  const WasmModule* module() const { return module_; }
 
   // Checks equality of type and bit pattern (also for float and double values).
   bool operator==(const WasmValue& other) const {
@@ -106,11 +111,11 @@ class WasmValue {
   // Otherwise, return this object.
   WasmValue Packed(ValueType packed_type) const {
     if (packed_type == kWasmI8) {
-      DCHECK_EQ(type_, kWasmI32);
+      DCHECK_EQ(type_, kCanonicalI32);
       return WasmValue(static_cast<int8_t>(to_i32()));
     }
     if (packed_type == kWasmI16) {
-      DCHECK_EQ(type_, kWasmI32);
+      DCHECK_EQ(type_, kCanonicalI32);
       return WasmValue(static_cast<int16_t>(to_i32()));
     }
     return *this;
@@ -158,6 +163,7 @@ class WasmValue {
       case kRtt:
         return "Handle [" + std::to_string(to_ref().address()) + "]";
       case kVoid:
+      case kTop:
       case kBottom:
         UNREACHABLE();
     }
@@ -171,8 +177,9 @@ class WasmValue {
   }
 
  private:
-  ValueType type_;
+  CanonicalValueType type_;
   uint8_t bit_pattern_[16];
+  const WasmModule* module_ = nullptr;
 };
 
 #define DECLARE_CAST(name, localtype, ctype, ...) \

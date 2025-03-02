@@ -19,7 +19,7 @@ inline CompilationEnv CompilationEnv::ForModule(
       native_module->fast_api_targets(), native_module->fast_api_signatures());
 }
 
-constexpr CompilationEnv CompilationEnv::NoModuleAllFeatures() {
+constexpr CompilationEnv CompilationEnv::NoModuleAllFeaturesForTesting() {
   return CompilationEnv(nullptr, WasmEnabledFeatures::All(),
                         DynamicTiering::kNoDynamicTiering, nullptr, nullptr);
 }

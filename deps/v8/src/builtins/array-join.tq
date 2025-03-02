@@ -47,9 +47,14 @@ LoadJoinElement<array::FastDoubleElements>(
   const array: JSArray = UnsafeCast<JSArray>(receiver);
   const fixedDoubleArray: FixedDoubleArray =
       UnsafeCast<FixedDoubleArray>(array.elements);
-  const element: float64 =
-      fixedDoubleArray.floats[k].Value() otherwise return kEmptyString;
-  return AllocateHeapNumberWithValue(element);
+  try {
+    const element: float64 =
+        fixedDoubleArray.values[k].Value() otherwise IfUndefined,
+                   return kEmptyString;
+    return AllocateHeapNumberWithValue(element);
+  } label IfUndefined {
+    return Undefined;
+  }
 }
 
 builtin LoadJoinTypedElement<T : type extends ElementsKind>(
@@ -187,8 +192,7 @@ struct Buffer {
           StoreAndGrowFixedArray(this.fixedArray, this.index++, str);
       this.lastString = str;
     }
-    this.isOneByte =
-        IsOneByteStringInstanceType(str.instanceType) & this.isOneByte;
+    this.isOneByte = IsOneByteStringMap(str.map) & this.isOneByte;
   }
 
   macro AddSeparators(
@@ -275,7 +279,7 @@ macro NewBuffer(len: uintptr, sep: String): Buffer {
     fixedArray: AllocateZeroedFixedArray(cappedBufferSize),
     index: 0,
     totalStringLength: 0,
-    isOneByte: IsOneByteStringInstanceType(sep.instanceType),
+    isOneByte: IsOneByteStringMap(sep.map),
     lastString: Null
   };
 }

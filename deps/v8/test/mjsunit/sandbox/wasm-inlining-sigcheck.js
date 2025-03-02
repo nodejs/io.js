@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --sandbox-testing --turboshaft-wasm
+// Flags: --allow-natives-syntax --sandbox-testing
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -96,6 +96,6 @@ setField(f0, kMapOffset, f1_map);
 %WasmTierUpFunction(instance.exports.boom);
 
 // If the process was still alive, this would cause the sandbox violation.
-instance.exports.boom(func0, BigInt(Sandbox.targetPage));
+instance.exports.boom(func0, 0x414141414141n);
 
 assertUnreachable("Process should have been killed.");

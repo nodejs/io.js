@@ -51,7 +51,7 @@ RUNTIME_FUNCTION_RETURN_PAIR(Runtime_DebugBreakOnBytecode) {
   JavaScriptStackFrameIterator it(isolate);
   if (isolate->debug_execution_mode() == DebugInfo::kBreakpoints) {
     isolate->debug()->Break(it.frame(),
-                            handle(it.frame()->function(), isolate));
+                            direct_handle(it.frame()->function(), isolate));
   }
 
   // If the user requested to restart a frame, there is no need
@@ -162,7 +162,8 @@ namespace {
 
 template <class IteratorType>
 static Handle<ArrayList> AddIteratorInternalProperties(
-    Isolate* isolate, Handle<ArrayList> result, Handle<IteratorType> iterator) {
+    Isolate* isolate, Handle<ArrayList> result,
+    DirectHandle<IteratorType> iterator) {
   const char* kind = nullptr;
   switch (iterator->map()->instance_type()) {
     case JS_MAP_KEY_ITERATOR_TYPE:
@@ -187,7 +188,7 @@ static Handle<ArrayList> AddIteratorInternalProperties(
   result = ArrayList::Add(
       isolate, result,
       isolate->factory()->NewStringFromAsciiChecked("[[IteratorIndex]]"),
-      handle(iterator->index(), isolate));
+      direct_handle(iterator->index(), isolate));
   result = ArrayList::Add(
       isolate, result,
       isolate->factory()->NewStringFromAsciiChecked("[[IteratorKind]]"),
@@ -225,11 +226,11 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[TargetFunction]]"),
-        handle(function->bound_target_function(), isolate));
+        direct_handle(function->bound_target_function(), isolate));
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[BoundThis]]"),
-        handle(function->bound_this(), isolate));
+        direct_handle(function->bound_this(), isolate));
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[BoundArgs]]"),
@@ -237,10 +238,10 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
             isolate->factory()->CopyFixedArray(
                 handle(function->bound_arguments(), isolate))));
   } else if (IsJSMapIterator(*object)) {
-    Handle<JSMapIterator> iterator = Cast<JSMapIterator>(object);
+    DirectHandle<JSMapIterator> iterator = Cast<JSMapIterator>(object);
     result = AddIteratorInternalProperties(isolate, result, iterator);
   } else if (IsJSSetIterator(*object)) {
-    Handle<JSSetIterator> iterator = Cast<JSSetIterator>(object);
+    DirectHandle<JSSetIterator> iterator = Cast<JSSetIterator>(object);
     result = AddIteratorInternalProperties(isolate, result, iterator);
   } else if (IsJSGeneratorObject(*object)) {
     auto generator = Cast<JSGeneratorObject>(object);
@@ -261,11 +262,11 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[GeneratorFunction]]"),
-        handle(generator->function(), isolate));
+        direct_handle(generator->function(), isolate));
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[GeneratorReceiver]]"),
-        handle(generator->receiver(), isolate));
+        direct_handle(generator->receiver(), isolate));
   } else if (IsJSPromise(*object)) {
     auto promise = Cast<JSPromise>(object);
 
@@ -286,11 +287,11 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[Handler]]"),
-        handle(js_proxy->handler(), isolate));
+        direct_handle(js_proxy->handler(), isolate));
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[Target]]"),
-        handle(js_proxy->target(), isolate));
+        direct_handle(js_proxy->target(), isolate));
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[IsRevoked]]"),
@@ -301,16 +302,16 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[PrimitiveValue]]"),
-        handle(js_value->value(), isolate));
+        direct_handle(js_value->value(), isolate));
   } else if (IsJSWeakRef(*object)) {
     auto js_weak_ref = Cast<JSWeakRef>(object);
 
     result = ArrayList::Add(
         isolate, result,
         isolate->factory()->NewStringFromAsciiChecked("[[WeakRefTarget]]"),
-        handle(js_weak_ref->target(), isolate));
+        direct_handle(js_weak_ref->target(), isolate));
   } else if (IsJSArrayBuffer(*object)) {
-    Handle<JSArrayBuffer> js_array_buffer = Cast<JSArrayBuffer>(object);
+    DirectHandle<JSArrayBuffer> js_array_buffer = Cast<JSArrayBuffer>(object);
     if (js_array_buffer->was_detached()) {
       // Mark a detached JSArrayBuffer and such and don't even try to
       // create views for it, since the TypedArray constructors will
@@ -356,7 +357,7 @@ MaybeHandle<JSArray> Runtime::GetInternalProperties(Isolate* isolate,
           isolate->factory()->NewStringFromAsciiChecked("[[ArrayBufferData]]"),
           array_buffer_data);
 
-      Handle<Symbol> memory_symbol =
+      DirectHandle<Symbol> memory_symbol =
           isolate->factory()->array_buffer_wasm_memory_symbol();
       DirectHandle<Object> memory_object =
           JSObject::GetDataProperty(isolate, js_array_buffer, memory_symbol);
@@ -438,7 +439,7 @@ RUNTIME_FUNCTION(Runtime_GetGeneratorScopeDetails) {
 
 static bool SetScopeVariableValue(ScopeIterator* it, int index,
                                   Handle<String> variable_name,
-                                  Handle<Object> new_value) {
+                                  DirectHandle<Object> new_value) {
   for (int n = 0; !it->Done() && n < index; it->Next()) {
     n++;
   }
@@ -461,7 +462,7 @@ RUNTIME_FUNCTION(Runtime_SetGeneratorScopeVariableValue) {
   Handle<JSGeneratorObject> gen = args.at<JSGeneratorObject>(0);
   int index = NumberToInt32(args[1]);
   Handle<String> variable_name = args.at<String>(2);
-  Handle<Object> new_value = args.at(3);
+  DirectHandle<Object> new_value = args.at(3);
   ScopeIterator it(isolate, gen);
   bool res = SetScopeVariableValue(&it, index, variable_name, new_value);
   return isolate->heap()->ToBoolean(res);
@@ -475,7 +476,7 @@ RUNTIME_FUNCTION(Runtime_GetBreakLocations) {
 
   DirectHandle<SharedFunctionInfo> shared(fun->shared(), isolate);
   // Find the number of break points
-  Handle<Object> break_locations =
+  DirectHandle<Object> break_locations =
       Debug::GetSourceBreakLocations(isolate, shared);
   if (IsUndefined(*break_locations, isolate)) {
     return ReadOnlyRoots(isolate).undefined_value();
@@ -589,9 +590,10 @@ int ScriptLinePositionWithOffset(DirectHandle<Script> script, int line,
   return ScriptLinePosition(script, total_line);
 }
 
-Handle<Object> GetJSPositionInfo(DirectHandle<Script> script, int position,
-                                 Script::OffsetFlag offset_flag,
-                                 Isolate* isolate) {
+DirectHandle<Object> GetJSPositionInfo(DirectHandle<Script> script,
+                                       int position,
+                                       Script::OffsetFlag offset_flag,
+                                       Isolate* isolate) {
   Script::PositionInfo info;
   if (!Script::GetPositionInfo(script, position, &info, offset_flag)) {
     return isolate->factory()->null_value();
@@ -608,17 +610,18 @@ Handle<Object> GetJSPositionInfo(DirectHandle<Script> script, int position,
                            handle(Cast<String>(script->source()), isolate),
                            info.line_start, info.line_end);
 
-  Handle<JSObject> jsinfo =
+  DirectHandle<JSObject> jsinfo =
       isolate->factory()->NewJSObject(isolate->object_function());
 
   JSObject::AddProperty(isolate, jsinfo, isolate->factory()->script_string(),
                         script, NONE);
   JSObject::AddProperty(isolate, jsinfo, isolate->factory()->position_string(),
-                        handle(Smi::FromInt(position), isolate), NONE);
+                        direct_handle(Smi::FromInt(position), isolate), NONE);
   JSObject::AddProperty(isolate, jsinfo, isolate->factory()->line_string(),
-                        handle(Smi::FromInt(info.line), isolate), NONE);
+                        direct_handle(Smi::FromInt(info.line), isolate), NONE);
   JSObject::AddProperty(isolate, jsinfo, isolate->factory()->column_string(),
-                        handle(Smi::FromInt(info.column), isolate), NONE);
+                        direct_handle(Smi::FromInt(info.column), isolate),
+                        NONE);
   JSObject::AddProperty(isolate, jsinfo,
                         isolate->factory()->sourceText_string(), sourceText,
                         NONE);
@@ -626,11 +629,11 @@ Handle<Object> GetJSPositionInfo(DirectHandle<Script> script, int position,
   return jsinfo;
 }
 
-Handle<Object> ScriptLocationFromLine(Isolate* isolate,
-                                      DirectHandle<Script> script,
-                                      DirectHandle<Object> opt_line,
-                                      DirectHandle<Object> opt_column,
-                                      int32_t offset) {
+DirectHandle<Object> ScriptLocationFromLine(Isolate* isolate,
+                                            DirectHandle<Script> script,
+                                            DirectHandle<Object> opt_line,
+                                            DirectHandle<Object> opt_column,
+                                            int32_t offset) {
   // Line and column are possibly undefined and we need to handle these cases,
   // additionally subtracting corresponding offsets.
 
@@ -690,8 +693,8 @@ RUNTIME_FUNCTION(Runtime_ScriptLocationFromLine2) {
 RUNTIME_FUNCTION(Runtime_DebugOnFunctionCall) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSFunction> fun = args.at<JSFunction>(0);
-  Handle<Object> receiver = args.at(1);
+  DirectHandle<JSFunction> fun = args.at<JSFunction>(0);
+  DirectHandle<Object> receiver = args.at(1);
   if (isolate->debug()->needs_check_on_function_call()) {
     // Ensure that the callee will perform debug check on function call too.
     DirectHandle<SharedFunctionInfo> shared(fun->shared(), isolate);
@@ -718,14 +721,15 @@ RUNTIME_FUNCTION(Runtime_DebugPrepareStepInSuspendedGenerator) {
 }
 
 namespace {
-Handle<JSObject> MakeRangeObject(Isolate* isolate, const CoverageBlock& range) {
+DirectHandle<JSObject> MakeRangeObject(Isolate* isolate,
+                                       const CoverageBlock& range) {
   Factory* factory = isolate->factory();
 
-  Handle<String> start_string = factory->InternalizeUtf8String("start");
-  Handle<String> end_string = factory->InternalizeUtf8String("end");
-  Handle<String> count_string = factory->InternalizeUtf8String("count");
+  DirectHandle<String> start_string = factory->InternalizeUtf8String("start");
+  DirectHandle<String> end_string = factory->InternalizeUtf8String("end");
+  DirectHandle<String> count_string = factory->InternalizeUtf8String("count");
 
-  Handle<JSObject> range_obj = factory->NewJSObjectWithNullProto();
+  DirectHandle<JSObject> range_obj = factory->NewJSObjectWithNullProto();
   JSObject::AddProperty(isolate, range_obj, start_string,
                         factory->NewNumberFromInt(range.start), NONE);
   JSObject::AddProperty(isolate, range_obj, end_string,
@@ -753,7 +757,7 @@ RUNTIME_FUNCTION(Runtime_DebugCollectCoverage) {
   int num_scripts = static_cast<int>(coverage->size());
   // Prepare property keys.
   DirectHandle<FixedArray> scripts_array = factory->NewFixedArray(num_scripts);
-  Handle<String> script_string = factory->script_string();
+  DirectHandle<String> script_string = factory->script_string();
   for (int i = 0; i < num_scripts; i++) {
     const auto& script_data = coverage->at(i);
     HandleScope inner_scope(isolate);
@@ -777,10 +781,11 @@ RUNTIME_FUNCTION(Runtime_DebugCollectCoverage) {
       ranges_array->set(j, *range_object);
     }
 
-    Handle<JSArray> script_obj =
+    DirectHandle<JSArray> script_obj =
         factory->NewJSArrayWithElements(ranges_array, PACKED_ELEMENTS);
     JSObject::AddProperty(isolate, script_obj, script_string,
-                          handle(script_data.script->source(), isolate), NONE);
+                          direct_handle(script_data.script->source(), isolate),
+                          NONE);
     scripts_array->set(i, *script_obj);
   }
   return *factory->NewJSArrayWithElements(scripts_array, PACKED_ELEMENTS);
@@ -809,15 +814,16 @@ RUNTIME_FUNCTION(Runtime_IncBlockCounter) {
 RUNTIME_FUNCTION(Runtime_DebugAsyncFunctionSuspended) {
   DCHECK_EQ(4, args.length());
   HandleScope scope(isolate);
-  Handle<JSPromise> promise = args.at<JSPromise>(0);
-  Handle<JSPromise> outer_promise = args.at<JSPromise>(1);
-  Handle<JSFunction> reject_handler = args.at<JSFunction>(2);
+  DirectHandle<JSPromise> promise = args.at<JSPromise>(0);
+  DirectHandle<JSPromise> outer_promise = args.at<JSPromise>(1);
+  DirectHandle<JSFunction> reject_handler = args.at<JSFunction>(2);
   DirectHandle<JSGeneratorObject> generator = args.at<JSGeneratorObject>(3);
 
   // Allocate the throwaway promise and fire the appropriate init
   // hook for the throwaway promise (passing the {promise} as its
   // parent).
-  Handle<JSPromise> throwaway = isolate->factory()->NewJSPromiseWithoutHook();
+  DirectHandle<JSPromise> throwaway =
+      isolate->factory()->NewJSPromiseWithoutHook();
   isolate->OnAsyncFunctionSuspended(throwaway, promise);
 
   // The Promise will be thrown away and not handled, but it
@@ -841,7 +847,7 @@ RUNTIME_FUNCTION(Runtime_DebugAsyncFunctionSuspended) {
                         Just(ShouldThrow::kThrowOnError))
         .Check();
 
-    Handle<WeakFixedArray> awaited_by_holder(
+    DirectHandle<WeakFixedArray> awaited_by_holder(
         isolate->factory()->NewWeakFixedArray(1));
     awaited_by_holder->set(0, MakeWeak(*generator));
     Object::SetProperty(isolate, promise,
@@ -857,7 +863,7 @@ RUNTIME_FUNCTION(Runtime_DebugAsyncFunctionSuspended) {
 RUNTIME_FUNCTION(Runtime_DebugPromiseThen) {
   DCHECK_EQ(1, args.length());
   HandleScope scope(isolate);
-  Handle<JSReceiver> promise = args.at<JSReceiver>(0);
+  DirectHandle<JSReceiver> promise = args.at<JSReceiver>(0);
   if (IsJSPromise(*promise)) {
     isolate->OnPromiseThen(Cast<JSPromise>(promise));
   }

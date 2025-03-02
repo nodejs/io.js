@@ -6,6 +6,7 @@
  * @fileoverview Try catch wrapper.
  */
 
+const babelTemplate = require('@babel/template').default;
 const babelTypes = require('@babel/types');
 
 const common = require('./common.js');
@@ -22,12 +23,11 @@ const DEFAULT_TOPLEVEL_PROB = 0.3;
 // Probability to deviate from defaults and use extreme cases.
 const IGNORE_DEFAULT_PROB = 0.05;
 
-// Member expressions to be wrapped. List of (object, property) identifier
-// tuples.
-const WRAPPED_MEMBER_EXPRESSIONS = [
-  ['WebAssembly', 'Module'],
-  ['WebAssembly', 'Instantiate'],
-];
+// We don't support 'using' and 'async using'.
+const WRAPPABLE_DECL_KINDS = new Set(['var', 'let', 'const']);
+
+// This function is defined in resources/fuzz_library.js.
+const WRAP_FUN = babelTemplate('__wrapTC(() => ID)');
 
 function wrapTryCatch(node) {
   return babelTypes.tryStatement(
@@ -37,28 +37,28 @@ function wrapTryCatch(node) {
           babelTypes.blockStatement([])));
 }
 
-function wrapTryCatchInFunction(node) {
-  const ret = wrapTryCatch(babelTypes.returnStatement(node));
-  const anonymousFun = babelTypes.functionExpression(
-      null, [], babelTypes.blockStatement([ret]));
-  return babelTypes.callExpression(anonymousFun, []);
+function skipReplaceVariableDeclarator(path) {
+  return (
+      // Uninitialized variable.
+      !path.node.init ||
+      // Simple initialization with a literal.
+      babelTypes.isLiteral(path.node.init) ||
+      // Initialization with undefined.
+      (babelTypes.isIdentifier(path.node.init) &&
+       path.node.init.name == 'undefined') ||
+      // Consistency check.
+      !babelTypes.isVariableDeclaration(path.parent) ||
+      // Don't wrap variables in loop declarations.
+      babelTypes.isLoop(path.parentPath.parent) ||
+      // Only wrap supported kinds.
+      !WRAPPABLE_DECL_KINDS.has(path.parent.kind))
 }
 
-// Wrap particular member expressions after `new` that are known to appear
-// in initializer lists of `let` and `const`.
-function replaceNewExpression(path) {
-  const callee = path.node.callee;
-  if (!babelTypes.isMemberExpression(callee) ||
-      !babelTypes.isIdentifier(callee.object) ||
-      !babelTypes.isIdentifier(callee.property)) {
-    return;
-  }
-  if (WRAPPED_MEMBER_EXPRESSIONS.some(
-      ([object, property]) => callee.object.name === object &&
-                              callee.property.name === property)) {
-    path.replaceWith(wrapTryCatchInFunction(path.node));
-    path.skip();
-  }
+function replaceVariableDeclarator(path) {
+  path.replaceWith(babelTypes.variableDeclarator(
+      path.node.id,
+      WRAP_FUN({ID: path.node.init}).expression));
+  path.skip();
 }
 
 function replaceAndSkip(path) {
@@ -142,27 +142,18 @@ class AddTryCatchMutator extends mutator.Mutator {
       },
       // This covers {While|DoWhile|ForIn|ForOf|For}Statement.
       Loop: accessStatement,
-      NewExpression: {
-        enter(path) {
-          thisMutator.callWithProb(path, replaceNewExpression);
-        },
-        exit(path) {
-          // Apply nested wrapping (is only executed if not skipped above).
-          replaceNewExpression(path);
-        }
-      },
       SwitchStatement: accessStatement,
-      VariableDeclaration: {
+      VariableDeclarator: {
         enter(path) {
-          if (path.node.kind !== 'var' || babelTypes.isLoop(path.parent))
+          if (skipReplaceVariableDeclarator(path))
             return;
-          thisMutator.callWithProb(path, replaceAndSkip);
+          thisMutator.callWithProb(path, replaceVariableDeclarator);
         },
         exit(path) {
-          if (path.node.kind !== 'var' || babelTypes.isLoop(path.parent))
+          if (skipReplaceVariableDeclarator(path))
             return;
           // Apply nested wrapping (is only executed if not skipped above).
-          replaceAndSkip(path);
+          replaceVariableDeclarator(path);
         }
       },
       WithStatement: accessStatement,
@@ -172,4 +163,5 @@ class AddTryCatchMutator extends mutator.Mutator {
 
 module.exports = {
   AddTryCatchMutator: AddTryCatchMutator,
+  wrapTryCatch: wrapTryCatch,
 }

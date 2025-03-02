@@ -13,7 +13,7 @@
 #include "perfetto/tracing/data_source.h"
 #include "protos/perfetto/config/chrome/v8_config.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/handles/handles.h"
 #include "src/objects/function-kind.h"
 #include "src/objects/tagged.h"
@@ -46,7 +46,6 @@ class CodeDataSource
  private:
   using Base = DataSource<CodeDataSource, CodeDataSourceTraits>;
 
-  int num_active_instances = 0;
   perfetto::protos::gen::V8Config config_;
 };
 

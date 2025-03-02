@@ -22,6 +22,7 @@
 #include "src/compiler/turboshaft/copying-phase.h"
 #include "src/compiler/turboshaft/index.h"
 #include "src/compiler/turboshaft/operations.h"
+#include "src/compiler/turboshaft/opmasks.h"
 #include "src/compiler/turboshaft/phase.h"
 #include "src/compiler/turboshaft/reducer-traits.h"
 #include "src/compiler/turboshaft/representations.h"
@@ -34,6 +35,7 @@
 #include "src/objects/instance-type-inl.h"
 #include "src/objects/instance-type.h"
 #include "src/objects/oddball.h"
+#include "src/objects/string-inl.h"
 #include "src/runtime/runtime.h"
 #include "src/utils/utils.h"
 
@@ -57,6 +59,12 @@ class MachineLoweringReducer : public Next {
       case ObjectIsOp::InputAssumptions::kBigInt:
         return false;
     }
+  }
+
+  V<Word32> REDUCE(Word32SignHint)(V<Word32> input, Word32SignHintOp::Sign) {
+    // As far as Machine operations are concerned, Int32 and Uint32 are both
+    // Word32.
+    return input;
   }
 
   V<Untagged> REDUCE(ChangeOrDeopt)(V<Untagged> input,
@@ -197,7 +205,7 @@ class MachineLoweringReducer : public Next {
           __ Deoptimize(frame_state, parameters);
         }
       }
-      return OpIndex::Invalid();
+      return V<None>::Invalid();
     }
     goto no_change;
   }
@@ -395,6 +403,26 @@ class MachineLoweringReducer : public Next {
         BIND(done, result);
         return result;
       }
+      case ObjectIsOp::Kind::kNumberFitsInt32: {
+        Label<Word32> done(this);
+
+        // Check for Smi if necessary.
+        if (NeedsHeapObjectCheck(input_assumptions)) {
+          GOTO_IF(__ IsSmi(input), done, 1);
+        }
+
+        V<Map> map = __ LoadMapField(input);
+        GOTO_IF_NOT(
+            __ TaggedEqual(map, __ HeapConstant(factory_->heap_number_map())),
+            done, 0);
+
+        GOTO(done,
+             __ Float64Is(__ LoadHeapNumberValue(V<HeapNumber>::Cast(input)),
+                          NumericKind::kInt32));
+
+        BIND(done, result);
+        return result;
+      }
       case ObjectIsOp::Kind::kNumberOrBigInt: {
         Label<Word32> done(this);
         DCHECK_NE(input_assumptions, ObjectIsOp::InputAssumptions::kBigInt);
@@ -576,6 +604,21 @@ class MachineLoweringReducer : public Next {
         BIND(done, result);
         return result;
       }
+      case NumericKind::kInt32: {
+        Label<Word32> done(this);
+        V<Word32> v32 = __ TruncateFloat64ToInt32OverflowUndefined(value);
+        GOTO_IF_NOT(__ Float64Equal(value, __ ChangeInt32ToFloat64(v32)), done,
+                    0);
+        IF (__ Word32Equal(v32, 0)) {
+          // Checking -0.
+          GOTO_IF(__ Int32LessThan(__ Float64ExtractHighWord32(value), 0), done,
+                  0);
+        }
+        GOTO(done, 1);
+
+        BIND(done, result);
+        return result;
+      }
       case NumericKind::kSmi: {
         Label<Word32> done(this);
         V<Word32> v32 = __ TruncateFloat64ToInt32OverflowUndefined(value);
@@ -632,6 +675,7 @@ class MachineLoweringReducer : public Next {
       case NumericKind::kFinite:
       case NumericKind::kInteger:
       case NumericKind::kSafeInteger:
+      case NumericKind::kInt32:
       case NumericKind::kSmi:
         GOTO_IF(__ IsSmi(input), done, 1);
         break;
@@ -708,7 +752,7 @@ class MachineLoweringReducer : public Next {
 
         // BigInts with value 0 must be of size 0 (canonical form).
         GOTO_IF(__ Word64Equal(input_w64, int64_t{0}), done,
-                AllocateBigInt(OpIndex::Invalid(), OpIndex::Invalid()));
+                AllocateBigInt(V<Word32>::Invalid(), V<Word64>::Invalid()));
 
         // The GOTO_IF above could have been changed to an unconditional GOTO,
         // in which case we are now in unreachable code, so we can skip the
@@ -756,8 +800,8 @@ class MachineLoweringReducer : public Next {
               TagSmiOrOverflow(input_w32, &overflow, &done);
 
               if (BIND(overflow)) {
-                GOTO(done, AllocateHeapNumberWithValue(
-                               __ ChangeInt32ToFloat64(input_w32)));
+                GOTO(done,
+                     AllocateHeapNumber(__ ChangeInt32ToFloat64(input_w32)));
               }
 
               BIND(done, result);
@@ -769,8 +813,8 @@ class MachineLoweringReducer : public Next {
 
               GOTO_IF(__ Uint32LessThanOrEqual(input_w32, Smi::kMaxValue), done,
                       __ TagSmi(input_w32));
-              GOTO(done, AllocateHeapNumberWithValue(
-                             __ ChangeUint32ToFloat64(input_w32)));
+              GOTO(done,
+                   AllocateHeapNumber(__ ChangeUint32ToFloat64(input_w32)));
 
               BIND(done, result);
               return result;
@@ -798,8 +842,8 @@ class MachineLoweringReducer : public Next {
               }
 
               if (BIND(outside_smi_range)) {
-                GOTO(done, AllocateHeapNumberWithValue(
-                               __ ChangeInt64ToFloat64(input_w64)));
+                GOTO(done,
+                     AllocateHeapNumber(__ ChangeInt64ToFloat64(input_w64)));
               }
 
               BIND(done, result);
@@ -811,8 +855,8 @@ class MachineLoweringReducer : public Next {
 
               GOTO_IF(__ Uint64LessThanOrEqual(input_w64, Smi::kMaxValue), done,
                       __ TagSmi(__ TruncateWord64ToWord32(input_w64)));
-              GOTO(done, AllocateHeapNumberWithValue(
-                             __ ChangeInt64ToFloat64(input_w64)));
+              GOTO(done,
+                   AllocateHeapNumber(__ ChangeInt64ToFloat64(input_w64)));
 
               BIND(done, result);
               return result;
@@ -849,7 +893,7 @@ class MachineLoweringReducer : public Next {
           }
 
           if (BIND(outside_smi_range)) {
-            GOTO(done, AllocateHeapNumberWithValue(input_f64));
+            GOTO(done, AllocateHeapNumber(input_f64));
           }
 
           BIND(done, result);
@@ -862,7 +906,7 @@ class MachineLoweringReducer : public Next {
         DCHECK_EQ(input_rep, RegisterRepresentation::Float64());
         DCHECK_EQ(input_interpretation,
                   ConvertUntaggedToJSPrimitiveOp::InputInterpretation::kSigned);
-        return AllocateHeapNumberWithValue(V<Float64>::Cast(input));
+        return AllocateHeapNumber(V<Float64>::Cast(input));
       }
       case ConvertUntaggedToJSPrimitiveOp::JSPrimitiveKind::
           kHeapNumberOrUndefined: {
@@ -886,7 +930,7 @@ class MachineLoweringReducer : public Next {
         }
 
         if (BIND(allocate_heap_number)) {
-          GOTO(done, AllocateHeapNumberWithValue(input_f64));
+          GOTO(done, AllocateHeapNumber(input_f64));
         }
 
         BIND(done, result);
@@ -1114,7 +1158,7 @@ class MachineLoweringReducer : public Next {
   }
 
   V<Untagged> REDUCE(ConvertJSPrimitiveToUntaggedOrDeopt)(
-      V<Object> object, OpIndex frame_state,
+      V<Object> object, V<FrameState> frame_state,
       ConvertJSPrimitiveToUntaggedOrDeoptOp::JSPrimitiveKind from_kind,
       ConvertJSPrimitiveToUntaggedOrDeoptOp::UntaggedKind to_kind,
       CheckForMinusZeroMode minus_zero_mode, const FeedbackSource& feedback) {
@@ -1256,7 +1300,7 @@ class MachineLoweringReducer : public Next {
             builder.AddReturn(MachineType::Int32());
             builder.AddParam(MachineType::TaggedPointer());
             auto desc = Linkage::GetSimplifiedCDescriptor(__ graph_zone(),
-                                                          builder.Build());
+                                                          builder.Get());
             auto ts_desc = TSCallDescriptor::Create(
                 desc, CanThrow::kNo, LazyDeoptOnThrow::kNo, __ graph_zone());
             OpIndex callee = __ ExternalConstant(
@@ -1455,8 +1499,8 @@ class MachineLoweringReducer : public Next {
     return result;
   }
 
-  V<Word32> JSAnyIsNotPrimitiveHeapObject(V<Object> value,
-                                          V<Map> value_map = OpIndex{}) {
+  V<Word32> JSAnyIsNotPrimitiveHeapObject(
+      V<Object> value, V<Map> value_map = V<Map>::Invalid()) {
     if (!value_map.valid()) {
       value_map = __ LoadMapField(value);
     }
@@ -1515,34 +1559,72 @@ class MachineLoweringReducer : public Next {
     UNREACHABLE();
   }
 
+  enum class StringEncoding { kOneByte, kTwoByte, kUnknown };
+  StringEncoding GetStringEncoding(V<String> string) {
+    const ConstantOp* constant =
+        __ Get(string).template TryCast<Opmask::kHeapConstant>();
+    if (!constant) return StringEncoding::kUnknown;
+
+    UnparkedScopeIfNeeded unpark(broker_);
+    HeapObjectRef ref = MakeRef(broker_, constant->handle());
+    if (!V8_LIKELY(ref.IsString())) {
+      // This can only happen in unreachable code.
+      return StringEncoding::kUnknown;
+    }
+
+    return ref.AsString().IsOneByteRepresentation() ? StringEncoding::kOneByte
+                                                    : StringEncoding::kTwoByte;
+  }
+
   V<ConsString> REDUCE(NewConsString)(V<Word32> length, V<String> first,
                                       V<String> second) {
-    // Determine the instance types of {first} and {second}.
-    V<Map> first_map = __ LoadMapField(first);
-    V<Word32> first_type = __ LoadInstanceTypeField(first_map);
-    V<Map> second_map = __ LoadMapField(second);
-    V<Word32> second_type = __ LoadInstanceTypeField(second_map);
+    ScopedVar<Map> map(this);
 
-    Label<Map> allocate_string(this);
+    // Determine the instance types of {first} and {second}.
+    StringEncoding first_encoding = GetStringEncoding(first);
+    StringEncoding second_encoding = GetStringEncoding(second);
+
     // Determine the proper map for the resulting ConsString.
-    // If both {first} and {second} are one-byte strings, we
-    // create a new ConsOneByteString, otherwise we create a
-    // new ConsString instead.
-    static_assert(kOneByteStringTag != 0);
-    static_assert(kTwoByteStringTag == 0);
-    V<Word32> instance_type = __ Word32BitwiseAnd(first_type, second_type);
-    V<Word32> encoding =
-        __ Word32BitwiseAnd(instance_type, kStringEncodingMask);
-    IF (__ Word32Equal(encoding, kTwoByteStringTag)) {
-      GOTO(allocate_string,
-           __ HeapConstant(factory_->cons_two_byte_string_map()));
-    } ELSE {
-      GOTO(allocate_string,
-           __ HeapConstant(factory_->cons_one_byte_string_map()));
+    // If either of {first} or {second} is a 2-byte string, then we create a
+    // 2-byte string. If both {first} and {second} are one-byte strings, we
+    // create a new 1-byte string.
+    if (first_encoding == StringEncoding::kTwoByte ||
+        second_encoding == StringEncoding::kTwoByte) {
+      map = __ HeapConstant(factory_->cons_two_byte_string_map());
+    } else if (first_encoding == StringEncoding::kOneByte &&
+               second_encoding == StringEncoding::kOneByte) {
+      map = __ HeapConstant(factory_->cons_one_byte_string_map());
+    } else {
+      V<Word32> first_type, second_type;
+      constexpr int kAllOnesMask = -1;
+      if (first_encoding == StringEncoding::kUnknown) {
+        V<Map> first_map = __ LoadMapField(first);
+        first_type = __ LoadInstanceTypeField(first_map);
+      } else {
+        DCHECK_EQ(first_encoding, StringEncoding::kOneByte);
+        first_type = __ Word32Constant(kAllOnesMask);
+      }
+      if (second_encoding == StringEncoding::kUnknown) {
+        V<Map> second_map = __ LoadMapField(second);
+        second_type = __ LoadInstanceTypeField(second_map);
+      } else {
+        DCHECK_EQ(second_encoding, StringEncoding::kOneByte);
+        second_type = __ Word32Constant(kAllOnesMask);
+      }
+
+      static_assert(kOneByteStringTag != 0);
+      static_assert(kTwoByteStringTag == 0);
+      V<Word32> instance_type = __ Word32BitwiseAnd(first_type, second_type);
+      V<Word32> encoding =
+          __ Word32BitwiseAnd(instance_type, kStringEncodingMask);
+      IF (__ Word32Equal(encoding, kTwoByteStringTag)) {
+        map = __ HeapConstant(factory_->cons_two_byte_string_map());
+      } ELSE {
+        map = __ HeapConstant(factory_->cons_one_byte_string_map());
+      }
     }
 
     // Allocate the resulting ConsString.
-    BIND(allocate_string, map);
     auto string = __ template Allocate<ConsString>(
         __ IntPtrConstant(sizeof(ConsString)), AllocationType::kYoung);
     __ InitializeField(string, AccessBuilder::ForMap(), map);
@@ -1554,9 +1636,9 @@ class MachineLoweringReducer : public Next {
     return __ FinishInitialization(std::move(string));
   }
 
-  OpIndex REDUCE(NewArray)(V<WordPtr> length, NewArrayOp::Kind kind,
-                           AllocationType allocation_type) {
-    Label<Object> done(this);
+  V<AnyFixedArray> REDUCE(NewArray)(V<WordPtr> length, NewArrayOp::Kind kind,
+                                    AllocationType allocation_type) {
+    Label<AnyFixedArray> done(this);
 
     GOTO_IF(__ WordPtrEqual(length, 0), done,
             __ HeapConstant(factory_->empty_fixed_array()));
@@ -1571,7 +1653,7 @@ class MachineLoweringReducer : public Next {
       case NewArrayOp::Kind::kDouble: {
         size_log2 = kDoubleSizeLog2;
         array_map = factory_->fixed_double_array_map();
-        access = {kTaggedBase, FixedDoubleArray::kHeaderSize,
+        access = {kTaggedBase, OFFSET_OF_DATA_START(FixedDoubleArray),
                   compiler::Type::NumberOrHole(), MachineType::Float64(),
                   kNoWriteBarrier};
         the_hole_value = __ template LoadField<Float64>(
@@ -1582,8 +1664,9 @@ class MachineLoweringReducer : public Next {
       case NewArrayOp::Kind::kObject: {
         size_log2 = kTaggedSizeLog2;
         array_map = factory_->fixed_array_map();
-        access = {kTaggedBase, FixedArray::kHeaderSize, compiler::Type::Any(),
-                  MachineType::AnyTagged(), kNoWriteBarrier};
+        access = {kTaggedBase, OFFSET_OF_DATA_START(FixedArray),
+                  compiler::Type::Any(), MachineType::AnyTagged(),
+                  kNoWriteBarrier};
         the_hole_value = __ HeapConstant(factory_->the_hole_value());
         break;
       }
@@ -1594,7 +1677,7 @@ class MachineLoweringReducer : public Next {
 
     // Allocate the result and initialize the header.
     auto uninitialized_array =
-        __ template Allocate<FixedArray>(size, allocation_type);
+        __ template Allocate<AnyFixedArray>(size, allocation_type);
     __ InitializeField(uninitialized_array, AccessBuilder::ForMap(),
                        __ HeapConstant(array_map));
     __ InitializeField(uninitialized_array,
@@ -1618,8 +1701,8 @@ class MachineLoweringReducer : public Next {
     return result;
   }
 
-  OpIndex REDUCE(DoubleArrayMinMax)(V<Object> array,
-                                    DoubleArrayMinMaxOp::Kind kind) {
+  V<Number> REDUCE(DoubleArrayMinMax)(V<JSArray> array,
+                                      DoubleArrayMinMaxOp::Kind kind) {
     DCHECK(kind == DoubleArrayMinMaxOp::Kind::kMin ||
            kind == DoubleArrayMinMaxOp::Kind::kMax);
     const bool is_max = kind == DoubleArrayMinMaxOp::Kind::kMax;
@@ -1648,7 +1731,7 @@ class MachineLoweringReducer : public Next {
                                      CheckForMinusZeroMode::kCheckForMinusZero);
   }
 
-  OpIndex REDUCE(LoadFieldByIndex)(V<Object> object, V<Word32> field_index) {
+  V<Object> REDUCE(LoadFieldByIndex)(V<Object> object, V<Word32> field_index) {
     // Index encoding (see `src/objects/field-index-inl.h`):
     // For efficiency, the LoadByFieldIndex instruction takes an index that is
     // optimized for quick access. If the property is inline, the index is
@@ -1683,7 +1766,8 @@ class MachineLoweringReducer : public Next {
             __ Load(properties, out_of_object_index,
                     LoadOp::Kind::Aligned(BaseTaggedness::kTaggedBase),
                     MemoryRepresentation::AnyTagged(),
-                    FixedArray::kHeaderSize - kTaggedSize, kTaggedSizeLog2 - 1);
+                    OFFSET_OF_DATA_START(FixedArray) - kTaggedSize,
+                    kTaggedSizeLog2 - 1);
         GOTO(done, result);
       } ELSE {
         // This field is located in the {object} itself.
@@ -1707,11 +1791,11 @@ class MachineLoweringReducer : public Next {
             object, AccessBuilder::ForJSObjectPropertiesOrHashKnownPointer());
 
         V<WordPtr> out_of_object_index = __ WordPtrSub(0, double_index);
-        V<Object> result =
-            __ Load(properties, out_of_object_index,
-                    LoadOp::Kind::Aligned(BaseTaggedness::kTaggedBase),
-                    MemoryRepresentation::AnyTagged(),
-                    FixedArray::kHeaderSize - kTaggedSize, kTaggedSizeLog2);
+        V<Object> result = __ Load(
+            properties, out_of_object_index,
+            LoadOp::Kind::Aligned(BaseTaggedness::kTaggedBase),
+            MemoryRepresentation::AnyTagged(),
+            OFFSET_OF_DATA_START(FixedArray) - kTaggedSize, kTaggedSizeLog2);
         GOTO(loaded_field, result);
       } ELSE {
         // The field is located in the {object} itself.
@@ -1734,7 +1818,7 @@ class MachineLoweringReducer : public Next {
             done, field);
 
         V<Float64> value = __ LoadHeapNumberValue(V<HeapNumber>::Cast(field));
-        GOTO(done, AllocateHeapNumberWithValue(value));
+        GOTO(done, AllocateHeapNumber(value));
       }
     }
 
@@ -2265,8 +2349,22 @@ class MachineLoweringReducer : public Next {
   }
 
   V<Word32> REDUCE(StringLength)(V<String> string) {
+    // TODO(dmercadier): Somewhere (maybe not here but instead in a new
+    // SimplifiedOptimizationReducer?), constant fold StringLength(Constant).
     return __ template LoadField<Word32>(string,
                                          AccessBuilder::ForStringLength());
+  }
+
+  V<WordPtr> REDUCE(TypedArrayLength)(V<JSTypedArray> typed_array,
+                                      ElementsKind elements_kind) {
+    // TODO(dmercadier): Somewhere (maybe not here but instead in a new
+    // SimplifiedOptimizationReducer?), constant fold
+    // TypedArrayLength(Constant).
+    V<WordPtr> byte_length = __ template LoadField<WordPtr>(
+        typed_array, AccessBuilder::ForJSTypedArrayByteLength());
+    CHECK(!IsRabGsabTypedArrayElementsKind(elements_kind));
+    return __ WordPtrShiftRightLogical(byte_length,
+                                       ElementsKindToShiftSize(elements_kind));
   }
 
   V<Smi> REDUCE(StringIndexOf)(V<String> string, V<String> search,
@@ -2299,7 +2397,8 @@ class MachineLoweringReducer : public Next {
     return __ CallBuiltin_StringSubstring(isolate_, string, s, e);
   }
 
-  V<String> REDUCE(StringConcat)(V<String> left, V<String> right) {
+  V<String> REDUCE(StringConcat)(V<Smi> length, V<String> left,
+                                 V<String> right) {
     // TODO(nicohartmann@): Port StringBuilder once it is stable.
     return __ CallBuiltin_StringAdd_CheckNone(isolate_, __ NoContextConstant(),
                                               left, right);
@@ -2379,13 +2478,13 @@ class MachineLoweringReducer : public Next {
     }
   }
 
-  OpIndex REDUCE(LoadTypedElement)(OpIndex buffer, V<Object> base,
-                                   V<WordPtr> external, V<WordPtr> index,
-                                   ExternalArrayType array_type) {
+  V<Any> REDUCE(LoadTypedElement)(OpIndex buffer, V<Object> base,
+                                  V<WordPtr> external, V<WordPtr> index,
+                                  ExternalArrayType array_type) {
     V<WordPtr> data_ptr = BuildTypedArrayDataPointer(base, external);
 
     // Perform the actual typed element access.
-    OpIndex result = __ LoadArrayBufferElement(
+    V<Any> result = __ LoadArrayBufferElement(
         data_ptr, AccessBuilder::ForTypedArrayElement(array_type, true), index);
 
     // We need to keep the {buffer} alive so that the GC will not release the
@@ -2413,9 +2512,9 @@ class MachineLoweringReducer : public Next {
                    kSystemPointerSizeLog2);
   }
 
-  OpIndex REDUCE(StoreTypedElement)(OpIndex buffer, V<Object> base,
+  V<None> REDUCE(StoreTypedElement)(OpIndex buffer, V<Object> base,
                                     V<WordPtr> external, V<WordPtr> index,
-                                    OpIndex value,
+                                    V<Any> value,
                                     ExternalArrayType array_type) {
     V<WordPtr> data_ptr = BuildTypedArrayDataPointer(base, external);
 
@@ -2430,7 +2529,7 @@ class MachineLoweringReducer : public Next {
     return {};
   }
 
-  OpIndex REDUCE(TransitionAndStoreArrayElement)(
+  V<None> REDUCE(TransitionAndStoreArrayElement)(
       V<JSArray> array, V<WordPtr> index, OpIndex value,
       TransitionAndStoreArrayElementOp::Kind kind, MaybeHandle<Map> fast_map,
       MaybeHandle<Map> double_map) {
@@ -2583,7 +2682,7 @@ class MachineLoweringReducer : public Next {
               // Our ElementsKind is HOLEY_ELEMENTS.
               __ StoreNonArrayBufferElement(
                   elements, AccessBuilder::ForFixedArrayElement(HOLEY_ELEMENTS),
-                  index, AllocateHeapNumberWithValue(value));
+                  index, AllocateHeapNumber(value));
               GOTO(done);
             }
 
@@ -2676,16 +2775,19 @@ class MachineLoweringReducer : public Next {
       }
     }
 
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 
-  V<Word32> REDUCE(CompareMaps)(V<HeapObject> heap_object,
+  V<Word32> REDUCE(CompareMaps)(V<HeapObject> heap_object, OptionalV<Map> map,
                                 const ZoneRefSet<Map>& maps) {
-    return CompareMapAgainstMultipleMaps(__ LoadMapField(heap_object), maps);
+    if (!map.has_value()) {
+      map = __ LoadMapField(heap_object);
+    }
+    return CompareMapAgainstMultipleMaps(map.value(), maps);
   }
 
   V<None> REDUCE(CheckMaps)(V<HeapObject> heap_object,
-                            V<FrameState> frame_state,
+                            V<FrameState> frame_state, OptionalV<Map> map,
                             const ZoneRefSet<Map>& maps, CheckMapsFlags flags,
                             const FeedbackSource& feedback) {
     if (maps.is_empty()) {
@@ -2693,19 +2795,32 @@ class MachineLoweringReducer : public Next {
       return {};
     }
 
+    V<Map> heap_object_map;
+    if (map.has_value()) {
+      heap_object_map = map.value();
+    } else {
+      heap_object_map = __ LoadMapField(heap_object);
+    }
+
     if (flags & CheckMapsFlag::kTryMigrateInstance) {
-      V<Map> heap_object_map = __ LoadMapField(heap_object);
       IF_NOT (LIKELY(CompareMapAgainstMultipleMaps(heap_object_map, maps))) {
         // Reloading the map slightly reduces register pressure, and we are on a
         // slow path here anyway.
-        MigrateInstanceOrDeopt(heap_object, __ LoadMapField(heap_object),
-                               frame_state, feedback);
-        __ DeoptimizeIfNot(__ CompareMaps(heap_object, maps), frame_state,
-                           DeoptimizeReason::kWrongMap, feedback);
+        MigrateInstanceOrDeopt(heap_object, heap_object_map, frame_state,
+                               feedback);
+        heap_object_map = __ LoadMapField(heap_object);
+        __ DeoptimizeIfNot(__ CompareMaps(heap_object, heap_object_map, maps),
+                           frame_state, DeoptimizeReason::kWrongMap, feedback);
+      }
+    } else if (flags & CheckMapsFlag::kTryMigrateInstanceAndDeopt) {
+      IF_NOT (LIKELY(CompareMapAgainstMultipleMaps(heap_object_map, maps))) {
+        TryMigrateInstanceAndMarkMapAsMigrationTarget(
+            heap_object, heap_object_map, frame_state, feedback);
+        __ Deoptimize(frame_state, DeoptimizeReason::kWrongMap, feedback);
       }
     } else {
-      __ DeoptimizeIfNot(__ CompareMaps(heap_object, maps), frame_state,
-                         DeoptimizeReason::kWrongMap, feedback);
+      __ DeoptimizeIfNot(__ CompareMaps(heap_object, heap_object_map, maps),
+                         frame_state, DeoptimizeReason::kWrongMap, feedback);
     }
     // Inserting a AssumeMap so that subsequent optimizations know the map of
     // this object.
@@ -2993,10 +3108,9 @@ class MachineLoweringReducer : public Next {
           __ ExternalConstant(ExternalReference::isolate_address());
       V<String> value_internalized = V<String>::Cast(__ Call(
           try_string_to_index_or_lookup_existing, {isolate_ptr, value},
-          TSCallDescriptor::Create(Linkage::GetSimplifiedCDescriptor(
-                                       __ graph_zone(), builder.Build()),
-                                   CanThrow::kNo, LazyDeoptOnThrow::kNo,
-                                   __ graph_zone())));
+          TSCallDescriptor::Create(
+              Linkage::GetSimplifiedCDescriptor(__ graph_zone(), builder.Get()),
+              CanThrow::kNo, LazyDeoptOnThrow::kNo, __ graph_zone())));
 
       // Now see if the results match.
       __ DeoptimizeIfNot(__ TaggedEqual(expected, value_internalized),
@@ -3021,7 +3135,7 @@ class MachineLoweringReducer : public Next {
     return V<None>::Invalid();
   }
 
-  V<Boolean> REDUCE(SameValue)(OpIndex left, OpIndex right,
+  V<Boolean> REDUCE(SameValue)(V<Object> left, V<Object> right,
                                SameValueOp::Mode mode) {
     switch (mode) {
       case SameValueOp::Mode::kSameValue:
@@ -3051,10 +3165,10 @@ class MachineLoweringReducer : public Next {
     return result;
   }
 
-  OpIndex REDUCE(RuntimeAbort)(AbortReason reason) {
+  V<None> REDUCE(RuntimeAbort)(AbortReason reason) {
     __ CallRuntime_Abort(isolate_, __ NoContextConstant(),
                          __ TagSmi(static_cast<int>(reason)));
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
   }
 
   V<Object> REDUCE(EnsureWritableFastElements)(V<Object> object,
@@ -3109,7 +3223,7 @@ class MachineLoweringReducer : public Next {
     return result;
   }
 
-  OpIndex REDUCE(TransitionElementsKind)(V<HeapObject> object,
+  V<None> REDUCE(TransitionElementsKind)(V<HeapObject> object,
                                          const ElementsTransition& transition) {
     V<Map> source_map = __ HeapConstant(transition.source().object());
     V<Map> target_map = __ HeapConstant(transition.target().object());
@@ -3132,7 +3246,51 @@ class MachineLoweringReducer : public Next {
       }
     }
 
-    return OpIndex::Invalid();
+    return V<None>::Invalid();
+  }
+
+  V<None> REDUCE(TransitionElementsKindOrCheckMap)(
+      V<HeapObject> object, V<Map> map, V<FrameState> frame_state,
+      const ElementsTransitionWithMultipleSources& transition) {
+    Label<> done(this);
+
+    const MapRef target = transition.target();
+    V<Map> target_map = __ HeapConstant(target.object());
+
+    IF (LIKELY(__ TaggedEqual(map, target_map))) {
+      GOTO(done);
+    }
+
+    const ZoneRefSet<Map>& transition_sources = transition.sources();
+    for (const MapRef transition_source : transition_sources) {
+      bool is_simple = IsSimpleMapChangeTransition(
+          transition_source.elements_kind(), target.elements_kind());
+
+      IF (__ TaggedEqual(map, __ HeapConstant(transition_source.object()))) {
+        if (is_simple) {
+          // In-place migration of {object}, just store the {target_map}.
+          __ StoreField(object, AccessBuilder::ForMap(), target_map);
+        } else {
+          // Instance migration, call out to the runtime for {object}.
+          __ CallRuntime_TransitionElementsKind(
+              isolate_, __ NoContextConstant(), object, target_map);
+        }
+        GOTO(done);
+      }
+    }
+    // Successful transitions jumped to `done`. If we didn't jump, we know the
+    // map is not the target map.
+    __ Deoptimize(frame_state, DeoptimizeReason::kWrongMap,
+                  transition.feedback());
+
+    BIND(done);
+
+    // Inserting a AssumeMap so that subsequent optimizations know the map of
+    // this object.
+    ZoneRefSet<Map> maps({target}, __ graph_zone());
+    __ AssumeMap(object, maps);
+
+    return V<None>::Invalid();
   }
 
   OpIndex REDUCE(FindOrderedHashEntry)(V<Object> data_structure, OpIndex key,
@@ -3395,7 +3553,7 @@ class MachineLoweringReducer : public Next {
   // Pass {bitfield} = {digit} = OpIndex::Invalid() to construct the canonical
   // 0n BigInt.
   V<BigInt> AllocateBigInt(V<Word32> bitfield, V<Word64> digit) {
-    if (Asm().generating_unreachable_operations()) return OpIndex::Invalid();
+    if (Asm().generating_unreachable_operations()) return V<BigInt>::Invalid();
 
     DCHECK(Is64());
     DCHECK_EQ(bitfield.valid(), digit.valid());
@@ -3441,7 +3599,7 @@ class MachineLoweringReducer : public Next {
     return __ Word32Equal(__ Word32Equal(value, 0), 0);
   }
 
-  V<HeapNumber> AllocateHeapNumberWithValue(V<Float64> value) {
+  V<HeapNumber> AllocateHeapNumber(V<Float64> value) {
     return __ AllocateHeapNumberWithValue(value, factory_);
   }
 
@@ -3524,8 +3682,8 @@ class MachineLoweringReducer : public Next {
         heap_object, AccessBuilder::ForHeapNumberOrOddballOrHoleValue());
   }
 
-  OpIndex LoadFromSeqString(V<Object> receiver, V<WordPtr> position,
-                            V<Word32> onebyte) {
+  V<Word32> LoadFromSeqString(V<Object> receiver, V<WordPtr> position,
+                              V<Word32> onebyte) {
     Label<Word32> done(this);
 
     IF (onebyte) {
@@ -3560,6 +3718,21 @@ class MachineLoweringReducer : public Next {
                     DeoptimizeReason::kInstanceMigrationFailed, feedback);
   }
 
+  void TryMigrateInstanceAndMarkMapAsMigrationTarget(
+      V<HeapObject> heap_object, V<Map> heap_object_map,
+      V<FrameState> frame_state, const FeedbackSource& feedback) {
+    // If {heap_object_map} is not deprecated, the migration attempt does not
+    // make sense.
+    V<Word32> bitfield3 = __ template LoadField<Word32>(
+        heap_object_map, AccessBuilder::ForMapBitField3());
+    V<Word32> deprecated =
+        __ Word32BitwiseAnd(bitfield3, Map::Bits3::IsDeprecatedBit::kMask);
+    __ DeoptimizeIfNot(deprecated, frame_state, DeoptimizeReason::kWrongMap,
+                       feedback);
+    __ CallRuntime_TryMigrateInstanceAndMarkMapAsMigrationTarget(
+        isolate_, __ NoContextConstant(), heap_object);
+  }
+
   // TODO(nicohartmann@): Might use the CallBuiltinDescriptors here.
   OpIndex CallBuiltinForBigIntOp(Builtin builtin,
                                  std::initializer_list<OpIndex> arguments) {
@@ -3577,7 +3750,7 @@ class MachineLoweringReducer : public Next {
         CallDescriptor::kNoFlags, Operator::kFoldable | Operator::kNoThrow);
     auto ts_descriptor = TSCallDescriptor::Create(
         descriptor, CanThrow::kNo, LazyDeoptOnThrow::kNo, __ graph_zone());
-    return __ Call(__ HeapConstant(callable.code()), OpIndex::Invalid(),
+    return __ Call(__ HeapConstant(callable.code()), V<FrameState>::Invalid(),
                    base::VectorOf(args), ts_descriptor);
   }
 

@@ -36,6 +36,7 @@
 #include <limits>
 #include <random>
 #include <string>
+#include <type_traits>
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
@@ -74,6 +75,8 @@ MATCHER_P(TimevalMatcher, tv, "") {
 }
 
 TEST(Duration, ConstExpr) {
+  static_assert(std::is_trivially_destructible<absl::Duration>::value,
+                "Duration is documented as being trivially destructible");
   constexpr absl::Duration d0 = absl::ZeroDuration();
   static_assert(d0 == absl::ZeroDuration(), "ZeroDuration()");
   constexpr absl::Duration d1 = absl::Seconds(1);

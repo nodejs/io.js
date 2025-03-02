@@ -146,10 +146,10 @@ Reduction WasmTyper::Reduce(Node* node) {
         computed_type = {wasm::kWasmBottom, object_type.module};
         break;
       }
-      uint32_t ref_index = object_type.type.ref_index();
+      wasm::ModuleTypeIndex ref_index = object_type.type.ref_index();
       DCHECK(object_type.module->has_array(ref_index));
       const wasm::ArrayType* type_from_object =
-          object_type.module->types[ref_index].array_type;
+          object_type.module->type(ref_index).array_type;
       computed_type = {type_from_object->element_type().Unpacked(),
                        object_type.module};
       break;
@@ -167,12 +167,12 @@ Reduction WasmTyper::Reduce(Node* node) {
       }
       WasmFieldInfo info = OpParameter<WasmFieldInfo>(node->op());
 
-      uint32_t ref_index = object_type.type.ref_index();
+      wasm::ModuleTypeIndex ref_index = object_type.type.ref_index();
 
       DCHECK(object_type.module->has_struct(ref_index));
 
       const wasm::StructType* struct_type_from_object =
-          object_type.module->types[ref_index].struct_type;
+          object_type.module->type(ref_index).struct_type;
 
       computed_type = {
           struct_type_from_object->field(info.field_index).Unpacked(),

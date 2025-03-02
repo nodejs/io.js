@@ -19,7 +19,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerIA32
   RegExpMacroAssemblerIA32(Isolate* isolate, Zone* zone, Mode mode,
                            int registers_to_save);
   ~RegExpMacroAssemblerIA32() override;
-  int stack_limit_slack() override;
+  int stack_limit_slack_slot_count() override;
   void AdvanceCurrentPosition(int by) override;
   void AdvanceRegister(int reg, int by) override;
   void Backtrack() override;
@@ -64,7 +64,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerIA32
   bool CheckSpecialClassRanges(StandardCharacterSet type,
                                Label* on_no_match) override;
   void Fail() override;
-  Handle<HeapObject> GetCode(Handle<String> source) override;
+  Handle<HeapObject> GetCode(Handle<String> source, RegExpFlags flags) override;
   void GoTo(Label* label) override;
   void IfRegisterGE(int reg, int comparand, Label* if_ge) override;
   void IfRegisterLT(int reg, int comparand, Label* if_lt) override;
@@ -161,6 +161,7 @@ class V8_EXPORT_PRIVATE RegExpMacroAssemblerIA32
 
   // Check whether we are exceeding the stack limit on the backtrack stack.
   void CheckStackLimit();
+  void AssertAboveStackLimitMinusSlack();
 
   void CallCheckStackGuardState(Register scratch,
                                 Immediate extra_space = Immediate(0));

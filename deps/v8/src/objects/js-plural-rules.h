@@ -38,18 +38,18 @@ namespace internal {
 class JSPluralRules
     : public TorqueGeneratedJSPluralRules<JSPluralRules, JSObject> {
  public:
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSPluralRules> New(
-      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
-      Handle<Object> options);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSPluralRules> New(
+      Isolate* isolate, DirectHandle<Map> map, DirectHandle<Object> locales,
+      DirectHandle<Object> options);
 
-  static Handle<JSObject> ResolvedOptions(
+  static DirectHandle<JSObject> ResolvedOptions(
       Isolate* isolate, DirectHandle<JSPluralRules> plural_rules);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> ResolvePlural(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> ResolvePlural(
       Isolate* isolate, DirectHandle<JSPluralRules> plural_rules,
       double number);
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> ResolvePluralRange(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> ResolvePluralRange(
       Isolate* isolate, DirectHandle<JSPluralRules> plural_rules, double x,
       double y);
 
@@ -61,7 +61,7 @@ class JSPluralRules
   inline void set_type(Type type);
   inline Type type() const;
 
-  Handle<String> TypeAsString() const;
+  Handle<String> TypeAsString(Isolate* isolate) const;
 
   DECL_PRINTER(JSPluralRules)
 

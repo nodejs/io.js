@@ -14,10 +14,6 @@
 namespace v8 {
 namespace internal {
 
-StringSet::StringSet(Address ptr) : HashTable<StringSet, StringSetShape>(ptr) {
-  SLOW_DCHECK(IsStringSet(*this));
-}
-
 bool StringSetShape::IsMatch(Tagged<String> key, Tagged<Object> value) {
   DCHECK(IsString(value));
   return key->Equals(Cast<String>(value));

@@ -5,11 +5,17 @@
 #include "src/execution/arguments-inl.h"
 #include "src/execution/isolate-inl.h"
 #include "src/heap/heap-inl.h"  // For ToBoolean. TODO(jkummerow): Drop.
+#include "src/runtime/runtime-utils.h"
 
 namespace v8 {
 namespace internal {
 
 RUNTIME_FUNCTION(Runtime_StringToNumber) {
+  // When this is called from Wasm code, clear the "thread in wasm" flag,
+  // which is important in case any GC needs to happen.
+  // TODO(40192807): Find a better fix, likely by replacing the global flag.
+  SaveAndClearThreadInWasmFlag clear_wasm_flag(isolate);
+
   HandleScope handle_scope(isolate);
   DCHECK_EQ(1, args.length());
   Handle<String> subject = args.at<String>(0);
@@ -49,7 +55,7 @@ RUNTIME_FUNCTION(Runtime_StringParseInt) {
 RUNTIME_FUNCTION(Runtime_StringParseFloat) {
   HandleScope shs(isolate);
   DCHECK_EQ(1, args.length());
-  Handle<String> subject = args.at<String>(0);
+  DirectHandle<String> subject = args.at<String>(0);
 
   double value = StringToDouble(isolate, subject, ALLOW_TRAILING_JUNK,
                                 std::numeric_limits<double>::quiet_NaN());
@@ -58,6 +64,11 @@ RUNTIME_FUNCTION(Runtime_StringParseFloat) {
 }
 
 RUNTIME_FUNCTION(Runtime_NumberToStringSlow) {
+  // When this is called from Wasm code, clear the "thread in wasm" flag,
+  // which is important in case any GC needs to happen.
+  // TODO(40192807): Find a better fix, likely by replacing the global flag.
+  SaveAndClearThreadInWasmFlag clear_wasm_flag(isolate);
+
   HandleScope scope(isolate);
   DCHECK_EQ(1, args.length());
   return *isolate->factory()->NumberToString(args.at(0),

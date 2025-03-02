@@ -67,8 +67,8 @@ cc_test(
     deps = [
         ":stacktrace",
         "//absl/base:core_headers",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -88,8 +88,8 @@ cc_library(
     ],
     copts = ABSL_DEFAULT_COPTS,
     linkopts = ABSL_DEFAULT_LINKOPTS + select({
-        "//absl:msvc_compiler": ["-DEFAULTLIB:dbghelp.lib"],
-        "//absl:clang-cl_compiler": ["-DEFAULTLIB:dbghelp.lib"],
+        "@rules_cc//cc/compiler:msvc-cl": ["-DEFAULTLIB:dbghelp.lib"],
+        "@rules_cc//cc/compiler:clang-cl": ["-DEFAULTLIB:dbghelp.lib"],
         "//absl:mingw_compiler": [
             "-DEFAULTLIB:dbghelp.lib",
             "-ldbghelp",
@@ -113,13 +113,13 @@ cc_test(
     name = "symbolize_test",
     srcs = ["symbolize_test.cc"],
     copts = ABSL_TEST_COPTS + select({
-        "//absl:msvc_compiler": ["/Z7"],
-        "//absl:clang-cl_compiler": ["/Z7"],
+        "@rules_cc//cc/compiler:msvc-cl": ["/Z7"],
+        "@rules_cc//cc/compiler:clang-cl": ["/Z7"],
         "//conditions:default": [],
     }),
     linkopts = ABSL_DEFAULT_LINKOPTS + select({
-        "//absl:msvc_compiler": ["/DEBUG"],
-        "//absl:clang-cl_compiler": ["/DEBUG"],
+        "@rules_cc//cc/compiler:msvc-cl": ["/DEBUG"],
+        "@rules_cc//cc/compiler:clang-cl": ["/DEBUG"],
         "//conditions:default": [],
     }),
     deps = [
@@ -132,7 +132,7 @@ cc_test(
         "//absl/log:check",
         "//absl/memory",
         "//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -177,9 +177,9 @@ cc_test(
     srcs = ["failure_signal_handler_test.cc"],
     copts = ABSL_TEST_COPTS,
     linkopts = select({
-        "//absl:msvc_compiler": [],
-        "//absl:clang-cl_compiler": [],
-        "//absl:wasm": [],
+        "@rules_cc//cc/compiler:msvc-cl": [],
+        "@rules_cc//cc/compiler:clang-cl": [],
+        "@rules_cc//cc/compiler:emscripten": [],
         "//conditions:default": ["-pthread"],
     }) + ABSL_DEFAULT_LINKOPTS,
     deps = [
@@ -189,7 +189,7 @@ cc_test(
         "//absl/base:raw_logging_internal",
         "//absl/log:check",
         "//absl/strings",
-        "@com_google_googletest//:gtest",
+        "@googletest//:gtest",
     ],
 )
 
@@ -249,8 +249,8 @@ cc_test(
         "//absl/base:core_headers",
         "//absl/log",
         "//absl/memory",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -273,8 +273,8 @@ cc_test(
     deps = [
         ":bounded_utf8_length_sequence",
         "//absl/base:config",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -300,8 +300,8 @@ cc_test(
     deps = [
         ":decode_rust_punycode",
         "//absl/base:config",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -327,8 +327,8 @@ cc_test(
         ":demangle_rust",
         "//absl/base:config",
         "//absl/base:core_headers",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -349,8 +349,8 @@ cc_test(
     deps = [
         ":utf8_for_code_point",
         "//absl/base:config",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -376,8 +376,8 @@ cc_test(
         ":leak_check",
         "//absl/base:config",
         "//absl/log",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -394,8 +394,8 @@ cc_binary(
     deps = [
         ":leak_check",
         "//absl/log",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -424,8 +424,8 @@ cc_test(
         ":stack_consumption",
         "//absl/base:core_headers",
         "//absl/log",
-        "@com_google_googletest//:gtest",
-        "@com_google_googletest//:gtest_main",
+        "@googletest//:gtest",
+        "@googletest//:gtest_main",
     ],
 )
 
@@ -440,6 +440,6 @@ cc_binary(
         ":stacktrace",
         "//absl/base:config",
         "//absl/base:core_headers",
-        "@com_github_google_benchmark//:benchmark_main",
+        "@google_benchmark//:benchmark_main",
     ],
 )

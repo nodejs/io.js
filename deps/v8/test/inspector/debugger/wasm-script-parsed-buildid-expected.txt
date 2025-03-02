@@ -1,0 +1,77 @@
+Test buildId from Wasm modules.
+
+Running test: testWasmModuleWithBuildId
+Instantiate wasm module.
+Waiting for wasm script (ignoring first non-wasm script).
+done
+{
+    buildId : 000102030405060708090a0b0c0d0e0f
+    codeOffset : 20
+    debugSymbols : [
+    ]
+    embedderName : wasm://wasm/93c1e41e
+    endColumn : 68
+    endLine : 0
+    executionContextId : <executionContextId>
+    hasSourceURL : false
+    hash : e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    isLiveEdit : false
+    isModule : false
+    length : 68
+    scriptId : <scriptId>
+    scriptLanguage : WebAssembly
+    sourceMapURL : 
+    stackTrace : {
+        callFrames : [
+            [0] : {
+                columnNumber : 9
+                functionName : 
+                lineNumber : 7
+                scriptId : <scriptId>
+                url : v8://test/instantiate
+            }
+        ]
+    }
+    startColumn : 0
+    startLine : 0
+    url : wasm://wasm/93c1e41e
+}
+Done.
+
+Running test: testWasmModuleWithoutBuildId
+Instantiate wasm module.
+Waiting for wasm script (ignoring first non-wasm script).
+done
+{
+    buildId : 
+    codeOffset : 20
+    debugSymbols : [
+    ]
+    embedderName : wasm://wasm/252a2e9e
+    endColumn : 40
+    endLine : 0
+    executionContextId : <executionContextId>
+    hasSourceURL : false
+    hash : e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    isLiveEdit : false
+    isModule : false
+    length : 40
+    scriptId : <scriptId>
+    scriptLanguage : WebAssembly
+    sourceMapURL : 
+    stackTrace : {
+        callFrames : [
+            [0] : {
+                columnNumber : 9
+                functionName : 
+                lineNumber : 7
+                scriptId : <scriptId>
+                url : v8://test/instantiate
+            }
+        ]
+    }
+    startColumn : 0
+    startLine : 0
+    url : wasm://wasm/252a2e9e
+}
+Done.

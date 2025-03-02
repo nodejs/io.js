@@ -163,14 +163,18 @@ class FrameDescription {
   void SetPc(intptr_t pc);
 
   intptr_t GetFp() const { return fp_; }
-  void SetFp(intptr_t fp) { fp_ = fp; }
+  void SetFp(intptr_t frame_pointer) { fp_ = frame_pointer; }
 
   intptr_t GetConstantPool() const { return constant_pool_; }
   void SetConstantPool(intptr_t constant_pool) {
     constant_pool_ = constant_pool;
   }
 
+  bool HasCallerPc() const { return caller_pc_ != 0; }
+  intptr_t GetCallerPc() const { return caller_pc_; }
+
   void SetContinuation(intptr_t pc) { continuation_ = pc; }
+  intptr_t GetContinuation() const { return continuation_; }
 
   // Argument count, including receiver.
   int parameter_count() { return parameter_count_; }
@@ -254,6 +258,7 @@ class FrameDescription {
   intptr_t pc_;
   intptr_t fp_;
   intptr_t constant_pool_;
+  intptr_t caller_pc_ = 0;
 
   Isolate* isolate_;
 

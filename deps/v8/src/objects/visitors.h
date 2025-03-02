@@ -199,6 +199,8 @@ class ObjectVisitor {
 
   virtual void VisitProtectedPointer(Tagged<TrustedObject> host,
                                      ProtectedPointerSlot slot) {}
+  virtual void VisitProtectedPointer(Tagged<TrustedObject> host,
+                                     ProtectedMaybeObjectSlot slot) {}
 
   virtual void VisitTrustedPointerTableEntry(Tagged<HeapObject> host,
                                              IndirectPointerSlot slot) {}
@@ -283,10 +285,7 @@ class ClientRootVisitor final : public RootVisitor {
   }
 
  private:
-  V8_INLINE static bool IsSharedHeapObject(Tagged<Object> object) {
-    return IsHeapObject(object) &&
-           InWritableSharedSpace(Cast<HeapObject>(object));
-  }
+  V8_INLINE static bool IsSharedHeapObject(Tagged<Object> object);
 
   Visitor* const actual_visitor_;
 };
@@ -321,16 +320,8 @@ class ClientObjectVisitor final : public ObjectVisitorWithCageBases {
     }
   }
 
-  void VisitInstructionStreamPointer(Tagged<Code> host,
-                                     InstructionStreamSlot slot) final {
-#if DEBUG
-    Tagged<Object> istream_object = slot.load(code_cage_base());
-    Tagged<InstructionStream> istream;
-    if (istream_object.GetHeapObject(&istream)) {
-      DCHECK(!InWritableSharedSpace(istream));
-    }
-#endif
-  }
+  inline void VisitInstructionStreamPointer(Tagged<Code> host,
+                                            InstructionStreamSlot slot) final;
 
   void VisitPointers(Tagged<HeapObject> host, MaybeObjectSlot start,
                      MaybeObjectSlot end) final {
@@ -345,10 +336,7 @@ class ClientObjectVisitor final : public ObjectVisitorWithCageBases {
                                    RelocInfo* rinfo) final;
 
  private:
-  V8_INLINE static bool IsSharedHeapObject(Tagged<Object> object) {
-    return IsHeapObject(object) &&
-           InWritableSharedSpace(Cast<HeapObject>(object));
-  }
+  V8_INLINE static bool IsSharedHeapObject(Tagged<Object> object);
 
   Visitor* const actual_visitor_;
 };

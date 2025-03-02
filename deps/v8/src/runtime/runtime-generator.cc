@@ -36,7 +36,7 @@ RUNTIME_FUNCTION(Runtime_AsyncFunctionResolve) {
 RUNTIME_FUNCTION(Runtime_CreateJSGeneratorObject) {
   HandleScope scope(isolate);
   DCHECK_EQ(2, args.length());
-  Handle<JSFunction> function = args.at<JSFunction>(0);
+  DirectHandle<JSFunction> function = args.at<JSFunction>(0);
   DirectHandle<JSAny> receiver = args.at<JSAny>(1);
   CHECK_IMPLIES(IsAsyncFunction(function->shared()->kind()),
                 IsAsyncGeneratorFunction(function->shared()->kind()));
@@ -44,11 +44,18 @@ RUNTIME_FUNCTION(Runtime_CreateJSGeneratorObject) {
 
   // Underlying function needs to have bytecode available.
   DCHECK(function->shared()->HasBytecodeArray());
-  int size =
-      function->shared()->internal_formal_parameter_count_without_receiver() +
-      function->shared()->GetBytecodeArray(isolate)->register_count();
+  int length;
+  {
+    // TODO(40931165): load bytecode array from function's dispatch table entry
+    // when available instead of shared function info.
+    Tagged<BytecodeArray> bytecode =
+        function->shared()->GetBytecodeArray(isolate);
+
+    length = bytecode->parameter_count_without_receiver() +
+             bytecode->register_count();
+  }
   DirectHandle<FixedArray> parameters_and_registers =
-      isolate->factory()->NewFixedArray(size);
+      isolate->factory()->NewFixedArray(length);
 
   DirectHandle<JSGeneratorObject> generator =
       isolate->factory()->NewJSGeneratorObject(function);

@@ -329,6 +329,48 @@ assertEquals('{\n "a": "b",\n "c": "d"\n}',
 assertEquals('{"y":6,"x":5}', JSON.stringify({x:5,y:6}, ['y', 'x']));
 assertEquals('{"y":6,"x":5}', JSON.stringify({x:5,y:6}, ['y', 'x', 'x', 'y']));
 
+// Test encoding changes.
+let smiley = '\u{D83D}\u{DE0A}';
+assertEquals(`"${smiley}"`, JSON.stringify(smiley));
+assertEquals(`[0,"${smiley}",9]`, JSON.stringify([0, smiley, 9]));
+assertEquals(
+    `{"a":"x","b":[0,"${smiley}",9],"c":"y"}`,
+    JSON.stringify({a: 'x', b: [0, smiley, 9], c: 'y'}));
+assertEquals(`{"a":"${smiley}"}`, JSON.stringify({a: smiley}));
+assertEquals(
+    `{"a":42,"b":"${smiley}","c":"foo"}`,
+    JSON.stringify({a: 42, b: smiley, c: 'foo'}));
+assertEquals(
+    `{"outer1":{"a":42,"b":"${smiley}","c":"foo"},"outer2":{}}`,
+    JSON.stringify({outer1: {a: 42, b: smiley, c: 'foo'}, outer2: {}}));
+
+assertEquals(`{"${smiley}":"a"}`, JSON.stringify({[smiley]: 'a'}));
+assertEquals(
+    `{"a":42,"${smiley}":"b","c":"foo"}`,
+    JSON.stringify({a: 42, [smiley]: 'b', c: 'foo'}));
+assertEquals(
+    `{"outer1":{"a":42,"${smiley}":"b","c":"foo"},"outer2":{}}`,
+    JSON.stringify({outer1: {a: 42, [smiley]: 'b', c: 'foo'}, outer2: {}}));
+assertEquals(
+    `{"${smiley}":[1,2,3,4]}`, JSON.stringify({[smiley]: [1, 2, 3, 4]}));
+assertEquals(
+    `{"${smiley}":{"a":42,"b":"foo"}}`,
+    JSON.stringify({[smiley]: {a: 42, b: 'foo'}}));
+assertEquals(
+    `{"a":42,"${smiley}":[1,2,3,4],"c":"foo"}`,
+    JSON.stringify({a: 42, [smiley]: [1, 2, 3, 4], c: 'foo'}));
+assertEquals(
+    `{"a":42,"${smiley}":{"a":42,"b":"foo"},"c":"foo"}`,
+    JSON.stringify({a: 42, [smiley]: {a: 42, b: 'foo'}, c: 'foo'}));
+assertEquals(
+    `{"outer1":{"a":42,"${smiley}":[1,2,3,4],"c":"foo"},"outer2":{}}`,
+    JSON.stringify(
+        {outer1: {a: 42, [smiley]: [1, 2, 3, 4], c: 'foo'}, outer2: {}}));
+assertEquals(
+    `{"outer1":{"a":42,"${smiley}":{"a":42,"b":"foo"},"c":"foo"},"outer2":{}}`,
+    JSON.stringify(
+        {outer1: {a: 42, [smiley]: {a: 42, b: 'foo'}, c: 'foo'}, outer2: {}}));
+
 // toJSON get string keys.
 var checker = {};
 var array = [checker];
@@ -358,6 +400,8 @@ TestStringify("[null,null,null]", [undefined,,function(){}]);
 
 // Objects with undefined or function properties (including replaced properties)
 // have those properties ignored.
+assertEquals('{"c":42,"d":42}',
+             JSON.stringify({a: undefined, b: undefined, c: 42, d: 42}));
 assertEquals('{}',
              JSON.stringify({a: undefined, b: function(){}, c: 42, d: 42},
                             function(k, v) { if (k == "c") return undefined;
@@ -462,6 +506,9 @@ oddball2.__proto__ = { __proto__: null,
                        toJSON: function () { return oddball3; } }
 TestStringify('"true"', oddball2);
 
+let arr = [];
+arr.toJSON = function() { return 'foo' };
+TestStringify('"foo"', arr);
 
 var falseNum = Object("37");
 falseNum.__proto__ = Number.prototype;
@@ -572,3 +619,15 @@ var __v_2 = {
 };
 assertEquals('[null]', JSON.stringify(Object.defineProperty([], "0", __v_2)));
 assertEquals(1, __v_1);
+
+
+// Test last since we are modifying Object/Array prototypes
+Object.prototype.toJSON = function() {
+  return 'obj proto';
+};
+TestStringify('"obj proto"', {});
+TestStringify('"obj proto"', []);
+Array.prototype.toJSON = function() {
+  return 'arr proto';
+};
+TestStringify('"arr proto"', []);

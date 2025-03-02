@@ -20,7 +20,7 @@ namespace internal {
 // https://heycam.github.io/webidl/#setsyntheticmoduleexport
 Maybe<bool> SyntheticModule::SetExport(Isolate* isolate,
                                        DirectHandle<SyntheticModule> module,
-                                       Handle<String> export_name,
+                                       DirectHandle<String> export_name,
                                        DirectHandle<Object> export_value) {
   DirectHandle<ObjectHashTable> exports(module->exports(), isolate);
   DirectHandle<Object> export_object(exports->Lookup(export_name), isolate);
@@ -39,7 +39,7 @@ Maybe<bool> SyntheticModule::SetExport(Isolate* isolate,
 
 void SyntheticModule::SetExportStrict(Isolate* isolate,
                                       DirectHandle<SyntheticModule> module,
-                                      Handle<String> export_name,
+                                      DirectHandle<String> export_name,
                                       DirectHandle<Object> export_value) {
   DirectHandle<ObjectHashTable> exports(module->exports(), isolate);
   DirectHandle<Object> export_object(exports->Lookup(export_name), isolate);
@@ -53,7 +53,7 @@ void SyntheticModule::SetExportStrict(Isolate* isolate,
 // https://heycam.github.io/webidl/#smr-resolveexport
 MaybeHandle<Cell> SyntheticModule::ResolveExport(
     Isolate* isolate, DirectHandle<SyntheticModule> module,
-    Handle<String> module_specifier, Handle<String> export_name,
+    DirectHandle<String> module_specifier, DirectHandle<String> export_name,
     MessageLocation loc, bool must_resolve) {
   Handle<Object> object(module->exports()->Lookup(export_name), isolate);
   if (IsCell(*object)) return Cast<Cell>(object);
@@ -78,8 +78,8 @@ bool SyntheticModule::PrepareInstantiate(Isolate* isolate,
   for (int i = 0, n = export_names->length(); i < n; ++i) {
     // Spec step 7.1: Create a new mutable binding for export_name.
     // Spec step 7.2: Initialize the new mutable binding to undefined.
-    Handle<Cell> cell = isolate->factory()->NewCell();
-    Handle<String> name(Cast<String>(export_names->get(i)), isolate);
+    DirectHandle<Cell> cell = isolate->factory()->NewCell();
+    DirectHandle<String> name(Cast<String>(export_names->get(i)), isolate);
     CHECK(IsTheHole(exports->Lookup(name), isolate));
     exports = ObjectHashTable::Put(exports, name, cell);
   }
@@ -98,8 +98,8 @@ bool SyntheticModule::FinishInstantiate(Isolate* isolate,
 
 // Implements Synthetic Module Record's Evaluate concrete method:
 // https://heycam.github.io/webidl/#smr-evaluate
-MaybeHandle<Object> SyntheticModule::Evaluate(Isolate* isolate,
-                                              Handle<SyntheticModule> module) {
+MaybeDirectHandle<Object> SyntheticModule::Evaluate(
+    Isolate* isolate, DirectHandle<SyntheticModule> module) {
   module->SetStatus(kEvaluating);
 
   v8::Module::SyntheticModuleEvaluationSteps evaluation_steps =
@@ -110,14 +110,14 @@ MaybeHandle<Object> SyntheticModule::Evaluate(Isolate* isolate,
                         Utils::ToLocal(Cast<Module>(module)))
            .ToLocal(&result)) {
     module->RecordError(isolate, isolate->exception());
-    return MaybeHandle<Object>();
+    return MaybeDirectHandle<Object>();
   }
 
   module->SetStatus(kEvaluated);
 
-  Handle<Object> result_from_callback = Utils::OpenHandle(*result);
+  DirectHandle<Object> result_from_callback = Utils::OpenDirectHandle(*result);
 
-  Handle<JSPromise> capability;
+  DirectHandle<JSPromise> capability;
   if (IsJSPromise(*result_from_callback)) {
     capability = Cast<JSPromise>(result_from_callback);
   } else {

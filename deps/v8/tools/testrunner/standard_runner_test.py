@@ -192,17 +192,17 @@ class StandardRunnerTest(TestRunnerTest):
           infra_staging=False,
       )
 
-      self.assertEquals(len(records), 3)
-      self.assertEquals(records[0]['testId'], 'sweet/bananaflakes//stress')
-      self.assertEquals(tag_dict(records[0]['tags'])['run'], '1')
+      self.assertEqual(len(records), 3)
+      self.assertEqual(records[0]['testId'], 'sweet/bananaflakes//stress')
+      self.assertEqual(tag_dict(records[0]['tags'])['run'], '1')
       self.assertFalse(records[0]['expected'])
 
-      self.assertEquals(records[1]['testId'], 'sweet/bananaflakes//stress')
-      self.assertEquals(tag_dict(records[1]['tags'])['run'], '2')
+      self.assertEqual(records[1]['testId'], 'sweet/bananaflakes//stress')
+      self.assertEqual(tag_dict(records[1]['tags'])['run'], '2')
       self.assertTrue(records[1]['expected'])
 
-      self.assertEquals(records[2]['testId'], 'sweet/bananaflakes//default')
-      self.assertEquals(tag_dict(records[2]['tags'])['run'], '1')
+      self.assertEqual(records[2]['testId'], 'sweet/bananaflakes//default')
+      self.assertEqual(tag_dict(records[2]['tags'])['run'], '1')
       self.assertTrue(records[2]['expected'])
 
   def testFlakeWithRerunAndJSON(self):
@@ -253,11 +253,23 @@ class StandardRunnerTest(TestRunnerTest):
             use_sanitizer=True,
             v8_target_cpu='x86',
         ))
-    result.stdout_includes('>>> Autodetected:')
+    result.stdout_includes('>>> Statusfile variables:')
     result.stdout_includes(
-        'arch="ia32", asan, cfi, dcheck_always_on, has_webassembly, i18n, '
-        'msan, target_cpu="x86", tsan, ubsan, use_sanitizer, '
-        'v8_target_cpu="x86"')
+        "DEBUG_defined=False, arch=ia32, asan=True, byteorder=little, "
+        "cfi=True, code_comments=False, component_build=False, "
+        "dcheck_always_on=True, debug_code=False, debugging_features=False, "
+        "deopt_fuzzer=False, device_type=None, "
+        "dict_property_const_tracking=False, disassembler=False, "
+        "endurance_fuzzer=False, full_debug=False, gc_fuzzer=False, "
+        "gc_stress=False, gdbjit=False, has_jitless=False, has_maglev=False, "
+        "has_turbofan=False, has_webassembly=True, i18n=True, "
+        "interrupt_fuzzer=False, is_android=False, is_ios=False, "
+        "isolates=False, lite_mode=False, mode=debug, msan=True, "
+        "no_harness=False, no_simd_hardware=False, novfp3=False, "
+        "optimize_for_size=False, simulator_run=False, slow_dchecks=False, "
+        "system=linux, target_cpu=x86, tsan=True, ubsan=True, "
+        "use_sanitizer=True, v8_target_cpu=x86, verify_heap=False, "
+        "verify_predictable=False")
     result.stdout_includes('>>> Running tests for ia32.release')
     result.has_returncode(0)
     # TODO(machenbach): Test some more implications of the auto-detected
@@ -282,8 +294,8 @@ class StandardRunnerTest(TestRunnerTest):
           '--progress=verbose',
           'sweet',
       )
-      result.stdout_includes('===>Starting stuff\n'
-                             '>>> Running tests for x64.release\n'
+      result.stdout_includes('===>Starting stuff')
+      result.stdout_includes('>>> Running tests for x64.release\n'
                              '>>> Running with test processors\n')
       result.stdout_includes('--- stdout ---\nfake stdout 1')
       result.stdout_includes('--- stderr ---\nfake stderr 1')
@@ -412,6 +424,32 @@ class StandardRunnerTest(TestRunnerTest):
     # We use a failing test so that the command is printed and we can verify
     # that the right random seed was passed.
     result.stdout_includes('--random-seed=123')
+    result.has_returncode(1)
+
+  def testRandomSeedStressWithNumfuzz(self):
+    """Test using random-seed-stress feature with numfuzz flavor as used by
+    flake bisect for flakes on numfuzz.
+    """
+    result = self.run_tests(
+        '--progress=verbose',
+        '--framework=num_fuzzer',
+        '--variants=default',
+        '--random-seed-stress-count=2',
+        'sweet/bananas',
+        'sweet/apples',
+        infra_staging=False,
+        baseroot='testroot7'
+    )
+
+    # The bananas test is expected to pass when --fuzzing, one of the numfuzz
+    # default flags is present. The apples test is expected to fail with this
+    # flag.
+    result.stdout_includes('sweet/bananas default: PASS')
+    result.stdout_includes('sweet/apples default: FAIL')
+
+    # We get everything twice due to the stress count above set to 2.
+    result.stdout_includes('2 tests failed')
+    result.stdout_includes('4 tests ran')
     result.has_returncode(1)
 
   def testSpecificVariants(self):
@@ -608,7 +646,7 @@ class NumFuzzerTest(TestRunnerTest):
               'sweet/bananas',
             )
             result.has_returncode(0)
-            result.stdout_includes('>>> Autodetected')
+            result.stdout_includes('>>> Statusfile variables:')
             result.stdout_includes('11 tests ran')
 
 

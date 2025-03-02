@@ -68,17 +68,17 @@ TEST(OwnedVectorTest, Equals) {
             std::find_if(int_vec.begin(), int_vec.end(), find_non_zero));
 
   constexpr int kInit[] = {4, 11, 3};
-  auto init_vec1 = base::OwnedVector<int>::Of(kInit);
+  auto init_vec1 = base::OwnedCopyOf(kInit);
   // Note: {const int} should also work: We initialize the owned vector, but
   // afterwards it's non-modifyable.
-  auto init_vec2 = base::OwnedVector<const int>::Of(base::ArrayVector(kInit));
+  auto init_vec2 = base::OwnedCopyOf(base::ArrayVector(kInit));
   EXPECT_EQ(init_vec1.as_vector(), base::ArrayVector(kInit));
   EXPECT_EQ(init_vec1.as_vector(), init_vec2.as_vector());
 }
 
 TEST(OwnedVectorTest, MoveConstructionAndAssignment) {
   constexpr int kValues[] = {4, 11, 3};
-  auto int_vec = base::OwnedVector<int>::Of(kValues);
+  auto int_vec = base::OwnedCopyOf(kValues);
   EXPECT_EQ(3u, int_vec.size());
 
   auto move_constructed_vec = std::move(int_vec);

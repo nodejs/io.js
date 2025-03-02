@@ -28,8 +28,6 @@ class MaglevPhiRepresentationSelector {
  public:
   explicit MaglevPhiRepresentationSelector(MaglevGraphBuilder* builder)
       : builder_(builder),
-        new_nodes_current_block_start_(builder->zone()),
-        new_nodes_current_block_end_(builder->zone()),
         phi_taggings_(builder->zone()),
         predecessors_(builder->zone()) {}
 
@@ -39,8 +37,6 @@ class MaglevPhiRepresentationSelector {
     }
   }
   void PostProcessGraph(Graph* graph) {
-    MergeNewNodesInBlock(current_block_);
-
     if (v8_flags.trace_maglev_phi_untagging) {
       StdoutStream{} << "\n";
     }
@@ -62,13 +58,13 @@ class MaglevPhiRepresentationSelector {
     return ProcessResult::kContinue;
   }
 
-  ProcessResult Process(Dead* node, const ProcessingState& state) {
+  ProcessResult Process(Dead* node, const ProcessingState&) {
     return ProcessResult::kRemove;
   }
 
   template <class NodeT>
   ProcessResult Process(NodeT* node, const ProcessingState& state) {
-    return UpdateNodeInputs(node, state);
+    return UpdateNodeInputs(node, &state);
   }
 
  private:
@@ -91,7 +87,7 @@ class MaglevPhiRepresentationSelector {
   // it. UpdateNodeInputs(n) removes such untagging from {n}'s input (and insert
   // new conversions if needed, from Int32 to Float64 for instance).
   template <class NodeT>
-  ProcessResult UpdateNodeInputs(NodeT* n, const ProcessingState& state) {
+  ProcessResult UpdateNodeInputs(NodeT* n, const ProcessingState* state) {
     NodeBase* node = static_cast<NodeBase*>(n);
 
     ProcessResult result = ProcessResult::kContinue;
@@ -127,7 +123,7 @@ class MaglevPhiRepresentationSelector {
 
   template <class NodeT>
   ProcessResult UpdateNonUntaggingNodeInputs(NodeT* n,
-                                             const ProcessingState& state) {
+                                             const ProcessingState* state) {
     NodeBase* node = static_cast<NodeBase*>(n);
 
     // It would be bad to re-tag the input of an untagging node, so this
@@ -154,20 +150,20 @@ class MaglevPhiRepresentationSelector {
   }
 
   ProcessResult UpdateNodePhiInput(CheckSmi* node, Phi* phi, int input_index,
-                                   const ProcessingState& state);
+                                   const ProcessingState* state);
   ProcessResult UpdateNodePhiInput(CheckNumber* node, Phi* phi, int input_index,
-                                   const ProcessingState& state);
+                                   const ProcessingState* state);
   ProcessResult UpdateNodePhiInput(StoreTaggedFieldNoWriteBarrier* node,
                                    Phi* phi, int input_index,
-                                   const ProcessingState& state);
+                                   const ProcessingState* state);
   ProcessResult UpdateNodePhiInput(StoreFixedArrayElementNoWriteBarrier* node,
                                    Phi* phi, int input_index,
-                                   const ProcessingState& state);
+                                   const ProcessingState* state);
   ProcessResult UpdateNodePhiInput(BranchIfToBooleanTrue* node, Phi* phi,
                                    int input_index,
-                                   const ProcessingState& state);
+                                   const ProcessingState* state);
   ProcessResult UpdateNodePhiInput(NodeBase* node, Phi* phi, int input_index,
-                                   const ProcessingState& state);
+                                   const ProcessingState* state);
 
   void EnsurePhiInputsTagged(Phi* phi);
 
@@ -178,9 +174,7 @@ class MaglevPhiRepresentationSelector {
   // that a different conversion is now needed.
   void UpdateUntaggingOfPhi(Phi* phi, ValueNode* old_untagging);
 
-  // NewNodePosition is used to represent where a new node should be inserted:
-  // at the start of a block (kStart), or at the end of a block (kEnd).
-  enum class NewNodePosition { kStart, kEnd };
+  enum class NewNodePosition { kBeginingOfCurrentBlock, kEndOfBlock };
 
   // Returns a tagged node that represents a tagged version of {phi}.
   // If we are calling EnsurePhiTagged to ensure a Phi input of a Phi is tagged,
@@ -190,15 +184,16 @@ class MaglevPhiRepresentationSelector {
   // of the current block.
   ValueNode* EnsurePhiTagged(
       Phi* phi, BasicBlock* block, NewNodePosition pos,
+      const ProcessingState* state,
       std::optional<int> predecessor_index = std::nullopt);
 
+  ValueNode* AddNodeAtBlockEnd(ValueNode* new_node, BasicBlock* block,
+                               DeoptFrame* deopt_frame = nullptr);
+
   ValueNode* AddNode(ValueNode* node, BasicBlock* block, NewNodePosition pos,
+                     const ProcessingState* state,
                      DeoptFrame* deopt_frame = nullptr);
   void RegisterNewNode(ValueNode* node);
-
-  // Merges the nodes from {new_nodes_current_block_start_} and
-  // {new_nodes_current_block_end_} into their destinations.
-  void MergeNewNodesInBlock(BasicBlock* block);
 
   // If {block} is the start of a loop header, FixLoopPhisBackedge inserts the
   // necessary tagging on the backedge of the loop Phis of the loop header.
@@ -220,15 +215,6 @@ class MaglevPhiRepresentationSelector {
 
   MaglevGraphBuilder* builder_ = nullptr;
   BasicBlock* current_block_ = nullptr;
-
-  // {new_nodes_current_block_start_}, {new_nodes_current_block_end_} and
-  // are used to store new nodes added by this pass, but to delay their
-  // insertion into their destination, in order to not mutate the linked list of
-  // nodes of the current block while also iterating it. Nodes in
-  // {new_nodes_current_block_start_} and {new_nodes_current_block_end_} will be
-  // inserted respectively at the begining and the end of the current block.
-  ZoneVector<Node*> new_nodes_current_block_start_;
-  ZoneVector<Node*> new_nodes_current_block_end_;
 
   // {phi_taggings_} is a SnapshotTable containing mappings from untagged Phis
   // to Tagged alternatives for those phis.

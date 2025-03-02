@@ -5,7 +5,6 @@
 #include "src/compiler/wasm-address-reassociation.h"
 
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/js-graph.h"
 #include "src/compiler/machine-graph.h"
 #include "src/compiler/machine-operator.h"
@@ -14,6 +13,7 @@
 #include "src/compiler/node.h"
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/zone/zone.h"
 
 namespace v8 {

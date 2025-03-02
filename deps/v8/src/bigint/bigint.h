@@ -306,7 +306,8 @@ class Processor {
 
   // {out_length} initially contains the allocated capacity of {out}, and
   // upon return will be set to the actual length of the result string.
-  Status ToString(char* out, int* out_length, Digits X, int radix, bool sign);
+  Status ToString(char* out, uint32_t* out_length, Digits X, int radix,
+                  bool sign);
 
   // Z := the contents of {accumulator}.
   // Assume that this leaves {accumulator} in unusable state.
@@ -349,7 +350,7 @@ inline int DivideResultLength(Digits A, Digits B) {
 }
 inline int ModuloResultLength(Digits B) { return B.len(); }
 
-int ToStringResultLength(Digits X, int radix, bool sign);
+uint32_t ToStringResultLength(Digits X, int radix, bool sign);
 // In DEBUG builds, the result of {ToString} will be initialized to this value.
 constexpr char kStringZapValue = '?';
 
@@ -521,6 +522,7 @@ CharIt FromStringAccumulator::Parse(CharIt start, CharIt end, digit_t radix) {
   // The max supported radix is 36, and Math.log2(36) == 5.169..., so we
   // need at most 5.17 bits per char.
   static constexpr int kInlineThreshold = kStackParts * kDigitBits * 100 / 517;
+  BIGINT_H_DCHECK(end >= start);
   inline_everything_ = (end - start) <= kInlineThreshold;
 #endif
   if (!inline_everything_ && (radix & (radix - 1)) == 0) {
@@ -576,6 +578,7 @@ bool FromStringAccumulator::AddPart(digit_t multiplier, digit_t part,
       high = new_high;
     }
     stack_parts_[stack_parts_used_++] = carry + high;
+    BIGINT_H_DCHECK(stack_parts_used_ <= kStackParts);
     return true;
   }
 #else

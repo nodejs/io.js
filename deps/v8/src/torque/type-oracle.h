@@ -69,7 +69,7 @@ class TypeOracle : public base::ContextualClass<TypeOracle> {
     TypeOracle& self = Get();
     const Type* builtin_type = self.GetBuiltinType(BUILTIN_POINTER_TYPE_STRING);
     const BuiltinPointerType* result = self.function_pointer_types_.Add(
-        BuiltinPointerType(builtin_type, argument_types, return_type,
+        BuiltinPointerType(builtin_type, std::move(argument_types), return_type,
                            self.all_builtin_pointer_types_.size()));
     if (result->function_pointer_type_id() ==
         self.all_builtin_pointer_types_.size()) {
@@ -213,6 +213,10 @@ class TypeOracle : public base::ContextualClass<TypeOracle> {
     return Get().GetBuiltinType(PROTECTEDPTR_TYPE_STRING);
   }
 
+  static const Type* GetDispatchHandleType() {
+    return Get().GetBuiltinType(DISPATCH_HANDLE_TYPE_STRING);
+  }
+
   static const Type* GetMapType() {
     return Get().GetBuiltinType(MAP_TYPE_STRING);
   }
@@ -319,8 +323,8 @@ class TypeOracle : public base::ContextualClass<TypeOracle> {
     return Get().GetBuiltinType(FLOAT64_TYPE_STRING);
   }
 
-  static const Type* GetFloat64OrHoleType() {
-    return Get().GetBuiltinType(FLOAT64_OR_HOLE_TYPE_STRING);
+  static const Type* GetFloat64OrUndefinedOrHoleType() {
+    return Get().GetBuiltinType(FLOAT64_OR_UNDEFINED_OR_HOLE_TYPE_STRING);
   }
 
   static const Type* GetConstFloat64Type() {

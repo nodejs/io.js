@@ -25,6 +25,7 @@
 #include "src/execution/isolate-data.h"
 #include "src/ic/ic.h"
 #include "src/objects/objects-inl.h"
+#include "src/sandbox/js-dispatch-table.h"
 #include "src/snapshot/embedded/embedded-data.h"
 #include "src/strings/string-stream.h"
 
@@ -259,6 +260,21 @@ static void PrintRelocInfo(std::ostringstream& out, Isolate* isolate,
             : ExternalReferenceTable::NameOfIsolateIndependentAddress(
                   address, IsolateGroup::current()->external_ref_table());
     out << "    ;; external reference (" << reference_name << ")";
+  } else if (rmode == RelocInfo::JS_DISPATCH_HANDLE) {
+#ifdef V8_ENABLE_LEAPTIERING
+    out << "    ;; js dispatch handle:0x" << std::hex
+        << relocinfo->js_dispatch_handle();
+    Tagged<Code> code = IsolateGroup::current()->js_dispatch_table()->GetCode(
+        relocinfo->js_dispatch_handle());
+    CodeKind kind = code->kind();
+    if (code->is_builtin()) {
+      out << " Builtin::" << Builtins::name(code->builtin_id());
+    } else {
+      out << " " << CodeKindToString(kind);
+    }
+#else
+    UNREACHABLE();
+#endif
   } else if (RelocInfo::IsCodeTargetMode(rmode)) {
     out << "    ;; code:";
     Tagged<Code> code =

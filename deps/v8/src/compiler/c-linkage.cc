@@ -351,7 +351,7 @@ CallDescriptor* Linkage::GetSimplifiedCDescriptor(Zone* zone,
       kDefaultCodeEntrypointTag,     // tag
       target_type,                   // target MachineType
       target_loc,                    // target location
-      locations.Build(),             // location_sig
+      locations.Get(),               // location_sig
       0,                             // stack_parameter_count
       Operator::kNoThrow,            // properties
       kCalleeSaveRegisters,          // callee-saved registers

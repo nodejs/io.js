@@ -5,6 +5,7 @@
 namespace collections {
 
 // https://tc39.es/proposal-set-methods/#sec-set.prototype.intersection
+@incrementUseCounter('v8::Isolate::kSetMethods')
 transitioning javascript builtin SetPrototypeIntersection(
     js-implicit context: NativeContext, receiver: JSAny)(other: JSAny): JSSet {
   const methodName: constexpr string = 'Set.prototype.intersection';

@@ -42,6 +42,9 @@ class RegExpBuiltinsAssembler : public CodeStubAssembler {
   void SlowStoreLastIndex(TNode<Context> context, TNode<Object> regexp,
                           TNode<Object> value);
 
+  TNode<Smi> LoadCaptureCount(TNode<RegExpData> data);
+  TNode<Smi> RegistersForCaptureCount(TNode<Smi> capture_count);
+
   // Loads {var_string_start} and {var_string_end} with the corresponding
   // offsets into the given {string_data}.
   void GetStringPointers(TNode<RawPtrT> string_data, TNode<IntPtrT> offset,
@@ -51,11 +54,67 @@ class RegExpBuiltinsAssembler : public CodeStubAssembler {
                          TVariable<RawPtrT>* var_string_start,
                          TVariable<RawPtrT>* var_string_end);
 
+  // Returns the vector and whether the returned vector was dynamically
+  // allocated. Both must be passed to FreeRegExpResultVector when done,
+  // even for exceptional control flow.
+  std::pair<TNode<RawPtrT>, TNode<BoolT>> LoadOrAllocateRegExpResultVector(
+      TNode<Smi> register_count);
+  void FreeRegExpResultVector(TNode<RawPtrT> result_vector,
+                              TNode<BoolT> is_dynamic);
+
+  TNode<RegExpMatchInfo> InitializeMatchInfoFromRegisters(
+      TNode<Context> context, TNode<RegExpMatchInfo> match_info,
+      TNode<Smi> register_count, TNode<String> subject,
+      TNode<RawPtrT> result_offsets_vector);
+
   // Low level logic around the actual call into pattern matching code.
-  TNode<HeapObject> RegExpExecInternal(
-      TNode<Context> context, TNode<JSRegExp> regexp, TNode<String> string,
-      TNode<Number> last_index, TNode<RegExpMatchInfo> match_info,
-      RegExp::ExecQuirks exec_quirks = RegExp::ExecQuirks::kNone);
+  //
+  // TODO(jgruber): Callers that either 1. don't need the RegExpMatchInfo, or
+  // 2. need multiple matches, should switch to the new API which passes
+  // results via an offsets vector and allows returning multiple matches per
+  // call. See RegExpExecInternal_Batched.
+  TNode<RegExpMatchInfo> RegExpExecInternal_Single(TNode<Context> context,
+                                                   TNode<JSRegExp> regexp,
+                                                   TNode<String> string,
+                                                   TNode<Number> last_index,
+                                                   Label* if_not_matched);
+
+  // This is the new API which makes it possible to use the global irregexp
+  // execution mode from within CSA.
+  //
+  // - The result_offsets_vector must be managed by callers.
+  // - This returns the number of matches. Callers must initialize the
+  //   RegExpMatchInfo as needed.
+  // - Subtle: The engine signals 'end of matches' (i.e. there is no further
+  //   match in the string past the last match contained in the
+  //   result_offsets_vector) by returning fewer matches than the
+  //   result_offsets_vector capacity. For example, if the vector could fit 10
+  //   matches, but we return '9', then all matches have been found.
+  // - Subtle: The above point requires that all implementations ALWAYS return
+  //   the maximum number of matches they can.
+  TNode<UintPtrT> RegExpExecInternal(
+      TNode<Context> context, TNode<JSRegExp> regexp, TNode<RegExpData> data,
+      TNode<String> string, TNode<Number> last_index,
+      TNode<RawPtrT> result_offsets_vector,
+      TNode<Int32T> result_offsets_vector_length);
+
+  TNode<UintPtrT> RegExpExecAtom(TNode<Context> context,
+                                 TNode<AtomRegExpData> data,
+                                 TNode<String> string, TNode<Smi> last_index,
+                                 TNode<RawPtrT> result_offsets_vector,
+                                 TNode<Int32T> result_offsets_vector_length);
+
+  // This is a wrapper around using the global irregexp mode, i.e. the mode in
+  // which a single call into irregexp may return multiple matches.  The
+  // once_per_batch function is called once after each irregexp call, and
+  // once_per_match is called once per single match.
+  using OncePerBatchFunction = std::function<void(TNode<IntPtrT>)>;
+  using OncePerMatchFunction =
+      std::function<void(TNode<RawPtrT>, TNode<Int32T>, TNode<Int32T>)>;
+  TNode<IntPtrT> RegExpExecInternal_Batched(
+      TNode<Context> context, TNode<JSRegExp> regexp, TNode<String> subject,
+      TNode<RegExpData> data, const VariableList& merge_vars,
+      OncePerBatchFunction once_per_batch, OncePerMatchFunction once_per_match);
 
   TNode<JSRegExpResult> ConstructNewResultFromMatchInfo(
       TNode<Context> context, TNode<JSRegExp> regexp,
@@ -166,8 +225,22 @@ class RegExpBuiltinsAssembler : public CodeStubAssembler {
 
   TNode<JSArray> RegExpPrototypeSplitBody(TNode<Context> context,
                                           TNode<JSRegExp> regexp,
-                                          const TNode<String> string,
-                                          const TNode<Smi> limit);
+                                          TNode<String> string,
+                                          TNode<Smi> limit);
+
+  TNode<HeapObject> RegExpMatchGlobal(TNode<Context> context,
+                                      TNode<JSRegExp> regexp,
+                                      TNode<String> subject,
+                                      TNode<RegExpData> data);
+  TNode<String> AppendStringSlice(TNode<Context> context,
+                                  TNode<String> to_string,
+                                  TNode<String> from_string,
+                                  TNode<Smi> slice_start, TNode<Smi> slice_end);
+  TNode<String> RegExpReplaceGlobalSimpleString(TNode<Context> context,
+                                                TNode<JSRegExp> regexp,
+                                                TNode<String> subject,
+                                                TNode<RegExpData> data,
+                                                TNode<String> replace_string);
 };
 
 class RegExpMatchAllAssembler : public RegExpBuiltinsAssembler {

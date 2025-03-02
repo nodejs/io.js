@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --harmony-weak-refs-with-cleanup-some --expose-gc --noincremental-marking
+// Flags: --expose-gc --noincremental-marking
 
 const cleanup = function (holdings) { globalThis.FRRan = true; };
 const FR = new FinalizationRegistry(cleanup);
@@ -23,7 +23,7 @@ function tryAgain() {
     // work as intended.
     await gc({ type: 'major', execution: 'async' });
 
-    if (globalThis.FRRan || FR.cleanupSome()) {
+    if (globalThis.FRRan) {
       return;
     }
 

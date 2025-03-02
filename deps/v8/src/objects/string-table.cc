@@ -12,6 +12,7 @@
 #include "src/common/globals.h"
 #include "src/common/ptr-compr-inl.h"
 #include "src/execution/isolate-utils-inl.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/safepoint.h"
 #include "src/objects/internal-index.h"
 #include "src/objects/object-list-macros.h"
@@ -171,7 +172,7 @@ int StringTable::Capacity() const {
 }
 int StringTable::NumberOfElements() const {
   {
-    base::MutexGuard table_write_guard(&write_mutex_);
+    base::SpinningMutexGuard table_write_guard(&write_mutex_);
     return data_.load(std::memory_order_relaxed)->table().number_of_elements();
   }
 }
@@ -252,7 +253,7 @@ class InternalizedStringKey final : public StringTableKey {
     }
   }
 
-  DirectHandle<String> GetHandleForInsertion() {
+  DirectHandle<String> GetHandleForInsertion(Isolate* isolate) {
     DirectHandle<Map> internalized_map;
     // When preparing the string, the strategy was to in-place migrate it.
     if (maybe_internalized_map_.ToHandle(&internalized_map)) {
@@ -260,7 +261,8 @@ class InternalizedStringKey final : public StringTableKey {
       // is another thread migrated the string to internalized already.
       // Migrations to thin are impossible, as we only call this method on table
       // misses inside the critical section.
-      string_->set_map_safe_transition_no_write_barrier(*internalized_map);
+      string_->set_map_safe_transition_no_write_barrier(isolate,
+                                                        *internalized_map);
       DCHECK(IsInternalizedString(*string_));
       return string_;
     }
@@ -437,14 +439,15 @@ DirectHandle<String> StringTable::LookupKey(IsolateT* isolate,
   if (entry.is_found()) {
     DirectHandle<String> result(
         Cast<String>(current_table.GetKey(isolate, entry)), isolate);
-    DCHECK_IMPLIES(v8_flags.shared_string_table, InAnySharedSpace(*result));
+    DCHECK_IMPLIES(v8_flags.shared_string_table,
+                   HeapLayout::InAnySharedSpace(*result));
     return result;
   }
 
   // No entry found, so adding new string.
   key->PrepareForInsertion(isolate);
   {
-    base::MutexGuard table_write_guard(&write_mutex_);
+    base::SpinningMutexGuard table_write_guard(&write_mutex_);
 
     Data* data = EnsureCapacity(isolate, 1);
     OffHeapStringHashSet& table = data->table();
@@ -457,14 +460,14 @@ DirectHandle<String> StringTable::LookupKey(IsolateT* isolate,
     if (element == OffHeapStringHashSet::empty_element()) {
       // This entry is empty, so write it and register that we added an
       // element.
-      DirectHandle<String> new_string = key->GetHandleForInsertion();
+      DirectHandle<String> new_string = key->GetHandleForInsertion(isolate_);
       DCHECK_IMPLIES(v8_flags.shared_string_table, new_string->IsShared());
       table.AddAt(isolate, entry, *new_string);
       return new_string;
     } else if (element == OffHeapStringHashSet::deleted_element()) {
       // This entry was deleted, so overwrite it and register that we
       // overwrote a deleted element.
-      DirectHandle<String> new_string = key->GetHandleForInsertion();
+      DirectHandle<String> new_string = key->GetHandleForInsertion(isolate_);
       DCHECK_IMPLIES(v8_flags.shared_string_table, new_string->IsShared());
       table.OverwriteDeletedAt(isolate, entry, *new_string);
       return new_string;
@@ -553,7 +556,7 @@ Address StringTable::Data::TryStringToIndexOrLookupExisting(
 
   DisallowGarbageCollection no_gc;
 
-  int length = string->length();
+  uint32_t length = string->length();
   // The source hash is usable if it is not from a sliced string.
   // For sliced strings we need to recalculate the hash from the given offset
   // with the correct length.
@@ -676,7 +679,7 @@ void StringTable::InsertForIsolateDeserialization(
 
   const int length = static_cast<int>(strings.size());
   {
-    base::MutexGuard table_write_guard(&write_mutex_);
+    base::SpinningMutexGuard table_write_guard(&write_mutex_);
 
     Data* const data = EnsureCapacity(isolate, length);
 
@@ -686,7 +689,7 @@ void StringTable::InsertForIsolateDeserialization(
       InternalIndex entry =
           data->table().FindEntryOrInsertionEntry(isolate, &key, key.hash());
 
-      DirectHandle<String> inserted_string = key.GetHandleForInsertion();
+      DirectHandle<String> inserted_string = key.GetHandleForInsertion(isolate);
       DCHECK_IMPLIES(v8_flags.shared_string_table, inserted_string->IsShared());
       data->table().AddAt(isolate, entry, *inserted_string);
     }
@@ -698,12 +701,11 @@ void StringTable::InsertForIsolateDeserialization(
 void StringTable::InsertEmptyStringForBootstrapping(Isolate* isolate) {
   DCHECK_EQ(NumberOfElements(), 0);
   {
-    base::MutexGuard table_write_guard(&write_mutex_);
+    base::SpinningMutexGuard table_write_guard(&write_mutex_);
 
     Data* const data = EnsureCapacity(isolate, 1);
 
-    DirectHandle<String> empty_string =
-        ReadOnlyRoots(isolate).empty_string_handle();
+    DirectHandle<String> empty_string = isolate->factory()->empty_string();
     uint32_t hash = empty_string->EnsureHash();
 
     InternalIndex entry = data->table().FindInsertionEntry(isolate, hash);

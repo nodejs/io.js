@@ -111,20 +111,31 @@ inline void *non_temporal_store_memcpy(void *__restrict dst,
 #endif  // __SSE3__ || __aarch64__ || (_MSC_VER && __AVX__)
 }
 
+// We try to force non_temporal_store_memcpy_avx to use AVX instructions
+// so that we can select it at runtime when AVX is available.
+// Clang on Windows has gnu::target but does not make AVX types like __m256i
+// available when trying to force specific functions to use AVX compiles.
+#if ABSL_HAVE_CPP_ATTRIBUTE(gnu::target) && !defined(_MSC_VER) && \
+    (defined(__x86_64__) || defined(__i386__))
+#define ABSL_INTERNAL_CAN_FORCE_AVX 1
+#endif
+
 // If the objects overlap, the behavior is undefined. Uses regular memcpy
 // instead of non-temporal memcpy if the required CPU intrinsics are unavailable
 // at compile time.
-#if ABSL_HAVE_CPP_ATTRIBUTE(gnu::target) && \
-    (defined(__x86_64__) || defined(__i386__))
+#ifdef ABSL_INTERNAL_CAN_FORCE_AVX
 [[gnu::target("avx")]]
 #endif
 inline void *non_temporal_store_memcpy_avx(void *__restrict dst,
                                            const void *__restrict src,
                                            size_t len) {
-  // This function requires AVX. For clang and gcc we compile it with AVX even
-  // if the translation unit isn't built with AVX support. This works because we
-  // only select this implementation at runtime if the CPU supports AVX.
-#if defined(__SSE3__) || (defined(_MSC_VER) && defined(__AVX__))
+  // This function requires AVX. If possible we compile it with AVX even if the
+  // translation unit isn't built with AVX support. This works because we only
+  // select this implementation at runtime if the CPU supports AVX.
+  // MSVC AVX support implies SSE3 support.
+#if ((defined(__AVX__) || defined(ABSL_INTERNAL_CAN_FORCE_AVX)) && \
+     defined(__SSE3__)) ||                                         \
+    (defined(_MSC_VER) && defined(__AVX__))
   uint8_t *d = reinterpret_cast<uint8_t *>(dst);
   const uint8_t *s = reinterpret_cast<const uint8_t *>(src);
 
@@ -170,9 +181,12 @@ inline void *non_temporal_store_memcpy_avx(void *__restrict dst,
   }
   return dst;
 #else
+  // Fallback to regular memcpy so that this function compiles.
   return memcpy(dst, src, len);
-#endif  // __SSE3__ || (_MSC_VER && __AVX__)
+#endif
 }
+
+#undef ABSL_INTERNAL_CAN_FORCE_AVX
 
 }  // namespace crc_internal
 ABSL_NAMESPACE_END

@@ -78,7 +78,11 @@ bitfield struct ScopeFlags extends uint32 {
   is_debug_evaluate_scope: bool: 1 bit;
   force_context_allocation: bool: 1 bit;
   private_name_lookup_skips_outer_class: bool: 1 bit;
+  // Indicates that the context has a context extension slot.
   has_context_extension_slot: bool: 1 bit;
+  // Indicates that there are contexts with a context extension (meaningful
+  // only for contexts with "sloppy_eval_can_extend_vars" flag set).
+  some_context_has_extension: bool: 1 bit;
   is_hidden: bool: 1 bit;
   is_empty: bool: 1 bit;
   is_wrapped_function: bool: 1 bit;
@@ -113,7 +117,7 @@ const kMaxInlinedLocalNamesSize:
 
 @generateBodyDescriptor
 extern class ScopeInfo extends HeapObject {
-  const flags: ScopeFlags;
+  @cppRelaxedLoad @cppRelaxedStore const flags: ScopeFlags;
 
   @if(TAGGED_SIZE_8_BYTES) optional_padding: uint32;
   @ifnot(TAGGED_SIZE_8_BYTES) optional_padding: void;
@@ -175,6 +179,9 @@ extern class ScopeInfo extends HeapObject {
       [flags.scope_type == ScopeType::MODULE_SCOPE]: SourceTextModuleInfo;
   module_variables[flags.scope_type == ScopeType::MODULE_SCOPE ? module_variable_count : 0]:
       ModuleVariable;
+
+  // EmptyContextExtension-dependent code objects.
+  dependent_code?[flags.sloppy_eval_can_extend_vars]: DependentCode;
 }
 
 extern macro NameToIndexHashTableLookup(

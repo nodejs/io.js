@@ -91,7 +91,7 @@ void MaglevAssembler::OSRPrologue(Graph* graph) {
   uint32_t source_frame_size =
       graph->min_maglev_stackslots_for_unoptimized_frame_size();
 
-  if (v8_flags.maglev_assert_stack_size && v8_flags.debug_code) {
+  if (v8_flags.debug_code) {
     lgr(scratch, sp);
     lay(scratch,
         MemOperand(scratch, source_frame_size * kSystemPointerSize +
@@ -137,6 +137,7 @@ void MaglevAssembler::Prologue(Graph* graph) {
     bind(code_gen_state()->entry_label());
   }
 
+#ifndef V8_ENABLE_LEAPTIERING
   // Tiering support.
   if (v8_flags.turbofan) {
     using D = MaglevOptimizeCodeOrTailCallOptimizedCodeSlotDescriptor;
@@ -153,6 +154,7 @@ void MaglevAssembler::Prologue(Graph* graph) {
                     LoadFeedbackVectorFlagsAndCheckIfNeedsProcessing(
                         flags, feedback_vector, CodeKind::MAGLEV));
   }
+#endif  // !V8_ENABLE_LEAPTIERING
 
   EnterFrame(StackFrame::MAGLEV);
   // Save arguments in frame.
@@ -221,7 +223,7 @@ void MaglevAssembler::LoadSingleCharacterString(Register result,
   Register table = scratch;
   LoadRoot(table, RootIndex::kSingleCharacterStringTable);
   LoadTaggedFieldByIndex(result, table, char_code, kTaggedSize,
-                         FixedArray::kHeaderSize);
+                         OFFSET_OF_DATA_START(FixedArray));
 }
 
 void MaglevAssembler::StringFromCharCode(RegisterSnapshot register_snapshot,

@@ -20,20 +20,22 @@ int FixedArrayLenFromSize(int size);
 
 // Fill a page with fixed arrays leaving remainder behind. The function does
 // not create additional fillers and assumes that the space has just been
-// sealed.
-std::vector<Handle<FixedArray>> FillOldSpacePageWithFixedArrays(Heap* heap,
-                                                                int remainder);
+// sealed. If out_handles is not null, it appends the fixed arrays to the
+// pointed vector.
+void FillOldSpacePageWithFixedArrays(
+    Heap* heap, int remainder,
+    DirectHandleVector<FixedArray>* out_handles = nullptr);
 
-std::vector<Handle<FixedArray>> CreatePadding(
-    Heap* heap, int padding_size, AllocationType allocation,
-    int object_size = kMaxRegularHeapObjectSize);
+void CreatePadding(Heap* heap, int padding_size, AllocationType allocation,
+                   DirectHandleVector<FixedArray>* out_handles = nullptr,
+                   int object_size = kMaxRegularHeapObjectSize);
 
 void FillCurrentPage(v8::internal::NewSpace* space,
-                     std::vector<Handle<FixedArray>>* out_handles = nullptr);
+                     DirectHandleVector<FixedArray>* out_handles = nullptr);
 
 void FillCurrentPageButNBytes(
     v8::internal::SemiSpaceNewSpace* space, int extra_bytes,
-    std::vector<Handle<FixedArray>>* out_handles = nullptr);
+    DirectHandleVector<FixedArray>* out_handles = nullptr);
 
 // Helper function that simulates many incremental marking steps until
 // marking is completed.
@@ -64,7 +66,7 @@ template <typename GlobalOrPersistent>
 bool InYoungGeneration(v8::Isolate* isolate, const GlobalOrPersistent& global) {
   v8::HandleScope scope(isolate);
   auto tmp = global.Get(isolate);
-  return i::Heap::InYoungGeneration(*v8::Utils::OpenDirectHandle(*tmp));
+  return i::HeapLayout::InYoungGeneration(*v8::Utils::OpenDirectHandle(*tmp));
 }
 
 bool InCorrectGeneration(Tagged<HeapObject> object);

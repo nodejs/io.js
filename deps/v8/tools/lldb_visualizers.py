@@ -40,8 +40,8 @@ def lazy_unsigned_constant(name):
 
 
 # Values to only evaluate once
-FrameSummary_Kind_JAVA_SCRIPT = lazy_unsigned_constant(
-    'FrameSummary::Kind::JAVA_SCRIPT')
+FrameSummary_Kind_JAVASCRIPT = lazy_unsigned_constant(
+    'FrameSummary::Kind::JAVASCRIPT')
 
 
 def field_from_address(parent_value, offset_getter, name, typename=None):
@@ -283,8 +283,8 @@ class FrameSummaryChildrenProvider(DictProvider):
     unionelement = 'base_'
     kind = self.valueobject.GetChildMemberWithName(
         unionelement).GetChildMemberWithName('kind_').GetValueAsUnsigned()
-    if kind == FrameSummary_Kind_JAVA_SCRIPT(self.valueobject):
-      unionelement = 'java_script_summary_'
+    if kind == FrameSummary_Kind_JAVASCRIPT(self.valueobject):
+      unionelement = 'javascript_summary_'
     # TODO: Add other summary kinds
     mapping[unionelement] = lambda: self.valueobject.GetChildMemberWithName(
         unionelement)

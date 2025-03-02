@@ -35,6 +35,18 @@ const char* RootsTable::root_names_[RootsTable::kEntriesCount] = {
 #undef ROOT_NAME
 };
 
+IndirectHandle<HeapNumber> RootsTable::FindHeapNumber(double value) {
+  auto bits = base::bit_cast<uint64_t>(value);
+  for (auto pos = RootIndex::kFirstHeapNumberRoot;
+       pos <= RootIndex::kLastHeapNumberRoot; ++pos) {
+    auto root = Cast<HeapNumber>(Tagged<Object>((*this)[pos]));
+    if (base::bit_cast<uint64_t>(root->value()) == bits) {
+      return IndirectHandle<HeapNumber>(&(*this)[pos]);
+    }
+  }
+  return {};
+}
+
 MapWord ReadOnlyRoots::one_pointer_filler_map_word() {
   return MapWord::FromMap(one_pointer_filler_map());
 }
@@ -89,18 +101,6 @@ void ReadOnlyRoots::VerifyNameForProtectors() {
 READ_ONLY_ROOT_LIST(ROOT_TYPE_CHECK)
 #undef ROOT_TYPE_CHECK
 #endif
-
-Handle<HeapNumber> ReadOnlyRoots::FindHeapNumber(double value) {
-  auto bits = base::bit_cast<uint64_t>(value);
-  for (auto pos = RootIndex::kFirstHeapNumberRoot;
-       pos <= RootIndex::kLastHeapNumberRoot; ++pos) {
-    auto root = Cast<HeapNumber>(object_at(pos));
-    if (base::bit_cast<uint64_t>(root->value()) == bits) {
-      return Handle<HeapNumber>(GetLocation(pos));
-    }
-  }
-  return Handle<HeapNumber>();
-}
 
 void ReadOnlyRoots::InitFromStaticRootsTable(Address cage_base) {
   CHECK(V8_STATIC_ROOTS_BOOL);

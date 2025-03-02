@@ -70,7 +70,7 @@ class LiteralBuffer final {
   }
 
   template <typename IsolateT>
-  Handle<String> Internalize(IsolateT* isolate) const;
+  DirectHandle<String> Internalize(IsolateT* isolate) const;
 
  private:
   static constexpr int kInitialCapacity = 256;

@@ -70,7 +70,7 @@ class Storage {
 
   Storage& operator=(const Storage& other) = delete;
 
-  void* GetCallbackBuffer() { return static_cast<void*>(+callback_buffer_); }
+  void* GetCallbackBuffer() { return static_cast<void*>(callback_buffer_); }
 
   Callback& GetCallback() {
     return *reinterpret_cast<Callback*>(GetCallbackBuffer());

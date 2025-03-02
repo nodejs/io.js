@@ -1,112 +1,122 @@
 Tests how wasm scripts are reported
 Check that each inspector gets a wasm script at module creation time.
-Session #1: Script #0 parsed. URL: wasm://wasm/7b04570e. Script ID: 0, Source map URL: , debug symbols: None:undefined. module begin: 0, module end: 77, code offset: 34
-Session #2: Script #0 parsed. URL: wasm://wasm/7b04570e. Script ID: 0, Source map URL: , debug symbols: None:undefined. module begin: 0, module end: 77, code offset: 34
-Session #1: Script #1 parsed. URL: wasm://wasm/7b04570e. Script ID: 0, Source map URL: , debug symbols: None:undefined. module begin: 0, module end: 77, code offset: 34
-Session #2: Script #1 parsed. URL: wasm://wasm/7b04570e. Script ID: 0, Source map URL: , debug symbols: None:undefined. module begin: 0, module end: 77, code offset: 34
-Session #1: Script #2 parsed. URL: wasm://wasm/21e2f406. Script ID: 1, Source map URL: , debug symbols: ExternalDWARF:abc. module begin: 0, module end: 103, code offset: 34
-Session #2: Script #2 parsed. URL: wasm://wasm/21e2f406. Script ID: 1, Source map URL: , debug symbols: ExternalDWARF:abc. module begin: 0, module end: 103, code offset: 34
-Session #1: Script #3 parsed. URL: wasm://wasm/ba7c35be. Script ID: 2, Source map URL: , debug symbols: EmbeddedDWARF:undefined. module begin: 0, module end: 96, code offset: 34
-Session #2: Script #3 parsed. URL: wasm://wasm/ba7c35be. Script ID: 2, Source map URL: , debug symbols: EmbeddedDWARF:undefined. module begin: 0, module end: 96, code offset: 34
-Session #1: Script #4 parsed. URL: wasm://wasm/1baa71fe. Script ID: 3, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 100, code offset: 34
-Session #2: Script #4 parsed. URL: wasm://wasm/1baa71fe. Script ID: 3, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 100, code offset: 34
-Session #1: Script #5 parsed. URL: wasm://wasm/c047292e. Script ID: 4, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 126, code offset: 34
-Session #2: Script #5 parsed. URL: wasm://wasm/c047292e. Script ID: 4, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 126, code offset: 34
-Session #1: Script #6 parsed. URL: wasm://wasm/e56b2672. Script ID: 5, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 126, code offset: 34
-Session #2: Script #6 parsed. URL: wasm://wasm/e56b2672. Script ID: 5, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 126, code offset: 34
-Session #1: Script #7 parsed. URL: wasm://wasm/c9614a4e. Script ID: 6, Source map URL: , debug symbols: ExternalDWARF:abc. module begin: 0, module end: 122, code offset: 34
-Session #2: Script #7 parsed. URL: wasm://wasm/c9614a4e. Script ID: 6, Source map URL: , debug symbols: ExternalDWARF:abc. module begin: 0, module end: 122, code offset: 34
-Session #1: Script #8 parsed. URL: wasm://wasm/639d13c6. Script ID: 7, Source map URL: , debug symbols: ExternalDWARF:abc. module begin: 0, module end: 122, code offset: 34
-Session #2: Script #8 parsed. URL: wasm://wasm/639d13c6. Script ID: 7, Source map URL: , debug symbols: ExternalDWARF:abc. module begin: 0, module end: 122, code offset: 34
-Session #1: Script #9 parsed. URL: wasm://wasm/95e97206. Script ID: 8, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 119, code offset: 34
-Session #2: Script #9 parsed. URL: wasm://wasm/95e97206. Script ID: 8, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 119, code offset: 34
-Session #1: Script #10 parsed. URL: wasm://wasm/7ab47392. Script ID: 9, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 119, code offset: 34
-Session #2: Script #10 parsed. URL: wasm://wasm/7ab47392. Script ID: 9, Source map URL: abc, debug symbols: SourceMap:abc. module begin: 0, module end: 119, code offset: 34
-Session #1: Source for wasm://wasm/7b04570e:
+Session #1: Script #0 parsed. URL: wasm://wasm/95d28bc6. Script ID: 0, Source map URL: , debug symbols: []. module begin: 0, module end: 77, code offset: 34
+Session #2: Script #0 parsed. URL: wasm://wasm/95d28bc6. Script ID: 0, Source map URL: , debug symbols: []. module begin: 0, module end: 77, code offset: 34
+Session #1: Script #1 parsed. URL: wasm://wasm/95d28bc6. Script ID: 0, Source map URL: , debug symbols: []. module begin: 0, module end: 77, code offset: 34
+Session #2: Script #1 parsed. URL: wasm://wasm/95d28bc6. Script ID: 0, Source map URL: , debug symbols: []. module begin: 0, module end: 77, code offset: 34
+Session #1: Script #2 parsed. URL: wasm://wasm/7adb1e36. Script ID: 1, Source map URL: , debug symbols: [ExternalDWARF:abc]. module begin: 0, module end: 103, code offset: 34
+Session #2: Script #2 parsed. URL: wasm://wasm/7adb1e36. Script ID: 1, Source map URL: , debug symbols: [ExternalDWARF:abc]. module begin: 0, module end: 103, code offset: 34
+Session #1: Script #3 parsed. URL: wasm://wasm/908b2a0a. Script ID: 2, Source map URL: , debug symbols: [EmbeddedDWARF:undefined]. module begin: 0, module end: 96, code offset: 34
+Session #2: Script #3 parsed. URL: wasm://wasm/908b2a0a. Script ID: 2, Source map URL: , debug symbols: [EmbeddedDWARF:undefined]. module begin: 0, module end: 96, code offset: 34
+Session #1: Script #4 parsed. URL: wasm://wasm/a6778d32. Script ID: 3, Source map URL: abc, debug symbols: [SourceMap:abc]. module begin: 0, module end: 100, code offset: 34
+Session #2: Script #4 parsed. URL: wasm://wasm/a6778d32. Script ID: 3, Source map URL: abc, debug symbols: [SourceMap:abc]. module begin: 0, module end: 100, code offset: 34
+Session #1: Script #5 parsed. URL: wasm://wasm/932c8bee. Script ID: 4, Source map URL: abc, debug symbols: [SourceMap:abc,ExternalDWARF:abc]. module begin: 0, module end: 126, code offset: 34
+Session #2: Script #5 parsed. URL: wasm://wasm/932c8bee. Script ID: 4, Source map URL: abc, debug symbols: [SourceMap:abc,ExternalDWARF:abc]. module begin: 0, module end: 126, code offset: 34
+Session #1: Script #6 parsed. URL: wasm://wasm/ff1c21ea. Script ID: 5, Source map URL: abc, debug symbols: [SourceMap:abc,ExternalDWARF:abc]. module begin: 0, module end: 126, code offset: 34
+Session #2: Script #6 parsed. URL: wasm://wasm/ff1c21ea. Script ID: 5, Source map URL: abc, debug symbols: [SourceMap:abc,ExternalDWARF:abc]. module begin: 0, module end: 126, code offset: 34
+Session #1: Script #7 parsed. URL: wasm://wasm/61c68ca6. Script ID: 6, Source map URL: , debug symbols: [EmbeddedDWARF:undefined,ExternalDWARF:abc]. module begin: 0, module end: 122, code offset: 34
+Session #2: Script #7 parsed. URL: wasm://wasm/61c68ca6. Script ID: 6, Source map URL: , debug symbols: [EmbeddedDWARF:undefined,ExternalDWARF:abc]. module begin: 0, module end: 122, code offset: 34
+Session #1: Script #8 parsed. URL: wasm://wasm/05327fba. Script ID: 7, Source map URL: , debug symbols: [EmbeddedDWARF:undefined,ExternalDWARF:abc]. module begin: 0, module end: 122, code offset: 34
+Session #2: Script #8 parsed. URL: wasm://wasm/05327fba. Script ID: 7, Source map URL: , debug symbols: [EmbeddedDWARF:undefined,ExternalDWARF:abc]. module begin: 0, module end: 122, code offset: 34
+Session #1: Script #9 parsed. URL: wasm://wasm/498d127a. Script ID: 8, Source map URL: abc, debug symbols: [SourceMap:abc,EmbeddedDWARF:undefined]. module begin: 0, module end: 119, code offset: 34
+Session #2: Script #9 parsed. URL: wasm://wasm/498d127a. Script ID: 8, Source map URL: abc, debug symbols: [SourceMap:abc,EmbeddedDWARF:undefined]. module begin: 0, module end: 119, code offset: 34
+Session #1: Script #10 parsed. URL: wasm://wasm/aaebee8a. Script ID: 9, Source map URL: abc, debug symbols: [SourceMap:abc,EmbeddedDWARF:undefined]. module begin: 0, module end: 119, code offset: 34
+Session #2: Script #10 parsed. URL: wasm://wasm/aaebee8a. Script ID: 9, Source map URL: abc, debug symbols: [SourceMap:abc,EmbeddedDWARF:undefined]. module begin: 0, module end: 119, code offset: 34
+Session #1: Script #11 parsed. URL: wasm://wasm/c2605b36. Script ID: 10, Source map URL: abc, debug symbols: [SourceMap:abc,EmbeddedDWARF:undefined,ExternalDWARF:abc]. module begin: 0, module end: 145, code offset: 34
+Session #2: Script #11 parsed. URL: wasm://wasm/c2605b36. Script ID: 10, Source map URL: abc, debug symbols: [SourceMap:abc,EmbeddedDWARF:undefined,ExternalDWARF:abc]. module begin: 0, module end: 145, code offset: 34
+Session #1: Source for wasm://wasm/95d28bc6:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/7b04570e:
+Session #2: Source for wasm://wasm/95d28bc6:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/7b04570e:
+Session #1: Source for wasm://wasm/95d28bc6:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/7b04570e:
+Session #2: Source for wasm://wasm/95d28bc6:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/21e2f406:
+Session #1: Source for wasm://wasm/7adb1e36:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/21e2f406:
+Session #2: Source for wasm://wasm/7adb1e36:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/ba7c35be:
+Session #1: Source for wasm://wasm/908b2a0a:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/ba7c35be:
+Session #2: Source for wasm://wasm/908b2a0a:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/1baa71fe:
+Session #1: Source for wasm://wasm/a6778d32:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/1baa71fe:
+Session #2: Source for wasm://wasm/a6778d32:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/c047292e:
+Session #1: Source for wasm://wasm/932c8bee:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/c047292e:
+Session #2: Source for wasm://wasm/932c8bee:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/e56b2672:
+Session #1: Source for wasm://wasm/ff1c21ea:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/e56b2672:
+Session #2: Source for wasm://wasm/ff1c21ea:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/c9614a4e:
+Session #1: Source for wasm://wasm/61c68ca6:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/c9614a4e:
+Session #2: Source for wasm://wasm/61c68ca6:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/639d13c6:
+Session #1: Source for wasm://wasm/05327fba:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/639d13c6:
+Session #2: Source for wasm://wasm/05327fba:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/95e97206:
+Session #1: Source for wasm://wasm/498d127a:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/95e97206:
+Session #2: Source for wasm://wasm/498d127a:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #1: Source for wasm://wasm/7ab47392:
+Session #1: Source for wasm://wasm/aaebee8a:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]
-Session #2: Source for wasm://wasm/7ab47392:
+Session #2: Source for wasm://wasm/aaebee8a:
 Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
+Imports: []
+Exports: [main: function]
+Session #1: Source for wasm://wasm/c2605b36:
+Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
+Imports: []
+Exports: [main: function]
+Session #2: Source for wasm://wasm/c2605b36:
+Raw: 00 61 73 6d 01 00 00 00 01 07 02 60 00 00 60 00 00 03 03 02 00 01 07 08 01 04 6d 61 69 6e 00 01 0a 0e 02 03 00 01 0b 08 00 02 40 41 02 1a 0b 0b 00 15 10 73 6f 75 72 63 65 4d 61 70 70 69 6e 67 55 52 4c 03 61 62 63 00 11 0b 2e 64 65 62 75 67 5f 69 6e 66 6f 01 02 03 04 05 00 18 13 65 78 74 65 72 6e 61 6c 5f 64 65 62 75 67 5f 69 6e 66 6f 03 61 62 63 00 1b 04 6e 61 6d 65 01 14 02 00 0b 6e 6f 70 46 75 6e 63 74 69 6f 6e 01 04 6d 61 69 6e
 Imports: []
 Exports: [main: function]

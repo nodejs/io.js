@@ -15,10 +15,10 @@
 
 namespace v8::internal {
 
-Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
+DirectHandle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
     Isolate* isolate, DirectHandle<RegExpMatchInfo> match_info,
     Handle<Object> maybe_names) {
-  Handle<JSRegExpResultIndices> indices(
+  DirectHandle<JSRegExpResultIndices> indices(
       Cast<JSRegExpResultIndices>(isolate->factory()->NewJSObjectFromMap(
           isolate->regexp_result_indices_map())));
 
@@ -29,7 +29,7 @@ Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
   // Build indices array from RegExpMatchInfo.
   int num_indices = match_info->number_of_capture_registers();
   int num_results = num_indices >> 1;
-  Handle<FixedArray> indices_array =
+  DirectHandle<FixedArray> indices_array =
       isolate->factory()->NewFixedArray(num_results);
   JSArray::SetContent(indices, indices_array);
 
@@ -80,7 +80,7 @@ Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
     int base_offset = i * 2;
     int name_offset = base_offset;
     int index_offset = base_offset + 1;
-    Handle<String> name(Cast<String>(names->get(name_offset)), isolate);
+    DirectHandle<String> name(Cast<String>(names->get(name_offset)), isolate);
     Tagged<Smi> smi_index = Cast<Smi>(names->get(index_offset));
     Handle<Object> capture_indices(indices_array->get(smi_index.value()),
                                    isolate);
@@ -111,7 +111,7 @@ Handle<JSRegExpResultIndices> JSRegExpResultIndices::BuildIndices(
   // result indices.
   DirectHandle<FixedArrayBase> elements =
       isolate->factory()->empty_fixed_array();
-  Handle<HeapObject> null = Cast<HeapObject>(isolate->factory()->null_value());
+  DirectHandle<Null> null = isolate->factory()->null_value();
   DirectHandle<JSObject> js_group_names =
       isolate->factory()->NewSlowJSObjectWithPropertiesAndElements(
           null, group_names, elements);
@@ -151,7 +151,7 @@ Handle<String> JSRegExp::StringFromFlags(Isolate* isolate,
 // static
 MaybeHandle<JSRegExp> JSRegExp::New(Isolate* isolate, Handle<String> pattern,
                                     Flags flags, uint32_t backtrack_limit) {
-  Handle<JSFunction> constructor = isolate->regexp_function();
+  DirectHandle<JSFunction> constructor = isolate->regexp_function();
   Handle<JSRegExp> regexp =
       Cast<JSRegExp>(isolate->factory()->NewJSObject(constructor));
 
@@ -163,9 +163,9 @@ MaybeHandle<JSRegExp> JSRegExp::New(Isolate* isolate, Handle<String> pattern,
 }
 
 // static
-MaybeHandle<JSRegExp> JSRegExp::Initialize(Handle<JSRegExp> regexp,
-                                           Handle<String> source,
-                                           Handle<String> flags_string) {
+MaybeDirectHandle<JSRegExp> JSRegExp::Initialize(Handle<JSRegExp> regexp,
+                                                 Handle<String> source,
+                                                 Handle<String> flags_string) {
   Isolate* isolate = regexp->GetIsolate();
   std::optional<Flags> flags = JSRegExp::FlagsFromString(isolate, flags_string);
   if (!flags.has_value() ||
@@ -243,8 +243,8 @@ void WriteStringToCharVector(base::Vector<Char> v, int* d, const char* string) {
 }
 
 template <typename Char, typename StringType>
-Handle<StringType> WriteEscapedRegExpSource(DirectHandle<String> source,
-                                            Handle<StringType> result) {
+DirectHandle<StringType> WriteEscapedRegExpSource(
+    DirectHandle<String> source, DirectHandle<StringType> result) {
   DisallowGarbageCollection no_gc;
   base::Vector<const Char> src = source->GetCharVector<Char>(no_gc);
   base::Vector<Char> dst(result->GetChars(no_gc), result->length());
@@ -296,11 +296,11 @@ Handle<StringType> WriteEscapedRegExpSource(DirectHandle<String> source,
   return result;
 }
 
-MaybeHandle<String> EscapeRegExpSource(Isolate* isolate,
-                                       Handle<String> source) {
+MaybeDirectHandle<String> EscapeRegExpSource(Isolate* isolate,
+                                             DirectHandle<String> source) {
   DCHECK(source->IsFlat());
   if (source->length() == 0) return isolate->factory()->query_colon_string();
-  bool one_byte = String::IsOneByteRepresentationUnderneath(*source);
+  bool one_byte = source->IsOneByteRepresentation();
   bool needs_escapes = false;
   int additional_escape_chars =
       one_byte ? CountAdditionalEscapeChars<uint8_t>(source, &needs_escapes)
@@ -308,12 +308,12 @@ MaybeHandle<String> EscapeRegExpSource(Isolate* isolate,
   if (!needs_escapes) return source;
   int length = source->length() + additional_escape_chars;
   if (one_byte) {
-    Handle<SeqOneByteString> result;
+    DirectHandle<SeqOneByteString> result;
     ASSIGN_RETURN_ON_EXCEPTION(isolate, result,
                                isolate->factory()->NewRawOneByteString(length));
     return WriteEscapedRegExpSource<uint8_t>(source, result);
   } else {
-    Handle<SeqTwoByteString> result;
+    DirectHandle<SeqTwoByteString> result;
     ASSIGN_RETURN_ON_EXCEPTION(isolate, result,
                                isolate->factory()->NewRawTwoByteString(length));
     return WriteEscapedRegExpSource<base::uc16>(source, result);
@@ -338,7 +338,7 @@ MaybeHandle<JSRegExp> JSRegExp::Initialize(Handle<JSRegExp> regexp,
                                                JSRegExp::AsRegExpFlags(flags),
                                                backtrack_limit));
 
-  Handle<String> escaped_source;
+  DirectHandle<String> escaped_source;
   ASSIGN_RETURN_ON_EXCEPTION(isolate, escaped_source,
                              EscapeRegExpSource(isolate, source));
 
@@ -359,7 +359,7 @@ MaybeHandle<JSRegExp> JSRegExp::Initialize(Handle<JSRegExp> regexp,
         isolate,
         Object::SetProperty(
             isolate, regexp, factory->lastIndex_string(),
-            Handle<Smi>(Smi::FromInt(kInitialLastIndexValue), isolate)));
+            DirectHandle<Smi>(Smi::FromInt(kInitialLastIndexValue), isolate)));
   }
 
   return regexp;

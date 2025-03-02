@@ -357,7 +357,7 @@ template <bool IsFirstUpdate = false>
 void UpdateOutLiveness(Bytecode bytecode, BytecodeLiveness& liveness,
                        BytecodeLivenessState* next_bytecode_in_liveness,
                        const interpreter::BytecodeArrayIterator& iterator,
-                       Handle<BytecodeArray> bytecode_array,
+                       DirectHandle<BytecodeArray> bytecode_array,
                        const BytecodeLivenessMap& liveness_map, Zone* zone) {
   switch (bytecode) {
 #define BYTECODE_UPDATE_OUT_LIVENESS(Name, ...)                        \
@@ -376,7 +376,7 @@ template <bool IsFirstUpdate, Bytecode bytecode,
 void UpdateLiveness(BytecodeLiveness& liveness,
                     BytecodeLivenessState** next_bytecode_in_liveness,
                     const interpreter::BytecodeArrayIterator& iterator,
-                    Handle<BytecodeArray> bytecode_array,
+                    DirectHandle<BytecodeArray> bytecode_array,
                     const BytecodeLivenessMap& liveness_map, Zone* zone) {
   UpdateOutLiveness<IsFirstUpdate, bytecode>(
       liveness, *next_bytecode_in_liveness, iterator, bytecode_array,
@@ -402,7 +402,7 @@ template <bool IsFirstUpdate = false>
 void UpdateLiveness(Bytecode bytecode, BytecodeLiveness& liveness,
                     BytecodeLivenessState** next_bytecode_in_liveness,
                     const interpreter::BytecodeArrayIterator& iterator,
-                    Handle<BytecodeArray> bytecode_array,
+                    DirectHandle<BytecodeArray> bytecode_array,
                     const BytecodeLivenessMap& liveness_map, Zone* zone) {
   switch (bytecode) {
 #define BYTECODE_UPDATE_LIVENESS(Name, ...)                               \
@@ -509,7 +509,7 @@ class BytecodeAnalysis::BytecodeAnalysisImpl {
 
   bool analyze_liveness() const { return res_.analyze_liveness_; }
   Zone* zone() const { return zone_; }
-  Handle<BytecodeArray> bytecode_array() const { return bytecode_array_; }
+  DirectHandle<BytecodeArray> bytecode_array() const { return bytecode_array_; }
   BytecodeLivenessMap& liveness_map() { return *res_.liveness_map_; }
 
   struct LoopStackEntry {

@@ -666,6 +666,15 @@ class InstructionSelectorT final : public Adapter {
 
   node_t FindProjection(node_t node, size_t projection_index);
 
+  // When we want to do branch-if-overflow fusion, we need to be mindful of the
+  // 1st projection of the OverflowBinop:
+  //   - If it has no uses, all good, we can do the fusion.
+  //   - If it has any uses, then they must all be already defined: doing the
+  //     fusion will lead to emitting the 1st projection, and any non-defined
+  //     operation is earlier in the graph by construction, which means that it
+  //     won't be able to use the 1st projection that will now be defined later.
+  bool CanDoBranchIfOverflowFusion(node_t node);
+
   // Records that this ProtectedLoad node can be deleted if not used, even
   // though it has a required_when_unused effect.
   void SetProtectedLoadToRemove(node_t node) {
@@ -896,8 +905,10 @@ class InstructionSelectorT final : public Adapter {
   DECLARE_GENERATOR_T(RoundFloat64ToInt32)
   DECLARE_GENERATOR_T(TruncateFloat64ToWord32)
   DECLARE_GENERATOR_T(TruncateFloat64ToFloat32)
+  DECLARE_GENERATOR_T(TruncateFloat64ToFloat16RawBits)
   DECLARE_GENERATOR_T(TruncateFloat32ToInt32)
   DECLARE_GENERATOR_T(TruncateFloat32ToUint32)
+  DECLARE_GENERATOR_T(ChangeFloat16RawBitsToFloat64)
   DECLARE_GENERATOR_T(ChangeFloat64ToInt32)
   DECLARE_GENERATOR_T(ChangeFloat64ToUint32)
   DECLARE_GENERATOR_T(ChangeFloat64ToInt64)
@@ -1114,11 +1125,11 @@ class InstructionSelectorT final : public Adapter {
 #if V8_ENABLE_WEBASSEMBLY
   // Canonicalize shuffles to make pattern matching simpler. Returns the shuffle
   // indices, and a boolean indicating if the shuffle is a swizzle (one input).
-  template <const int simd_size = kSimd128Size,
-            typename = std::enable_if_t<simd_size == kSimd128Size ||
-                                        simd_size == kSimd256Size>>
+  template <const int simd_size = kSimd128Size>
   void CanonicalizeShuffle(typename Adapter::SimdShuffleView& view,
-                           uint8_t* shuffle, bool* is_swizzle) {
+                           uint8_t* shuffle, bool* is_swizzle)
+    requires(simd_size == kSimd128Size || simd_size == kSimd256Size)
+  {
     // Get raw shuffle indices.
     if constexpr (simd_size == kSimd128Size) {
       DCHECK(view.isSimd128());
@@ -1202,12 +1213,13 @@ class InstructionSelectorT final : public Adapter {
 
 #if V8_TARGET_ARCH_64_BIT
   bool ZeroExtendsWord32ToWord64(node_t node, int recursion_depth = 0);
+  void MarkNodeAsNotZeroExtended(node_t node);
   bool ZeroExtendsWord32ToWord64NoPhis(node_t node);
 
-  enum Upper32BitsState : uint8_t {
+  enum class Upper32BitsState : uint8_t {
     kNotYetChecked,
-    kUpperBitsGuaranteedZero,
-    kNoGuarantee,
+    kZero,
+    kMayBeNonZero,
   };
 #endif  // V8_TARGET_ARCH_64_BIT
 
@@ -1286,6 +1298,8 @@ class InstructionSelectorT final : public Adapter {
   std::optional<BitVector> additional_protected_instructions_;
 
 #if V8_TARGET_ARCH_64_BIT
+  size_t node_count_;
+
   // Holds lazily-computed results for whether phi nodes guarantee their upper
   // 32 bits to be zero. Indexed by node ID; nobody reads or writes the values
   // for non-phi nodes.

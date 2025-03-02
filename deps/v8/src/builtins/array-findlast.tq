@@ -74,6 +74,7 @@ transitioning macro FastArrayFindLast(
 }
 
 // https://tc39.es/proposal-array-find-from-last/index.html#sec-array.prototype.findlast
+@incrementUseCounter('v8::Isolate::kArrayFindLast')
 transitioning javascript builtin ArrayPrototypeFindLast(
     js-implicit context: NativeContext, receiver: JSAny)(...arguments): JSAny {
   try {

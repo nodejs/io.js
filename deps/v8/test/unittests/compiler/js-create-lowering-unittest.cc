@@ -47,7 +47,7 @@ class JSCreateLoweringTest : public TypedGraphTest {
         common()->FrameState(
             BytecodeOffset::None(), OutputFrameStateCombine::Ignore(),
             common()->CreateFrameStateFunctionInfo(
-                FrameStateType::kUnoptimizedFunction, 1, 0, 0, shared)),
+                FrameStateType::kUnoptimizedFunction, 1, 0, 0, shared, {})),
         state_values, state_values, state_values, NumberConstant(0),
         UndefinedConstant(), outer_frame_state);
   }

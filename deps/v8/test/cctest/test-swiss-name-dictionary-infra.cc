@@ -45,13 +45,13 @@ std::vector<PropertyDetails> MakeDistinctDetails() {
 // To enable more specific testing, we allow overriding the H1 and H2 hashes for
 // a key before adding it to the SwissNameDictionary. The necessary overriding
 // of the stored hash happens here. Symbols are compared by identity, we cache
-// the Symbol associcated with each std::string key. This means that using
+// the Symbol associated with each std::string key. This means that using
 // "my_key" twice in the same TestSequence will return the same Symbol
-// associcated with "my_key" both times. This also means that within a given
+// associated with "my_key" both times. This also means that within a given
 // TestSequence, we cannot use the same (std::string) key with different faked
 // hashes.
-Handle<Name> CreateKeyWithHash(Isolate* isolate, KeyCache& keys,
-                               const Key& key) {
+DirectHandle<Name> CreateKeyWithHash(Isolate* isolate, KeyCache& keys,
+                                     const Key& key) {
   Handle<Symbol> key_symbol;
   auto iter = keys.find(key.str);
 
@@ -78,7 +78,7 @@ Handle<Name> CreateKeyWithHash(Isolate* isolate, KeyCache& keys,
 
         // We cannot override h1 with 0 unless we also override h2 with a
         // non-zero value. Otherwise, the overall hash may become 0 (which is
-        // forbidden) based on the (nondeterminstic) choice of h2.
+        // forbidden) based on the (nondeterministic) choice of h2.
         CHECK_IMPLIES(override_with == 0,
                       key.h2_override && key.h2_override.value().value != 0);
 

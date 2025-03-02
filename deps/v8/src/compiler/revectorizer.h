@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "src/base/small-vector.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/linear-scheduler.h"
 #include "src/compiler/machine-graph.h"
 #include "src/compiler/machine-operator.h"
@@ -22,6 +21,7 @@
 #include "src/compiler/node-properties.h"
 #include "src/compiler/node.h"
 #include "src/compiler/schedule.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {

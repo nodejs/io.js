@@ -124,7 +124,7 @@ void GCTracer::AddScopeSample(Scope::ScopeId id, base::TimeDelta duration) {
     incremental_scopes_[Scope::IncrementalOffset(id)] += duration;
   } else if (Scope::FIRST_BACKGROUND_SCOPE <= id &&
              id <= Scope::LAST_BACKGROUND_SCOPE) {
-    base::MutexGuard guard(&background_scopes_mutex_);
+    base::SpinningMutexGuard guard(&background_scopes_mutex_);
     background_scopes_[id] += duration;
   } else {
     DCHECK_GT(Scope::NUMBER_OF_SCOPES, id);

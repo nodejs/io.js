@@ -5,6 +5,9 @@
 #ifndef V8_DIAGNOSTICS_ETW_JIT_METADATA_WIN_H_
 #define V8_DIAGNOSTICS_ETW_JIT_METADATA_WIN_H_
 
+#include <string>
+#include <utility>
+
 #include "src/libplatform/etw/etw-provider-win.h"
 
 namespace v8 {
@@ -23,11 +26,19 @@ const uint8_t kManifestFreeChannel = 11;
 // descriptors in the descriptors_array
 const uint8_t kMetaDescriptorsCount = 2;
 
+// ETW control code for capturing state
+// https://learn.microsoft.com/en-us/windows/win32/api/evntprov/nc-evntprov-penablecallback
+constexpr uint32_t kEtwControlDisable = 0;
+constexpr uint32_t kEtwControlEnable = 1;
+constexpr uint32_t kEtwControlCaptureState = 2;
+
 // Filtering keyword to find JScript stack-walking events
 constexpr uint64_t kJScriptRuntimeKeyword = 1;
 
 constexpr uint16_t kSourceLoadEventID = 41;
 constexpr uint16_t kMethodLoadEventID = 9;
+constexpr uint16_t kSourceDCStartEventID = 39;
+constexpr uint16_t kMethodDCStartEventID = 5;
 
 constexpr unsigned char kTraceLevel = TRACE_LEVEL_INFORMATION;
 
@@ -140,17 +151,7 @@ constexpr auto EventMetadata(uint16_t id, uint64_t keywords) {
 
 void SetMetaDescriptors(EVENT_DATA_DESCRIPTOR* data_descriptor,
                         UINT16 const UNALIGNED* traits, const void* metadata,
-                        size_t size) {
-  // The first descriptor is the provider traits (just the name currently)
-  uint16_t traits_size = *reinterpret_cast<const uint16_t*>(traits);
-  EventDataDescCreate(data_descriptor, traits, traits_size);
-  data_descriptor->Type = EVENT_DATA_DESCRIPTOR_TYPE_PROVIDER_METADATA;
-  ++data_descriptor;
-
-  // The second descriptor contains the data to describe the field layout
-  EventDataDescCreate(data_descriptor, metadata, static_cast<ULONG>(size));
-  data_descriptor->Type = EVENT_DATA_DESCRIPTOR_TYPE_EVENT_METADATA;
-}
+                        size_t size);
 
 // Base case, no fields left to set
 inline void SetFieldDescriptors(EVENT_DATA_DESCRIPTOR* data_descriptors) {}

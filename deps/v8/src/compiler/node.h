@@ -9,7 +9,7 @@
 #include "src/compiler/graph-zone-traits.h"
 #include "src/compiler/opcodes.h"
 #include "src/compiler/operator.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/zone/zone-containers.h"
 
 namespace v8 {

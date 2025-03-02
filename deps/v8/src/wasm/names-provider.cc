@@ -5,9 +5,12 @@
 #include "src/wasm/names-provider.h"
 
 #include "src/strings/unicode-decoder.h"
+#include "src/wasm/canonical-types.h"
 #include "src/wasm/module-decoder.h"
 #include "src/wasm/std-object-sizes.h"
 #include "src/wasm/string-builder.h"
+#include "src/wasm/wasm-code-manager.h"
+#include "src/wasm/wasm-engine.h"
 
 namespace v8 {
 namespace internal {
@@ -20,7 +23,7 @@ NamesProvider::NamesProvider(const WasmModule* module,
 NamesProvider::~NamesProvider() = default;
 
 void NamesProvider::DecodeNamesIfNotYetDone() {
-  base::MutexGuard lock(&mutex_);
+  base::SpinningMutexGuard lock(&mutex_);
   if (has_decoded_) return;
   has_decoded_ = true;
   name_section_names_.reset(
@@ -200,7 +203,7 @@ void NamesProvider::PrintFunctionName(StringBuilder& out,
 
   if (behavior == kWasmInternal) return;
   {
-    base::MutexGuard lock(&mutex_);
+    base::SpinningMutexGuard lock(&mutex_);
     if (!has_computed_function_import_names_) {
       ComputeFunctionNamesFromImportsExports();
     }
@@ -426,7 +429,7 @@ size_t StringMapSize(const std::map<uint32_t, std::string>& map) {
 }  // namespace
 
 size_t NamesProvider::EstimateCurrentMemoryConsumption() const {
-  UPDATE_WHEN_CLASS_CHANGES(NamesProvider, 208);
+  UPDATE_WHEN_CLASS_CHANGES(NamesProvider, 168);
   size_t result = sizeof(NamesProvider);
   if (name_section_names_) {
     DecodedNameSection* names = name_section_names_.get();
@@ -442,7 +445,7 @@ size_t NamesProvider::EstimateCurrentMemoryConsumption() const {
     result += names->tag_names_.EstimateCurrentMemoryConsumption();
   }
   {
-    base::MutexGuard lock(&mutex_);
+    base::SpinningMutexGuard lock(&mutex_);
     result += StringMapSize(import_export_function_names_);
     result += StringMapSize(import_export_table_names_);
     result += StringMapSize(import_export_memory_names_);
@@ -453,6 +456,118 @@ size_t NamesProvider::EstimateCurrentMemoryConsumption() const {
     PrintF("NamesProvider: %zu\n", result);
   }
   return result;
+}
+
+size_t CanonicalTypeNamesProvider::EstimateCurrentMemoryConsumption() const {
+  size_t result = sizeof(this) + payload_size_estimate_;
+  result += type_names_.capacity() * sizeof(StringT);
+  result += ContentSize(field_names_);
+  for (const auto& entry : field_names_) {
+    const std::vector<StringT>& vec = entry.second;
+    result += vec.capacity() * sizeof(StringT);
+  }
+  if (v8_flags.trace_wasm_offheap_memory) {
+    PrintF("CanonicalTypeNamesProvider: %zu\n", result);
+  }
+  return result;
+}
+
+void CanonicalTypeNamesProvider::DecodeNameSections() {
+  // TODO(jkummerow): We'll probably need to lock read accesses too.
+  base::SpinningMutexGuard lock(&mutex_);
+  type_names_.resize(GetTypeCanonicalizer()->GetCurrentNumberOfTypes());
+  GetWasmEngine()->DecodeAllNameSections(this);
+}
+
+void CanonicalTypeNamesProvider::DecodeNames(NativeModule* native_module) {
+  const WasmModule* module = native_module->module();
+  if (module->canonical_typenames_decoded) return;
+  module->canonical_typenames_decoded = true;
+  base::Vector<const uint8_t> wire_bytes = native_module->wire_bytes();
+  WireBytesRef name_section = module->name_section;
+  if (name_section.is_empty()) return;
+  size_t added_size = 0;
+  DecodeCanonicalTypeNames(wire_bytes, module, type_names_, field_names_,
+                           &added_size);
+  payload_size_estimate_ += added_size;
+}
+
+void CanonicalTypeNamesProvider::PrintTypeName(
+    StringBuilder& out, CanonicalTypeIndex type_index,
+    NamesProvider::IndexAsComment index_as_comment) {
+  uint32_t index = type_index.index;
+  if (index > type_names_.size() || type_names_[index].empty()) {
+    DecodeNameSections();
+  }
+  // {index} should now always be in range, but let's be robust towards
+  // invalid parameter values.
+  if (index > type_names_.size() || type_names_[index].empty()) {
+    out << "$canon" << index;
+    return;
+  }
+  StringT& name = type_names_[index];
+  out << '$';
+  out.write(name.data(), name.size());
+  MaybeAddComment(out, index, index_as_comment);
+}
+
+void CanonicalTypeNamesProvider::PrintValueType(StringBuilder& out,
+                                                CanonicalValueType type) {
+  switch (type.kind()) {
+    case kRef:
+    case kRefNull:
+      if (type.encoding_needs_heap_type()) {
+        out << (type.kind() == kRef ? "(ref " : "(ref null ");
+        if (type.has_index()) {
+          PrintTypeName(out, type.ref_index());
+        } else {
+          out << type.name();
+        }
+        out << ')';
+      } else {
+        out << type.name();
+      }
+      break;
+    case kRtt:
+      out << "(rtt ";
+      PrintTypeName(out, type.ref_index());
+      out << ')';
+      break;
+    default:
+      out << wasm::name(type.kind());
+  }
+}
+
+void CanonicalTypeNamesProvider::PrintFieldName(StringBuilder& out,
+                                                CanonicalTypeIndex struct_index,
+                                                uint32_t field_index) {
+  uint32_t index = struct_index.index;
+  if (index > type_names_.size()) DecodeNameSections();
+
+  auto per_type = field_names_.find(index);
+  if (per_type != field_names_.end()) {
+    std::vector<StringT>& field_names = per_type->second;
+    if (field_index < field_names.size() && !field_names[field_index].empty()) {
+      const StringT& name = field_names[field_index];
+      out << '$';
+      out.write(name.data(), name.size());
+      return;
+    }
+  }
+  out << "$field" << field_index;
+}
+
+// At the time of this writing, different std::string implementations
+// support 15 to 23 characters for inline storage. For accurate tracking
+// of memory consumption, dynamically determine this threshold.
+size_t CanonicalTypeNamesProvider::DetectInlineStringThreshold() {
+  for (size_t i = 0; i < 32; i++) {
+    std::string s(i, 'c');
+    Address str = reinterpret_cast<Address>(&s);
+    Address data = reinterpret_cast<Address>(s.data());
+    if (data < str || data >= str + sizeof(s)) return i;
+  }
+  return 32;
 }
 
 }  // namespace wasm

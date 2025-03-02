@@ -97,15 +97,6 @@ constexpr Register kGpReturnRegisters[] = {r2, r3};
 constexpr DoubleRegister kFpParamRegisters[] = {d0, d2, d4, d6};
 constexpr DoubleRegister kFpReturnRegisters[] = {d0, d2};
 
-#elif V8_TARGET_ARCH_S390
-// ===========================================================================
-// == s390 ===================================================================
-// ===========================================================================
-constexpr Register kGpParamRegisters[] = {r6, r2, r4, r5};
-constexpr Register kGpReturnRegisters[] = {r2, r3};
-constexpr DoubleRegister kFpParamRegisters[] = {d0, d2};
-constexpr DoubleRegister kFpReturnRegisters[] = {d0, d2};
-
 #elif V8_TARGET_ARCH_RISCV32 || V8_TARGET_ARCH_RISCV64
 // ===========================================================================
 // == riscv64 =================================================================
@@ -142,7 +133,7 @@ constexpr bool kIsBigEndian = true;
 #else
 constexpr bool kIsBigEndian = false;
 #endif
-#if V8_TARGET_ARCH_S390_LE_SIM
+#if V8_TARGET_ARCH_S390X_LE_SIM
 constexpr bool kIsBigEndianOnSim = true;
 #else
 constexpr bool kIsBigEndianOnSim = false;

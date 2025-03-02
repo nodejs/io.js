@@ -46,6 +46,9 @@ inline void* Malloc(size_t size) {
 }
 
 inline void* Realloc(void* memory, size_t size) {
+  // The result of realloc with zero size is implementation dependent.
+  // Disallow it.
+  CHECK_NE(0, size);
 #if V8_OS_STARBOARD
   return SbMemoryReallocate(memory, size);
 #elif V8_OS_AIX && _LINUX_SOURCE_COMPAT

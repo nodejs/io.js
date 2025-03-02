@@ -14,7 +14,7 @@ namespace internal {
 std::ostream& operator<<(std::ostream& out, const SourcePositionInfo& pos) {
   out << "<";
   if (!pos.script.is_null() && IsString(pos.script->name())) {
-    out << Cast<String>(pos.script->name())->ToCString(DISALLOW_NULLS).get();
+    out << Cast<String>(pos.script->name())->ToCString().get();
   } else {
     out << "unknown";
   }
@@ -75,8 +75,8 @@ std::vector<SourcePositionInfo> SourcePosition::InliningStack(
     stack.push_back(SourcePositionInfo(isolate, pos, function));
     pos = inl.position;
   }
-  Handle<SharedFunctionInfo> function(
-      Cast<SharedFunctionInfo>(deopt_data->SharedFunctionInfo()), isolate);
+  Handle<SharedFunctionInfo> function(deopt_data->GetSharedFunctionInfo(),
+                                      isolate);
   stack.push_back(SourcePositionInfo(isolate, pos, function));
   return stack;
 }
@@ -94,8 +94,8 @@ SourcePositionInfo SourcePosition::FirstInfo(Isolate* isolate,
         deopt_data->GetInlinedFunction(inl.inlined_function_id), isolate);
     return SourcePositionInfo(isolate, pos, function);
   }
-  Handle<SharedFunctionInfo> function(
-      Cast<SharedFunctionInfo>(deopt_data->SharedFunctionInfo()), isolate);
+  Handle<SharedFunctionInfo> function(deopt_data->GetSharedFunctionInfo(),
+                                      isolate);
   return SourcePositionInfo(isolate, pos, function);
 }
 
@@ -110,9 +110,7 @@ void SourcePosition::Print(std::ostream& out,
   }
   out << "<";
   if (IsString(source_name)) {
-    out << Cast<String>(source_name)
-               ->ToCString(DISALLOW_NULLS, ROBUST_STRING_TRAVERSAL)
-               .get();
+    out << Cast<String>(source_name)->ToCString().get();
   } else {
     out << "unknown";
   }
@@ -134,8 +132,7 @@ void SourcePosition::Print(std::ostream& out, Tagged<Code> code) const {
   Tagged<DeoptimizationData> deopt_data =
       Cast<DeoptimizationData>(code->deoptimization_data());
   if (!isInlined()) {
-    Tagged<SharedFunctionInfo> function(
-        Cast<SharedFunctionInfo>(deopt_data->SharedFunctionInfo()));
+    Tagged<SharedFunctionInfo> function(deopt_data->GetSharedFunctionInfo());
     Print(out, function);
   } else {
     InliningPosition inl = deopt_data->InliningPositions()->get(InliningId());

@@ -34,7 +34,7 @@ class JSFinalizationRegistry
 
   inline static void RegisterWeakCellWithUnregisterToken(
       DirectHandle<JSFinalizationRegistry> finalization_registry,
-      Handle<WeakCell> weak_cell, Isolate* isolate);
+      DirectHandle<WeakCell> weak_cell, Isolate* isolate);
   inline static bool Unregister(
       DirectHandle<JSFinalizationRegistry> finalization_registry,
       DirectHandle<HeapObject> unregister_token, Isolate* isolate);
@@ -56,15 +56,24 @@ class JSFinalizationRegistry
   // Returns true if the cleared_cells list is non-empty.
   inline bool NeedsCleanup() const;
 
+  V8_EXPORT_PRIVATE Tagged<WeakCell> PopClearedCell(
+      Isolate* isolate, bool* key_map_may_need_shrink);
+
+  static void ShrinkKeyMap(
+      Isolate* isolate,
+      DirectHandle<JSFinalizationRegistry> finalization_registry);
+
+  // Pop cleared cells and call their finalizers.
+  static Maybe<bool> Cleanup(
+      Isolate* isolate,
+      DirectHandle<JSFinalizationRegistry> finalization_registry);
+
   // Remove the already-popped weak_cell from its unregister token linked list,
   // as well as removing the entry from the key map if it is the only WeakCell
   // with its unregister token. This method cannot GC and does not shrink the
   // key map. Asserts that weak_cell has a non-undefined unregister token.
-  //
-  // It takes raw Addresses because it is called from CSA and Torque.
-  V8_EXPORT_PRIVATE static void RemoveCellFromUnregisterTokenMap(
-      Isolate* isolate, Address raw_finalization_registry,
-      Address raw_weak_cell);
+  V8_EXPORT_PRIVATE void RemoveCellFromUnregisterTokenMap(
+      Isolate* isolate, Tagged<WeakCell> weak_cell);
 
   // Bitfields in flags.
   DEFINE_TORQUE_GENERATED_FINALIZATION_REGISTRY_FLAGS()

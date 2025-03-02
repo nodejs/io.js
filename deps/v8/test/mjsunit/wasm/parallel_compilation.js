@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm --wasm-num-compilation-tasks=10
+// Flags: --wasm-num-compilation-tasks=10
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 

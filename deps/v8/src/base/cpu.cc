@@ -452,7 +452,10 @@ CPU::CPU()
       is_running_in_vm_(false),
       has_msa_(false),
       riscv_mmu_(RV_MMU_MODE::kRiscvSV48),
-      has_rvv_(false) {
+      has_rvv_(false),
+      has_zba_(false),
+      has_zbb_(false),
+      has_zbs_(false) {
   memcpy(vendor_, "Unknown", 8);
 
 #if defined(V8_OS_STARBOARD)
@@ -969,6 +972,15 @@ CPU::CPU()
     }
     if (pairs[0].value & RISCV_HWPROBE_IMA_FD) {
       has_fpu_ = true;
+    }
+    if (pairs[0].value & RISCV_HWPROBE_EXT_ZBA) {
+      has_zba_ = true;
+    }
+    if (pairs[0].value & RISCV_HWPROBE_EXT_ZBB) {
+      has_zbb_ = true;
+    }
+    if (pairs[0].value & RISCV_HWPROBE_EXT_ZBS) {
+      has_zbs_ = true;
     }
   }
 #else

@@ -247,21 +247,6 @@ class PosixCommand(DesktopCommand):
     os.killpg(process.pid, signal.SIGKILL)
 
 
-def taskkill_windows(process, verbose=False, force=True):
-  force_flag = ' /F' if force else ''
-  tk = subprocess.Popen(
-      'taskkill /T%s /PID %d' % (force_flag, process.pid),
-      stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
-  )
-  stdout, stderr = tk.communicate()
-  if verbose:
-    logging.info('Taskkill results for %d', process.pid)
-    logging.info(stdout.decode('utf-8', errors='ignore'))
-    logging.info(stderr.decode('utf-8', errors='ignore'))
-    logging.info('Return code: %d', tk.returncode)
-
-
 class IOSCommand(BaseCommand):
 
   def __init__(self,
@@ -321,6 +306,16 @@ class IOSCommand(BaseCommand):
   def _to_args_list(self):
     return list(map(str, self.cmd_prefix + [self.shell]))
 
+def terminate_process_windows(process):
+  try:
+    import _winapi
+    handle = _winapi.OpenProcess(
+        _winapi.PROCESS_ALL_ACCESS, False, process.pid)
+    _winapi.TerminateProcess(handle, 1)
+    _winapi.CloseHandle(handle)
+  except Exception:
+    logging.exception('Problem terminating process %s', process.pid)
+
 
 class WindowsCommand(DesktopCommand):
   def _start_process(self, **kwargs):
@@ -351,7 +346,7 @@ class WindowsCommand(DesktopCommand):
     return subprocess.list2cmdline(self._to_args_list())
 
   def _kill_process(self, process):
-    taskkill_windows(process, self.verbose)
+    terminate_process_windows(process)
 
 
 class AndroidCommand(BaseCommand):

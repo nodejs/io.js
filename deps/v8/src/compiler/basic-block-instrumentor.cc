@@ -8,12 +8,12 @@
 
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/linkage.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/node.h"
 #include "src/compiler/operator-properties.h"
 #include "src/compiler/schedule.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/compiler/turboshaft/graph.h"
 #include "src/compiler/turboshaft/operation-matcher.h"
 #include "src/compiler/turboshaft/operations.h"
@@ -112,7 +112,8 @@ BasicBlockProfilerData* BasicBlockInstrumentor::Instrument(
     // Construct increment operation.
     int offset_to_counter_value = static_cast<int>(block_number) * kInt32Size;
     if (on_heap_counters) {
-      offset_to_counter_value += ByteArray::kHeaderSize - kHeapObjectTag;
+      offset_to_counter_value +=
+          OFFSET_OF_DATA_START(ByteArray) - kHeapObjectTag;
     }
     Node* offset_to_counter =
         graph->NewNode(IntPtrConstant(&common, offset_to_counter_value));
@@ -165,14 +166,15 @@ namespace {
 void StoreBuiltinCallForNode(Node* n, Builtin builtin, int block_id,
                              BuiltinsCallGraph* bcc_profiler) {
   if (n == nullptr) return;
-  IrOpcode::Value op = n->opcode();
-  if (op == IrOpcode::kCall || op == IrOpcode::kTailCall) {
+  IrOpcode::Value opcode = n->opcode();
+  if (opcode == IrOpcode::kCall || opcode == IrOpcode::kTailCall) {
     const CallDescriptor* des = CallDescriptorOf(n->op());
     if (des->kind() == CallDescriptor::kCallCodeObject) {
       Node* callee = n->InputAt(0);
       Operator* op = const_cast<Operator*>(callee->op());
       if (op->opcode() == IrOpcode::kHeapConstant) {
-        Handle<HeapObject> para = OpParameter<Handle<HeapObject>>(op);
+        IndirectHandle<HeapObject> para =
+            OpParameter<IndirectHandle<HeapObject>>(op);
         if (IsCode(*para)) {
           DirectHandle<Code> code = Cast<Code>(para);
           if (code->is_builtin()) {

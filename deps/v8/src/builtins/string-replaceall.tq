@@ -31,6 +31,7 @@ transitioning macro ThrowIfNotGlobal(
 }
 
 // https://tc39.es/ecma262/#sec-string.prototype.replaceall
+@incrementUseCounter('v8::Isolate::kStringReplaceAll')
 transitioning javascript builtin StringPrototypeReplaceAll(
     js-implicit context: NativeContext, receiver: JSAny)(searchValue: JSAny,
     replaceValue: JSAny): JSAny {

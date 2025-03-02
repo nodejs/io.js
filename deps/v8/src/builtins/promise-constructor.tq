@@ -13,9 +13,6 @@ extern transitioning runtime PromiseHookInit(
 // https://tc39.es/ecma262/#sec-promise-constructor
 namespace promise {
 
-extern runtime IncrementUseCounter(Context, Smi): void;
-type UseCounterFeature extends int31
-    constexpr 'v8::Isolate::UseCounterFeature';
 const kPromiseConstructorReturnedUndefined: constexpr UseCounterFeature
     generates 'v8::Isolate::kPromiseConstructorReturnedUndefined';
 

@@ -2,7 +2,7 @@ Tests repeated stepping through a large function (should not OOM)
 
 Running test: test
 Setting up global instance variable.
-Got wasm script: wasm://wasm/8f70f0e2
+Got wasm script: wasm://wasm/e78ec4f6
 Setting breakpoint
 Paused 50 and running...
 Paused 100 and running...

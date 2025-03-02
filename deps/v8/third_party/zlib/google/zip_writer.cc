@@ -5,6 +5,7 @@
 #include "third_party/zlib/google/zip_writer.h"
 
 #include <algorithm>
+#include <tuple>
 
 #include "base/files/file.h"
 #include "base/logging.h"
@@ -193,8 +194,8 @@ bool ZipWriter::AddMixedEntries(Paths paths) {
   while (!paths.empty()) {
     // Work with chunks of 50 paths at most.
     const size_t n = std::min<size_t>(paths.size(), 50);
-    const Paths relative_paths = paths.subspan(0, n);
-    paths = paths.subspan(n, paths.size() - n);
+    Paths relative_paths;
+    std::tie(relative_paths, paths) = paths.split_at(n);
 
     files.clear();
     if (!file_accessor_->Open(relative_paths, &files) || files.size() != n)
@@ -233,8 +234,8 @@ bool ZipWriter::AddFileEntries(Paths paths) {
   while (!paths.empty()) {
     // Work with chunks of 50 paths at most.
     const size_t n = std::min<size_t>(paths.size(), 50);
-    const Paths relative_paths = paths.subspan(0, n);
-    paths = paths.subspan(n, paths.size() - n);
+    Paths relative_paths;
+    std::tie(relative_paths, paths) = paths.split_at(n);
 
     DCHECK_EQ(relative_paths.size(), n);
 

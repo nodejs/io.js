@@ -2,6 +2,7 @@ Checks basic ES6 modules support.
 {
     method : Debugger.scriptParsed
     params : {
+        buildId : 
         embedderName : module1
         endColumn : 17
         endLine : 5
@@ -13,7 +14,7 @@ Checks basic ES6 modules support.
         length : 83
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : module1
@@ -22,6 +23,7 @@ Checks basic ES6 modules support.
 {
     method : Debugger.scriptParsed
     params : {
+        buildId : 
         embedderName : module2
         endColumn : 17
         endLine : 5
@@ -33,7 +35,7 @@ Checks basic ES6 modules support.
         length : 84
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : module2
@@ -42,6 +44,7 @@ Checks basic ES6 modules support.
 {
     method : Debugger.scriptParsed
     params : {
+        buildId : 
         embedderName : module3
         endColumn : 0
         endLine : 11
@@ -53,7 +56,7 @@ Checks basic ES6 modules support.
         length : 286
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : module3
@@ -85,7 +88,7 @@ console.log(239)
                     lineNumber : 0
                     scriptId : <scriptId>
                 }
-                functionName :
+                functionName : 
                 location : {
                     columnNumber : 0
                     lineNumber : 9
@@ -124,7 +127,7 @@ console.log(239)
                 this : {
                     type : undefined
                 }
-                url :
+                url : 
             }
         ]
         hitBreakpoints : [
@@ -205,6 +208,7 @@ console.log(239)
 {
     method : Debugger.scriptFailedToParse
     params : {
+        buildId : 
         embedderName : module4
         endColumn : 1
         endLine : 0
@@ -215,7 +219,7 @@ console.log(239)
         length : 1
         scriptId : <scriptId>
         scriptLanguage : JavaScript
-        sourceMapURL :
+        sourceMapURL : 
         startColumn : 0
         startLine : 0
         url : module4

@@ -5,6 +5,7 @@
 #ifndef V8_OBJECTS_TRUSTED_OBJECT_INL_H_
 #define V8_OBJECTS_TRUSTED_OBJECT_INL_H_
 
+#include "src/objects/heap-object-inl.h"
 #include "src/objects/instance-type-inl.h"
 #include "src/objects/trusted-object.h"
 #include "src/sandbox/sandbox.h"
@@ -67,6 +68,11 @@ void TrustedObject::ClearProtectedPointerField(int offset, ReleaseStoreTag) {
 ProtectedPointerSlot TrustedObject::RawProtectedPointerField(
     int byte_offset) const {
   return ProtectedPointerSlot(field_address(byte_offset));
+}
+
+ProtectedMaybeObjectSlot TrustedObject::RawProtectedMaybeObjectField(
+    int byte_offset) const {
+  return ProtectedMaybeObjectSlot(field_address(byte_offset));
 }
 
 #ifdef VERIFY_HEAP

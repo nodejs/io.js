@@ -51,7 +51,8 @@ enum DebugAsyncActionType {
   kDebugPromiseCatch,
   kDebugPromiseFinally,
   kDebugWillHandle,
-  kDebugDidHandle
+  kDebugDidHandle,
+  kDebugStackTraceCaptured
 };
 
 enum BreakLocationType {

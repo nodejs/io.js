@@ -9,9 +9,9 @@
 #include "src/common/globals.h"
 #include "src/compiler/common-node-cache.h"
 #include "src/compiler/common-operator.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/machine-operator.h"
 #include "src/compiler/node-aux-data.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/runtime/runtime.h"
 
 namespace v8 {

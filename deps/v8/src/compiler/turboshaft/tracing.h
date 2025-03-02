@@ -7,7 +7,7 @@
 
 #include "src/base/contextual.h"
 #include "src/codegen/optimized-compilation-info.h"
-#include "src/compiler/graph-visualizer.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 #include "src/compiler/turboshaft/graph-visualizer.h"
 #include "src/compiler/turboshaft/graph.h"
 

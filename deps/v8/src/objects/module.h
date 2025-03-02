@@ -68,13 +68,13 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
       v8::Module::ResolveSourceCallback source_callback);
 
   // Implementation of spec operation ModuleEvaluation.
-  static V8_WARN_UNUSED_RESULT MaybeHandle<Object> Evaluate(
+  static V8_WARN_UNUSED_RESULT MaybeDirectHandle<Object> Evaluate(
       Isolate* isolate, Handle<Module> module);
 
   // Get the namespace object for [module].  If it doesn't exist yet, it is
   // created.
-  static Handle<JSModuleNamespace> GetModuleNamespace(Isolate* isolate,
-                                                      Handle<Module> module);
+  static DirectHandle<JSModuleNamespace> GetModuleNamespace(
+      Isolate* isolate, Handle<Module> module);
 
   using BodyDescriptor =
       FixedBodyDescriptor<kExportsOffset, kHeaderSize, kHeaderSize>;
@@ -94,12 +94,13 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
   // exception (so check manually!).
   class ResolveSet;
   static V8_WARN_UNUSED_RESULT MaybeHandle<Cell> ResolveExport(
-      Isolate* isolate, Handle<Module> module, Handle<String> module_specifier,
-      Handle<String> export_name, MessageLocation loc, bool must_resolve,
-      ResolveSet* resolve_set);
+      Isolate* isolate, Handle<Module> module,
+      DirectHandle<String> module_specifier, Handle<String> export_name,
+      MessageLocation loc, bool must_resolve, ResolveSet* resolve_set);
 
   static V8_WARN_UNUSED_RESULT bool PrepareInstantiate(
-      Isolate* isolate, Handle<Module> module, v8::Local<v8::Context> context,
+      Isolate* isolate, DirectHandle<Module> module,
+      v8::Local<v8::Context> context,
       v8::Module::ResolveModuleCallback module_callback,
       v8::Module::ResolveSourceCallback source_callback);
   static V8_WARN_UNUSED_RESULT bool FinishInstantiate(
@@ -109,8 +110,8 @@ class Module : public TorqueGeneratedModule<Module, HeapObject> {
 
   // Set module's status back to kUnlinked and reset other internal state.
   // This is used when instantiation fails.
-  static void Reset(Isolate* isolate, Handle<Module> module);
-  static void ResetGraph(Isolate* isolate, Handle<Module> module);
+  static void Reset(Isolate* isolate, DirectHandle<Module> module);
+  static void ResetGraph(Isolate* isolate, DirectHandle<Module> module);
 
   // To set status to kErrored, RecordError should be used.
   void SetStatus(Status status);
@@ -131,10 +132,10 @@ class JSModuleNamespace
   // Retrieve the value exported by [module] under the given [name]. If there is
   // no such export, return Just(undefined). If the export is uninitialized,
   // schedule an exception and return Nothing.
-  V8_WARN_UNUSED_RESULT MaybeHandle<Object> GetExport(Isolate* isolate,
-                                                      Handle<String> name);
+  V8_WARN_UNUSED_RESULT MaybeDirectHandle<Object> GetExport(
+      Isolate* isolate, DirectHandle<String> name);
 
-  bool HasExport(Isolate* isolate, Handle<String> name);
+  bool HasExport(Isolate* isolate, DirectHandle<String> name);
 
   // Return the (constant) property attributes for the referenced property,
   // which is assumed to correspond to an export. If the export is
@@ -143,8 +144,9 @@ class JSModuleNamespace
       LookupIterator* it);
 
   static V8_WARN_UNUSED_RESULT Maybe<bool> DefineOwnProperty(
-      Isolate* isolate, Handle<JSModuleNamespace> o, Handle<Object> key,
-      PropertyDescriptor* desc, Maybe<ShouldThrow> should_throw);
+      Isolate* isolate, DirectHandle<JSModuleNamespace> o,
+      DirectHandle<Object> key, PropertyDescriptor* desc,
+      Maybe<ShouldThrow> should_throw);
 
   // In-object fields.
   enum {

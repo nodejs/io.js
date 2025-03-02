@@ -124,11 +124,8 @@ class Declarations {
   static Builtin* CreateBuiltin(std::string external_name,
                                 std::string readable_name, Builtin::Kind kind,
                                 Builtin::Flags flags, Signature signature,
+                                std::optional<std::string> use_counter_name,
                                 std::optional<Statement*> body);
-  static Builtin* DeclareBuiltin(const std::string& name, Builtin::Kind kind,
-                                 Builtin::Flags flags,
-                                 const Signature& signature,
-                                 std::optional<Statement*> body);
 
   static RuntimeFunction* DeclareRuntimeFunction(const std::string& name,
                                                  const Signature& signature);

@@ -419,7 +419,7 @@ TEST(FillConstructorTest, NonEmptyArrays) {
   EXPECT_THAT(stack_array, testing::ElementsAreArray({1, 1, 1, 1}));
 
   absl::FixedArray<int, 0> heap_array(4, 1);
-  EXPECT_THAT(stack_array, testing::ElementsAreArray({1, 1, 1, 1}));
+  EXPECT_THAT(heap_array, testing::ElementsAreArray({1, 1, 1, 1}));
 }
 
 TEST(FillConstructorTest, EmptyArray) {
@@ -518,7 +518,10 @@ struct PickyDelete {
   }
 };
 
-TEST(FixedArrayTest, UsesGlobalAlloc) { absl::FixedArray<PickyDelete, 0> a(5); }
+TEST(FixedArrayTest, UsesGlobalAlloc) {
+  absl::FixedArray<PickyDelete, 0> a(5);
+  EXPECT_EQ(a.size(), 5);
+}
 
 TEST(FixedArrayTest, Data) {
   static const int kInput[] = {2, 3, 5, 7, 11, 13, 17};
@@ -782,6 +785,7 @@ TEST(AllocatorSupportTest, PropagatesStatefulAllocator) {
 
   AllocFxdArr copy = arr;
   EXPECT_EQ(allocated, len * sizeof(int) * 2);
+  EXPECT_EQ(copy, arr);
 }
 
 #ifdef ABSL_HAVE_ADDRESS_SANITIZER

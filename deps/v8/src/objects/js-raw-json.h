@@ -32,7 +32,7 @@ class JSRawJson : public TorqueGeneratedJSRawJson<JSRawJson, JSObject> {
   // "rawJSON" property can be directly accessed using kRawJsonInitialIndex.
   inline bool HasInitialLayout(Isolate* isolate) const;
 
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSRawJson> Create(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSRawJson> Create(
       Isolate* isolate, Handle<Object> text);
 
   DECL_PRINTER(JSRawJson)

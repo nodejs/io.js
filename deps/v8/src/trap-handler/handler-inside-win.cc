@@ -119,9 +119,16 @@ bool TryHandleWasmTrap(EXCEPTION_POINTERS* exception) {
 
   TH_DCHECK(gLandingPad != 0);
   // Tell the caller to return to the landing pad.
+#if V8_HOST_ARCH_X64
   exception->ContextRecord->Rip = gLandingPad;
   exception->ContextRecord->R10 = fault_addr;
-#endif
+#elif V8_HOST_ARCH_ARM64
+  exception->ContextRecord->Pc = gLandingPad;
+  exception->ContextRecord->X16 = fault_addr;
+#else
+#error Unsupported architecture
+#endif  // V8_HOST_ARCH_X64
+#endif  // V8_TRAP_HANDLER_VIA_SIMULATOR
   // We will return to wasm code, so restore the g_thread_in_wasm_code flag.
   g_thread_in_wasm_code = true;
   return true;

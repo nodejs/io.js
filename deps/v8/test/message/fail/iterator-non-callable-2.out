@@ -2,5 +2,5 @@
 Uint8Array.from(x);
            ^
 TypeError: %%TypedArray%%.from requires that the property of the first argument, items[Symbol.iterator], when exists, be a function
-    at Function.from (<anonymous>)
+    at Uint8Array.from (<anonymous>)
     at *%(basename)s:7:12

@@ -1,0 +1,9 @@
+{
+  "processArguments": [
+    "--expose-gc",
+    "--fuzzing",
+    "--fuzzilli-flag1",
+    "--random-seed=123",
+    "--fuzzilli-flag2"
+  ]
+}

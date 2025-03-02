@@ -21,4 +21,4 @@ Calling wasm export.
     value : Before Wasm execution
 }
 Paused:
-Script wasm://wasm/8c388106 byte offset 33: Wasm opcode 0x01 (kExprNop)
+Script wasm://wasm/aa8b4c12 byte offset 33: Wasm opcode 0x01 (kExprNop)

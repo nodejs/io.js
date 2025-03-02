@@ -85,6 +85,18 @@ inline int64_t UnscaledCycleClock::Now() {
   return static_cast<int64_t>((high << 32) | low);
 }
 
+#elif defined(__aarch64__)
+
+// System timer of ARMv8 runs at a different frequency than the CPU's.
+// The frequency is fixed, typically in the range 1-50MHz.  It can be
+// read at CNTFRQ special register.  We assume the OS has set up
+// the virtual timer properly.
+inline int64_t UnscaledCycleClock::Now() {
+  int64_t virtual_timer_value;
+  asm volatile("mrs %0, cntvct_el0" : "=r"(virtual_timer_value));
+  return virtual_timer_value;
+}
+
 #endif
 
 }  // namespace base_internal

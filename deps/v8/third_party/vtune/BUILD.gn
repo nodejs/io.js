@@ -1,0 +1,48 @@
+# Copyright 2017 the V8 project authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+import("../../gni/v8.gni")
+config("vtune_ittapi") {
+  include_dirs = [
+    "//third_party/ittapi/include",
+    "//third_party/ittapi/src/ittnotify",
+  ]
+}
+
+v8_source_set("v8_vtune") {
+  sources = [
+    "//third_party/ittapi/include/jitprofiling.h",
+    "//third_party/ittapi/src/ittnotify/ittnotify_config.h",
+    "//third_party/ittapi/src/ittnotify/ittnotify_types.h",
+    "//third_party/ittapi/src/ittnotify/jitprofiling.c",
+    "v8-vtune.h",
+    "vtune-jit.cc",
+    "vtune-jit.h",
+  ]
+  configs = [ ":vtune_ittapi" ]
+  deps = [ "../..:v8" ]
+}
+
+v8_source_set("v8_vtune_trace_mark") {
+  sources = [
+    "//third_party/ittapi/include/ittnotify.h",
+    "vtuneapi.cc",
+    "vtuneapi.h",
+  ]
+  deps = [ ":ittnotify" ]
+  configs = []
+}
+
+v8_source_set("ittnotify") {
+  sources = [
+    "//third_party/ittapi/include/ittnotify.h",
+    "//third_party/ittapi/include/legacy/ittnotify.h",
+    "//third_party/ittapi/src/ittnotify/ittnotify_config.h",
+    "//third_party/ittapi/src/ittnotify/ittnotify_static.c",
+    "//third_party/ittapi/src/ittnotify/ittnotify_static.h",
+  ]
+  include_dirs = [ "//third_party/ittapi/include" ]
+  deps = []
+  configs = []
+}

@@ -172,7 +172,7 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
   void TraverseTransitionTree(const TraverseCallback& callback) {
     // Make sure that we do not allocate in the callback.
     DisallowGarbageCollection no_gc;
-    base::SharedMutexGuardIf<base::kShared> scope(
+    base::SpinningMutexGuardIf mutex_guard(
         isolate_->full_transition_array_access(), concurrent_access_);
     TraverseTransitionTreeInternal(callback, &no_gc);
   }
@@ -277,8 +277,9 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
                            DirectHandle<Name> name, DirectHandle<Map> target,
                            TransitionKindFlag flag);
 
-  static inline void ReplaceTransitions(Isolate* isolate, DirectHandle<Map> map,
-                                        Tagged<MaybeObject> new_transitions);
+  static inline void ReplaceTransitions(
+      Isolate* isolate, DirectHandle<Map> map,
+      Tagged<UnionOf<TransitionArray, MaybeWeak<Map>>> new_transitions);
   static inline void ReplaceTransitions(
       Isolate* isolate, DirectHandle<Map> map,
       DirectHandle<TransitionArray> new_transitions);
@@ -315,6 +316,8 @@ class V8_EXPORT_PRIVATE TransitionsAccessor {
 // shared.
 class TransitionArray : public WeakFixedArray {
  public:
+  inline int number_of_transitions() const;
+
   inline Tagged<WeakFixedArray> GetPrototypeTransitions();
   inline bool HasPrototypeTransitions();
 
@@ -330,13 +333,8 @@ class TransitionArray : public WeakFixedArray {
   inline bool GetTargetIfExists(int transition_number, Isolate* isolate,
                                 Tagged<Map>* target);
 
-  // Required for templatized Search interface.
-  inline Tagged<Name> GetKey(InternalIndex index);
   static constexpr int kNotFound = -1;
 
-  inline Tagged<Name> GetSortedKey(int transition_number);
-  int GetSortedKeyIndex(int transition_number) { return transition_number; }
-  inline int number_of_entries() const;
 #ifdef DEBUG
   V8_EXPORT_PRIVATE bool IsSortedNoDuplicates();
 #endif
@@ -432,16 +430,17 @@ class TransitionArray : public WeakFixedArray {
   Tagged<Map> SearchDetailsAndGetTarget(int transition, PropertyKind kind,
                                         PropertyAttributes attributes);
 
+  inline int LinearSearchName(Tagged<Name> name, int* out_insertion_index);
+  inline int BinarySearchName(Tagged<Name> name, int* out_insertion_index);
+
   // Find all transitions with given name and calls the callback.
   void ForEachTransitionTo(Tagged<Name> name,
                            const ForEachTransitionCallback& callback);
 
-  inline int number_of_transitions() const;
-
   static bool CompactPrototypeTransitionArray(Isolate* isolate,
                                               Tagged<WeakFixedArray> array);
 
-  static Handle<WeakFixedArray> GrowPrototypeTransitionArray(
+  static DirectHandle<WeakFixedArray> GrowPrototypeTransitionArray(
       DirectHandle<WeakFixedArray> array, int new_capacity, Isolate* isolate);
 
   // Compares two tuples <key, kind, attributes>, returns -1 if
@@ -469,8 +468,7 @@ class TransitionArray : public WeakFixedArray {
                   Tagged<MaybeObject> target);
 
   inline Tagged<WeakFixedArray> GetSideStepTransitions();
-
-  OBJECT_CONSTRUCTORS(TransitionArray, WeakFixedArray);
+  inline void SetSideStepTransitions(Tagged<WeakFixedArray> transitions);
 };
 
 }  // namespace v8::internal

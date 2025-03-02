@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --no-fail
+// Flags: --throws
 
 d8.debugger.enable();
 eval(`import('I-do-not-exist.js');`);

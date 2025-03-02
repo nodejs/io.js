@@ -247,7 +247,7 @@ void StringStream::OutputToFile(FILE* out) {
   internal::PrintF(out, "%s", &buffer_[position]);
 }
 
-Handle<String> StringStream::ToString(Isolate* isolate) {
+DirectHandle<String> StringStream::ToString(Isolate* isolate) {
   return isolate->factory()
       ->NewStringFromUtf8(base::Vector<const char>(buffer_, length_))
       .ToHandleChecked();
@@ -299,10 +299,9 @@ void StringStream::PrintName(Tagged<Object> name) {
   }
 }
 
-void StringStream::PrintUsingMap(Tagged<JSObject> js_object) {
+void StringStream::PrintUsingMap(Isolate* isolate, Tagged<JSObject> js_object) {
   Tagged<Map> map = js_object->map();
-  Tagged<DescriptorArray> descs =
-      map->instance_descriptors(js_object->GetIsolate());
+  Tagged<DescriptorArray> descs = map->instance_descriptors(isolate);
   for (InternalIndex i : map->IterateOwnDescriptors()) {
     PropertyDetails details = descs->GetDetails(i);
     if (details.location() == PropertyLocation::kField) {
@@ -330,7 +329,7 @@ void StringStream::PrintUsingMap(Tagged<JSObject> js_object) {
 
 void StringStream::PrintFixedArray(Tagged<FixedArray> array,
                                    unsigned int limit) {
-  ReadOnlyRoots roots = array->GetReadOnlyRoots();
+  ReadOnlyRoots roots = GetReadOnlyRoots();
   for (unsigned int i = 0; i < 10 && i < limit; i++) {
     Tagged<Object> element = array->get(i);
     if (IsTheHole(element, roots)) continue;
@@ -381,7 +380,7 @@ void StringStream::PrintMentionedObjectCache(Isolate* isolate) {
         Add("           value(): %o\n",
             Cast<JSPrimitiveWrapper>(printee)->value());
       }
-      PrintUsingMap(Cast<JSObject>(printee));
+      PrintUsingMap(isolate, Cast<JSObject>(printee));
       if (IsJSArray(printee)) {
         Tagged<JSArray> array = Cast<JSArray>(printee);
         if (array->HasObjectElements()) {
@@ -401,9 +400,9 @@ void StringStream::PrintMentionedObjectCache(Isolate* isolate) {
   }
 }
 
-void StringStream::PrintSecurityTokenIfChanged(Tagged<JSFunction> fun) {
+void StringStream::PrintSecurityTokenIfChanged(Isolate* isolate,
+                                               Tagged<JSFunction> fun) {
   Tagged<Object> token = fun->native_context()->security_token();
-  Isolate* isolate = fun->GetIsolate();
   // Use SafeEquals because the cached token might be a stale pointer.
   if (token.SafeEquals(isolate->string_stream_current_security_token())) {
     Add("Security context: %o\n", token);
@@ -411,16 +410,15 @@ void StringStream::PrintSecurityTokenIfChanged(Tagged<JSFunction> fun) {
   }
 }
 
-void StringStream::PrintFunction(Tagged<JSFunction> fun,
+void StringStream::PrintFunction(Isolate* isolate, Tagged<JSFunction> fun,
                                  Tagged<Object> receiver) {
-  PrintPrototype(fun, receiver);
+  PrintPrototype(isolate, fun, receiver);
 }
 
-void StringStream::PrintPrototype(Tagged<JSFunction> fun,
+void StringStream::PrintPrototype(Isolate* isolate, Tagged<JSFunction> fun,
                                   Tagged<Object> receiver) {
   Tagged<Object> name = fun->shared()->Name();
   bool print_name = false;
-  Isolate* isolate = fun->GetIsolate();
   if (IsNullOrUndefined(receiver, isolate) || IsTheHole(receiver, isolate) ||
       IsJSProxy(receiver) || IsWasmObject(receiver)) {
     print_name = true;

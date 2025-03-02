@@ -54,6 +54,16 @@ enum LiftoffBailoutReason : int8_t {
   kNumBailoutReasons
 };
 
+// Further information about a location for a deopt: A call_ref can either be
+// just an inline call (that didn't cause a deopt) with a deopt happening within
+// the inlinee or it could be the deopt point itself. This changes whether the
+// relevant stackstate is the one before the call or after the call.
+enum class LocationKindForDeopt : uint8_t {
+  kNone,
+  kEagerDeopt,   // The location is the point of an eager deopt.
+  kInlinedCall,  // The loation is an inlined call, not a deopt.
+};
+
 struct LiftoffOptions {
   int func_index = -1;
   ForDebugging for_debugging = kNotForDebugging;
@@ -63,7 +73,9 @@ struct LiftoffOptions {
   std::unique_ptr<DebugSideTable>* debug_sidetable = nullptr;
   int dead_breakpoint = 0;
   int32_t* max_steps = nullptr;
-  int32_t* nondeterminism = nullptr;
+  bool detect_nondeterminism = false;
+  uint32_t deopt_info_bytecode_offset = std::numeric_limits<uint32_t>::max();
+  LocationKindForDeopt deopt_location_kind = LocationKindForDeopt::kNone;
 
   // Check that all non-optional fields have been initialized.
   bool is_initialized() const { return func_index >= 0; }
@@ -83,7 +95,9 @@ struct LiftoffOptions {
   SETTER(debug_sidetable)
   SETTER(dead_breakpoint)
   SETTER(max_steps)
-  SETTER(nondeterminism)
+  SETTER(detect_nondeterminism)
+  SETTER(deopt_info_bytecode_offset)
+  SETTER(deopt_location_kind)
 
 #undef SETTER
 

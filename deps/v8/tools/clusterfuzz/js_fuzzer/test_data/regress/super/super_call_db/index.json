@@ -1,0 +1,12 @@
+{
+    "statements": [
+      "CallExpression/a2.json"
+    ],
+    "superStatements": [
+      "CallExpression/a1.json"
+    ],
+    "all": [
+      "CallExpression/a1.json",
+      "CallExpression/a2.json"
+    ]
+}

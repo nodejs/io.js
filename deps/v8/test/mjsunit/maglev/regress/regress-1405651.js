@@ -35,6 +35,7 @@ arr2[2] = 42;
 
 // Re-optimizing {f} (which a fresh feedback), now that the protector for
 // detached array buffer doesn't hold anymore.
+%DeoptimizeFunction(f);
 %ClearFunctionFeedback(f);
 %PrepareFunctionForOptimization(f);
 assertEquals(42, f(arr2));

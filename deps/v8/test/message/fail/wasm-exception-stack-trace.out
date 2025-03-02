@@ -3,5 +3,5 @@
   ^
 Error
     at throw_wasm_exn (*%(basename)s:15:19)
-    at throw (wasm://wasm/f232c786:wasm-function[1]:0x32)
+    at throw (wasm://wasm/902a1856:wasm-function[1]:0x32)
     at *%(basename)s:19:23

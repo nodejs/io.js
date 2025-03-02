@@ -337,9 +337,11 @@ PropertyDetails SwissNameDictionary::DetailsAt(InternalIndex entry) {
 }
 
 // static
-template <typename IsolateT>
-Handle<SwissNameDictionary> SwissNameDictionary::EnsureGrowable(
-    IsolateT* isolate, Handle<SwissNameDictionary> table) {
+template <typename IsolateT, template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                 DirectHandle<SwissNameDictionary>>)
+HandleType<SwissNameDictionary> SwissNameDictionary::EnsureGrowable(
+    IsolateT* isolate, HandleType<SwissNameDictionary> table) {
   int capacity = table->Capacity();
 
   if (table->UsedCapacity() < MaxUsableCapacity(capacity)) {
@@ -506,14 +508,17 @@ bool SwissNameDictionary::ToKey(ReadOnlyRoots roots, InternalIndex entry,
 }
 
 // static
-template <typename IsolateT>
-Handle<SwissNameDictionary> SwissNameDictionary::Add(
-    IsolateT* isolate, Handle<SwissNameDictionary> original_table,
+template <typename IsolateT, template <typename> typename HandleType>
+  requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                 DirectHandle<SwissNameDictionary>>)
+HandleType<SwissNameDictionary> SwissNameDictionary::Add(
+    IsolateT* isolate, HandleType<SwissNameDictionary> original_table,
     DirectHandle<Name> key, DirectHandle<Object> value, PropertyDetails details,
     InternalIndex* entry_out) {
   DCHECK(original_table->FindEntry(isolate, *key).is_not_found());
 
-  Handle<SwissNameDictionary> table = EnsureGrowable(isolate, original_table);
+  HandleType<SwissNameDictionary> table =
+      EnsureGrowable(isolate, original_table);
   DisallowGarbageCollection no_gc;
   Tagged<SwissNameDictionary> raw_table = *table;
   int nof = raw_table->NumberOfElements();
@@ -541,7 +546,7 @@ int SwissNameDictionary::AddInternal(Tagged<Name> key, Tagged<Object> value,
 
   uint32_t hash = key->hash();
 
-  // For now we don't re-use deleted buckets (due to enumeration table
+  // For now we don't reuse deleted buckets (due to enumeration table
   // complications), which is why we only look for empty buckets here, not
   // deleted ones.
   int target = FindFirstEmpty(hash);
@@ -582,7 +587,7 @@ void SwissNameDictionary::Initialize(IsolateT* isolate,
 }
 
 SwissNameDictionary::IndexIterator::IndexIterator(
-    Handle<SwissNameDictionary> dict, int start)
+    DirectHandle<SwissNameDictionary> dict, int start)
     : enum_index_{start}, dict_{dict} {
   if (dict.is_null()) {
     used_capacity_ = 0;
@@ -621,7 +626,7 @@ InternalIndex SwissNameDictionary::IndexIterator::operator*() {
 }
 
 SwissNameDictionary::IndexIterable::IndexIterable(
-    Handle<SwissNameDictionary> dict)
+    DirectHandle<SwissNameDictionary> dict)
     : dict_{dict} {}
 
 SwissNameDictionary::IndexIterator SwissNameDictionary::IndexIterable::begin() {
@@ -642,17 +647,17 @@ SwissNameDictionary::IterateEntriesOrdered() {
   // If we are supposed to iterate the empty dictionary (which is non-writable),
   // we have no simple way to get the isolate, which we would need to create a
   // handle.
-  // TODO(emrich): Consider always using roots.empty_swiss_dictionary_handle()
+  // TODO(emrich): Consider always using roots.empty_swiss_dictionary()
   // in the condition once this function gets Isolate as a parameter in order to
   // avoid empty dict checks.
   if (Capacity() == 0) {
-    return IndexIterable(Handle<SwissNameDictionary>::null());
+    return IndexIterable(DirectHandle<SwissNameDictionary>::null());
   }
 
   Isolate* isolate;
   GetIsolateFromHeapObject(*this, &isolate);
   DCHECK_NE(isolate, nullptr);
-  return IndexIterable(handle(*this, isolate));
+  return IndexIterable(direct_handle(*this, isolate));
 }
 
 SwissNameDictionary::IndexIterable SwissNameDictionary::IterateEntries() {
@@ -668,7 +673,7 @@ int SwissNameDictionary::Hash() { return ReadField<int32_t>(PrefixOffset()); }
 // static
 constexpr int SwissNameDictionary::MaxCapacity() {
   int const_size =
-      DataTableStartOffset() + ByteArray::kHeaderSize +
+      DataTableStartOffset() + sizeof(ByteArray::Header) +
       // Size for present and deleted element count at max capacity:
       2 * sizeof(uint32_t);
   int per_entry_size =

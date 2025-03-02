@@ -139,11 +139,13 @@ TEST_F(NonMutatingTest, FindEndWithPredicate) {
 TEST_F(NonMutatingTest, FindFirstOf) {
   absl::c_find_first_of(container_, sequence_);
   absl::c_find_first_of(sequence_, container_);
+  absl::c_find_first_of(sequence_, std::array<int, 2>{1, 2});
 }
 
 TEST_F(NonMutatingTest, FindFirstOfWithPredicate) {
   absl::c_find_first_of(container_, sequence_, BinPredicate);
   absl::c_find_first_of(sequence_, container_, BinPredicate);
+  absl::c_find_first_of(sequence_, std::array<int, 2>{1, 2}, BinPredicate);
 }
 
 TEST_F(NonMutatingTest, AdjacentFind) { absl::c_adjacent_find(sequence_); }

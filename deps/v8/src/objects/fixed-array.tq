@@ -3,12 +3,12 @@
 // found in the LICENSE file.
 
 @abstract
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class FixedArrayBase extends HeapObject {
   const length: Smi;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 @generateBodyDescriptor
 extern class FixedArray extends FixedArrayBase {
   objects[length]: Object;
@@ -16,49 +16,57 @@ extern class FixedArray extends FixedArrayBase {
 
 type EmptyFixedArray extends FixedArray;
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class TrustedFixedArray extends TrustedObject {
   const length: Smi;
   objects[length]: Object;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class ProtectedFixedArray extends TrustedObject {
   const length: Smi;
   objects[length]: TrustedObject|Smi;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class FixedDoubleArray extends FixedArrayBase {
-  floats[length]: float64_or_hole;
+  values[length]: float64_or_undefined_or_hole;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class WeakFixedArray extends HeapObject {
   const length: Smi;
   objects[length]: MaybeObject;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class TrustedWeakFixedArray extends TrustedObject {
   const length: Smi;
   objects[length]: MaybeObject;
 }
 
-@cppObjectDefinition
-extern class ByteArray extends FixedArrayBase {
-  bytes[length]: uint8;
+@cppObjectLayoutDefinition
+extern class ProtectedWeakFixedArray extends TrustedObject {
+  const length: Smi;
+  // TODO(jkummerow): Define "TrustedMaybeObject" if we ever write Torque
+  // code accessing these values.
+  objects[length]: TrustedObject|Smi;
 }
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
+extern class ByteArray extends FixedArrayBase {
+  values[length]: uint8;
+}
+
+@cppObjectLayoutDefinition
 extern class TrustedByteArray extends TrustedObject {
   const length: Smi;
-  bytes[length]: uint8;
+  values[length]: uint8;
 }
 
 extern macro CodeStubAssembler::AllocateByteArray(uintptr): ByteArray;
 
-@cppObjectDefinition
+@cppObjectLayoutDefinition
 extern class ArrayList extends HeapObject {
   const capacity: Smi;
   length: Smi;
@@ -69,7 +77,7 @@ extern class ArrayList extends HeapObject {
 extern class WeakArrayList extends HeapObject {
   const capacity: Smi;
   length: Smi;
-  @cppRelaxedLoad objects[capacity]: MaybeObject;
+  @cppRelaxedLoad @cppRelaxedStore objects[capacity]: MaybeObject;
 }
 
 extern operator '.length_intptr' macro LoadAndUntagFixedArrayBaseLength(
@@ -107,15 +115,17 @@ extern macro StoreFixedArrayElement(
     FixedArray, intptr, Object, constexpr WriteBarrierMode): void;
 extern macro StoreFixedArrayElement(
     FixedArray, intptr, Smi, constexpr WriteBarrierMode): void;
-extern operator '.floats[]=' macro StoreFixedDoubleArrayElement(
+extern operator '.values[]=' macro StoreFixedDoubleArrayElement(
     FixedDoubleArray, intptr, float64): void;
-extern operator '.floats[]=' macro StoreFixedDoubleArrayElement(
+extern operator '.values[]=' macro StoreFixedDoubleArrayElement(
     FixedDoubleArray, Smi, float64): void;
-extern operator '.floats[]' macro LoadFixedDoubleArrayElement(
+extern operator '.values[]' macro LoadFixedDoubleArrayElement(
     FixedDoubleArray, intptr): float64;
+@if(V8_ENABLE_EXPERIMENTAL_UNDEFINED_DOUBLE)
+  extern macro StoreFixedDoubleArrayUndefined(FixedDoubleArray, intptr): void;
 operator '[]=' macro StoreFixedDoubleArrayDirect(
     a: FixedDoubleArray, i: Smi, v: Number): void {
-  a.floats[i] = Convert<float64_or_hole>(Convert<float64>(v));
+  a.values[i] = Convert<float64_or_undefined_or_hole>(Convert<float64>(v));
 }
 operator '[]=' macro StoreFixedArrayDirect(
     a: FixedArray, i: Smi, v: Object): void {
@@ -168,8 +178,8 @@ macro ExtractFixedDoubleArray(
   // TODO(turbofan): This should be optimized to use memcpy for initialization.
   return NewFixedDoubleArray(
       capacity,
-      IteratorSequence<float64_or_hole>(
-          (&source.floats).Iterator(first, first + count),
+      IteratorSequence<float64_or_undefined_or_hole>(
+          (&source.values).Iterator(first, first + count),
           ConstantIterator(kDoubleHole)));
 }
 
@@ -196,6 +206,6 @@ macro NewFixedDoubleArray<Iterator: type>(
   return new FixedDoubleArray{
     map: kFixedDoubleArrayMap,
     length: Convert<Smi>(length),
-    floats: ...it
+    values: ...it
   };
 }

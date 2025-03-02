@@ -105,8 +105,8 @@ class Accessors : public AllStatic {
       ACCESSOR_CALLBACK_LIST_GENERATOR(COUNT_ACCESSOR, /* not used */);
 #undef COUNT_ACCESSOR
 
-  static Handle<AccessorInfo> MakeModuleNamespaceEntryInfo(Isolate* isolate,
-                                                           Handle<String> name);
+  static DirectHandle<AccessorInfo> MakeModuleNamespaceEntryInfo(
+      Isolate* isolate, DirectHandle<String> name);
 
   // Accessor function called directly from the runtime system. Returns the
   // newly materialized arguments object for the given {frame}. Note that for
@@ -117,12 +117,13 @@ class Accessors : public AllStatic {
   // Returns true for properties that are accessors to object fields.
   // If true, the matching FieldIndex is returned through |field_index|.
   static bool IsJSObjectFieldAccessor(Isolate* isolate, DirectHandle<Map> map,
-                                      Handle<Name> name,
+                                      DirectHandle<Name> name,
                                       FieldIndex* field_index);
 
-  static MaybeHandle<Object> ReplaceAccessorWithDataProperty(
-      Isolate* isolate, Handle<Object> receiver, Handle<JSObject> holder,
-      Handle<Name> name, Handle<Object> value);
+  static MaybeDirectHandle<Object> ReplaceAccessorWithDataProperty(
+      Isolate* isolate, DirectHandle<JSAny> receiver,
+      DirectHandle<JSObject> holder, DirectHandle<Name> name,
+      DirectHandle<Object> value);
 
   // Create an AccessorInfo. The setter is optional (can be nullptr).
   //
@@ -136,13 +137,14 @@ class Accessors : public AllStatic {
       void (*)(Local<v8::Name> property, Local<v8::Value> value,
                const PropertyCallbackInfo<v8::Boolean>& info);
 
-  V8_EXPORT_PRIVATE static Handle<AccessorInfo> MakeAccessor(
-      Isolate* isolate, Handle<Name> name, AccessorNameGetterCallback getter,
+  V8_EXPORT_PRIVATE static DirectHandle<AccessorInfo> MakeAccessor(
+      Isolate* isolate, DirectHandle<Name> name,
+      AccessorNameGetterCallback getter,
       AccessorNameBooleanSetterCallback setter);
 
  private:
 #define ACCESSOR_INFO_DECLARATION(_, accessor_name, AccessorName, ...) \
-  static Handle<AccessorInfo> Make##AccessorName##Info(Isolate* isolate);
+  static DirectHandle<AccessorInfo> Make##AccessorName##Info(Isolate* isolate);
   ACCESSOR_INFO_LIST_GENERATOR(ACCESSOR_INFO_DECLARATION, /* not used */)
 #undef ACCESSOR_INFO_DECLARATION
 

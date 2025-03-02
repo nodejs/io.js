@@ -318,6 +318,9 @@ constexpr Register kJavaScriptCallCodeStartRegister = r5;
 constexpr Register kJavaScriptCallTargetRegister = kJSFunctionRegister;
 constexpr Register kJavaScriptCallNewTargetRegister = r6;
 constexpr Register kJavaScriptCallExtraArg1Register = r5;
+// DispatchHandle is only needed for the sandbox which is not available on
+// ppc64.
+constexpr Register kJavaScriptCallDispatchHandleRegister = no_reg;
 
 constexpr Register kRuntimeCallFunctionRegister = r4;
 constexpr Register kRuntimeCallArgCountRegister = r3;

@@ -993,7 +993,7 @@ TEST(TestReturnNever_Runtime_Called) {
     m.Return(result);
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
-  MaybeHandle<Object> result = ft.Call();
+  MaybeDirectHandle<Object> result = ft.Call();
   CHECK(result.is_null());
   CHECK(isolate->has_exception());
 }
@@ -1013,9 +1013,42 @@ TEST(TestReturnNever_Builtin_Called) {
     m.Return(result);
   }
   FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
-  MaybeHandle<Object> result = ft.Call();
+  MaybeDirectHandle<Object> result = ft.Call();
   CHECK(result.is_null());
   CHECK(isolate->has_exception());
+}
+
+int* global_use_counts = nullptr;
+
+void MockUseCounterCallback(v8::Isolate* isolate,
+                            v8::Isolate::UseCounterFeature feature) {
+  ++global_use_counts[feature];
+}
+
+// Test @incrementUseCounter
+TEST(TestIncrementUseCounterInBuiltin) {
+  CcTest::InitializeVM();
+  v8::Isolate* isolate = CcTest::isolate();
+  v8::HandleScope scope(isolate);
+  LocalContext env;
+  int use_counts[v8::Isolate::kUseCounterFeatureCount] = {};
+  global_use_counts = use_counts;
+  CcTest::isolate()->SetUseCounterCallback(MockUseCounterCallback);
+
+  Isolate* i_isolate(CcTest::i_isolate());
+  const int kNumParams = 0;
+  CodeAssemblerTester asm_tester(i_isolate, JSParameterCount(kNumParams));
+  TestTorqueAssembler m(asm_tester.state());
+  {
+    auto context = m.GetJSContextParameter();
+    TNode<Object> result =
+        m.CallBuiltin(Builtin::kTestIncrementArraySpeciesModified, context);
+    m.Return(result);
+  }
+  FunctionTester ft(asm_tester.GenerateCode(), kNumParams);
+  CHECK_EQ(0, use_counts[v8::Isolate::kArraySpeciesModified]);
+  ft.Call();
+  CHECK_EQ(1, use_counts[v8::Isolate::kArraySpeciesModified]);
 }
 
 #include "src/codegen/undef-code-stub-assembler-macros.inc"

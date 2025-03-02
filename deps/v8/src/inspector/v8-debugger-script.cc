@@ -19,12 +19,13 @@ namespace {
 const char kGlobalDebuggerScriptHandleLabel[] = "DevTools debugger";
 
 String16 calculateHash(v8::Isolate* isolate, v8::Local<v8::String> source) {
-  std::unique_ptr<UChar[]> buffer(new UChar[source->Length()]);
-  int written = source->Write(
-      isolate, reinterpret_cast<uint16_t*>(buffer.get()), 0, source->Length());
+  uint32_t length = source->Length();
+  std::unique_ptr<UChar[]> buffer(new UChar[length]);
+  source->WriteV2(isolate, 0, length,
+                  reinterpret_cast<uint16_t*>(buffer.get()));
 
   const uint8_t* data = nullptr;
-  size_t sizeInBytes = sizeof(UChar) * written;
+  size_t sizeInBytes = sizeof(UChar) * length;
   data = reinterpret_cast<const uint8_t*>(buffer.get());
 
   uint8_t hash[kSizeOfSha256Digest];
@@ -65,8 +66,9 @@ class ActualScript : public V8DebuggerScript {
     size_t substringLength =
         std::min(len, static_cast<size_t>(v8Source->Length()) - pos);
     std::unique_ptr<UChar[]> buffer(new UChar[substringLength]);
-    v8Source->Write(m_isolate, reinterpret_cast<uint16_t*>(buffer.get()),
-                    static_cast<int>(pos), static_cast<int>(substringLength));
+    v8Source->WriteV2(m_isolate, static_cast<uint32_t>(pos),
+                      static_cast<uint32_t>(substringLength),
+                      reinterpret_cast<uint16_t*>(buffer.get()));
     return String16(buffer.get(), substringLength);
   }
   Language getLanguage() const override { return m_language; }
@@ -81,21 +83,12 @@ class ActualScript : public V8DebuggerScript {
     return v8::Nothing<v8::MemorySpan<const uint8_t>>();
   }
 
-  v8::Maybe<v8::debug::WasmScript::DebugSymbolsType> getDebugSymbolsType()
+  std::vector<v8::debug::WasmScript::DebugSymbols> getDebugSymbols()
       const override {
     auto script = this->script();
     if (!script->IsWasm())
-      return v8::Nothing<v8::debug::WasmScript::DebugSymbolsType>();
-    return v8::Just(v8::debug::WasmScript::Cast(*script)->GetDebugSymbolType());
-  }
-
-  v8::Maybe<String16> getExternalDebugSymbolsURL() const override {
-    auto script = this->script();
-    if (!script->IsWasm()) return v8::Nothing<String16>();
-    v8::MemorySpan<const char> external_url =
-        v8::debug::WasmScript::Cast(*script)->ExternalSymbolsURL();
-    if (external_url.size() == 0) return v8::Nothing<String16>();
-    return v8::Just(String16(external_url.data(), external_url.size()));
+      return std::vector<v8::debug::WasmScript::DebugSymbols>();
+    return v8::debug::WasmScript::Cast(*script)->GetDebugSymbols();
   }
 
   void Disassemble(v8::debug::DisassemblyCollector* collector,
@@ -226,6 +219,26 @@ class ActualScript : public V8DebuggerScript {
     m_hash = calculateHash(m_isolate, v8Source);
     DCHECK(!m_hash.isEmpty());
     return m_hash;
+  }
+
+  String16 buildId() const override {
+#if V8_ENABLE_WEBASSEMBLY
+    if (m_language == Language::WebAssembly) {
+      v8::Local<v8::debug::Script> script = this->script();
+      auto maybe_build_id =
+          v8::debug::WasmScript::Cast(*script)->GetModuleBuildId();
+      if (maybe_build_id.IsJust()) {
+        v8::MemorySpan<const uint8_t> buildId = maybe_build_id.FromJust();
+        String16Builder buildIdFormatter;
+        for (size_t i = 0; i < buildId.size(); i++) {
+          buildIdFormatter.appendUnsignedAsHex(
+              static_cast<uint8_t>(buildId[i]));
+        }
+        return buildIdFormatter.toString();
+      }
+    }
+#endif  // V8_ENABLE_WEBASSEMBLY
+    return {};
   }
 
  private:

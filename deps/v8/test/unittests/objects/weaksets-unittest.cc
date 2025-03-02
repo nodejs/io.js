@@ -138,7 +138,7 @@ TEST_F(WeakSetsTest, WeakSet_Shrinking) {
     DirectHandle<Map> map = factory->NewContextfulMapForCurrentContext(
         JS_OBJECT_TYPE, JSObject::kHeaderSize);
     for (int i = 0; i < 32; i++) {
-      Handle<JSObject> object = factory->NewJSObjectFromMap(map);
+      DirectHandle<JSObject> object = factory->NewJSObjectFromMap(map);
       DirectHandle<Smi> smi(Smi::FromInt(i), i_isolate());
       int32_t hash = Object::GetOrCreateHash(*object, i_isolate()).value();
       JSWeakCollection::Set(weakset, object, smi, hash);
@@ -172,9 +172,9 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060a) {
   Factory* factory = i_isolate()->factory();
   Heap* heap = i_isolate()->heap();
   HandleScope scope(i_isolate());
-  Handle<JSFunction> function =
+  DirectHandle<JSFunction> function =
       factory->NewFunctionForTesting(factory->function_string());
-  Handle<JSObject> key = factory->NewJSObject(function);
+  DirectHandle<JSObject> key = factory->NewJSObject(function);
   DirectHandle<JSWeakSet> weakset = AllocateJSWeakSet();
 
   // Start second old-space page so that values land on evacuation candidate.
@@ -187,7 +187,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060a) {
     for (int i = 0; i < 32; i++) {
       DirectHandle<JSObject> object =
           factory->NewJSObject(function, AllocationType::kOld);
-      CHECK(!Heap::InYoungGeneration(*object));
+      CHECK(!HeapLayout::InYoungGeneration(*object));
       CHECK(!first_page->Contains(object->address()));
       int32_t hash = Object::GetOrCreateHash(*key, i_isolate()).value();
       JSWeakCollection::Set(weakset, key, object, hash);
@@ -215,7 +215,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060b) {
   Factory* factory = i_isolate()->factory();
   Heap* heap = i_isolate()->heap();
   HandleScope scope(i_isolate());
-  Handle<JSFunction> function =
+  DirectHandle<JSFunction> function =
       factory->NewFunctionForTesting(factory->function_string());
 
   // Start second old-space page so that keys land on evacuation candidate.
@@ -226,7 +226,7 @@ TEST_F(WeakSetsTest, WeakSet_Regress2060b) {
   Handle<JSObject> keys[32];
   for (int i = 0; i < 32; i++) {
     keys[i] = factory->NewJSObject(function, AllocationType::kOld);
-    CHECK(!Heap::InYoungGeneration(*keys[i]));
+    CHECK(!HeapLayout::InYoungGeneration(*keys[i]));
     CHECK(!first_page->Contains(keys[i]->address()));
   }
   DirectHandle<JSWeakSet> weakset = AllocateJSWeakSet();

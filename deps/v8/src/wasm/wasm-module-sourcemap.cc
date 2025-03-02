@@ -66,10 +66,10 @@ WasmModuleSourceMap::WasmModuleSourceMap(v8::Isolate* v8_isolate,
       return;
     v8::Local<v8::String> file_name =
         v8::Local<v8::String>::Cast(file_name_value);
-    auto file_name_sz = file_name->Utf8Length(v8_isolate);
-    std::unique_ptr<char[]> file_name_buf(new char[file_name_sz + 1]);
-    file_name->WriteUtf8(v8_isolate, file_name_buf.get());
-    file_name_buf.get()[file_name_sz] = '\0';
+    size_t file_name_sz = file_name->Utf8LengthV2(v8_isolate) + 1;
+    std::unique_ptr<char[]> file_name_buf(new char[file_name_sz]);
+    file_name->WriteUtf8V2(v8_isolate, file_name_buf.get(), file_name_sz,
+                           v8::String::WriteFlags::kNullTerminate);
     filenames.emplace_back(file_name_buf.get());
   }
 
@@ -81,10 +81,10 @@ WasmModuleSourceMap::WasmModuleSourceMap(v8::Isolate* v8_isolate,
   if (!has_valid_mappings) return;
 
   v8::Local<v8::String> mappings = v8::Local<v8::String>::Cast(mappings_value);
-  int mappings_sz = mappings->Utf8Length(v8_isolate);
-  std::unique_ptr<char[]> mappings_buf(new char[mappings_sz + 1]);
-  mappings->WriteUtf8(v8_isolate, mappings_buf.get());
-  mappings_buf.get()[mappings_sz] = '\0';
+  size_t mappings_sz = mappings->Utf8LengthV2(v8_isolate) + 1;
+  std::unique_ptr<char[]> mappings_buf(new char[mappings_sz]);
+  mappings->WriteUtf8V2(v8_isolate, mappings_buf.get(), mappings_sz,
+                        v8::String::WriteFlags::kNullTerminate);
 
   valid_ = DecodeMapping(mappings_buf.get());
 }

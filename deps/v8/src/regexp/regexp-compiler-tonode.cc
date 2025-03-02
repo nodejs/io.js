@@ -1518,10 +1518,10 @@ void CharacterRange::AddCaseEquivalents(Isolate* isolate, Zone* zone,
     if (top == bottom) {
       // If this is a singleton we just expand the one character.
       int length = isolate->jsregexp_uncanonicalize()->get(bottom, '\0', chars);
-      for (int i = 0; i < length; i++) {
-        base::uc32 chr = chars[i];
+      for (int j = 0; j < length; j++) {
+        base::uc32 chr = chars[j];
         if (chr != bottom) {
-          ranges->Add(CharacterRange::Singleton(chars[i]), zone);
+          ranges->Add(CharacterRange::Singleton(chars[j]), zone);
         }
       }
     } else {
@@ -1556,8 +1556,8 @@ void CharacterRange::AddCaseEquivalents(Isolate* isolate, Zone* zone,
         int end = (block_end > top) ? top : block_end;
         length = isolate->jsregexp_uncanonicalize()->get(block_end, '\0',
                                                          equivalents);
-        for (int i = 0; i < length; i++) {
-          base::uc32 c = equivalents[i];
+        for (int j = 0; j < length; j++) {
+          base::uc32 c = equivalents[j];
           base::uc32 range_from = c - (block_end - pos);
           base::uc32 range_to = c - (block_end - end);
           if (!(bottom <= range_from && range_to <= top)) {

@@ -3,7 +3,7 @@ Test conditional breakpoints in wasm.
 Running test: test
 Instantiating.
 Waiting for wasm script.
-Got wasm script: wasm://wasm/f00dbc56
+Got wasm script: wasm://wasm/c5d9f10e
 Setting breakpoint at offset 34, condition "false"
 {
     id : <messageId>
@@ -41,26 +41,26 @@ Setting breakpoint at offset 46, condition "$var0.value==3"
     }
 }
 Calling fib(5)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 5 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 4 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 3 (i32)
-Script wasm://wasm/f00dbc56 byte offset 46: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/c5d9f10e byte offset 46: Wasm opcode 0x10 (kExprCallFunction)
 $var0: 3 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 2 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 1 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 2 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 3 (i32)
-Script wasm://wasm/f00dbc56 byte offset 46: Wasm opcode 0x10 (kExprCallFunction)
+Script wasm://wasm/c5d9f10e byte offset 46: Wasm opcode 0x10 (kExprCallFunction)
 $var0: 3 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 2 (i32)
-Script wasm://wasm/f00dbc56 byte offset 41: Wasm opcode 0x0d (kExprBrIf)
+Script wasm://wasm/c5d9f10e byte offset 41: Wasm opcode 0x0d (kExprBrIf)
 $var0: 1 (i32)
 fib returned!

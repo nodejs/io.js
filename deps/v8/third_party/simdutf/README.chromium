@@ -1,0 +1,25 @@
+Name: simdutf unicode transcoder
+Short Name: simdutf
+URL: https://github.com/simdutf/simdutf
+Version: 6.0.2
+License: MIT
+License File: LICENSE
+Shipped: yes
+Security Critical: yes
+
+Description:
+This library provide fast Unicode functions such as:
+- WHATWG forgiving-base64 (with or without URL encoding) to binary,
+- Binary to base64 (with or without URL encoding),
+- etc.
+The functions are accelerated using SIMD instructions (e.g., ARM NEON, SSE, AVX,
+AVX-512, RISC-V Vector Extension, etc.). When your strings contain hundreds of
+characters, we can often transcode them at speeds exceeding a billion characters
+per second.
+
+This library is written in C++, which is memory unsafe, so it can only be
+used for trustworthy data or in sandboxed processes, like the renderer process.
+For new uses of base64 involving untrustworthy data in unsandboxed processes,
+a memory-safe alternative should be used.
+
+Note: This is using the single header version of the library.

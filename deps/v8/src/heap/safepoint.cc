@@ -5,6 +5,7 @@
 #include "src/heap/safepoint.h"
 
 #include <atomic>
+#include <vector>
 
 #include "src/base/logging.h"
 #include "src/base/platform/mutex.h"
@@ -42,29 +43,31 @@ void IsolateSafepoint::EnterLocalSafepointScope() {
   TRACE_GC(heap_->tracer(), GCTracer::Scope::TIME_TO_SAFEPOINT);
 
   barrier_.Arm();
-  size_t running = SetSafepointRequestedFlags(IncludeMainThread::kNo);
-  barrier_.WaitUntilRunningThreadsInSafepoint(running);
+  RunningLocalHeaps running_local_heaps;
+  SetSafepointRequestedFlags(IncludeMainThread::kNo, running_local_heaps);
+  barrier_.WaitUntilRunningThreadsInSafepoint(running_local_heaps);
 }
 
 class PerClientSafepointData final {
  public:
   explicit PerClientSafepointData(Isolate* isolate) : isolate_(isolate) {}
 
-  void set_locked_and_running(size_t running) {
-    locked_ = true;
-    running_ = running;
-  }
+  void set_locked() { locked_ = true; }
 
   IsolateSafepoint* safepoint() const { return heap()->safepoint(); }
   Heap* heap() const { return isolate_->heap(); }
   Isolate* isolate() const { return isolate_; }
 
   bool is_locked() const { return locked_; }
-  size_t running() const { return running_; }
+
+  IsolateSafepoint::RunningLocalHeaps& running() { return running_; }
+  const IsolateSafepoint::RunningLocalHeaps& running() const {
+    return running_;
+  }
 
  private:
   Isolate* const isolate_;
-  size_t running_ = 0;
+  IsolateSafepoint::RunningLocalHeaps running_;
   bool locked_ = false;
 };
 
@@ -104,9 +107,9 @@ void IsolateSafepoint::InitiateGlobalSafepointScopeRaw(
   CHECK_EQ(++active_safepoint_scopes_, 1);
   barrier_.Arm();
 
-  size_t running =
-      SetSafepointRequestedFlags(ShouldIncludeMainThread(initiator));
-  client_data->set_locked_and_running(running);
+  SetSafepointRequestedFlags(ShouldIncludeMainThread(initiator),
+                             client_data->running());
+  client_data->set_locked();
 
   if (isolate() != initiator) {
     // An isolate might be waiting in the event loop. Post a task in order to
@@ -125,12 +128,13 @@ IsolateSafepoint::IncludeMainThread IsolateSafepoint::ShouldIncludeMainThread(
   return is_initiator ? IncludeMainThread::kNo : IncludeMainThread::kYes;
 }
 
-size_t IsolateSafepoint::SetSafepointRequestedFlags(
-    IncludeMainThread include_main_thread) {
-  size_t running = 0;
-
+void IsolateSafepoint::SetSafepointRequestedFlags(
+    IncludeMainThread include_main_thread,
+    IsolateSafepoint::RunningLocalHeaps& running_local_heaps) {
   // There needs to be at least one LocalHeap for the main thread.
   DCHECK_NOT_NULL(local_heaps_head_);
+
+  DCHECK(running_local_heaps.empty());
 
   for (LocalHeap* local_heap = local_heaps_head_; local_heap;
        local_heap = local_heap->next_) {
@@ -142,13 +146,27 @@ size_t IsolateSafepoint::SetSafepointRequestedFlags(
     const LocalHeap::ThreadState old_state =
         local_heap->state_.SetSafepointRequested();
 
-    if (old_state.IsRunning()) running++;
+    if (old_state.IsRunning()) {
+#if V8_OS_DARWIN
+      pthread_override_t qos_override = nullptr;
+
+      if (v8_flags.safepoint_bump_qos_class) {
+        // Bump the quality-of-service class to prevent priority inversion (high
+        // priority main thread blocking on lower priority background threads).
+        qos_override = pthread_override_qos_class_start_np(
+            local_heap->thread_handle(), QOS_CLASS_USER_INTERACTIVE, 0);
+        CHECK_NOT_NULL(qos_override);
+      }
+
+      running_local_heaps.emplace_back(local_heap, qos_override);
+#else
+      running_local_heaps.emplace_back(local_heap);
+#endif
+    }
     CHECK_IMPLIES(old_state.IsCollectionRequested(),
                   local_heap->is_main_thread());
     CHECK(!old_state.IsSafepointRequested());
   }
-
-  return running;
 }
 
 void IsolateSafepoint::LockMutex(LocalHeap* local_heap) {
@@ -226,13 +244,23 @@ void IsolateSafepoint::Barrier::Disarm() {
 }
 
 void IsolateSafepoint::Barrier::WaitUntilRunningThreadsInSafepoint(
-    size_t running) {
+    const IsolateSafepoint::RunningLocalHeaps& running_local_heaps) {
   base::MutexGuard guard(&mutex_);
   DCHECK(IsArmed());
-  while (stopped_ < running) {
+  size_t running_count = running_local_heaps.size();
+  while (stopped_ < running_count) {
     cv_stopped_.Wait(&mutex_);
   }
-  DCHECK_EQ(stopped_, running);
+#if V8_OS_DARWIN
+  if (v8_flags.safepoint_bump_qos_class) {
+    for (auto& running_local_heap : running_local_heaps) {
+      CHECK_EQ(
+          pthread_override_qos_class_end_np(running_local_heap.qos_override),
+          0);
+    }
+  }
+#endif
+  DCHECK_EQ(stopped_, running_count);
 }
 
 void IsolateSafepoint::Barrier::NotifyPark() {
@@ -423,6 +451,15 @@ SafepointScope::SafepointScope(Isolate* initiator, SafepointKind kind) {
   } else {
     DCHECK_EQ(kind, SafepointKind::kGlobal);
     global_safepoint_.emplace(initiator);
+  }
+}
+
+SafepointScope::SafepointScope(Isolate* initiator,
+                               GlobalSafepointForSharedSpaceIsolateTag) {
+  if (initiator->is_shared_space_isolate()) {
+    global_safepoint_.emplace(initiator);
+  } else {
+    isolate_safepoint_.emplace(initiator->heap());
   }
 }
 

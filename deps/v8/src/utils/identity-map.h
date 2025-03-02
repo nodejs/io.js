@@ -7,7 +7,7 @@
 
 #include <type_traits>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/handles/handles.h"
 #include "src/objects/tagged.h"
 

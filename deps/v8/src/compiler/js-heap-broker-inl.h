@@ -10,26 +10,26 @@
 
 namespace v8::internal::compiler {
 
-V8_INLINE JSHeapBroker::RecursiveSharedMutexGuardIfNeeded::
-    RecursiveSharedMutexGuardIfNeeded(LocalIsolate* local_isolate,
-                                      base::SharedMutex* mutex,
-                                      int* mutex_depth_address)
+V8_INLINE
+JSHeapBroker::RecursiveMutexGuardIfNeeded::RecursiveMutexGuardIfNeeded(
+    LocalIsolate* local_isolate, base::SpinningMutex* mutex,
+    int* mutex_depth_address)
     : mutex_depth_address_(mutex_depth_address),
       initial_mutex_depth_(*mutex_depth_address_),
-      shared_mutex_guard_(local_isolate, mutex, initial_mutex_depth_ == 0) {
+      mutex_guard_(local_isolate, mutex, initial_mutex_depth_ == 0) {
   (*mutex_depth_address_)++;
 }
 
 V8_INLINE JSHeapBroker::MapUpdaterGuardIfNeeded::MapUpdaterGuardIfNeeded(
     JSHeapBroker* broker)
-    : RecursiveSharedMutexGuardIfNeeded(broker->local_isolate_or_isolate(),
-                                        broker->isolate()->map_updater_access(),
-                                        &broker->map_updater_mutex_depth_) {}
+    : RecursiveMutexGuardIfNeeded(broker -> local_isolate_or_isolate(),
+                                  broker->isolate()->map_updater_access(),
+                                  &broker->map_updater_mutex_depth_) {}
 
 V8_INLINE JSHeapBroker::BoilerplateMigrationGuardIfNeeded::
     BoilerplateMigrationGuardIfNeeded(JSHeapBroker* broker)
-    : RecursiveSharedMutexGuardIfNeeded(
-          broker->local_isolate_or_isolate(),
+    : RecursiveMutexGuardIfNeeded(
+          broker -> local_isolate_or_isolate(),
           broker->isolate()->boilerplate_migration_access(),
           &broker->boilerplate_migration_mutex_depth_) {}
 

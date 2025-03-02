@@ -84,7 +84,7 @@ class AccessScriptContextTableThread final : public v8::base::Thread {
       }
       auto script_context_table = Handle<ScriptContextTable>(
           native_context_->synchronized_script_context_table(), &local_heap);
-      Handle<Context> context(script_context_table->get(i), &local_heap);
+      DirectHandle<Context> context(script_context_table->get(i), &local_heap);
       EXPECT_TRUE(!context.is_null());
     }
   }
@@ -101,7 +101,7 @@ TEST_F(ConcurrentScriptContextTableTest, ScriptContextTable_Extend) {
   const bool kIgnoreDuplicateNames = true;
 
   Factory* factory = i_isolate()->factory();
-  Handle<NativeContext> native_context = factory->NewNativeContext();
+  DirectHandle<NativeContext> native_context = factory->NewNativeContext();
   DirectHandle<Map> script_context_map = factory->NewContextfulMap(
       native_context, SCRIPT_CONTEXT_TYPE, kVariableSizeSentinel);
   script_context_map->set_native_context(*native_context);
@@ -111,7 +111,7 @@ TEST_F(ConcurrentScriptContextTableTest, ScriptContextTable_Extend) {
       factory->NewScriptContextTable();
 
   DirectHandle<ScopeInfo> scope_info =
-      ReadOnlyRoots(i_isolate()).global_this_binding_scope_info_handle();
+      i_isolate()->factory()->global_this_binding_scope_info();
 
   for (int i = 0; i < 10; ++i) {
     DirectHandle<Context> script_context =
@@ -158,7 +158,7 @@ TEST_F(ConcurrentScriptContextTableTest,
   native_context->set_script_context_map(*script_context_map);
 
   DirectHandle<ScopeInfo> scope_info =
-      ReadOnlyRoots(i_isolate()).global_this_binding_scope_info_handle();
+      i_isolate()->factory()->global_this_binding_scope_info();
 
   Handle<ScriptContextTable> script_context_table =
       factory->NewScriptContextTable();

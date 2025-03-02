@@ -634,6 +634,17 @@ struct BuiltinCallDescriptor {
     static constexpr OpEffects kEffects = base_effects.CanChangeControlFlow();
   };
 
+  struct WasmThrowRef : public Descriptor<WasmThrowRef> {
+    static constexpr auto kFunction = Builtin::kWasmThrowRef;
+    using arguments_t = std::tuple<V<Object>>;
+    using results_t = std::tuple<OpIndex>;
+
+    static constexpr bool kNeedsFrameState = false;
+    static constexpr bool kNeedsContext = false;
+    static constexpr Operator::Properties kProperties = Operator::kNoProperties;
+    static constexpr OpEffects kEffects = base_effects.CanChangeControlFlow();
+  };
+
   struct WasmMemoryGrow : public Descriptor<WasmMemoryGrow> {
     static constexpr auto kFunction = Builtin::kWasmMemoryGrow;
     using arguments_t = std::tuple<V<Word32>, V<Word32>>;

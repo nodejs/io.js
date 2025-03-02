@@ -55,7 +55,7 @@ class StatsTable {
   // is successful, returns a non-nullptr pointer for writing the
   // value of the counter.  Each thread calling this function
   // may receive a different location to store it's counter.
-  // The return value must not be cached and re-used across
+  // The return value must not be cached and reused across
   // threads, although a single thread is free to cache it.
   int* FindLocation(const char* name) {
     if (!lookup_function_) return nullptr;

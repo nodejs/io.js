@@ -36,9 +36,9 @@ class JSRegExp : public TorqueGeneratedJSRegExp<JSRegExp, JSObject> {
   static MaybeHandle<JSRegExp> Initialize(
       Handle<JSRegExp> regexp, Handle<String> source, Flags flags,
       uint32_t backtrack_limit = kNoBacktrackLimit);
-  static MaybeHandle<JSRegExp> Initialize(Handle<JSRegExp> regexp,
-                                          Handle<String> source,
-                                          Handle<String> flags_string);
+  static MaybeDirectHandle<JSRegExp> Initialize(Handle<JSRegExp> regexp,
+                                                Handle<String> source,
+                                                Handle<String> flags_string);
 
   DECL_ACCESSORS(last_index, Tagged<Object>)
 
@@ -95,6 +95,9 @@ class JSRegExp : public TorqueGeneratedJSRegExp<JSRegExp, JSObject> {
     DCHECK_GE(register_count, 2);
     return (register_count - 2) / 2;
   }
+  // ATOM regexps don't have captures.
+  static constexpr int kAtomCaptureCount = 0;
+  static constexpr int kAtomRegisterCount = 2;
 
   // Dispatched behavior.
   DECL_PRINTER(JSRegExp)
@@ -252,7 +255,7 @@ class IrRegExpData : public RegExpData {
   inline void set_bytecode(bool is_one_byte, Tagged<TrustedByteArray> bytecode);
   inline Tagged<TrustedByteArray> bytecode(bool is_one_byte) const;
   DECL_ACCESSORS(capture_name_map, Tagged<Object>)
-  inline void set_capture_name_map(Handle<FixedArray> capture_name_map);
+  inline void set_capture_name_map(DirectHandle<FixedArray> capture_name_map);
   DECL_INT_ACCESSORS(max_register_count)
   // Number of captures (without the match itself).
   DECL_INT_ACCESSORS(capture_count)
@@ -350,7 +353,7 @@ class JSRegExpResultIndices
     : public TorqueGeneratedJSRegExpResultIndices<JSRegExpResultIndices,
                                                   JSArray> {
  public:
-  static Handle<JSRegExpResultIndices> BuildIndices(
+  static DirectHandle<JSRegExpResultIndices> BuildIndices(
       Isolate* isolate, DirectHandle<RegExpMatchInfo> match_info,
       Handle<Object> maybe_names);
 

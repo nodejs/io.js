@@ -62,7 +62,7 @@ class PropertyCell
       Isolate* isolate, DirectHandle<GlobalDictionary> dictionary,
       InternalIndex entry, DirectHandle<Object> value, PropertyDetails details);
 
-  void ClearAndInvalidate(ReadOnlyRoots roots);
+  void ClearAndInvalidate(Isolate* isolate);
   static Handle<PropertyCell> InvalidateAndReplaceEntry(
       Isolate* isolate, DirectHandle<GlobalDictionary> dictionary,
       InternalIndex entry, PropertyDetails new_details,
@@ -97,25 +97,63 @@ class PropertyCell
 #endif  // DEBUG
 };
 
-class ConstTrackingLetCell
-    : public TorqueGeneratedConstTrackingLetCell<ConstTrackingLetCell,
-                                                 HeapObject> {
+class ContextSidePropertyCell
+    : public TorqueGeneratedContextSidePropertyCell<ContextSidePropertyCell,
+                                                    HeapObject> {
  public:
-  static constexpr Tagged<Smi> kConstMarker = Smi::FromInt(1);
-  static constexpr Tagged<Smi> kNonConstMarker = Smi::FromInt(0);
+  // Keep in sync with property-cell.tq.
+  // This enum tracks a property of a ScriptContext slot.
+  // The property determines how the slot's value can be accessed and modified.
+  enum Property {
+    kOther = 0,  // The slot holds an arbitrary tagged value. kOther is a sink
+                 // state and cannot transition to any other state.
+    kConst = 1,  // The slot holds a constant value. kConst can transition to
+                 // any other state.
+    kSmi = 2,    // The slot holds a Smi. kSmi can transition to kMutableInt32,
+                 // kMutableHeapNumber, or kOther.
+    kMutableInt32 =
+        3,  // // The slot holds a HeapNumber that can be mutated in-place by
+            // optimized code. This HeapNumber should never leak from the slot.
+            // It contains a Int32 value as double. kMutableInt32 can transition
+            // to kMutableHeapNumber or kOther.
+    kMutableHeapNumber =
+        4,  // The slot holds a HeapNumber that can be mutated in-place by
+            // optimized code. This HeapNumber should never leak from the slot.
+            // kMutableHeapNumber can only transition to kOther.
+  };
 
-  static inline bool IsNotConst(Tagged<Object> object);
+  static Tagged<Smi> Const() { return Smi::FromInt(Property::kConst); }
+  static Tagged<Smi> SmiMarker() { return Smi::FromInt(Property::kSmi); }
+  static Tagged<Smi> MutableInt32() {
+    return Smi::FromInt(Property::kMutableInt32);
+  }
+  static Tagged<Smi> MutableHeapNumber() {
+    return Smi::FromInt(Property::kMutableHeapNumber);
+  }
+  static Tagged<Smi> Other() { return Smi::FromInt(Property::kOther); }
+
+  static Property FromSmi(Tagged<Smi> smi) {
+    int value = smi.value();
+    DCHECK_GE(value, 0);
+    DCHECK_LE(value, kMutableHeapNumber);
+    return static_cast<Property>(value);
+  }
+
+  inline Property context_side_property() const;
+
+  // [context_side_property_raw]: details of the context slot property.
+  DECL_RELEASE_ACQUIRE_ACCESSORS(context_side_property_raw, Tagged<Smi>)
 
   // [dependent_code]: code that depends on the constness of the value.
   DECL_ACCESSORS(dependent_code, Tagged<DependentCode>)
 
-  DECL_PRINTER(ConstTrackingLetCell)
-  DECL_VERIFIER(ConstTrackingLetCell)
+  DECL_PRINTER(ContextSidePropertyCell)
+  DECL_VERIFIER(ContextSidePropertyCell)
 
   using BodyDescriptor =
       FixedBodyDescriptor<kDependentCodeOffset, kSize, kSize>;
 
-  TQ_OBJECT_CONSTRUCTORS(ConstTrackingLetCell)
+  TQ_OBJECT_CONSTRUCTORS(ContextSidePropertyCell)
 
  private:
   friend class Factory;

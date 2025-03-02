@@ -9,9 +9,6 @@
 ['not has_webassembly or variant == jitless', {
   'multi_return/*': [SKIP],
   'wasm/*': [SKIP],
-  'wasm_async/*': [SKIP],
-  'wasm_code/*': [SKIP],
-  'wasm_compile/*': [SKIP],
 }], # not has_webassembly or variant == jitless
 
 ################################################################################
@@ -21,13 +18,13 @@
 
 ##############################################################################
 ['no_simd_hardware == True', {
-  'wasm/regress-1464231.wasm': [SKIP],
+  'wasm/module/regress-1464231.wasm': [SKIP],
 }],  # no_simd_hardware == True
 
 ##############################################################################
-['official_build', {
+['wasm_random_fuzzers == False', {
   # Random Wasm module generation is not available on official builds.
-  'wasm_compile/*': [FAIL],
-}],  # 'official_build'
+  'wasm/compile/*': [FAIL],
+}],  # 'wasm_random_fuzzers == False'
 
 ]

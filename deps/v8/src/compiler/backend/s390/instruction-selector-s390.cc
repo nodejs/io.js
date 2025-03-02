@@ -362,13 +362,8 @@ class S390OperandGeneratorT final : public OperandGeneratorT<Adapter> {
       }
 
     } else {
-#if V8_TARGET_ARCH_S390X
     BaseWithIndexAndDisplacement64Matcher m(operand,
                                             AddressOption::kAllowInputSwap);
-#else
-    BaseWithIndexAndDisplacement32Matcher m(operand,
-                                            AddressOption::kAllowInputSwap);
-#endif
     DCHECK(m.matches());
     if (m.base() != nullptr &&
         m.base()->opcode() == IrOpcode::kLoadRootRegister) {
@@ -704,9 +699,6 @@ bool ProduceWord32Result(InstructionSelectorT<Adapter>* selector,
     }
 
   } else {
-#if !V8_TARGET_ARCH_S390X
-  return true;
-#else
   switch (node->opcode()) {
 #define VISITOR(name) case IrOpcode::k##name:
     RESULT_IS_WORD32_LIST(VISITOR)
@@ -752,18 +744,13 @@ bool ProduceWord32Result(InstructionSelectorT<Adapter>* selector,
     default:
       return false;
   }
-#endif
   }
 }
 
 template <typename Adapter>
 static inline bool DoZeroExtForResult(InstructionSelectorT<Adapter>* selector,
                                       typename Adapter::node_t node) {
-#if V8_TARGET_ARCH_S390X
   return ProduceWord32Result<Adapter>(selector, node);
-#else
-  return false;
-#endif
 }
 
 // TODO(john.yan): Create VisiteShift to match dst = src shift (R+I)
@@ -771,7 +758,6 @@ static inline bool DoZeroExtForResult(InstructionSelectorT<Adapter>* selector,
 void VisitShift() { }
 #endif
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter>
 void VisitTryTruncateDouble(InstructionSelectorT<Adapter>* selector,
                             ArchOpcode opcode, typename Adapter::node_t node) {
@@ -789,7 +775,6 @@ void VisitTryTruncateDouble(InstructionSelectorT<Adapter>* selector,
 
   selector->Emit(opcode, output_count, outputs, 1, inputs);
 }
-#endif
 
 template <class CanCombineWithLoad>
 void GenerateRightOperands(InstructionSelectorT<TurboshaftAdapter>* selector,
@@ -942,13 +927,9 @@ void VisitBinOp(InstructionSelectorT<Adapter>* selector,
     [](ArchOpcode opcode) { return opcode == kS390_LoadFloat32; })     \
   V(Float64, Bin, [](ArchOpcode opcode) { return opcode == kS390_LoadDouble; })
 
-#if V8_TARGET_ARCH_S390X
 #define VISIT_OP_LIST(V) \
   VISIT_OP_LIST_32(V)    \
   V(Word64, Bin, [](ArchOpcode opcode) { return opcode == kS390_LoadWord64; })
-#else
-#define VISIT_OP_LIST VISIT_OP_LIST_32
-#endif
 
 #define DECLARE_VISIT_HELPER_FUNCTIONS(type1, type2, canCombineWithLoad)      \
   template <typename Adapter>                                                 \
@@ -1479,7 +1460,6 @@ static inline bool IsContiguousMask32(uint32_t value, int* mb, int* me) {
 }
 #endif
 
-#if V8_TARGET_ARCH_S390X
 static inline bool IsContiguousMask64(uint64_t value, int* mb, int* me) {
   int mask_width = base::bits::CountPopulation(value);
   int mask_msb = base::bits::CountLeadingZeros64(value);
@@ -1490,9 +1470,7 @@ static inline bool IsContiguousMask64(uint64_t value, int* mb, int* me) {
   *me = mask_lsb;
   return true;
 }
-#endif
 
-#if V8_TARGET_ARCH_S390X
 template <>
 void InstructionSelectorT<TurboshaftAdapter>::VisitWord64And(node_t node) {
   using namespace turboshaft;  // NOLINT(build/namespaces)
@@ -1781,7 +1759,6 @@ void InstructionSelectorT<Adapter>::VisitWord64Shr(node_t node) {
     }
     VisitWord64BinOp(this, node, kS390_ShiftRight64, Shift64OperandMode);
 }
-#endif
 
 static inline bool TryMatchSignExtInt16OrInt8FromWord32Sar(
     InstructionSelectorT<TurboshaftAdapter>* selector,
@@ -1867,24 +1844,20 @@ void InstructionSelectorT<Adapter>::VisitWord32Ctz(node_t node) {
   UNREACHABLE();
 }
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord64Ctz(node_t node) {
   UNREACHABLE();
 }
-#endif
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord32ReverseBits(node_t node) {
   UNREACHABLE();
 }
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord64ReverseBits(node_t node) {
   UNREACHABLE();
 }
-#endif
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitInt32AbsWithOverflow(node_t node) {
@@ -2185,7 +2158,6 @@ static inline bool TryMatchInt32MulWithOverflow(
         selector, node);
 }
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter, ArchOpcode opcode>
 static inline bool TryMatchInt64OpWithOverflow(
     InstructionSelectorT<Adapter>* selector, typename Adapter::node_t node,
@@ -2232,8 +2204,6 @@ void EmitInt64MulWithOverflow(InstructionSelectorT<Adapter>* selector,
   selector->EmitWithContinuation(kS390_Mul64WithOverflow, output_count, outputs,
                                  input_count, inputs, cont);
 }
-
-#endif
 
 template <typename Adapter>
 static inline bool TryMatchDoubleConstructFromInsert(
@@ -2496,7 +2466,6 @@ WORD64_BIN_OP_LIST(DECLARE_BIN_OP)
 #undef DECLARE_BIN_OP
 #undef null
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitTryTruncateFloat32ToInt64(
     node_t node) {
@@ -2520,8 +2489,6 @@ void InstructionSelectorT<Adapter>::VisitTryTruncateFloat64ToUint64(
     node_t node) {
     VisitTryTruncateDouble(this, kS390_DoubleToUint64, node);
 }
-
-#endif
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitTryTruncateFloat64ToInt32(
@@ -2687,7 +2654,6 @@ void VisitWord32Compare(InstructionSelectorT<Adapter>* selector,
     VisitWordCompare(selector, node, kS390_Cmp32, cont, mode);
 }
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter>
 void VisitWord64Compare(InstructionSelectorT<Adapter>* selector,
                         typename Adapter::node_t node,
@@ -2696,7 +2662,6 @@ void VisitWord64Compare(InstructionSelectorT<Adapter>* selector,
       (CompareLogical(cont) ? OperandMode::kUint32Imm : OperandMode::kInt32Imm);
   VisitWordCompare(selector, node, kS390_Cmp64, cont, mode);
 }
-#endif
 
 // Shared routine for multiple float32 compare operations.
 template <typename Adapter>
@@ -2901,71 +2866,70 @@ void InstructionSelectorT<TurboshaftAdapter>::VisitWordCompareZero(
         // actual value, or was already defined, which means it is scheduled
         // *AFTER* this branch).
         OpIndex node = projection->input();
-        OpIndex result = FindProjection(node, 0);
-        if (!result.valid() || IsDefined(result)) {
-          if (const OverflowCheckedBinopOp* binop =
-                  TryCast<OverflowCheckedBinopOp>(node)) {
-            const bool is64 = binop->rep == WordRepresentation::Word64();
-            switch (binop->kind) {
-              case OverflowCheckedBinopOp::Kind::kSignedAdd:
-                cont->OverwriteAndNegateIfEqual(kOverflow);
-                if (is64) {
-                  return VisitWord64BinOp(this, node, kS390_Add64,
-                                          AddOperandMode, cont);
-                } else {
-                  return VisitWord32BinOp(this, node, kS390_Add32,
-                                          AddOperandMode, cont);
-                }
-              case OverflowCheckedBinopOp::Kind::kSignedSub:
-                cont->OverwriteAndNegateIfEqual(kOverflow);
-                if (is64) {
-                  return VisitWord64BinOp(this, node, kS390_Sub64,
-                                          AddOperandMode, cont);
-                } else {
-                  return VisitWord32BinOp(this, node, kS390_Sub32,
-                                          AddOperandMode, cont);
-                }
-              case OverflowCheckedBinopOp::Kind::kSignedMul:
-                if (is64) {
-                  cont->OverwriteAndNegateIfEqual(
-                      CpuFeatures::IsSupported(MISC_INSTR_EXT2) ? kOverflow
-                                                                : kNotEqual);
-                  return EmitInt64MulWithOverflow(this, node, cont);
+        if (const OverflowCheckedBinopOp* binop =
+                TryCast<OverflowCheckedBinopOp>(node);
+            binop && CanDoBranchIfOverflowFusion(node)) {
+          const bool is64 = binop->rep == WordRepresentation::Word64();
+          switch (binop->kind) {
+            case OverflowCheckedBinopOp::Kind::kSignedAdd:
+              cont->OverwriteAndNegateIfEqual(kOverflow);
+              if (is64) {
+                return VisitWord64BinOp(this, node, kS390_Add64, AddOperandMode,
+                                        cont);
+              } else {
+                return VisitWord32BinOp(this, node, kS390_Add32, AddOperandMode,
+                                        cont);
+              }
+            case OverflowCheckedBinopOp::Kind::kSignedSub:
+              cont->OverwriteAndNegateIfEqual(kOverflow);
+              if (is64) {
+                return VisitWord64BinOp(this, node, kS390_Sub64, AddOperandMode,
+                                        cont);
+              } else {
+                return VisitWord32BinOp(this, node, kS390_Sub32, AddOperandMode,
+                                        cont);
+              }
+            case OverflowCheckedBinopOp::Kind::kSignedMul:
+              if (is64) {
+                cont->OverwriteAndNegateIfEqual(
+                    CpuFeatures::IsSupported(MISC_INSTR_EXT2) ? kOverflow
+                                                              : kNotEqual);
+                return EmitInt64MulWithOverflow(this, node, cont);
 
-                } else {
-                  if (CpuFeatures::IsSupported(MISC_INSTR_EXT2)) {
-                    cont->OverwriteAndNegateIfEqual(kOverflow);
-                    return VisitWord32BinOp(
-                        this, node, kS390_Mul32,
-                        OperandMode::kAllowRRR | OperandMode::kAllowRM, cont);
-                  } else {
-                    cont->OverwriteAndNegateIfEqual(kNotEqual);
-                    return VisitWord32BinOp(
-                        this, node, kS390_Mul32WithOverflow,
-                        OperandMode::kInt32Imm | OperandMode::kAllowDistinctOps,
-                        cont);
-                  }
-                }
-              default:
-                break;
-            }
-          } else if (const OverflowCheckedUnaryOp* unop =
-                         TryCast<OverflowCheckedUnaryOp>(node)) {
-            const bool is64 = unop->rep == WordRepresentation::Word64();
-            switch (unop->kind) {
-              case OverflowCheckedUnaryOp::Kind::kAbs:
-                if (is64) {
+              } else {
+                if (CpuFeatures::IsSupported(MISC_INSTR_EXT2)) {
                   cont->OverwriteAndNegateIfEqual(kOverflow);
-                  return VisitWord64UnaryOp(this, node, kS390_Abs64,
-                                            OperandMode::kNone, cont);
+                  return VisitWord32BinOp(
+                      this, node, kS390_Mul32,
+                      OperandMode::kAllowRRR | OperandMode::kAllowRM, cont);
                 } else {
-                  cont->OverwriteAndNegateIfEqual(kOverflow);
-                  return VisitWord32UnaryOp(this, node, kS390_Abs32,
-                                            OperandMode::kNone, cont);
+                  cont->OverwriteAndNegateIfEqual(kNotEqual);
+                  return VisitWord32BinOp(
+                      this, node, kS390_Mul32WithOverflow,
+                      OperandMode::kInt32Imm | OperandMode::kAllowDistinctOps,
+                      cont);
                 }
-              default:
-                break;
-            }
+              }
+            default:
+              break;
+          }
+        } else if (const OverflowCheckedUnaryOp* unop =
+                       TryCast<OverflowCheckedUnaryOp>(node);
+                   unop && CanDoBranchIfOverflowFusion(node)) {
+          const bool is64 = unop->rep == WordRepresentation::Word64();
+          switch (unop->kind) {
+            case OverflowCheckedUnaryOp::Kind::kAbs:
+              if (is64) {
+                cont->OverwriteAndNegateIfEqual(kOverflow);
+                return VisitWord64UnaryOp(this, node, kS390_Abs64,
+                                          OperandMode::kNone, cont);
+              } else {
+                cont->OverwriteAndNegateIfEqual(kOverflow);
+                return VisitWord32UnaryOp(this, node, kS390_Abs32,
+                                          OperandMode::kNone, cont);
+              }
+            default:
+              break;
           }
         }
       }
@@ -3061,7 +3025,6 @@ void InstructionSelectorT<Adapter>::VisitWordCompareZero(
         case IrOpcode::kUint32LessThanOrEqual:
           cont->OverwriteAndNegateIfEqual(kUnsignedLessThanOrEqual);
           return VisitWord32Compare(this, value, cont);
-#if V8_TARGET_ARCH_S390X
       case IrOpcode::kWord64Equal: {
         cont->OverwriteAndNegateIfEqual(kEqual);
         Int64BinopMatcher m(value);
@@ -3094,7 +3057,6 @@ void InstructionSelectorT<Adapter>::VisitWordCompareZero(
       case IrOpcode::kUint64LessThanOrEqual:
         cont->OverwriteAndNegateIfEqual(kUnsignedLessThanOrEqual);
         return VisitWord64Compare(this, value, cont);
-#endif
       case IrOpcode::kFloat32Equal:
         cont->OverwriteAndNegateIfEqual(kEqual);
         return VisitFloat32Compare(this, value, cont);
@@ -3151,7 +3113,6 @@ void InstructionSelectorT<Adapter>::VisitWordCompareZero(
                 cont->OverwriteAndNegateIfEqual(kOverflow);
                 return VisitWord32UnaryOp(this, node, kS390_Abs32,
                                           OperandMode::kNone, cont);
-#if V8_TARGET_ARCH_S390X
               case IrOpcode::kInt64AbsWithOverflow:
                 cont->OverwriteAndNegateIfEqual(kOverflow);
                 return VisitWord64UnaryOp(this, node, kS390_Abs64,
@@ -3169,7 +3130,6 @@ void InstructionSelectorT<Adapter>::VisitWordCompareZero(
                     CpuFeatures::IsSupported(MISC_INSTR_EXT2) ? kOverflow
                                                               : kNotEqual);
                 return EmitInt64MulWithOverflow(this, node, cont);
-#endif
               default:
                 break;
             }
@@ -3213,7 +3173,6 @@ void InstructionSelectorT<Adapter>::VisitWordCompareZero(
       case IrOpcode::kWord32Ror:
         // doesn't generate cc, so ignore.
         break;
-#if V8_TARGET_ARCH_S390X
       case IrOpcode::kInt64Sub:
         if (fc == kNotEqual || fc == kEqual)
           return VisitWord64Compare(this, value, cont);
@@ -3239,7 +3198,6 @@ void InstructionSelectorT<Adapter>::VisitWordCompareZero(
       case IrOpcode::kWord64Ror:
         // doesn't generate cc, so ignore
         break;
-#endif
       case IrOpcode::kStackPointerGreaterThan:
         cont->OverwriteAndNegateIfEqual(kStackPointerGreaterThanCondition);
         return VisitStackPointerGreaterThan(value, cont);
@@ -3277,11 +3235,9 @@ void InstructionSelectorT<Adapter>::VisitSwitch(node_t node,
       Emit(kS390_Lay | AddressingModeField::encode(kMode_MRI), index_operand,
            value_operand, g.TempImmediate(-sw.min_value()));
       }
-#if V8_TARGET_ARCH_S390X
       InstructionOperand index_operand_zero_ext = g.TempRegister();
       Emit(kS390_Uint32ToUint64, index_operand_zero_ext, index_operand);
       index_operand = index_operand_zero_ext;
-#endif
       // Generate a table lookup.
       return EmitTableSwitch(sw, index_operand);
   }
@@ -3338,7 +3294,6 @@ void InstructionSelectorT<Adapter>::VisitUint32LessThanOrEqual(node_t node) {
   VisitWord32Compare(this, node, &cont);
 }
 
-#if V8_TARGET_ARCH_S390X
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitWord64Equal(node_t const node) {
   FlagsContinuation cont = FlagsContinuation::ForSet(kEqual, node);
@@ -3384,7 +3339,18 @@ void InstructionSelectorT<Adapter>::VisitUint64LessThanOrEqual(node_t node) {
       FlagsContinuation::ForSet(kUnsignedLessThanOrEqual, node);
   VisitWord64Compare(this, node, &cont);
 }
-#endif
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitTruncateFloat64ToFloat16RawBits(
+    node_t node) {
+  UNIMPLEMENTED();
+}
+
+template <typename Adapter>
+void InstructionSelectorT<Adapter>::VisitChangeFloat16RawBitsToFloat64(
+    node_t node) {
+  UNIMPLEMENTED();
+}
 
 template <typename Adapter>
 void InstructionSelectorT<Adapter>::VisitFloat32Equal(node_t node) {

@@ -5,7 +5,8 @@
 // Flags: --allow-natives-syntax --maglev --no-always-turbofan
 
 var x = 1;
-var do_change = false;
+var do_change = {};
+do_change = false;
 
 function g() {
   if (do_change) {

@@ -229,7 +229,7 @@ AllocationTracker::ScriptData::ScriptData(Tagged<Script> script,
                                           Isolate* isolate,
                                           AllocationTracker* tracker)
     : script_id_(script->id()),
-      line_ends_(Script::GetLineEnds(isolate, handle(script, isolate))),
+      line_ends_(Script::GetLineEnds(isolate, direct_handle(script, isolate))),
       tracker_(tracker) {
   DirectHandle<Script> script_direct_handle(script, isolate);
   auto local_script = ToApiHandle<debug::Script>(script_direct_handle);

@@ -5,6 +5,8 @@
 #ifndef V8_BASE_CONTAINER_UTILS_H_
 #define V8_BASE_CONTAINER_UTILS_H_
 
+#include <stddef.h>
+
 #include <algorithm>
 #include <iterator>
 #include <optional>

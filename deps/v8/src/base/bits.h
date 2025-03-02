@@ -23,10 +23,9 @@ namespace bits {
 
 // CountPopulation(value) returns the number of bits set in |value|.
 template <typename T>
-constexpr inline
-    typename std::enable_if<std::is_unsigned<T>::value && sizeof(T) <= 8,
-                            unsigned>::type
-    CountPopulation(T value) {
+constexpr inline unsigned CountPopulation(T value)
+  requires(std::is_unsigned<T>::value && sizeof(T) <= 8)
+{
   static_assert(sizeof(T) <= 8);
 #if V8_HAS_BUILTIN_POPCOUNT
   return sizeof(T) == 8 ? __builtin_popcountll(static_cast<uint64_t>(value))
@@ -98,10 +97,9 @@ inline constexpr std::make_signed_t<T> Signed(T value) {
 // significant 1 bit in |value| if |value| is non-zero, otherwise it returns
 // {sizeof(T) * 8}.
 template <typename T, unsigned bits = sizeof(T) * 8>
-inline constexpr
-    typename std::enable_if<std::is_unsigned<T>::value && sizeof(T) <= 8,
-                            unsigned>::type
-    CountLeadingZeros(T value) {
+inline constexpr unsigned CountLeadingZeros(T value)
+  requires(std::is_unsigned<T>::value && sizeof(T) <= 8)
+{
   static_assert(bits > 0, "invalid instantiation");
 #if V8_HAS_BUILTIN_CLZ
   return value == 0
@@ -143,10 +141,9 @@ constexpr unsigned CountLeadingSignBits(T value) {
 // See CountTrailingZerosNonZero for an optimized version for the case that
 // |value| is guaranteed to be non-zero.
 template <typename T, unsigned bits = sizeof(T) * 8>
-inline constexpr
-    typename std::enable_if<std::is_integral<T>::value && sizeof(T) <= 8,
-                            unsigned>::type
-    CountTrailingZeros(T value) {
+inline constexpr unsigned CountTrailingZeros(T value)
+  requires(std::is_integral<T>::value && sizeof(T) <= 8)
+{
 #if V8_HAS_BUILTIN_CTZ
   return value == 0 ? bits
                     : bits == 64 ? __builtin_ctzll(static_cast<uint64_t>(value))
@@ -173,10 +170,9 @@ inline constexpr unsigned CountTrailingZeros64(uint64_t value) {
 // behavior is undefined.
 // See CountTrailingZeros for an alternative version that allows |value| == 0.
 template <typename T, unsigned bits = sizeof(T) * 8>
-inline constexpr
-    typename std::enable_if<std::is_integral<T>::value && sizeof(T) <= 8,
-                            unsigned>::type
-    CountTrailingZerosNonZero(T value) {
+inline constexpr unsigned CountTrailingZerosNonZero(T value)
+  requires(std::is_integral<T>::value && sizeof(T) <= 8)
+{
   DCHECK_NE(0, value);
 #if V8_HAS_BUILTIN_CTZ
   return bits == 64 ? __builtin_ctzll(static_cast<uint64_t>(value))
@@ -187,17 +183,18 @@ inline constexpr
 }
 
 // Returns true iff |value| is a power of 2.
-template <typename T,
-          typename = typename std::enable_if<std::is_integral<T>::value ||
-                                             std::is_enum<T>::value>::type>
-constexpr inline bool IsPowerOfTwo(T value) {
+template <typename T>
+constexpr inline bool IsPowerOfTwo(T value)
+  requires(std::is_integral<T>::value || std::is_enum<T>::value)
+{
   return value > 0 && (value & (value - 1)) == 0;
 }
 
 // Identical to {CountTrailingZeros}, but only works for powers of 2.
-template <typename T,
-          typename = typename std::enable_if<std::is_integral<T>::value>::type>
-inline constexpr int WhichPowerOfTwo(T value) {
+template <typename T>
+inline constexpr int WhichPowerOfTwo(T value)
+  requires std::is_integral<T>::value
+{
   DCHECK(IsPowerOfTwo(value));
 #if V8_HAS_BUILTIN_CTZ
   static_assert(sizeof(T) <= 8);

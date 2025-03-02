@@ -47,7 +47,7 @@ function main() {
     // Use a source that will try to insert one statement, allowing
     // super.
     const source = sourceHelpers.loadSource(
-        __dirname,
+        sourceHelpers.BASE_CORPUS,
         'test_data/cross_over_mutator_class_input.js');
     try {
       mutator.mutate(source);

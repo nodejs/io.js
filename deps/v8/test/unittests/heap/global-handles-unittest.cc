@@ -50,15 +50,7 @@ struct TracedReferenceWrapper {
 
 class NonRootingEmbedderRootsHandler final : public v8::EmbedderRootsHandler {
  public:
-  START_ALLOW_USE_DEPRECATED()
-  NonRootingEmbedderRootsHandler()
-      : v8::EmbedderRootsHandler(v8::EmbedderRootsHandler::RootHandling::
-                                     kQueryEmbedderForNonDroppableReferences) {}
-  END_ALLOW_USE_DEPRECATED()
-  bool IsRoot(const v8::TracedReference<v8::Value>& handle) final {
-    return false;
-  }
-
+  NonRootingEmbedderRootsHandler() : v8::EmbedderRootsHandler() {}
   void ResetRoot(const v8::TracedReference<v8::Value>& handle) final {
     for (auto* wrapper : wrappers_) {
       if (wrapper->handle == handle) {
@@ -362,17 +354,6 @@ TEST_F(GlobalHandlesTest, WeakHandleToUnmodifiedJSApiObjectDiesOnScavenge) {
 }
 
 TEST_F(GlobalHandlesTest,
-       TracedReferenceToUnmodifiedJSApiObjectDiesOnScavenge) {
-  if (v8_flags.single_generation) return;
-  if (!v8_flags.reclaim_unmodified_wrappers) return;
-
-  ManualGCScope manual_gc(i_isolate());
-  TracedReferenceTestWithScavenge(
-      &ConstructJSApiObject<TracedReferenceWrapper>,
-      [](TracedReferenceWrapper* fp) {}, SurvivalMode::kDies);
-}
-
-TEST_F(GlobalHandlesTest,
        TracedReferenceToJSApiObjectWithIdentityHashSurvivesScavenge) {
   if (v8_flags.single_generation) return;
 
@@ -385,8 +366,8 @@ TEST_F(GlobalHandlesTest,
       &ConstructJSApiObject<TracedReferenceWrapper>,
       [this, &weakmap, isolate](TracedReferenceWrapper* fp) {
         v8::HandleScope scope(v8_isolate());
-        Handle<JSReceiver> key =
-            Utils::OpenHandle(*fp->handle.Get(v8_isolate()));
+        DirectHandle<JSReceiver> key =
+            Utils::OpenDirectHandle(*fp->handle.Get(v8_isolate()));
         DirectHandle<Smi> smi(Smi::FromInt(23), isolate);
         int32_t hash = Object::GetOrCreateHash(*key, isolate).value();
         JSWeakCollection::Set(weakmap, key, smi, hash);

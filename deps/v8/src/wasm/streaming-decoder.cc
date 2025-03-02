@@ -196,7 +196,7 @@ class V8_EXPORT_PRIVATE AsyncStreamingDecoder : public StreamingDecoder {
   }
 
   void Fail() {
-    // {Fail} cannot be called after {Finish}, {Abort}, {Fail}, or
+    // {Fail} cannot be called after {Finish}, {Abort}, or
     // {NotifyCompilationDiscarded}.
     DCHECK_EQ(processor_ == nullptr, failed_processor_ != nullptr);
     if (processor_ != nullptr) failed_processor_ = std::move(processor_);
@@ -283,7 +283,7 @@ size_t AsyncStreamingDecoder::DecodingState::ReadBytes(
 
 void AsyncStreamingDecoder::Finish(bool can_use_compiled_module) {
   TRACE_STREAMING("Finish\n");
-  // {Finish} cannot be called after {Finish}, {Abort}, {Fail}, or
+  // {Finish} cannot be called after {Finish}, {Abort}, or
   // {NotifyCompilationDiscarded}.
   CHECK_EQ(processor_ == nullptr, failed_processor_ != nullptr);
 

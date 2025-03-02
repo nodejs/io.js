@@ -491,23 +491,29 @@ class ConcurrentMarkingState final : public BasicMarkingState {
   size_t last_marked_bytes_ = 0;
 };
 
-template <size_t deadline_check_interval, typename WorklistLocal,
-          typename Callback, typename Predicate>
-bool DrainWorklistWithPredicate(Predicate should_yield,
-                                WorklistLocal& worklist_local,
-                                Callback callback) {
-  if (worklist_local.IsLocalAndGlobalEmpty()) return true;
-  // For concurrent markers, should_yield also reports marked bytes.
-  if (should_yield()) return false;
-  size_t processed_callback_count = deadline_check_interval;
+template <size_t kDeadlineCheckInterval, typename Predicate,
+          typename CreateStatsScopeCallback, typename WorklistLocal,
+          typename ProcessWorklistItemCallback>
+bool DrainWorklistWithPredicate(
+    Predicate ShouldYield, CreateStatsScopeCallback CreateStatsScope,
+    WorklistLocal& worklist_local,
+    ProcessWorklistItemCallback ProcessWorklistItem) {
+  if (worklist_local.IsLocalAndGlobalEmpty()) {
+    return true;
+  }
+  if (ShouldYield()) {
+    return false;
+  }
+  const auto stats_scope = CreateStatsScope();
+  size_t processed_callback_count = kDeadlineCheckInterval;
   typename WorklistLocal::ItemType item;
   while (worklist_local.Pop(&item)) {
-    callback(item);
-    if (--processed_callback_count == 0) {
-      if (should_yield()) {
+    ProcessWorklistItem(item);
+    if (V8_UNLIKELY(--processed_callback_count == 0)) {
+      if (ShouldYield()) {
         return false;
       }
-      processed_callback_count = deadline_check_interval;
+      processed_callback_count = kDeadlineCheckInterval;
     }
   }
   return true;

@@ -181,6 +181,11 @@ class LocalBase : public api_internal::DirectHandleBase {
   V8_INLINE static LocalBase<T> FromSlot(internal::Address* slot) {
     return LocalBase<T>(*slot);
   }
+
+  V8_INLINE static LocalBase<T> FromRepr(
+      internal::ValueHelper::InternalRepresentationType repr) {
+    return LocalBase<T>(repr);
+  }
 };
 
 #else  // !V8_ENABLE_DIRECT_HANDLE
@@ -212,6 +217,11 @@ class LocalBase : public api_internal::IndirectHandleBase {
 
   V8_INLINE static LocalBase<T> FromSlot(internal::Address* slot) {
     return LocalBase<T>(slot);
+  }
+
+  V8_INLINE static LocalBase<T> FromRepr(
+      internal::ValueHelper::InternalRepresentationType repr) {
+    return LocalBase<T>(repr);
   }
 };
 
@@ -396,6 +406,11 @@ class V8_TRIVIAL_ABI Local : public LocalBase<T>,
 
   V8_INLINE explicit Local(const LocalBase<T>& other) : LocalBase<T>(other) {}
 
+  V8_INLINE static Local<T> FromRepr(
+      internal::ValueHelper::InternalRepresentationType repr) {
+    return Local<T>(LocalBase<T>::FromRepr(repr));
+  }
+
   V8_INLINE static Local<T> FromSlot(internal::Address* slot) {
     return Local<T>(LocalBase<T>::FromSlot(slot));
   }
@@ -434,8 +449,9 @@ class V8_TRIVIAL_ABI LocalUnchecked : public Local<T> {
 #if defined(V8_ENABLE_LOCAL_OFF_STACK_CHECK) && V8_HAS_ATTRIBUTE_TRIVIAL_ABI
   // In this case, the check is also enforced in the copy constructor and we
   // need to suppress it.
-  LocalUnchecked(const LocalUnchecked& other)
-      : Local<T>(other, Local<T>::do_not_check) noexcept {}
+  LocalUnchecked(
+      const LocalUnchecked& other) noexcept  // NOLINT(runtime/explicit)
+      : Local<T>(other, Local<T>::do_not_check) {}
   LocalUnchecked& operator=(const LocalUnchecked&) noexcept = default;
 #endif
 
@@ -455,11 +471,9 @@ class StrongRootAllocator<LocalUnchecked<T>> : public StrongRootAllocatorBase {
   static_assert(std::is_standard_layout_v<value_type>);
   static_assert(sizeof(value_type) == sizeof(Address));
 
-  explicit StrongRootAllocator(Heap* heap) : StrongRootAllocatorBase(heap) {}
-  explicit StrongRootAllocator(Isolate* isolate)
-      : StrongRootAllocatorBase(isolate) {}
-  explicit StrongRootAllocator(v8::Isolate* isolate)
-      : StrongRootAllocatorBase(reinterpret_cast<Isolate*>(isolate)) {}
+  template <typename HeapOrIsolateT>
+  explicit StrongRootAllocator(HeapOrIsolateT* heap_or_isolate)
+      : StrongRootAllocatorBase(heap_or_isolate) {}
   template <typename U>
   StrongRootAllocator(const StrongRootAllocator<U>& other) noexcept
       : StrongRootAllocatorBase(other) {}
@@ -565,7 +579,11 @@ class LocalVector {
 
   void push_back(const Local<T>& x) { backing_.push_back(x); }
   void pop_back() { backing_.pop_back(); }
-  void emplace_back(const Local<T>& x) { backing_.emplace_back(x); }
+
+  template <typename... Args>
+  void emplace_back(Args&&... args) {
+    backing_.push_back(value_type{std::forward<Args>(args)...});
+  }
 
   void clear() noexcept { backing_.clear(); }
   void resize(size_t n) { backing_.resize(n); }

@@ -15,6 +15,9 @@ try { gc; } catch(e) {
 }
 try { uneval; } catch(e) { this.uneval = this.nop; }
 
+// For Spidermonkey shell.
+try { gcparam; } catch(e) { this.gcparam = this.nop; }
+
 try {
   // For Chakra tests.
   WScript;

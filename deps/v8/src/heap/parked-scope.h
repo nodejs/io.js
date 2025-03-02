@@ -105,31 +105,24 @@ class V8_NODISCARD ParkedRecursiveMutexGuard {
   base::RecursiveMutex* mutex_;
 };
 
-template <base::MutexSharedType kIsShared,
-          base::NullBehavior Behavior = base::NullBehavior::kRequireNotNull>
-class V8_NODISCARD ParkedSharedMutexGuardIf final {
+class V8_NODISCARD ParkedMutexGuardIf final {
  public:
-  ParkedSharedMutexGuardIf(LocalIsolate* local_isolate,
-                           base::SharedMutex* mutex, bool enable_mutex)
-      : ParkedSharedMutexGuardIf(local_isolate->heap(), mutex, enable_mutex) {}
-  V8_INLINE ParkedSharedMutexGuardIf(LocalHeap* local_heap,
-                                     base::SharedMutex* mutex,
-                                     bool enable_mutex);
-  ParkedSharedMutexGuardIf(const ParkedSharedMutexGuardIf&) = delete;
-  ParkedSharedMutexGuardIf& operator=(const ParkedSharedMutexGuardIf&) = delete;
+  V8_INLINE ParkedMutexGuardIf(LocalIsolate* local_isolate,
+                               base::SpinningMutex* mutex, bool enable_mutex);
+  V8_INLINE ParkedMutexGuardIf(LocalHeap* local_heap,
+                               base::SpinningMutex* mutex, bool enable_mutex);
 
-  ~ParkedSharedMutexGuardIf() {
+  ParkedMutexGuardIf(const ParkedMutexGuardIf&) = delete;
+  ParkedMutexGuardIf& operator=(const ParkedMutexGuardIf&) = delete;
+
+  ~ParkedMutexGuardIf() {
     if (!mutex_) return;
 
-    if (kIsShared) {
-      mutex_->UnlockShared();
-    } else {
-      mutex_->UnlockExclusive();
-    }
+    mutex_->Unlock();
   }
 
  private:
-  base::SharedMutex* mutex_ = nullptr;
+  base::SpinningMutex* mutex_ = nullptr;
 };
 
 // A subclass of base::ConditionVariable that automatically parks the thread

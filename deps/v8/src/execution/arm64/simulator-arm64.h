@@ -753,17 +753,18 @@ class Simulator : public DecoderVisitor, public SimulatorBase {
   bool PrintValue(const char* desc);
 
   // Push an address onto the JS stack.
-  uintptr_t PushAddress(uintptr_t address);
+  V8_EXPORT_PRIVATE uintptr_t PushAddress(uintptr_t address);
 
   // Pop an address from the JS stack.
-  uintptr_t PopAddress();
+  V8_EXPORT_PRIVATE uintptr_t PopAddress();
 
   // Accessor to the internal simulator stack area. Adds a safety
   // margin to prevent overflows (kAdditionalStackMargin).
   uintptr_t StackLimit(uintptr_t c_limit) const;
-  // Return current stack view, without additional safety margins.
+  void SetStackLimit(uintptr_t limit);
+  // Return central stack view, without additional safety margins.
   // Users, for example wasm::StackMemory, can add their own.
-  base::Vector<uint8_t> GetCurrentStackView() const;
+  base::Vector<uint8_t> GetCentralStackView() const;
 
   V8_EXPORT_PRIVATE void ResetState();
 
@@ -2442,6 +2443,18 @@ class Simulator : public DecoderVisitor, public SimulatorBase {
 
   class GlobalMonitor {
    public:
+    class SimulatorMutex final {
+     public:
+      explicit SimulatorMutex(GlobalMonitor* global_monitor) {
+        if (!global_monitor->IsSingleThreaded()) {
+          guard.emplace(global_monitor->mutex_);
+        }
+      }
+
+     private:
+      std::optional<base::MutexGuard> guard;
+    };
+
     class Processor {
      public:
       Processor();
@@ -2467,31 +2480,32 @@ class Simulator : public DecoderVisitor, public SimulatorBase {
       int failure_counter_;
     };
 
-    // Exposed so it can be accessed by Simulator::{Read,Write}Ex*.
-    base::Mutex mutex;
-
     void NotifyLoadExcl_Locked(uintptr_t addr, Processor* processor);
     void NotifyStore_Locked(Processor* processor);
     bool NotifyStoreExcl_Locked(uintptr_t addr, Processor* processor);
 
+    // Called when the simulator is constructed.
+    void PrependProcessor(Processor* processor);
     // Called when the simulator is destroyed.
     void RemoveProcessor(Processor* processor);
 
     static GlobalMonitor* Get();
 
    private:
+    bool IsSingleThreaded() const { return num_processors_ == 1; }
+
     // Private constructor. Call {GlobalMonitor::Get()} to get the singleton.
     GlobalMonitor() = default;
     friend class base::LeakyObject<GlobalMonitor>;
 
-    bool IsProcessorInLinkedList_Locked(Processor* processor) const;
-    void PrependProcessor_Locked(Processor* processor);
-
     Processor* head_ = nullptr;
+    std::atomic<uint32_t> num_processors_ = 0;
+    base::Mutex mutex_;
   };
 
   LocalMonitor local_monitor_;
   GlobalMonitor::Processor global_monitor_processor_;
+  GlobalMonitor* global_monitor_;
 
  private:
   void Init(FILE* stream);
@@ -2503,14 +2517,16 @@ class Simulator : public DecoderVisitor, public SimulatorBase {
 
   // Read floating point return values.
   template <typename T>
-  typename std::enable_if<std::is_floating_point<T>::value, T>::type
-  ReadReturn() {
+  T ReadReturn()
+    requires std::is_floating_point<T>::value
+  {
     return static_cast<T>(dreg(0));
   }
   // Read non-float return values.
   template <typename T>
-  typename std::enable_if<!std::is_floating_point<T>::value, T>::type
-  ReadReturn() {
+  T ReadReturn()
+    requires(!std::is_floating_point<T>::value)
+  {
     return ConvertReturn<T>(xreg(0));
   }
 

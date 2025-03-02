@@ -16,10 +16,10 @@ namespace interpreter {
 HandlerTableBuilder::HandlerTableBuilder(Zone* zone) : entries_(zone) {}
 
 template <typename IsolateT>
-Handle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
+DirectHandle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
     IsolateT* isolate) {
   int handler_table_size = static_cast<int>(entries_.size());
-  Handle<TrustedByteArray> table_byte_array =
+  DirectHandle<TrustedByteArray> table_byte_array =
       isolate->factory()->NewTrustedByteArray(
           HandlerTable::LengthForRange(handler_table_size));
   HandlerTable table(*table_byte_array);
@@ -34,9 +34,9 @@ Handle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
   return table_byte_array;
 }
 
-template Handle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
+template DirectHandle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
     Isolate* isolate);
-template Handle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
+template DirectHandle<TrustedByteArray> HandlerTableBuilder::ToHandlerTable(
     LocalIsolate* isolate);
 
 int HandlerTableBuilder::NewHandlerEntry() {

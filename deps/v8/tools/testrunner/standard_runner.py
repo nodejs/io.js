@@ -12,20 +12,21 @@ import json
 import os
 import sys
 import tempfile
-from testrunner.testproc.rerun import RerunProc
-from testrunner.testproc.timeout import TimeoutProc
-from testrunner.testproc.progress import ResultsTracker, ProgressProc
-from testrunner.testproc.shard import ShardProc
 
 import testrunner.base_runner as base_runner
 
 from testrunner.local.variants import ALL_VARIANTS
 from testrunner.objects import predictable
 from testrunner.testproc.execution import ExecutionProc
-from testrunner.testproc.filter import StatusFileFilterProc, NameFilterProc
+from testrunner.testproc.expectation import ExpectationProc
+from testrunner.testproc.filter import NameFilterProc, StatusFileFilterProc
 from testrunner.testproc.loader import LoadProc
+from testrunner.testproc.progress import ResultsTracker, ProgressProc
+from testrunner.testproc.rerun import RerunProc
 from testrunner.testproc.seed import SeedProc
 from testrunner.testproc.sequence import SequenceProc
+from testrunner.testproc.shard import ShardProc
+from testrunner.testproc.timeout import TimeoutProc
 from testrunner.testproc.variant import VariantProc
 
 
@@ -55,9 +56,6 @@ VARIANT_ALIASES = {
     ],
 }
 
-# Extra flags passed to all tests using the standard test runner.
-EXTRA_DEFAULT_FLAGS = ['--testing-d8-test-runner']
-
 GC_STRESS_FLAGS = ['--gc-interval=500', '--stress-compaction',
                    '--concurrent-recompilation-queue-length=64',
                    '--concurrent-recompilation-delay=500',
@@ -76,7 +74,7 @@ class StandardTestRunner(base_runner.BaseTestRunner):
     self._variants = None
 
   @property
-  def framework_name(self):
+  def default_framework_name(self):
     return 'standard_runner'
 
   def _get_default_suite_names(self):
@@ -231,9 +229,6 @@ class StandardTestRunner(base_runner.BaseTestRunner):
           prefix="v8-test-runner-")
       self.options.json_test_results = self._temporary_json_output_file.name
 
-  def _runner_flags(self):
-    return EXTRA_DEFAULT_FLAGS
-
   def _parse_variants(self, aliases_str):
     # Use developer defaults if no variant was specified.
     aliases_str = aliases_str or 'dev'
@@ -266,8 +261,9 @@ class StandardTestRunner(base_runner.BaseTestRunner):
         'allow_user_segv_handler=1',
       ])
 
-  def _get_statusfile_variables(self):
-    variables = super(StandardTestRunner, self)._get_statusfile_variables()
+  def _get_statusfile_variables(self, context):
+    variables = super(
+        StandardTestRunner, self)._get_statusfile_variables(context)
     variables.update({
       'gc_stress': self.options.gc_stress or self.options.random_gc_stress,
       'gc_fuzzer': self.options.random_gc_stress,
@@ -278,6 +274,12 @@ class StandardTestRunner(base_runner.BaseTestRunner):
   def _create_sequence_proc(self):
     """Create processor for sequencing heavy tests on swarming."""
     return SequenceProc(self.options.max_heavy_tests) if self.options.swarming else None
+
+  def _create_expectation_proc(self):
+    """Create a processor with more forgiving expectations when using the
+    num-fuzzer framework flavor.
+    """
+    return ExpectationProc() if self.framework_name == 'num_fuzzer' else None
 
   def _do_execute(self, tests, args, ctx):
     jobs = self.options.j
@@ -299,6 +301,7 @@ class StandardTestRunner(base_runner.BaseTestRunner):
                              self.options.pass_fail_tests),
         self._create_predictable_filter(),
         ShardProc.create(self.options),
+        self._create_expectation_proc(),
         self._create_seed_proc(),
         self._create_sequence_proc(),
         sigproc,

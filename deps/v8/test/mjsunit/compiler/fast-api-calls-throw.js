@@ -10,7 +10,7 @@
 // The test relies on optimizing/deoptimizing at predictable moments, so
 // it's not suitable for deoptimization fuzzing.
 // Flags: --deopt-every-n-times=0
-// Flags: --turboshaft-wasm --no-liftoff --wasm-fast-api
+// Flags: --no-liftoff --wasm-fast-api
 // --wasm-lazy-compilation is needed so that wellknown imports work in the
 // absence of dynamic tiering.
 // Flags: --wasm-lazy-compilation

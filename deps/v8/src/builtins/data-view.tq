@@ -810,7 +810,8 @@ transitioning macro DataViewSet(
             buffer, bufferIndex, TruncateFloat64ToWord32(doubleValue),
             littleEndian);
       } else if constexpr (kind == ElementsKind::FLOAT16_ELEMENTS) {
-        const floatValue: float16 = TruncateFloat64ToFloat16(doubleValue);
+        const floatValue: float16_raw_bits =
+            TruncateFloat64ToFloat16(doubleValue);
         StoreDataView16(
             buffer, bufferIndex, BitcastFloat16ToUint32(floatValue),
             littleEndian);

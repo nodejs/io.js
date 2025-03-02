@@ -21,12 +21,12 @@ namespace internal {
 // ES6 section 20.1.3.2 Number.prototype.toExponential ( fractionDigits )
 BUILTIN(NumberPrototypeToExponential) {
   HandleScope scope(isolate);
-  Handle<Object> value = args.at(0);
+  DirectHandle<Object> value = args.at(0);
   Handle<Object> fraction_digits = args.atOrUndefined(isolate, 1);
 
   // Unwrap the receiver {value}.
   if (IsJSPrimitiveWrapper(*value)) {
-    value = handle(Cast<JSPrimitiveWrapper>(value)->value(), isolate);
+    value = direct_handle(Cast<JSPrimitiveWrapper>(value)->value(), isolate);
   }
   if (!IsNumber(*value)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
@@ -57,22 +57,23 @@ BUILTIN(NumberPrototypeToExponential) {
   int const f = IsUndefined(*args.atOrUndefined(isolate, 1), isolate)
                     ? -1
                     : static_cast<int>(fraction_digits_number);
-  char* const str = DoubleToExponentialCString(value_number, f);
+  char chars[kDoubleToExponentialMaxChars];
+  base::Vector<char> buffer = base::ArrayVector(chars);
+  std::string_view str = DoubleToExponentialStringView(value_number, f, buffer);
   DirectHandle<String> result =
       isolate->factory()->NewStringFromAsciiChecked(str);
-  DeleteArray(str);
   return *result;
 }
 
 // ES6 section 20.1.3.3 Number.prototype.toFixed ( fractionDigits )
 BUILTIN(NumberPrototypeToFixed) {
   HandleScope scope(isolate);
-  Handle<Object> value = args.at(0);
+  DirectHandle<Object> value = args.at(0);
   Handle<Object> fraction_digits = args.atOrUndefined(isolate, 1);
 
   // Unwrap the receiver {value}.
   if (IsJSPrimitiveWrapper(*value)) {
-    value = handle(Cast<JSPrimitiveWrapper>(value)->value(), isolate);
+    value = direct_handle(Cast<JSPrimitiveWrapper>(value)->value(), isolate);
   }
   if (!IsNumber(*value)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
@@ -102,11 +103,12 @@ BUILTIN(NumberPrototypeToFixed) {
     return (value_number < 0.0) ? ReadOnlyRoots(isolate).minus_Infinity_string()
                                 : ReadOnlyRoots(isolate).Infinity_string();
   }
-  char* const str = DoubleToFixedCString(
-      value_number, static_cast<int>(fraction_digits_number));
+  char chars[kDoubleToFixedMaxChars];
+  base::Vector<char> buffer = base::ArrayVector(chars);
+  std::string_view str = DoubleToFixedStringView(
+      value_number, static_cast<int>(fraction_digits_number), buffer);
   DirectHandle<String> result =
       isolate->factory()->NewStringFromAsciiChecked(str);
-  DeleteArray(str);
   return *result;
 }
 
@@ -146,12 +148,12 @@ BUILTIN(NumberPrototypeToLocaleString) {
 // ES6 section 20.1.3.5 Number.prototype.toPrecision ( precision )
 BUILTIN(NumberPrototypeToPrecision) {
   HandleScope scope(isolate);
-  Handle<Object> value = args.at(0);
+  DirectHandle<Object> value = args.at(0);
   Handle<Object> precision = args.atOrUndefined(isolate, 1);
 
   // Unwrap the receiver {value}.
   if (IsJSPrimitiveWrapper(*value)) {
-    value = handle(Cast<JSPrimitiveWrapper>(value)->value(), isolate);
+    value = direct_handle(Cast<JSPrimitiveWrapper>(value)->value(), isolate);
   }
   if (!IsNumber(*value)) {
     THROW_NEW_ERROR_RETURN_FAILURE(
@@ -181,11 +183,12 @@ BUILTIN(NumberPrototypeToPrecision) {
     THROW_NEW_ERROR_RETURN_FAILURE(
         isolate, NewRangeError(MessageTemplate::kToPrecisionFormatRange));
   }
-  char* const str = DoubleToPrecisionCString(
-      value_number, static_cast<int>(precision_number));
+  char chars[kDoubleToPrecisionMaxChars];
+  base::Vector<char> buffer = base::ArrayVector(chars);
+  std::string_view str = DoubleToPrecisionStringView(
+      value_number, static_cast<int>(precision_number), buffer);
   DirectHandle<String> result =
       isolate->factory()->NewStringFromAsciiChecked(str);
-  DeleteArray(str);
   return *result;
 }
 

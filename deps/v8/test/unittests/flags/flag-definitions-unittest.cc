@@ -329,6 +329,23 @@ TEST(FlagContradictionsTest, ResolvesContradictions) {
 #endif
 }
 
+TEST(FlagContradictionsTest, ResolvesNegContradictions) {
+#ifdef V8_ENABLE_MAGLEV
+  int argc = 4;
+  const char* argv[] = {"Test", "--fuzzing", "--no-turbofan",
+                        "--always-osr-from-maglev"};
+  FlagList::SetFlagsFromCommandLine(&argc, const_cast<char**>(argv), false);
+  CHECK(v8_flags.fuzzing);
+  CHECK(!v8_flags.turbofan);
+  CHECK(v8_flags.always_osr_from_maglev);
+  FlagList::ResolveContradictionsWhenFuzzing();
+  FlagList::EnforceFlagImplications();
+  CHECK(v8_flags.fuzzing);
+  CHECK(!v8_flags.turbofan);
+  CHECK(!v8_flags.always_osr_from_maglev);
+#endif
+}
+
 const char* smallerValues[] = {"", "--a", "--a-b-c", "--a_b_c"};
 const char* largerValues[] = {"--a-c-b", "--a_c_b",   "--a_b_d",
                               "--a-b-d", "--a_b_c_d", "--a-b-c-d"};

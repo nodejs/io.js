@@ -47,6 +47,7 @@
 #include <wchar.h>
 #include <windows.globalization.h>
 #include <windows.h>
+#include <winstring.h>
 #endif
 #endif
 
@@ -54,8 +55,8 @@
 #include <cstring>
 #include <string>
 
-#include "time_zone_fixed.h"
-#include "time_zone_impl.h"
+#include "absl/time/internal/cctz/src/time_zone_fixed.h"
+#include "absl/time/internal/cctz/src/time_zone_impl.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN

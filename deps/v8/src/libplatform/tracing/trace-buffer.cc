@@ -16,7 +16,7 @@ TraceBufferRingBuffer::TraceBufferRingBuffer(size_t max_chunks,
 }
 
 TraceObject* TraceBufferRingBuffer::AddTraceEvent(uint64_t* handle) {
-  base::MutexGuard guard(&mutex_);
+  base::SpinningMutexGuard guard(&mutex_);
   if (is_empty_ || chunks_[chunk_index_]->IsFull()) {
     chunk_index_ = is_empty_ ? 0 : NextChunkIndex(chunk_index_);
     is_empty_ = false;
@@ -35,7 +35,7 @@ TraceObject* TraceBufferRingBuffer::AddTraceEvent(uint64_t* handle) {
 }
 
 TraceObject* TraceBufferRingBuffer::GetEventByHandle(uint64_t handle) {
-  base::MutexGuard guard(&mutex_);
+  base::SpinningMutexGuard guard(&mutex_);
   size_t chunk_index, event_index;
   uint32_t chunk_seq;
   ExtractHandle(handle, &chunk_index, &chunk_seq, &event_index);
@@ -46,7 +46,7 @@ TraceObject* TraceBufferRingBuffer::GetEventByHandle(uint64_t handle) {
 }
 
 bool TraceBufferRingBuffer::Flush() {
-  base::MutexGuard guard(&mutex_);
+  base::SpinningMutexGuard guard(&mutex_);
   // This flushes all the traces stored in the buffer.
   if (!is_empty_) {
     for (size_t i = NextChunkIndex(chunk_index_);; i = NextChunkIndex(i)) {

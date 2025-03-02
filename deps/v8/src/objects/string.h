@@ -42,9 +42,6 @@ class SharedStringAccessGuardIfNeeded;
 
 enum InstanceType : uint16_t;
 
-enum AllowNullsFlag { ALLOW_NULLS, DISALLOW_NULLS };
-enum RobustnessFlag { ROBUST_STRING_TRAVERSAL, FAST_STRING_TRAVERSAL };
-
 // The characteristics of a string are stored in its map.  Retrieving these
 // few bits of information is moderately expensive, involving two memory
 // loads where the second is dependent on the first.  To improve efficiency
@@ -89,12 +86,9 @@ class StringShape {
   inline void invalidate() {}
 #endif
 
-  // Run different behavior for each concrete string class type, as defined by
-  // the dispatcher.
-  template <typename TDispatcher, typename TResult, typename... TArgs>
-  inline TResult DispatchToSpecificTypeWithoutCast(TArgs&&... args);
-  template <typename TDispatcher, typename TResult, typename... TArgs>
-  inline TResult DispatchToSpecificType(Tagged<String> str, TArgs&&... args);
+  inline bool operator==(const StringShape& that) const {
+    return that.type_ == this->type_;
+  }
 
  private:
   uint32_t type_;
@@ -151,7 +145,7 @@ V8_OBJECT class String : public Name {
       return base::Vector<const base::uc16>(twobyte_start, length_);
     }
 
-    base::uc16 Get(int i) const {
+    base::uc16 Get(uint32_t i) const {
       DCHECK(i < length_);
       DCHECK(state_ != NON_FLAT);
       if (state_ == ONE_BYTE) return onebyte_start[i];
@@ -173,15 +167,15 @@ V8_OBJECT class String : public Name {
 #endif
     }
 
-    int length() const { return length_; }
+    uint32_t length() const { return length_; }
 
    private:
     enum State { NON_FLAT, ONE_BYTE, TWO_BYTE };
 
     // Constructors only used by String::GetFlatContent().
-    inline FlatContent(const uint8_t* start, int length,
+    inline FlatContent(const uint8_t* start, uint32_t length,
                        const DisallowGarbageCollection& no_gc);
-    inline FlatContent(const base::uc16* start, int length,
+    inline FlatContent(const base::uc16* start, uint32_t length,
                        const DisallowGarbageCollection& no_gc);
     explicit FlatContent(const DisallowGarbageCollection& no_gc)
         : onebyte_start(nullptr), length_(0), state_(NON_FLAT), no_gc_(no_gc) {}
@@ -190,7 +184,7 @@ V8_OBJECT class String : public Name {
       const uint8_t* onebyte_start;
       const base::uc16* twobyte_start;
     };
-    int length_;
+    uint32_t length_;
     State state_;
     const DisallowGarbageCollection& no_gc_;
 
@@ -229,64 +223,67 @@ V8_OBJECT class String : public Name {
 
   // Returns the address of the character at an offset into this string.
   // Requires: this->IsFlat()
-  const uint8_t* AddressOfCharacterAt(int start_index,
+  const uint8_t* AddressOfCharacterAt(uint32_t start_index,
                                       const DisallowGarbageCollection& no_gc);
 
-  inline int32_t length() const;
-  inline int32_t length(AcquireLoadTag) const;
+  inline uint32_t length() const;
+  inline uint32_t length(AcquireLoadTag) const;
 
-  inline void set_length(int32_t hash);
-  inline void set_length(int32_t hash, ReleaseStoreTag);
+  inline void set_length(uint32_t hash);
+  inline void set_length(uint32_t hash, ReleaseStoreTag);
 
-  // Returns whether this string has only one-byte chars, i.e. all of them can
-  // be one-byte encoded.  This might be the case even if the string is
-  // two-byte.  Such strings may appear when the embedder prefers
-  // two-byte external representations even for one-byte data.
+  // Returns whether this string is stored with one-byte chars.
   inline bool IsOneByteRepresentation() const;
   inline bool IsTwoByteRepresentation() const;
 
-  // Cons and slices have an encoding flag that may not represent the actual
-  // encoding of the underlying string.  This is taken into account here.
-  // This function is static because that helps it get inlined.
-  // Requires: string.IsFlat()
-  static inline bool IsOneByteRepresentationUnderneath(Tagged<String> string);
-
   // Get and set individual two byte chars in the string.
-  inline void Set(int index, uint16_t value);
+  inline void Set(uint32_t index, uint16_t value);
   // Get individual two byte char in the string.  Repeated calls
   // to this method are not efficient unless the string is flat.
   // If it is called from a background thread, the LocalIsolate version should
   // be used.
-  V8_INLINE uint16_t Get(int index) const;
-  V8_INLINE uint16_t Get(int index, Isolate* isolate) const;
-  V8_INLINE uint16_t Get(int index, LocalIsolate* local_isolate) const;
+  V8_INLINE uint16_t Get(uint32_t index) const;
+  V8_INLINE uint16_t Get(uint32_t index, Isolate* isolate) const;
+  V8_INLINE uint16_t Get(uint32_t index, LocalIsolate* local_isolate) const;
   // Method to pass down the access_guard. Useful for recursive calls such as
   // ThinStrings where we go String::Get into ThinString::Get into String::Get
   // again for the internalized string.
   V8_INLINE uint16_t
-  Get(int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
+  Get(uint32_t index,
+      const SharedStringAccessGuardIfNeeded& access_guard) const;
 
   // ES6 section 7.1.3.1 ToNumber Applied to the String Type
-  static Handle<Number> ToNumber(Isolate* isolate, Handle<String> subject);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<String>, DirectHandle<String>>)
+  static HandleType<Number> ToNumber(Isolate* isolate,
+                                     HandleType<String> subject);
 
   // Flattens the string.  Checks first inline to see if it is
-  // necessary.  Does nothing if the string is not a cons string.
-  // Flattening allocates a sequential string with the same data as
-  // the given string and mutates the cons string to a degenerate
-  // form, where the first component is the new sequential string and
-  // the second component is the empty string.  If allocation fails,
-  // this function returns a failure.  If flattening succeeds, this
-  // function returns the sequential string that is now the first
-  // component of the cons string.
+  // necessary. The given `string` is in-place flattened, i.e. both
+  //
+  //   `t = String::Flatten(s); s->IsFlat()` and
+  //   `t = String::Flatten(s); t->IsFlat()`
+  //
+  // hold. `t` may be an unwrapped but semantically equivalent component of `s`.
+  //
+  // Non-flat ConsStrings are physically flattened by allocating a sequential
+  // string with the same data as the given string. The input `string` is
+  // mutated to a degenerate form, where the first component is the new
+  // sequential string and the second component is the empty string.  This form
+  // is considered flat, i.e. the string is in-place flattened.
   //
   // Degenerate cons strings are handled specially by the garbage
   // collector (see IsShortcutCandidate).
 
-  static V8_INLINE Handle<String> Flatten(
-      Isolate* isolate, Handle<String> string,
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<String>>)
+  static V8_INLINE HandleType<String> Flatten(
+      Isolate* isolate, HandleType<T> string,
       AllocationType allocation = AllocationType::kYoung);
-  static V8_INLINE Handle<String> Flatten(
-      LocalIsolate* isolate, Handle<String> string,
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<String>>)
+  static V8_INLINE HandleType<String> Flatten(
+      LocalIsolate* isolate, HandleType<T> string,
       AllocationType allocation = AllocationType::kYoung);
 
   // Tries to return the content of a flat string as a structure holding either
@@ -309,7 +306,10 @@ V8_OBJECT class String : public Name {
   // Shares the string. Checks inline if the string is already shared or can be
   // shared by transitioning its map in-place. If neither is possible, flattens
   // and copies into a new shared sequential string.
-  static inline Handle<String> Share(Isolate* isolate, Handle<String> string);
+  template <typename T, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<T>, DirectHandle<String>>)
+  static inline HandleType<String> Share(Isolate* isolate,
+                                         HandleType<T> string);
 
   // String relational comparison, implemented according to ES6 section 7.2.11
   // Abstract Relational Comparison (step 5): The comparison of Strings uses a
@@ -323,21 +323,23 @@ V8_OBJECT class String : public Name {
   // sequences of UTF-16 code unit values differs from that on sequences of code
   // point values.
   V8_WARN_UNUSED_RESULT static ComparisonResult Compare(Isolate* isolate,
-                                                        Handle<String> x,
-                                                        Handle<String> y);
+                                                        DirectHandle<String> x,
+                                                        DirectHandle<String> y);
 
   // Perform ES6 21.1.3.8, including checking arguments.
-  static Tagged<Object> IndexOf(Isolate* isolate, Handle<Object> receiver,
-                                Handle<Object> search, Handle<Object> position);
+  static Tagged<Object> IndexOf(Isolate* isolate, DirectHandle<Object> receiver,
+                                DirectHandle<Object> search,
+                                DirectHandle<Object> position);
   // Perform string match of pattern on subject, starting at start index.
   // Caller must ensure that 0 <= start_index <= sub->length(), as this does not
   // check any arguments.
-  static int IndexOf(Isolate* isolate, Handle<String> receiver,
-                     Handle<String> search, int start_index);
+  static int IndexOf(Isolate* isolate, DirectHandle<String> receiver,
+                     DirectHandle<String> search, uint32_t start_index);
 
-  static Tagged<Object> LastIndexOf(Isolate* isolate, Handle<Object> receiver,
-                                    Handle<Object> search,
-                                    Handle<Object> position);
+  static Tagged<Object> LastIndexOf(Isolate* isolate,
+                                    DirectHandle<Object> receiver,
+                                    DirectHandle<Object> search,
+                                    DirectHandle<Object> position);
 
   // Encapsulates logic related to a match and its capture groups as required
   // by GetSubstitution.
@@ -354,7 +356,7 @@ V8_OBJECT class String : public Name {
     virtual int CaptureCount() = 0;
     virtual bool HasNamedCaptures() = 0;
     virtual MaybeHandle<String> GetCapture(int i, bool* capture_exists) = 0;
-    virtual MaybeHandle<String> GetNamedCapture(Handle<String> name,
+    virtual MaybeHandle<String> GetNamedCapture(DirectHandle<String> name,
                                                 CaptureState* state) = 0;
 
     virtual ~Match() = default;
@@ -366,14 +368,14 @@ V8_OBJECT class String : public Name {
   // the result.
   // A {start_index} can be passed to specify where to start scanning the
   // replacement string.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> GetSubstitution(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> GetSubstitution(
       Isolate* isolate, Match* match, Handle<String> replacement,
-      int start_index = 0);
+      uint32_t start_index = 0);
 
   // String equality operations.
   inline bool Equals(Tagged<String> other) const;
-  inline static bool Equals(Isolate* isolate, Handle<String> one,
-                            Handle<String> two);
+  inline static bool Equals(Isolate* isolate, DirectHandle<String> one,
+                            DirectHandle<String> two);
 
   enum class EqualityType { kWholeString, kPrefix, kNoLengthCheck };
 
@@ -381,7 +383,7 @@ V8_OBJECT class String : public Name {
   // whole string or just a prefix.
   //
   // The Isolate is passed as "evidence" that this call is on the main thread,
-  // and to distiguish from the LocalIsolate overload.
+  // and to distinguish from the LocalIsolate overload.
   template <EqualityType kEqType = EqualityType::kWholeString, typename Char>
   inline bool IsEqualTo(base::Vector<const Char> str, Isolate* isolate) const;
 
@@ -406,23 +408,20 @@ V8_OBJECT class String : public Name {
   V8_EXPORT_PRIVATE inline bool IsOneByteEqualTo(base::Vector<const char> str);
 
   // Returns true if the |str| is a valid ECMAScript identifier.
-  static bool IsIdentifier(Isolate* isolate, Handle<String> str);
+  static bool IsIdentifier(Isolate* isolate, DirectHandle<String> str);
 
-  // Return a UTF8 representation of the string.  The string is null
-  // terminated but may optionally contain nulls.  Length is returned
-  // in length_output if length_output is not a null pointer  The string
-  // should be nearly flat, otherwise the performance of this method may
-  // be very slow (quadratic in the length).  Setting robustness_flag to
-  // ROBUST_STRING_TRAVERSAL invokes behaviour that is robust  This means it
-  // handles unexpected data without causing assert failures and it does not
-  // do any heap allocations.  This is useful when printing stack traces.
-  std::unique_ptr<char[]> ToCString(AllowNullsFlag allow_nulls,
-                                    RobustnessFlag robustness_flag, int offset,
-                                    int length, int* length_output = nullptr);
+  // Return a UTF8 representation of this string.
+  //
+  // The output string is null terminated and any null characters in the source
+  // string are replaced with spaces. The length of the output buffer is
+  // returned in length_output if that is not a null pointer. This string
+  // should be nearly flat, otherwise the performance of this method may be
+  // very slow (quadratic in the length).
+  std::unique_ptr<char[]> ToCString(uint32_t offset, uint32_t length,
+                                    size_t* length_output = nullptr);
+
   V8_EXPORT_PRIVATE std::unique_ptr<char[]> ToCString(
-      AllowNullsFlag allow_nulls = DISALLOW_NULLS,
-      RobustnessFlag robustness_flag = FAST_STRING_TRAVERSAL,
-      int* length_output = nullptr);
+      size_t* length_output = nullptr);
 
   // Externalization.
   template <typename T>
@@ -431,9 +430,9 @@ V8_OBJECT class String : public Name {
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
   void MakeExternalDuringGC(Isolate* isolate, T* resource);
   V8_EXPORT_PRIVATE bool MakeExternal(
-      v8::String::ExternalStringResource* resource);
+      Isolate* isolate, v8::String::ExternalStringResource* resource);
   V8_EXPORT_PRIVATE bool MakeExternal(
-      v8::String::ExternalOneByteStringResource* resource);
+      Isolate* isolate, v8::String::ExternalOneByteStringResource* resource);
   bool SupportsExternalization(v8::String::Encoding);
 
   // Conversion.
@@ -461,9 +460,6 @@ V8_OBJECT class String : public Name {
 
   V8_EXPORT_PRIVATE void PrintOn(FILE* out);
   V8_EXPORT_PRIVATE void PrintOn(std::ostream& out);
-
-  // For use during stack traces.  Performs rudimentary sanity check.
-  bool LooksValid();
 
   // Printing utility functions.
   // - PrintUC16 prints the raw string contents to the given stream.
@@ -500,37 +496,79 @@ V8_OBJECT class String : public Name {
   // 32-bit platforms is ~268.4M chars. On 64-bit platforms, max length is
   // ~536.8M chars.
   // See include/v8.h for the definition.
-  static const int kMaxLength = v8::String::kMaxLength;
+  static const uint32_t kMaxLength = v8::String::kMaxLength;
 
   // Max length for computing hash. For strings longer than this limit the
   // string length is used as the hash value.
-  static const int kMaxHashCalcLength = 16383;
+  static const uint32_t kMaxHashCalcLength = 16383;
 
   // Limit for truncation in short printing.
-  static const int kMaxShortPrintLength = 1024;
+  static const uint32_t kMaxShortPrintLength = 1024;
 
   // Helper function for flattening strings.
-  template <typename sinkchar>
+  template <typename SinkCharT>
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
-  static void WriteToFlat(Tagged<String> source, sinkchar* sink, int from,
-                          int to);
-  template <typename sinkchar>
-  static void WriteToFlat(Tagged<String> source, sinkchar* sink, int from,
-                          int to, const SharedStringAccessGuardIfNeeded&);
+  static void WriteToFlat(Tagged<String> source, SinkCharT* sink,
+                          uint32_t start, uint32_t length);
+  template <typename SinkCharT>
+  static void WriteToFlat(Tagged<String> source, SinkCharT* sink,
+                          uint32_t start, uint32_t length,
+                          const SharedStringAccessGuardIfNeeded& access_guard);
+
+  // TODO(jgruber): This is an ongoing performance experiment. Once done, we'll
+  // rename this to something more appropriate.
+  //
+  // `src_index` and `length` always refer to the desired substring within
+  // `src`. `dst` is guaranteed to fit `length`, and is written to
+  // starting at index 0.
+  template <typename SinkCharT>
+  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+  static void WriteToFlat2(SinkCharT* dst, Tagged<ConsString> src,
+                           uint32_t src_index, uint32_t length,
+                           const SharedStringAccessGuardIfNeeded& aguard,
+                           const DisallowGarbageCollection& no_gc);
+
+  // Computes the number of bytes required for the Utf8 encoding of the string.
+  //
+  // Note: if the given string is not already flat, it will be flattened by
+  // this operation to improve the performance of utf8 encoding.
+  static inline size_t Utf8Length(Isolate* isolate,
+                                  DirectHandle<String> string);
+
+  // Encodes the given string as Utf8 into the provided buffer.
+  //
+  // This operation will write at most {capacity} bytes into the output buffer
+  // but may write fewer bytes. The number of bytes written is returned. If the
+  // result should be null terminated, a null terminator will always be
+  // written, even if not the entire string could be encoded. As such, when
+  // null termination is requested, the capacity must be larger than zero.
+  //
+  // Note: if the given string is not already flat, it will be flattened by
+  // this operation to improve the performance of utf8 encoding.
+  enum class Utf8EncodingFlag {
+    kNoFlags = 0,
+    kNullTerminate = 1u << 0,
+    kReplaceInvalid = 1u << 1,
+  };
+  using Utf8EncodingFlags = base::Flags<Utf8EncodingFlag>;
+  static size_t WriteUtf8(Isolate* isolate, DirectHandle<String> string,
+                          char* buffer, size_t capacity,
+                          Utf8EncodingFlags flags);
 
   // Returns true if this string has no unpaired surrogates and false otherwise.
   static inline bool IsWellFormedUnicode(Isolate* isolate,
-                                         Handle<String> string);
+                                         DirectHandle<String> string);
 
-  static inline bool IsAscii(const char* chars, int length) {
+  static inline bool IsAscii(const char* chars, uint32_t length) {
     return IsAscii(reinterpret_cast<const uint8_t*>(chars), length);
   }
 
-  static inline bool IsAscii(const uint8_t* chars, int length) {
+  static inline bool IsAscii(const uint8_t* chars, uint32_t length) {
     return NonAsciiStart(chars, length) >= length;
   }
 
-  static inline int NonOneByteStart(const base::uc16* chars, int length) {
+  static inline uint32_t NonOneByteStart(const base::uc16* chars,
+                                         uint32_t length) {
     DCHECK(IsAligned(reinterpret_cast<Address>(chars), sizeof(base::uc16)));
     const uint16_t* start = chars;
     const uint16_t* limit = chars + length;
@@ -539,7 +577,7 @@ V8_OBJECT class String : public Name {
       // Check unaligned chars.
       while (!IsAligned(reinterpret_cast<Address>(chars), kUIntptrSize)) {
         if (*chars > unibrow::Latin1::kMaxChar) {
-          return static_cast<int>(chars - start);
+          return static_cast<uint32_t>(chars - start);
         }
         ++chars;
       }
@@ -562,15 +600,15 @@ V8_OBJECT class String : public Name {
     // Check remaining unaligned chars, or find non-one-byte char in word.
     while (chars < limit) {
       if (*chars > unibrow::Latin1::kMaxChar) {
-        return static_cast<int>(chars - start);
+        return static_cast<uint32_t>(chars - start);
       }
       ++chars;
     }
 
-    return static_cast<int>(chars - start);
+    return static_cast<uint32_t>(chars - start);
   }
 
-  static inline bool IsOneByte(const base::uc16* chars, int length) {
+  static inline bool IsOneByte(const base::uc16* chars, uint32_t length) {
     return NonOneByteStart(chars, length) >= length;
   }
 
@@ -586,17 +624,17 @@ V8_OBJECT class String : public Name {
       Visitor* visitor, Tagged<String> string, int offset,
       const SharedStringAccessGuardIfNeeded& access_guard);
 
-  static int constexpr kInlineLineEndsSize = 32;
+  static uint32_t constexpr kInlineLineEndsSize = 32;
   using LineEndsVector = base::SmallVector<int32_t, kInlineLineEndsSize>;
 
   template <typename IsolateT>
   static LineEndsVector CalculateLineEndsVector(IsolateT* isolate,
-                                                Handle<String> string,
+                                                DirectHandle<String> string,
                                                 bool include_ending_line);
 
   template <typename IsolateT>
   static Handle<FixedArray> CalculateLineEnds(IsolateT* isolate,
-                                              Handle<String> string,
+                                              DirectHandle<String> string,
                                               bool include_ending_line);
 
   // Returns true if string can be internalized without copying. In such cases
@@ -608,11 +646,34 @@ V8_OBJECT class String : public Name {
   static inline bool IsInPlaceInternalizableExcludingExternal(
       InstanceType instance_type);
 
+  // Run different behavior for each concrete string class type, to a
+  // dispatcher which is overloaded on that class.
+  template <typename TDispatcher>
+  V8_INLINE auto DispatchToSpecificType(TDispatcher&& dispatcher) const
+      // Help out the type deduction in case TDispatcher returns different
+      // types for different strings.
+      -> std::common_type_t<
+          decltype(dispatcher(Tagged<SeqOneByteString>{})),
+          decltype(dispatcher(Tagged<SeqTwoByteString>{})),
+          decltype(dispatcher(Tagged<ExternalOneByteString>{})),
+          decltype(dispatcher(Tagged<ExternalTwoByteString>{})),
+          decltype(dispatcher(Tagged<ThinString>{})),
+          decltype(dispatcher(Tagged<ConsString>{})),
+          decltype(dispatcher(Tagged<SlicedString>{}))>;
+
+  // Similar to the above, but using instance type. Since there is no
+  // string to cast, the dispatcher has static methods for handling
+  // each concrete type.
+  template <typename TDispatcher, typename... TArgs>
+  static inline auto DispatchToSpecificTypeWithoutCast(
+      InstanceType instance_type, TArgs&&... args);
+
  private:
   friend class Name;
   friend class CodeStubAssembler;
   friend class StringTableInsertionKey;
   friend class SharedStringTableInsertionKey;
+  friend class SandboxTesting;
   friend class InternalizedStringKey;
 
   friend struct OffsetsForDebug;
@@ -625,7 +686,8 @@ V8_OBJECT class String : public Name {
 
   // Implementation of the Get() public methods. Do not use directly.
   V8_INLINE uint16_t
-  GetImpl(int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
+  GetImpl(uint32_t index,
+          const SharedStringAccessGuardIfNeeded& access_guard) const;
 
   // Implementation of the IsEqualTo() public methods. Do not use directly.
   template <EqualityType kEqType, typename Char>
@@ -639,20 +701,26 @@ V8_OBJECT class String : public Name {
       Tagged<ConsString> string, base::Vector<const Char> str,
       const SharedStringAccessGuardIfNeeded& access_guard);
 
-  V8_EXPORT_PRIVATE static Handle<String> SlowFlatten(
-      Isolate* isolate, Handle<ConsString> cons, AllocationType allocation);
+  // Note: This is an inline method template and exporting it for windows
+  // component builds works only without the EXPORT_TEMPLATE_DECLARE macro.
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<String>, DirectHandle<String>>)
+  V8_EXPORT_PRIVATE inline static HandleType<String> SlowFlatten(
+      Isolate* isolate, HandleType<ConsString> cons, AllocationType allocation);
 
   V8_EXPORT_PRIVATE V8_INLINE static std::optional<FlatContent>
   TryGetFlatContentFromDirectString(const DisallowGarbageCollection& no_gc,
-                                    Tagged<String> string, int offset,
-                                    int length,
+                                    Tagged<String> string, uint32_t offset,
+                                    uint32_t length,
                                     const SharedStringAccessGuardIfNeeded&);
   V8_EXPORT_PRIVATE FlatContent
   SlowGetFlatContent(const DisallowGarbageCollection& no_gc,
                      const SharedStringAccessGuardIfNeeded&);
 
-  V8_EXPORT_PRIVATE static Handle<String> SlowShare(Isolate* isolate,
-                                                    Handle<String> source);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<String>, DirectHandle<String>>)
+  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) static HandleType<
+      String> SlowShare(Isolate* isolate, HandleType<String> source);
 
   // Slow case of String::Equals.  This implementation works on any strings
   // but it is most efficient on strings that are almost flat.
@@ -660,8 +728,9 @@ V8_OBJECT class String : public Name {
   V8_EXPORT_PRIVATE bool SlowEquals(
       Tagged<String> other, const SharedStringAccessGuardIfNeeded&) const;
 
-  V8_EXPORT_PRIVATE static bool SlowEquals(Isolate* isolate, Handle<String> one,
-                                           Handle<String> two);
+  V8_EXPORT_PRIVATE static bool SlowEquals(Isolate* isolate,
+                                           DirectHandle<String> one,
+                                           DirectHandle<String> two);
 
   // Slow case of AsArrayIndex.
   V8_EXPORT_PRIVATE bool SlowAsArrayIndex(uint32_t* index);
@@ -674,7 +743,7 @@ V8_OBJECT class String : public Name {
   V8_EXPORT_PRIVATE uint32_t
   ComputeAndSetRawHash(const SharedStringAccessGuardIfNeeded&);
 
-  int32_t length_;
+  uint32_t length_;
 } V8_OBJECT_END;
 
 template <>
@@ -701,17 +770,18 @@ struct ObjectTraits<String> {
 };
 
 // clang-format off
-extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) void
-    String::WriteToFlat(Tagged<String> source, uint8_t* sink, int from, int to);
-extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) void
-    String::WriteToFlat(Tagged<String> source, uint16_t* sink, int from,
-                        int to);
-extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) void
-    String::WriteToFlat(Tagged<String> source, uint8_t* sink, int from, int to,
-                        const SharedStringAccessGuardIfNeeded&);
-extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) void
-    String::WriteToFlat(Tagged<String> source, uint16_t* sink, int from, int to,
-                        const SharedStringAccessGuardIfNeeded&);
+extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+  void String::WriteToFlat(Tagged<String> source, uint8_t* sink, uint32_t from,
+                           uint32_t to);
+extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+  void String::WriteToFlat(Tagged<String> source, uint16_t* sink, uint32_t from,
+                           uint32_t to);
+extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+  void String::WriteToFlat(Tagged<String> source, uint8_t* sink, uint32_t from,
+                           uint32_t to, const SharedStringAccessGuardIfNeeded&);
+extern template EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
+  void String::WriteToFlat(Tagged<String> source, uint16_t* sink, uint32_t from,
+                           uint32_t to, const SharedStringAccessGuardIfNeeded&);
 // clang-format on
 
 class SubStringRange {
@@ -738,7 +808,7 @@ class SeqString : public String {
   // truncating the original string.
   V8_WARN_UNUSED_RESULT static Handle<String> Truncate(Isolate* isolate,
                                                        Handle<SeqString> string,
-                                                       int new_length);
+                                                       uint32_t new_length);
 
   struct DataAndPaddingSizes {
     const int data_size;
@@ -772,12 +842,12 @@ V8_OBJECT class SeqOneByteString : public SeqString {
   // Dispatched behavior. The non SharedStringAccessGuardIfNeeded method is also
   // defined for convenience and it will check that the access guard is not
   // needed.
-  inline uint8_t Get(int index) const;
-  inline uint8_t Get(int index,
+  inline uint8_t Get(uint32_t index) const;
+  inline uint8_t Get(uint32_t index,
                      const SharedStringAccessGuardIfNeeded& access_guard) const;
-  inline void SeqOneByteStringSet(int index, uint16_t value);
-  inline void SeqOneByteStringSetChars(int index, const uint8_t* string,
-                                       int length);
+  inline void SeqOneByteStringSet(uint32_t index, uint16_t value);
+  inline void SeqOneByteStringSetChars(uint32_t index, const uint8_t* string,
+                                       uint32_t length);
 
   // Get the address of the characters in this string.
   inline Address GetCharsAddress() const;
@@ -785,19 +855,20 @@ V8_OBJECT class SeqOneByteString : public SeqString {
   // Get a pointer to the characters of the string. May only be called when a
   // SharedStringAccessGuard is not needed (i.e. on the main thread or on
   // read-only strings).
-  inline uint8_t* GetChars(const DisallowGarbageCollection& no_gc);
+  V8_INLINE uint8_t* GetChars(const DisallowGarbageCollection& no_gc);
 
   // Get a pointer to the characters of the string.
-  inline uint8_t* GetChars(const DisallowGarbageCollection& no_gc,
-                           const SharedStringAccessGuardIfNeeded& access_guard);
+  V8_INLINE uint8_t* GetChars(
+      const DisallowGarbageCollection& no_gc,
+      const SharedStringAccessGuardIfNeeded& access_guard);
 
   DataAndPaddingSizes GetDataAndPaddingSizes() const;
 
   // Initializes padding bytes. Potentially zeros tail of the payload too!
-  inline void clear_padding_destructively(int length);
+  inline void clear_padding_destructively(uint32_t length);
 
   // Maximal memory usage for a single sequential one-byte string.
-  static const int kMaxCharsSize = kMaxLength;
+  static const uint32_t kMaxCharsSize = kMaxLength;
 
   inline int AllocatedSize() const;
 
@@ -813,6 +884,7 @@ V8_OBJECT class SeqOneByteString : public SeqString {
   friend class IntlBuiltinsAssembler;
   friend class StringBuiltinsAssembler;
   friend class StringFromCharCodeAssembler;
+  friend class SandboxTesting;
   friend class maglev::MaglevAssembler;
   friend class compiler::AccessBuilder;
   friend class TorqueGeneratedSeqOneByteStringAsserts;
@@ -845,8 +917,9 @@ V8_OBJECT class SeqTwoByteString : public SeqString {
 
   // Dispatched behavior.
   inline uint16_t Get(
-      int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
-  inline void SeqTwoByteStringSet(int index, uint16_t value);
+      uint32_t index,
+      const SharedStringAccessGuardIfNeeded& access_guard) const;
+  inline void SeqTwoByteStringSet(uint32_t index, uint16_t value);
 
   // Get the address of the characters in this string.
   inline Address GetCharsAddress() const;
@@ -864,10 +937,10 @@ V8_OBJECT class SeqTwoByteString : public SeqString {
   DataAndPaddingSizes GetDataAndPaddingSizes() const;
 
   // Initializes padding bytes. Potentially zeros tail of the payload too!
-  inline void clear_padding_destructively(int length);
+  inline void clear_padding_destructively(uint32_t length);
 
   // Maximal memory usage for a single sequential two-byte string.
-  static const int kMaxCharsSize = kMaxLength * sizeof(Char);
+  static const uint32_t kMaxCharsSize = kMaxLength * sizeof(Char);
 
   inline int AllocatedSize() const;
 
@@ -934,10 +1007,11 @@ V8_OBJECT class ConsString : public String {
 
   // Dispatched behavior.
   V8_EXPORT_PRIVATE uint16_t
-  Get(int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
+  Get(uint32_t index,
+      const SharedStringAccessGuardIfNeeded& access_guard) const;
 
   // Minimum length for a cons string.
-  static const int kMinLength = 13;
+  static const uint32_t kMinLength = 13;
 
   DECL_VERIFIER(ConsString)
 
@@ -948,6 +1022,7 @@ V8_OBJECT class ConsString : public String {
   friend class CodeStubAssembler;
   friend class ToDirectStringAssembler;
   friend class StringBuiltinsAssembler;
+  friend class SandboxTesting;
   friend class maglev::MaglevAssembler;
   friend class compiler::AccessBuilder;
   friend class TorqueGeneratedConsStringAsserts;
@@ -981,7 +1056,8 @@ V8_OBJECT class ThinString : public String {
   inline Tagged<HeapObject> unchecked_actual() const;
 
   V8_EXPORT_PRIVATE uint16_t
-  Get(int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
+  Get(uint32_t index,
+      const SharedStringAccessGuardIfNeeded& access_guard) const;
 
   DECL_VERIFIER(ThinString)
 
@@ -1031,10 +1107,11 @@ V8_OBJECT class SlicedString : public String {
 
   // Dispatched behavior.
   V8_EXPORT_PRIVATE uint16_t
-  Get(int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
+  Get(uint32_t index,
+      const SharedStringAccessGuardIfNeeded& access_guard) const;
 
   // Minimum length for a sliced string.
-  static const int kMinLength = 13;
+  static const uint32_t kMinLength = 13;
 
   DECL_VERIFIER(SlicedString)
  private:
@@ -1126,6 +1203,7 @@ struct ObjectTraits<ExternalString> {
 V8_OBJECT class ExternalOneByteString : public ExternalString {
  public:
   static const bool kHasOneByteEncoding = true;
+  using Char = uint8_t;
 
   using Resource = v8::String::ExternalOneByteStringResource;
 
@@ -1133,7 +1211,7 @@ V8_OBJECT class ExternalOneByteString : public ExternalString {
   inline const Resource* resource() const;
 
   // It is assumed that the previous resource is null. If it is not null, then
-  // it is the responsability of the caller the handle the previous resource.
+  // it is the responsibility of the caller the handle the previous resource.
   inline void SetResource(Isolate* isolate, const Resource* buffer);
 
   // Used only during serialization.
@@ -1148,7 +1226,7 @@ V8_OBJECT class ExternalOneByteString : public ExternalString {
   inline const uint8_t* GetChars() const;
 
   // Dispatched behavior.
-  inline uint8_t Get(int index,
+  inline uint8_t Get(uint32_t index,
                      const SharedStringAccessGuardIfNeeded& access_guard) const;
 
  private:
@@ -1163,6 +1241,7 @@ static_assert(sizeof(ExternalOneByteString) == sizeof(ExternalString));
 V8_OBJECT class ExternalTwoByteString : public ExternalString {
  public:
   static const bool kHasOneByteEncoding = false;
+  using Char = uint16_t;
 
   using Resource = v8::String::ExternalStringResource;
 
@@ -1170,7 +1249,7 @@ V8_OBJECT class ExternalTwoByteString : public ExternalString {
   inline const Resource* resource() const;
 
   // It is assumed that the previous resource is null. If it is not null, then
-  // it is the responsability of the caller the handle the previous resource.
+  // it is the responsibility of the caller the handle the previous resource.
   inline void SetResource(Isolate* isolate, const Resource* buffer);
 
   // Used only during serialization.
@@ -1186,10 +1265,11 @@ V8_OBJECT class ExternalTwoByteString : public ExternalString {
 
   // Dispatched behavior.
   inline uint16_t Get(
-      int index, const SharedStringAccessGuardIfNeeded& access_guard) const;
+      uint32_t index,
+      const SharedStringAccessGuardIfNeeded& access_guard) const;
 
   // For regexp code.
-  inline const uint16_t* ExternalTwoByteStringGetData(unsigned start);
+  inline const uint16_t* ExternalTwoByteStringGetData(uint32_t start);
 
  private:
   // The underlying resource as a non-const pointer.
@@ -1204,17 +1284,17 @@ static_assert(sizeof(ExternalTwoByteString) == sizeof(ExternalString));
 // Not safe to use from concurrent background threads.
 class V8_EXPORT_PRIVATE FlatStringReader : public Relocatable {
  public:
-  FlatStringReader(Isolate* isolate, Handle<String> str);
+  FlatStringReader(Isolate* isolate, DirectHandle<String> str);
   void PostGarbageCollection() override;
-  inline base::uc32 Get(int index) const;
+  inline base::uc32 Get(uint32_t index) const;
   template <typename Char>
-  inline Char Get(int index) const;
-  int length() const { return length_; }
+  inline Char Get(uint32_t index) const;
+  uint32_t length() const { return length_; }
 
  private:
-  Handle<String> str_;
+  DirectHandle<String> str_;
   bool is_one_byte_;
-  int const length_;
+  uint32_t const length_;
   const void* start_;
 };
 
@@ -1271,7 +1351,7 @@ class ConsStringIterator {
   Tagged<ConsString> root_;
   int depth_;
   int maximum_depth_;
-  int consumed_;
+  uint32_t consumed_;
 };
 
 class StringCharacterStream;

@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --allow-natives-syntax --no-always-turbofan --no-stress-flush-code
-// Flags: --expose-gc
+// Flags: --expose-gc --js-staging
 // Files: test/mjsunit/code-coverage-utils.js
 
 (async function () {
@@ -1251,6 +1251,19 @@ const p = d?.[d?.x?.f]?.x                 // 0850
       {"start":872,"end":875,"count":0},
       {"start":216,"end":240,"count":2} ]
   );
+
+  await TestCoverage(
+      'using in a block', `
+{ using x = {               // 0000
+    value: 1,               // 0050
+    [Symbol.dispose]() {    // 0100
+      return 42;            // 0150
+    } }; }                  // 0200
+    `,
+      [
+        {'start': 0, 'end': 179, 'count': 1},
+        {'start': 76, 'end': 149, 'count': 1}
+      ]);
 
   %DebugToggleBlockCoverage(false);
 

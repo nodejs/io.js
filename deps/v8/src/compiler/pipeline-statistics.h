@@ -31,6 +31,10 @@ class PipelineStatisticsBase {
       CodeKind code_kind);
   ~PipelineStatisticsBase();
 
+  // No copying.
+  PipelineStatisticsBase(const PipelineStatisticsBase&) = delete;
+  PipelineStatisticsBase& operator=(const PipelineStatisticsBase&) = delete;
+
   void BeginPhaseKind(const char* phase_kind_name);
   void EndPhaseKind(CompilationStatistics::BasicStats* diff);
 
@@ -71,21 +75,21 @@ class PipelineStatisticsBase {
   }
 
  private:
-  Zone* outer_zone_;
-  ZoneStats* zone_stats_;
-  std::shared_ptr<CompilationStatistics> compilation_stats_;
-  CodeKind code_kind_;
+  Zone* const outer_zone_;
+  ZoneStats* const zone_stats_;
+  const std::shared_ptr<CompilationStatistics> compilation_stats_;
+  const CodeKind code_kind_;
   std::string function_name_;
 
   // Stats for the entire compilation.
   CommonStats total_stats_;
 
   // Stats for phase kind.
-  const char* phase_kind_name_;
+  const char* phase_kind_name_ = nullptr;
   CommonStats phase_kind_stats_;
 
   // Stats for phase.
-  const char* phase_name_;
+  const char* phase_name_ = nullptr;
   CommonStats phase_stats_;
 };
 

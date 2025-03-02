@@ -204,12 +204,14 @@ ABSL_NAMESPACE_END
 
 #if ABSL_FLAGS_STRIP_NAMES
 #define ABSL_FLAG_IMPL_FLAGNAME(txt) ""
+#define ABSL_FLAG_IMPL_TYPENAME(txt) ""
 #define ABSL_FLAG_IMPL_FILENAME() ""
 #define ABSL_FLAG_IMPL_REGISTRAR(T, flag)                                      \
   absl::flags_internal::FlagRegistrar<T, false>(ABSL_FLAG_IMPL_FLAG_PTR(flag), \
                                                 nullptr)
 #else
 #define ABSL_FLAG_IMPL_FLAGNAME(txt) txt
+#define ABSL_FLAG_IMPL_TYPENAME(txt) txt
 #define ABSL_FLAG_IMPL_FILENAME() __FILE__
 #define ABSL_FLAG_IMPL_REGISTRAR(T, flag)                                     \
   absl::flags_internal::FlagRegistrar<T, true>(ABSL_FLAG_IMPL_FLAG_PTR(flag), \
@@ -261,16 +263,17 @@ ABSL_NAMESPACE_END
 // Note: Name of registrar object is not arbitrary. It is used to "grab"
 // global name for FLAGS_no<flag_name> symbol, thus preventing the possibility
 // of defining two flags with names foo and nofoo.
-#define ABSL_FLAG_IMPL(Type, name, default_value, help)                       \
-  extern ::absl::Flag<Type> FLAGS_##name;                                     \
-  namespace absl /* block flags in namespaces */ {}                           \
-  ABSL_FLAG_IMPL_DECLARE_DEF_VAL_WRAPPER(name, Type, default_value)           \
-  ABSL_FLAG_IMPL_DECLARE_HELP_WRAPPER(name, help)                             \
-  ABSL_CONST_INIT absl::Flag<Type> FLAGS_##name{                              \
-      ABSL_FLAG_IMPL_FLAGNAME(#name), ABSL_FLAG_IMPL_FILENAME(),              \
-      ABSL_FLAG_IMPL_HELP_ARG(name), ABSL_FLAG_IMPL_DEFAULT_ARG(Type, name)}; \
-  extern absl::flags_internal::FlagRegistrarEmpty FLAGS_no##name;             \
-  absl::flags_internal::FlagRegistrarEmpty FLAGS_no##name =                   \
+#define ABSL_FLAG_IMPL(Type, name, default_value, help)               \
+  extern ::absl::Flag<Type> FLAGS_##name;                             \
+  namespace absl /* block flags in namespaces */ {}                   \
+  ABSL_FLAG_IMPL_DECLARE_DEF_VAL_WRAPPER(name, Type, default_value)   \
+  ABSL_FLAG_IMPL_DECLARE_HELP_WRAPPER(name, help)                     \
+  ABSL_CONST_INIT absl::Flag<Type> FLAGS_##name{                      \
+      ABSL_FLAG_IMPL_FLAGNAME(#name), ABSL_FLAG_IMPL_TYPENAME(#Type), \
+      ABSL_FLAG_IMPL_FILENAME(), ABSL_FLAG_IMPL_HELP_ARG(name),       \
+      ABSL_FLAG_IMPL_DEFAULT_ARG(Type, name)};                        \
+  extern absl::flags_internal::FlagRegistrarEmpty FLAGS_no##name;     \
+  absl::flags_internal::FlagRegistrarEmpty FLAGS_no##name =           \
       ABSL_FLAG_IMPL_REGISTRAR(Type, FLAGS_##name)
 
 // ABSL_RETIRED_FLAG

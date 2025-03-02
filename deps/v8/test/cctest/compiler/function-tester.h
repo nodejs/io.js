@@ -21,28 +21,29 @@ class FunctionTester : public InitializedHandleScope {
  public:
   explicit FunctionTester(const char* source, uint32_t flags = 0);
 
-  FunctionTester(Handle<Code> code, int param_count);
+  FunctionTester(DirectHandle<Code> code, int param_count);
 
   // Assumes VoidDescriptor call interface.
-  explicit FunctionTester(Handle<Code> code);
+  explicit FunctionTester(DirectHandle<Code> code);
 
   Isolate* isolate;
   Handle<JSFunction> function;
 
   MaybeHandle<Object> Call() {
-    return Execution::Call(isolate, function, undefined(), 0, nullptr);
+    return Execution::Call(isolate, function, undefined(), {});
   }
 
   template <typename Arg1, typename... Args>
   MaybeHandle<Object> Call(Arg1 arg1, Args... args) {
     const int nof_args = sizeof...(Args) + 1;
-    Handle<Object> call_args[] = {arg1, args...};
-    return Execution::Call(isolate, function, undefined(), nof_args, call_args);
+    DirectHandle<Object> call_args[] = {arg1, args...};
+    return Execution::Call(isolate, function, undefined(),
+                           {call_args, nof_args});
   }
 
   template <typename T, typename... Args>
-  Handle<T> CallChecked(Args... args) {
-    Handle<Object> result = Call(args...).ToHandleChecked();
+  DirectHandle<T> CallChecked(Args... args) {
+    DirectHandle<Object> result = Call(args...).ToHandleChecked();
     return Cast<T>(result);
   }
 
@@ -105,15 +106,15 @@ class FunctionTester : public InitializedHandleScope {
   }
 
   Handle<JSFunction> NewFunction(const char* source);
-  Handle<JSObject> NewObject(const char* source);
+  DirectHandle<JSObject> NewObject(const char* source);
 
   Handle<String> Val(const char* string);
   Handle<Object> Val(double value);
-  Handle<Object> infinity();
-  Handle<Object> minus_infinity();
-  Handle<Object> nan();
+  DirectHandle<Object> infinity();
+  DirectHandle<Object> minus_infinity();
+  DirectHandle<Object> nan();
   Handle<Object> undefined();
-  Handle<Object> null();
+  DirectHandle<Object> null();
   Handle<Object> true_value();
   Handle<Object> false_value();
 

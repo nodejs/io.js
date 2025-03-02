@@ -72,17 +72,26 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
  public:
   using Group = swiss_table::Group;
 
-  template <typename IsolateT>
-  inline static Handle<SwissNameDictionary> Add(
-      IsolateT* isolate, Handle<SwissNameDictionary> table,
+  template <typename IsolateT, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                   DirectHandle<SwissNameDictionary>>)
+  inline static HandleType<SwissNameDictionary> Add(
+      IsolateT* isolate, HandleType<SwissNameDictionary> table,
       DirectHandle<Name> key, DirectHandle<Object> value,
       PropertyDetails details, InternalIndex* entry_out = nullptr);
 
-  static Handle<SwissNameDictionary> Shrink(Isolate* isolate,
-                                            Handle<SwissNameDictionary> table);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                   DirectHandle<SwissNameDictionary>>)
+  static HandleType<SwissNameDictionary> Shrink(
+      Isolate* isolate, HandleType<SwissNameDictionary> table);
 
-  static Handle<SwissNameDictionary> DeleteEntry(
-      Isolate* isolate, Handle<SwissNameDictionary> table, InternalIndex entry);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                   DirectHandle<SwissNameDictionary>>)
+  static HandleType<SwissNameDictionary> DeleteEntry(
+      Isolate* isolate, HandleType<SwissNameDictionary> table,
+      InternalIndex entry);
 
   template <typename IsolateT>
   inline InternalIndex FindEntry(IsolateT* isolate, Tagged<Object> key);
@@ -121,8 +130,8 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
   inline bool may_have_interesting_properties() { UNREACHABLE(); }
   inline void set_may_have_interesting_properties(bool value) { UNREACHABLE(); }
 
-  static Handle<SwissNameDictionary> ShallowCopy(
-      Isolate* isolate, Handle<SwissNameDictionary> table);
+  static DirectHandle<SwissNameDictionary> ShallowCopy(
+      Isolate* isolate, DirectHandle<SwissNameDictionary> table);
 
   // Strict in the sense that it checks that all used/initialized memory in
   // |this| and |other| is the same. The only exceptions are the meta table
@@ -134,9 +143,11 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
   void Initialize(IsolateT* isolate, Tagged<ByteArray> meta_table,
                   int capacity);
 
-  template <typename IsolateT>
-  static Handle<SwissNameDictionary> Rehash(
-      IsolateT* isolate, DirectHandle<SwissNameDictionary> table,
+  template <typename IsolateT, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                   DirectHandle<SwissNameDictionary>>)
+  static HandleType<SwissNameDictionary> Rehash(
+      IsolateT* isolate, HandleType<SwissNameDictionary> table,
       int new_capacity);
   template <typename IsolateT>
   void Rehash(IsolateT* isolate);
@@ -148,7 +159,7 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
 
   class IndexIterator {
    public:
-    inline IndexIterator(Handle<SwissNameDictionary> dict, int start);
+    inline IndexIterator(DirectHandle<SwissNameDictionary> dict, int start);
 
     inline IndexIterator& operator++();
 
@@ -163,12 +174,12 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
 
     // This may be an empty handle, but only if the capacity of the table is
     // 0 and pointer compression is disabled.
-    Handle<SwissNameDictionary> dict_;
+    DirectHandle<SwissNameDictionary> dict_;
   };
 
   class IndexIterable {
    public:
-    inline explicit IndexIterable(Handle<SwissNameDictionary> dict);
+    inline explicit IndexIterable(DirectHandle<SwissNameDictionary> dict);
 
     inline IndexIterator begin();
     inline IndexIterator end();
@@ -176,7 +187,7 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
    private:
     // This may be an empty handle, but only if the capacity of the table is
     // 0 and pointer compression is disabled.
-    Handle<SwissNameDictionary> dict_;
+    DirectHandle<SwissNameDictionary> dict_;
   };
 
   inline IndexIterable IterateEntriesOrdered();
@@ -270,9 +281,11 @@ class V8_EXPORT_PRIVATE SwissNameDictionary : public HeapObject {
   using ctrl_t = swiss_table::ctrl_t;
   using Ctrl = swiss_table::Ctrl;
 
-  template <typename IsolateT>
-  inline static Handle<SwissNameDictionary> EnsureGrowable(
-      IsolateT* isolate, Handle<SwissNameDictionary> table);
+  template <typename IsolateT, template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<SwissNameDictionary>,
+                                   DirectHandle<SwissNameDictionary>>)
+  inline static HandleType<SwissNameDictionary> EnsureGrowable(
+      IsolateT* isolate, HandleType<SwissNameDictionary> table);
 
   // Returns table of byte-encoded PropertyDetails (without enumeration index
   // stored in PropertyDetails).

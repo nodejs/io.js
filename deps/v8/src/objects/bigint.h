@@ -87,12 +87,12 @@ class ValueSerializer;
 // Most code should be using BigInts instead.
 V8_OBJECT class BigIntBase : public PrimitiveHeapObject {
  public:
-  inline int length() const {
+  inline uint32_t length() const {
     return LengthBits::decode(bitfield_.load(std::memory_order_relaxed));
   }
 
   // For use by the GC.
-  inline int length(AcquireLoadTag) const {
+  inline uint32_t length(AcquireLoadTag) const {
     return LengthBits::decode(bitfield_.load(std::memory_order_acquire));
   }
 
@@ -102,16 +102,16 @@ V8_OBJECT class BigIntBase : public PrimitiveHeapObject {
   // would be kMaxInt - kSystemPointerSize * kBitsPerByte - 1.
   // Since we want a platform independent limit, choose a nice round number
   // somewhere below that maximum.
-  static const int kMaxLengthBits = 1 << 30;  // ~1 billion.
-  static const int kMaxLength =
+  static const uint32_t kMaxLengthBits = 1 << 30;  // ~1 billion.
+  static const uint32_t kMaxLength =
       kMaxLengthBits / (kSystemPointerSize * kBitsPerByte);
 
   // Sign and length are stored in the same bitfield.  Since the GC needs to be
   // able to read the length concurrently, the getters and setters are atomic.
-  static const int kLengthFieldBits = 30;
+  static const uint32_t kLengthFieldBits = 30;
   static_assert(kMaxLength <= ((1 << kLengthFieldBits) - 1));
   using SignBits = base::BitField<bool, 0, 1>;
-  using LengthBits = SignBits::Next<int, kLengthFieldBits>;
+  using LengthBits = SignBits::Next<uint32_t, kLengthFieldBits>;
   static_assert(LengthBits::kLastUsedBit < 32);
 
   DECL_VERIFIER(BigIntBase)
@@ -129,12 +129,12 @@ V8_OBJECT class BigIntBase : public PrimitiveHeapObject {
 
   using digit_t = uintptr_t;
 
-  static const int kDigitSize = sizeof(digit_t);
+  static const uint32_t kDigitSize = sizeof(digit_t);
   // kMaxLength definition assumes this:
   static_assert(kDigitSize == kSystemPointerSize);
 
-  static const int kDigitBits = kDigitSize * kBitsPerByte;
-  static const int kHalfDigitBits = kDigitBits / 2;
+  static const uint32_t kDigitBits = kDigitSize * kBitsPerByte;
+  static const uint32_t kHalfDigitBits = kDigitBits / 2;
   static const digit_t kHalfDigitMask = (1ull << kHalfDigitBits) - 1;
 
   // sign() == true means negative.
@@ -142,8 +142,8 @@ V8_OBJECT class BigIntBase : public PrimitiveHeapObject {
     return SignBits::decode(bitfield_.load(std::memory_order_relaxed));
   }
 
-  inline digit_t digit(int n) const {
-    SLOW_DCHECK(0 <= n && n < length());
+  inline digit_t digit(uint32_t n) const {
+    SLOW_DCHECK(n < length());
     return raw_digits()[n].value();
   }
 
@@ -183,21 +183,22 @@ V8_OBJECT class BigInt : public BigIntBase {
   // Implementation of the Spec methods, see:
   // https://tc39.github.io/proposal-bigint/#sec-numeric-types
   // Sections 1.1.1 through 1.1.19.
-  static Handle<BigInt> UnaryMinus(Isolate* isolate, Handle<BigInt> x);
-  static MaybeHandle<BigInt> BitwiseNot(Isolate* isolate,
-                                        DirectHandle<BigInt> x);
-  static MaybeHandle<BigInt> Exponentiate(Isolate* isolate, Handle<BigInt> base,
-                                          DirectHandle<BigInt> exponent);
-  static MaybeHandle<BigInt> Multiply(Isolate* isolate, Handle<BigInt> x,
-                                      Handle<BigInt> y);
-  static MaybeHandle<BigInt> Divide(Isolate* isolate, Handle<BigInt> x,
+  static Handle<BigInt> UnaryMinus(Isolate* isolate, DirectHandle<BigInt> x);
+  static MaybeDirectHandle<BigInt> BitwiseNot(Isolate* isolate,
+                                              DirectHandle<BigInt> x);
+  static MaybeDirectHandle<BigInt> Exponentiate(Isolate* isolate,
+                                                DirectHandle<BigInt> base,
+                                                DirectHandle<BigInt> exponent);
+  static MaybeHandle<BigInt> Multiply(Isolate* isolate, DirectHandle<BigInt> x,
+                                      DirectHandle<BigInt> y);
+  static MaybeHandle<BigInt> Divide(Isolate* isolate, DirectHandle<BigInt> x,
                                     DirectHandle<BigInt> y);
-  static MaybeHandle<BigInt> Remainder(Isolate* isolate, Handle<BigInt> x,
+  static MaybeHandle<BigInt> Remainder(Isolate* isolate, DirectHandle<BigInt> x,
                                        DirectHandle<BigInt> y);
-  static MaybeHandle<BigInt> Add(Isolate* isolate, Handle<BigInt> x,
-                                 Handle<BigInt> y);
-  static MaybeHandle<BigInt> Subtract(Isolate* isolate, Handle<BigInt> x,
-                                      Handle<BigInt> y);
+  static MaybeHandle<BigInt> Add(Isolate* isolate, DirectHandle<BigInt> x,
+                                 DirectHandle<BigInt> y);
+  static MaybeHandle<BigInt> Subtract(Isolate* isolate, DirectHandle<BigInt> x,
+                                      DirectHandle<BigInt> y);
   // More convenient version of "bool LessThan(x, y)".
   static ComparisonResult CompareToBigInt(DirectHandle<BigInt> x,
                                           DirectHandle<BigInt> y);
@@ -218,36 +219,37 @@ V8_OBJECT class BigInt : public BigIntBase {
   bool IsNegative() const { return sign(); }
 
   static Maybe<bool> EqualToString(Isolate* isolate, DirectHandle<BigInt> x,
-                                   Handle<String> y);
-  static bool EqualToNumber(DirectHandle<BigInt> x, Handle<Object> y);
+                                   DirectHandle<String> y);
+  static bool EqualToNumber(DirectHandle<BigInt> x, DirectHandle<Object> y);
   static Maybe<ComparisonResult> CompareToString(Isolate* isolate,
                                                  DirectHandle<BigInt> x,
-                                                 Handle<String> y);
+                                                 DirectHandle<String> y);
   static ComparisonResult CompareToNumber(DirectHandle<BigInt> x,
                                           DirectHandle<Object> y);
   // Exposed for tests, do not call directly. Use CompareToNumber() instead.
   V8_EXPORT_PRIVATE static ComparisonResult CompareToDouble(
       DirectHandle<BigInt> x, double y);
 
-  static Handle<BigInt> AsIntN(Isolate* isolate, uint64_t n, Handle<BigInt> x);
-  static MaybeHandle<BigInt> AsUintN(Isolate* isolate, uint64_t n,
-                                     Handle<BigInt> x);
+  static DirectHandle<BigInt> AsIntN(Isolate* isolate, uint64_t n,
+                                     DirectHandle<BigInt> x);
+  static MaybeDirectHandle<BigInt> AsUintN(Isolate* isolate, uint64_t n,
+                                           DirectHandle<BigInt> x);
 
   V8_EXPORT_PRIVATE static Handle<BigInt> FromInt64(Isolate* isolate,
                                                     int64_t n);
   V8_EXPORT_PRIVATE static Handle<BigInt> FromUint64(Isolate* isolate,
                                                      uint64_t n);
-  static MaybeHandle<BigInt> FromWords64(Isolate* isolate, int sign_bit,
-                                         int words64_count,
-                                         const uint64_t* words);
+  static MaybeDirectHandle<BigInt> FromWords64(Isolate* isolate, int sign_bit,
+                                               uint32_t words64_count,
+                                               const uint64_t* words);
   V8_EXPORT_PRIVATE int64_t AsInt64(bool* lossless = nullptr);
   uint64_t AsUint64(bool* lossless = nullptr);
-  int Words64Count();
-  void ToWordsArray64(int* sign_bit, int* words64_count, uint64_t* words);
+  uint32_t Words64Count();
+  void ToWordsArray64(int* sign_bit, uint32_t* words64_count, uint64_t* words);
 
   void BigIntShortPrint(std::ostream& os);
 
-  inline static int SizeFor(int length) {
+  inline static uint32_t SizeFor(uint32_t length) {
     return sizeof(BigInt) + length * kDigitSize;
   }
 
@@ -258,21 +260,25 @@ V8_OBJECT class BigInt : public BigIntBase {
   // Like the above, but adapted for the needs of producing error messages:
   // doesn't care about termination requests, and returns a default string
   // for inputs beyond a relatively low upper bound.
-  static Handle<String> NoSideEffectsToString(Isolate* isolate,
-                                              DirectHandle<BigInt> bigint);
+  static DirectHandle<String> NoSideEffectsToString(
+      Isolate* isolate, DirectHandle<BigInt> bigint);
 
   // "The Number value for x", see:
   // https://tc39.github.io/ecma262/#sec-ecmascript-language-types-number-type
   // Returns a Smi or HeapNumber.
-  static Handle<Number> ToNumber(Isolate* isolate, DirectHandle<BigInt> x);
+  static DirectHandle<Number> ToNumber(Isolate* isolate,
+                                       DirectHandle<BigInt> x);
 
   // ECMAScript's NumberToBigInt
   V8_EXPORT_PRIVATE static MaybeHandle<BigInt> FromNumber(
-      Isolate* isolate, Handle<Object> number);
+      Isolate* isolate, DirectHandle<Object> number);
 
   // ECMAScript's ToBigInt (throws for Number input)
-  V8_EXPORT_PRIVATE static MaybeHandle<BigInt> FromObject(Isolate* isolate,
-                                                          Handle<Object> obj);
+  template <template <typename> typename HandleType>
+    requires(std::is_convertible_v<HandleType<Object>, DirectHandle<Object>>)
+  EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE) static
+      typename HandleType<BigInt>::MaybeType
+      FromObject(Isolate* isolate, HandleType<Object> obj);
 
   class BodyDescriptor;
 
@@ -293,10 +299,10 @@ V8_OBJECT class BigInt : public BigIntBase {
 
   // Special functions for ValueSerializer/ValueDeserializer:
   uint32_t GetBitfieldForSerialization() const;
-  static int DigitsByteLengthForBitfield(uint32_t bitfield);
-  // Expects {storage} to have a length of at least
+  static size_t DigitsByteLengthForBitfield(uint32_t bitfield);
+  // Serialize the raw digits. {storage_length} is expected to be
   // {DigitsByteLengthForBitfield(GetBitfieldForSerialization())}.
-  void SerializeDigits(uint8_t* storage);
+  void SerializeDigits(uint8_t* storage, size_t storage_length);
   V8_WARN_UNUSED_RESULT static MaybeHandle<BigInt> FromSerializedDigits(
       Isolate* isolate, uint32_t bitfield,
       base::Vector<const uint8_t> digits_storage);

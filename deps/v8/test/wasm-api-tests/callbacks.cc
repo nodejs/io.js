@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "test/wasm-api-tests/wasm-api-test.h"
-
 #include "src/execution/isolate.h"
 #include "src/heap/heap.h"
 #include "src/wasm/c-api.h"
+#include "test/wasm-api-tests/wasm-api-test.h"
 
 namespace v8 {
 namespace internal {
@@ -14,7 +13,7 @@ namespace wasm {
 
 namespace {
 
-own<Trap> Stage2(void* env, const Val args[], Val results[]) {
+own<Trap> Stage2(void* env, const vec<Val>& args, vec<Val>& results) {
   printf("Stage2...\n");
   WasmCapiTest* self = reinterpret_cast<WasmCapiTest*>(env);
   Func* stage3 = self->GetExportedFunction(1);
@@ -27,7 +26,7 @@ own<Trap> Stage2(void* env, const Val args[], Val results[]) {
   return trap;
 }
 
-own<Trap> Stage4_GC(void* env, const Val args[], Val results[]) {
+own<Trap> Stage4_GC(void* env, const vec<Val>& args, vec<Val>& results) {
   printf("Stage4...\n");
   i::Isolate* isolate = reinterpret_cast<i::Isolate*>(env);
   isolate->heap()->PreciseCollectAllGarbage(GCFlag::kForced,
@@ -67,10 +66,10 @@ TEST_F(WasmCapiCallbacksTest, Trap) {
   uint8_t code[] = {WASM_UNREACHABLE};
   AddExportedFunction(base::CStrVector("stage3_trap"), code, sizeof(code));
 
-  Extern* imports[] = {stage2()};
+  vec<Extern*> imports = vec<Extern*>::make(stage2());
   Instantiate(imports);
-  Val args[] = {Val::i32(42)};
-  Val results[1];
+  vec<Val> args = vec<Val>::make(Val::i32(42));
+  vec<Val> results = vec<Val>::make_uninitialized(1);
   own<Trap> trap = GetExportedFunction(0)->call(args, results);
   EXPECT_NE(trap, nullptr);
   printf("Stage0: Got trap as expected: %s\n", trap->message().get());
@@ -89,10 +88,10 @@ TEST_F(WasmCapiCallbacksTest, GC) {
   own<Func> stage4 = Func::make(store(), cpp_i_i_sig(), Stage4_GC, isolate);
   EXPECT_EQ(cpp_i_i_sig()->params().size(), stage4->type()->params().size());
   EXPECT_EQ(cpp_i_i_sig()->results().size(), stage4->type()->results().size());
-  Extern* imports[] = {stage2(), stage4.get()};
+  vec<Extern*> imports = vec<Extern*>::make(stage2(), stage4.get());
   Instantiate(imports);
-  Val args[] = {Val::i32(42)};
-  Val results[1];
+  vec<Val> args = vec<Val>::make(Val::i32(42));
+  vec<Val> results = vec<Val>::make_uninitialized(1);
   own<Trap> trap = GetExportedFunction(0)->call(args, results);
   EXPECT_EQ(trap, nullptr);
   EXPECT_EQ(43, results[0].i32());
@@ -100,7 +99,7 @@ TEST_F(WasmCapiCallbacksTest, GC) {
 
 namespace {
 
-own<Trap> FibonacciC(void* env, const Val args[], Val results[]) {
+own<Trap> FibonacciC(void* env, const vec<Val>& args, vec<Val>& results) {
   int32_t x = args[0].i32();
   if (x == 0 || x == 1) {
     results[0] = Val::i32(x);
@@ -108,10 +107,10 @@ own<Trap> FibonacciC(void* env, const Val args[], Val results[]) {
   }
   WasmCapiTest* self = reinterpret_cast<WasmCapiTest*>(env);
   Func* fibo_wasm = self->GetExportedFunction(0);
-  // Aggressively re-use existing arrays. That's maybe not great coding
+  // Aggressively reuse existing arrays. That's maybe not great coding
   // style, but this test intentionally ensures that it works if someone
   // insists on doing it.
-  Val recursive_args[] = {Val::i32(x - 1)};
+  vec<Val> recursive_args = vec<Val>::make(Val::i32(x - 1));
   own<Trap> trap = fibo_wasm->call(recursive_args, results);
   DCHECK_NULL(trap);
   int32_t x1 = results[0].i32();
@@ -148,11 +147,11 @@ TEST_F(WasmCapiTest, Recursion) {
                       sizeof(code_fibo), wasm_i_i_sig());
 
   own<Func> fibonacci = Func::make(store(), cpp_i_i_sig(), FibonacciC, this);
-  Extern* imports[] = {fibonacci.get()};
+  vec<Extern*> imports = vec<Extern*>::make(fibonacci.get());
   Instantiate(imports);
   // Enough iterations to make it interesting, few enough to keep it fast.
-  Val args[] = {Val::i32(15)};
-  Val results[1];
+  vec<Val> args = vec<Val>::make(Val::i32(15));
+  vec<Val> results = vec<Val>::make_uninitialized(1);
   own<Trap> result = GetExportedFunction(0)->call(args, results);
   EXPECT_EQ(result, nullptr);
   EXPECT_EQ(610, results[0].i32());
@@ -160,7 +159,7 @@ TEST_F(WasmCapiTest, Recursion) {
 
 namespace {
 
-own<Trap> PlusOne(const Val args[], Val results[]) {
+own<Trap> PlusOne(const vec<Val>& args, vec<Val>& results) {
   int32_t a0 = args[0].i32();
   results[0] = Val::i32(a0 + 1);
   int64_t a1 = args[1].i64();
@@ -173,7 +172,7 @@ own<Trap> PlusOne(const Val args[], Val results[]) {
   return nullptr;
 }
 
-own<Trap> PlusOneWithManyArgs(const Val args[], Val results[]) {
+own<Trap> PlusOneWithManyArgs(const vec<Val>& args, vec<Val>& results) {
   int32_t a0 = args[0].i32();
   results[0] = Val::i32(a0 + 1);
   int64_t a1 = args[1].i64();
@@ -206,17 +205,19 @@ own<Trap> PlusOneWithManyArgs(const Val args[], Val results[]) {
 }  // namespace
 
 TEST_F(WasmCapiTest, DirectCallCapiFunction) {
-  own<FuncType> cpp_sig =
-      FuncType::make(ownvec<ValType>::make(
-                         ValType::make(::wasm::I32), ValType::make(::wasm::I64),
-                         ValType::make(::wasm::F32), ValType::make(::wasm::F64),
-                         ValType::make(::wasm::ANYREF)),
-                     ownvec<ValType>::make(
-                         ValType::make(::wasm::I32), ValType::make(::wasm::I64),
-                         ValType::make(::wasm::F32), ValType::make(::wasm::F64),
-                         ValType::make(::wasm::ANYREF)));
+  own<FuncType> cpp_sig = FuncType::make(
+      ownvec<ValType>::make(ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::EXTERNREF)),
+      ownvec<ValType>::make(ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::EXTERNREF)));
   own<Func> func = Func::make(store(), cpp_sig.get(), PlusOne);
-  Extern* imports[] = {func.get()};
+  vec<Extern*> imports = vec<Extern*>::make(func.get());
   ValueType wasm_types[] = {kWasmI32,       kWasmI64,      kWasmF32, kWasmF64,
                             kWasmExternRef, kWasmI32,      kWasmI64, kWasmF32,
                             kWasmF64,       kWasmExternRef};
@@ -228,9 +229,9 @@ TEST_F(WasmCapiTest, DirectCallCapiFunction) {
   int64_t a1 = 0x1234c0ffee;
   float a2 = 1234.5;
   double a3 = 123.45;
-  Val args[] = {Val::i32(a0), Val::i64(a1), Val::f32(a2), Val::f64(a3),
-                Val::ref(func->copy())};
-  Val results[5];
+  vec<Val> args = vec<Val>::make(Val::i32(a0), Val::i64(a1), Val::f32(a2),
+                                 Val::f64(a3), Val::ref(func->copy()));
+  vec<Val> results = vec<Val>::make_uninitialized(5);
   // Test that {func} can be called directly.
   own<Trap> trap = func->call(args, results);
   EXPECT_EQ(nullptr, trap);
@@ -254,24 +255,36 @@ TEST_F(WasmCapiTest, DirectCallCapiFunctionWithManyArgs) {
   // Test with many arguments to make sure that CWasmArgumentsPacker won't use
   // its buffer-on-stack optimization.
   own<FuncType> cpp_sig = FuncType::make(
-      ownvec<ValType>::make(
-          ValType::make(::wasm::I32), ValType::make(::wasm::I64),
-          ValType::make(::wasm::F32), ValType::make(::wasm::F64),
-          ValType::make(::wasm::ANYREF), ValType::make(::wasm::I32),
-          ValType::make(::wasm::I64), ValType::make(::wasm::F32),
-          ValType::make(::wasm::F64), ValType::make(::wasm::I32),
-          ValType::make(::wasm::I64), ValType::make(::wasm::F32),
-          ValType::make(::wasm::F64), ValType::make(::wasm::I32)),
-      ownvec<ValType>::make(
-          ValType::make(::wasm::I32), ValType::make(::wasm::I64),
-          ValType::make(::wasm::F32), ValType::make(::wasm::F64),
-          ValType::make(::wasm::ANYREF), ValType::make(::wasm::I32),
-          ValType::make(::wasm::I64), ValType::make(::wasm::F32),
-          ValType::make(::wasm::F64), ValType::make(::wasm::I32),
-          ValType::make(::wasm::I64), ValType::make(::wasm::F32),
-          ValType::make(::wasm::F64), ValType::make(::wasm::I32)));
+      ownvec<ValType>::make(ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::EXTERNREF),
+                            ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::I32)),
+      ownvec<ValType>::make(ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::EXTERNREF),
+                            ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::I32),
+                            ValType::make(::wasm::ValKind::I64),
+                            ValType::make(::wasm::ValKind::F32),
+                            ValType::make(::wasm::ValKind::F64),
+                            ValType::make(::wasm::ValKind::I32)));
   own<Func> func = Func::make(store(), cpp_sig.get(), PlusOneWithManyArgs);
-  Extern* imports[] = {func.get()};
+  vec<Extern*> imports = vec<Extern*>::make(func.get());
   ValueType wasm_types[] = {
       kWasmI32,       kWasmI64, kWasmF32, kWasmF64, kWasmExternRef, kWasmI32,
       kWasmI64,       kWasmF32, kWasmF64, kWasmI32, kWasmI64,       kWasmF32,
@@ -286,12 +299,12 @@ TEST_F(WasmCapiTest, DirectCallCapiFunctionWithManyArgs) {
   int64_t a1 = 0x1234c0ffee;
   float a2 = 1234.5;
   double a3 = 123.45;
-  Val args[] = {
-      Val::i32(a0),           Val::i64(a1), Val::f32(a2), Val::f64(a3),
-      Val::ref(func->copy()), Val::i32(a0), Val::i64(a1), Val::f32(a2),
-      Val::f64(a3),           Val::i32(a0), Val::i64(a1), Val::f32(a2),
-      Val::f64(a3),           Val::i32(a0)};
-  Val results[14];
+  vec<Val> args =
+      vec<Val>::make(Val::i32(a0), Val::i64(a1), Val::f32(a2), Val::f64(a3),
+                     Val::ref(func->copy()), Val::i32(a0), Val::i64(a1),
+                     Val::f32(a2), Val::f64(a3), Val::i32(a0), Val::i64(a1),
+                     Val::f32(a2), Val::f64(a3), Val::i32(a0));
+  vec<Val> results = vec<Val>::make_uninitialized(14);
   // Test that {func} can be called directly.
   own<Trap> trap = func->call(args, results);
   EXPECT_EQ(nullptr, trap);

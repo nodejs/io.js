@@ -8,6 +8,7 @@ extern macro AllocatePromiseWithResolversResult(
     implicit context: Context)(JSAny, JSAny, JSAny): JSObject;
 
 // https://tc39.es/proposal-promise-with-resolvers/#sec-promise.withResolvers
+@incrementUseCounter('v8::Isolate::kPromiseWithResolvers')
 transitioning javascript builtin PromiseWithResolvers(
     js-implicit context: Context, receiver: JSAny)(): JSAny {
   // 1. Let C be the this value.

@@ -32,7 +32,9 @@ class Zone;
 namespace wasm {
 class ErrorThrower;
 enum Suspend : int { kSuspend, kNoSuspend };
-enum Promise : int { kPromise, kNoPromise };
+// kStressSwitch: switch to a secondary stack, but without the JSPI semantics:
+// do not handle async imports and do not return a Promise. For testing only.
+enum Promise : int { kPromise, kNoPromise, kStressSwitch };
 struct WasmModule;
 
 // Calls to Wasm imports are handled in several different ways, depending on the
@@ -48,32 +50,6 @@ enum class ImportCallKind : uint8_t {
   kWasmToWasm,               // fast Wasm->Wasm call
   kJSFunctionArityMatch,     // fast Wasm->JS call
   kJSFunctionArityMismatch,  // Wasm->JS, needs adapter frame
-  // Math functions imported from JavaScript that are intrinsified
-  kFirstMathIntrinsic,
-  kF64Acos = kFirstMathIntrinsic,
-  kF64Asin,
-  kF64Atan,
-  kF64Cos,
-  kF64Sin,
-  kF64Tan,
-  kF64Exp,
-  kF64Log,
-  kF64Atan2,
-  kF64Pow,
-  kF64Ceil,
-  kF64Floor,
-  kF64Sqrt,
-  kF64Min,
-  kF64Max,
-  kF64Abs,
-  kF32Min,
-  kF32Max,
-  kF32Abs,
-  kF32Ceil,
-  kF32Floor,
-  kF32Sqrt,
-  kF32ConvertF64,
-  kLastMathIntrinsic = kF32ConvertF64,
   // For everything else, there's the call builtin.
   kUseCallBuiltin
 };
@@ -88,10 +64,13 @@ constexpr ImportCallKind kDefaultImportCallKind =
 // is why the ultimate target is provided as well.
 class ResolvedWasmImport {
  public:
+  // TODO(clemensb): We should only need one of {sig} and {expected_sig_id};
+  // currently we can't efficiently translate between them.
   V8_EXPORT_PRIVATE ResolvedWasmImport(
       DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
-      int func_index, Handle<JSReceiver> callable, const wasm::FunctionSig* sig,
-      uint32_t expected_canonical_type_index, WellKnownImport preknown_import);
+      int func_index, Handle<JSReceiver> callable,
+      const wasm::CanonicalSig* sig, CanonicalTypeIndex expected_sig_id,
+      WellKnownImport preknown_import);
 
   ImportCallKind kind() const { return kind_; }
   WellKnownImport well_known_status() const { return well_known_status_; }
@@ -110,8 +89,9 @@ class ResolvedWasmImport {
 
   ImportCallKind ComputeKind(
       DirectHandle<WasmTrustedInstanceData> trusted_instance_data,
-      int func_index, const wasm::FunctionSig* expected_sig,
-      uint32_t expected_canonical_type_index, WellKnownImport preknown_import);
+      int func_index, const wasm::CanonicalSig* expected_sig,
+      CanonicalTypeIndex expected_canonical_type_index,
+      WellKnownImport preknown_import);
 
   ImportCallKind kind_;
   WellKnownImport well_known_status_{WellKnownImport::kGeneric};
@@ -136,15 +116,12 @@ std::optional<MessageTemplate> InitializeElementSegment(
     uint32_t segment_index);
 
 V8_EXPORT_PRIVATE void CreateMapForType(
-    Isolate* isolate, const WasmModule* module, int type_index,
-    Handle<WasmTrustedInstanceData> trusted_data,
-    Handle<WasmInstanceObject> instance_object,
+    Isolate* isolate, const WasmModule* module, ModuleTypeIndex type_index,
     Handle<FixedArray> maybe_shared_maps);
 
 // Wrapper information required for graph building.
 struct WrapperCompilationInfo {
   CodeKind code_kind;
-  StubCallMode stub_mode;
   // For wasm-js wrappers only:
   wasm::ImportCallKind import_kind = kDefaultImportCallKind;
   int expected_arity = 0;

@@ -43,17 +43,19 @@ static inline ObjectPair MakePair(Tagged<Object> x, Tagged<Object> y) {
 }
 #endif
 
-// TODO(chromium:1236668): Drop this when the "SaveAndClearThreadInWasmFlag"
-// approach is no longer needed.
+// TODO(40192807): Drop this when the "SaveAndClearThreadInWasmFlag" approach is
+// no longer needed.
 class V8_NODISCARD [[maybe_unused]] SaveAndClearThreadInWasmFlag {
  public:
+#if V8_ENABLE_WEBASSEMBLY
   explicit SaveAndClearThreadInWasmFlag(Isolate* isolate);
   ~SaveAndClearThreadInWasmFlag();
 
-#if V8_ENABLE_WEBASSEMBLY
  private:
   bool thread_was_in_wasm_ = false;
   Isolate* isolate_;
+#else
+  explicit SaveAndClearThreadInWasmFlag(Isolate*) {}
 #endif
 };
 

@@ -1,4 +1,4 @@
-TODO(b/156075691#comment18): Remove this static initializer upstream
+TODO: crbug.com/40148384, b/156075691#comment18 - Remove this static initializer upstream
 ---
 diff --git a/third_party/abseil-cpp/absl/debugging/internal/stacktrace_generic-inl.inc b/third_party/abseil-cpp/absl/debugging/internal/stacktrace_generic-inl.inc
 index b2792a1f3ada..b94c61233ba3 100644

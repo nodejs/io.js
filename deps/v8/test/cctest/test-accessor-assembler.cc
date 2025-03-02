@@ -43,7 +43,7 @@ void TestStubCacheOffsetCalculation(StubCache::Table table) {
     m.Return(m.SmiTag(result));
   }
 
-  Handle<Code> code = data.GenerateCode();
+  DirectHandle<Code> code = data.GenerateCode();
   FunctionTester ft(code, kNumParams);
 
   Factory* factory = isolate->factory();
@@ -149,7 +149,7 @@ TEST(TryProbeStubCache) {
     m.Return(m.BooleanConstant(false));
   }
 
-  Handle<Code> code = data.GenerateCode();
+  DirectHandle<Code> code = data.GenerateCode();
   FunctionTester ft(code, kNumParams);
 
   std::vector<Handle<Name>> names;

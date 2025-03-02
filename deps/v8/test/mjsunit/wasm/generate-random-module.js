@@ -5,7 +5,7 @@
 // Flags: --allow-natives-syntax
 // Also enable all features that are used in the randomly generated module. This
 // should stay in sync with `EnableExperimentalWasmFeatures` in
-// `wasm-fuzzer-common.cc`.
+// `test/fuzzer/wasm/fuzzer-common.cc`.
 // Flags: --wasm-staging
 
 (function TestGenerateRandomModule() {

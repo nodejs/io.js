@@ -26,7 +26,7 @@ class V8_EXPORT_PRIVATE IndexGenerator {
   std::optional<size_t> GetNext();
 
  private:
-  base::Mutex lock_;
+  base::SpinningMutex lock_;
   bool first_use_;
   // Pending [start, end) ranges to split and hand out indices from.
   std::queue<std::pair<size_t, size_t>> ranges_to_split_;

@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/compiler/graph-visualizer.h"
+#include "src/compiler/turboshaft/graph-visualizer.h"
 
 #include "src/base/small-vector.h"
 #include "src/compiler/node-origin-table.h"
-#include "src/compiler/turboshaft/graph-visualizer.h"
+#include "src/compiler/turbofan-graph-visualizer.h"
 
 namespace v8::internal::compiler::turboshaft {
 

@@ -31,6 +31,8 @@
 // `__has_attribute()` first. If the check fails, we check if we are on GCC and
 // assume the attribute exists on GCC (which is verified on GCC 4.7).
 
+// SKIP_ABSL_INLINE_NAMESPACE_CHECK
+
 #ifndef ABSL_BASE_ATTRIBUTES_H_
 #define ABSL_BASE_ATTRIBUTES_H_
 
@@ -827,6 +829,17 @@
 #define ABSL_ATTRIBUTE_LIFETIME_BOUND __attribute__((lifetimebound))
 #else
 #define ABSL_ATTRIBUTE_LIFETIME_BOUND
+#endif
+
+// Internal attribute; name and documentation TBD.
+//
+// See the upstream documentation:
+// https://clang.llvm.org/docs/AttributeReference.html#lifetime_capture_by
+#if ABSL_HAVE_CPP_ATTRIBUTE(clang::lifetime_capture_by)
+#define ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(Owner) \
+  [[clang::lifetime_capture_by(Owner)]]
+#else
+#define ABSL_INTERNAL_ATTRIBUTE_CAPTURED_BY(Owner)
 #endif
 
 // ABSL_ATTRIBUTE_VIEW indicates that a type is solely a "view" of data that it

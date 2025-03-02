@@ -71,19 +71,6 @@ assertTrue(!%RegexpHasBytecode(re, kLatin1) &&
 assertTrue(!%RegexpHasBytecode(re, kUnicode) &&
             !%RegexpHasNativeCode(re, kUnicode));
 
-// Testing String.replace method for global regexps.
-let re_g = /\w11111/g;
-CheckRegexpNotYetCompiled(re_g);
-// This regexp will not match, so it will only execute the bytecode once,
-// each time the replace method is invoked, without tiering-up and
-// recompiling to native code.
-for (var i = 0; i < 5; i++) {
-  subject.replace(re_g, "x");
-  assertTrue(%RegexpHasBytecode(re_g, kLatin1));
-  assertTrue(!%RegexpHasBytecode(re_g, kUnicode) &&
-              !%RegexpHasNativeCode(re_g, kUnicode));
-}
-
 // This regexp will match, so it will execute five times, and tier-up.
 re_g = /\w/g;
 CheckRegexpNotYetCompiled(re_g);

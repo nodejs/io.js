@@ -33,8 +33,9 @@ void check(T actual, U expected) {
 
 template<class... Args>
 void check_ok(const wasm::Func* func, Args... xs) {
-  wasm::Val args[] = {wasm::Val::i32(xs)...};
-  if (func->call(args)) {
+  auto args = wasm::vec<wasm::Val>::make(wasm::Val::i32(xs)...);
+  auto results = wasm::vec<wasm::Val>::make();
+  if (func->call(args, results)) {
     std::cout << "> Error on result, expected return" << std::endl;
     exit(1);
   }
@@ -42,8 +43,9 @@ void check_ok(const wasm::Func* func, Args... xs) {
 
 template<class... Args>
 void check_trap(const wasm::Func* func, Args... xs) {
-  wasm::Val args[] = {wasm::Val::i32(xs)...};
-  if (! func->call(args)) {
+  auto args = wasm::vec<wasm::Val>::make(wasm::Val::i32(xs)...);
+  auto results = wasm::vec<wasm::Val>::make();
+  if (!func->call(args, results)) {
     std::cout << "> Error on result, expected trap" << std::endl;
     exit(1);
   }
@@ -51,8 +53,8 @@ void check_trap(const wasm::Func* func, Args... xs) {
 
 template<class... Args>
 auto call(const wasm::Func* func, Args... xs) -> int32_t {
-  wasm::Val args[] = {wasm::Val::i32(xs)...};
-  wasm::Val results[1];
+  auto args = wasm::vec<wasm::Val>::make(wasm::Val::i32(xs)...);
+  auto results = wasm::vec<wasm::Val>::make_uninitialized(1);
   if (func->call(args, results)) {
     std::cout << "> Error on result, expected return" << std::endl;
     exit(1);
@@ -92,7 +94,8 @@ void run() {
 
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
-  auto instance = wasm::Instance::make(store, module.get(), nullptr);
+  auto imports = wasm::vec<wasm::Extern*>::make();
+  auto instance = wasm::Instance::make(store, module.get(), imports);
   if (!instance) {
     std::cout << "> Error instantiating module!" << std::endl;
     exit(1);

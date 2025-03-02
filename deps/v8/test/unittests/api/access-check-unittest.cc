@@ -197,14 +197,14 @@ TEST_F(AccessCheckTest, GetOwnPropertyDescriptor) {
 
 class AccessRegressionTest : public AccessCheckTest {
  protected:
-  i::Handle<i::JSFunction> RetrieveFunctionFrom(Local<Context> context,
-                                                const char* script) {
+  i::DirectHandle<i::JSFunction> RetrieveFunctionFrom(Local<Context> context,
+                                                      const char* script) {
     Context::Scope context_scope(context);
     Local<Value> getter = CompileRun(isolate(), script).ToLocalChecked();
     EXPECT_TRUE(getter->IsFunction());
 
-    i::Handle<i::JSReceiver> r =
-        Utils::OpenHandle(*Local<Function>::Cast(getter));
+    i::DirectHandle<i::JSReceiver> r =
+        Utils::OpenDirectHandle(*Local<Function>::Cast(getter));
     EXPECT_TRUE(IsJSFunction(*r));
     return i::Cast<i::JSFunction>(r);
   }
@@ -253,7 +253,7 @@ TEST_F(AccessRegressionTest,
   //    - a normal function "breakfn".
   //
   // The test sets a break point on {object.breakfn} in the first context.
-  // This forces instantation of the JSFunction for the {object.property}
+  // This forces instantiation of the JSFunction for the {object.property}
   // accessor pair. The test verifies afterwards that the respective
   // JSFunction of the getter have the correct native context.
 

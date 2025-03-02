@@ -65,6 +65,12 @@ describe('Variable or object mutator', () => {
     ];
     sandbox.stub(random, 'random').callsFake(
         () => { return choices[index++]; });
+
+    // Choose __callGC on every other occasion.
+    let gcIndex = 0;
+    sandbox.stub(variableOrObject, 'chooseCallGC').callsFake(
+        () => { return gcIndex++ % 2 == 0; });
+
     testMutations(
         'mutate_var_or_obj.js',
         'mutate_var_or_obj_expected.js');

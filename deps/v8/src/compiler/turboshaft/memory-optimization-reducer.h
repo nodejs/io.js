@@ -387,7 +387,7 @@ class MemoryOptimizationReducer : public Next {
   }
 
   OpIndex REDUCE(DecodeExternalPointer)(OpIndex handle,
-                                        ExternalPointerTag tag) {
+                                        ExternalPointerTagRange tag_range) {
 #ifdef V8_ENABLE_SANDBOX
     // Decode loaded external pointer.
     V<WordPtr> table;
@@ -400,7 +400,7 @@ class MemoryOptimizationReducer : public Next {
       // Isolates. It also would break if the code is serialized/deserialized at
       // some point.
       V<WordPtr> table_address =
-          IsSharedExternalPointerType(tag)
+          IsSharedExternalPointerType(tag_range)
               ? __
                 LoadOffHeap(
                     __ ExternalConstant(
@@ -417,7 +417,7 @@ class MemoryOptimizationReducer : public Next {
     } else {
 #if V8_ENABLE_WEBASSEMBLY
       V<WordPtr> isolate_root = __ LoadRootRegister();
-      if (IsSharedExternalPointerType(tag)) {
+      if (IsSharedExternalPointerType(tag_range)) {
         V<WordPtr> table_address =
             __ Load(isolate_root, LoadOp::Kind::RawAligned(),
                     MemoryRepresentation::UintPtr(),
@@ -440,8 +440,32 @@ class MemoryOptimizationReducer : public Next {
         __ Word32ShiftRightLogical(handle, kExternalPointerIndexShift);
     V<Word64> pointer = __ LoadOffHeap(table, __ ChangeUint32ToUint64(index), 0,
                                        MemoryRepresentation::Uint64());
-    pointer = __ Word64BitwiseAnd(pointer, __ Word64Constant(~tag));
-    return pointer;
+
+    // We don't expect to see empty fields here. If this is ever needed,
+    // consider using an dedicated empty value entry for those tags instead
+    // (i.e. an entry with the right tag and nullptr payload).
+    DCHECK(!ExternalPointerCanBeEmpty(tag_range));
+
+    Block* done = __ NewBlock();
+    if (tag_range.Size() == 1) {
+      // The common and simple case: we expect a specific tag.
+      V<Word64> tag_bits = __ Word64BitwiseAnd(
+          pointer, __ Word64Constant(kExternalPointerTagMask));
+      tag_bits = __ Word64ShiftRightLogical(tag_bits, kExternalPointerTagShift);
+      V<Word32> tag = __ TruncateWord64ToWord32(tag_bits);
+      V<Word32> expected_tag = __ Word32Constant(tag_range.first);
+      __ GotoIf(__ Word32Equal(tag, expected_tag), done, BranchHint::kTrue);
+      // TODO(saelo): it would be nicer to abort here with
+      // AbortReason::kExternalPointerTagMismatch. That might require adding a
+      // builtin call here though, which is not currently available.
+      __ Unreachable();
+    } else {
+      // Not currently supported. Implement once needed.
+      DCHECK_NE(tag_range, kAnyExternalPointerTagRange);
+      UNREACHABLE();
+    }
+    __ BindReachable(done);
+    return __ Word64BitwiseAnd(pointer, kExternalPointerPayloadMask);
 #else   // V8_ENABLE_SANDBOX
     UNREACHABLE();
 #endif  // V8_ENABLE_SANDBOX

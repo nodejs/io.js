@@ -6,7 +6,7 @@
 #define V8_COMPILER_TYPE_CACHE_H_
 
 #include "src/compiler/globals.h"
-#include "src/compiler/types.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/date/date.h"
 #include "src/objects/js-array-buffer.h"
 #include "src/objects/string.h"
@@ -171,10 +171,10 @@ class V8_EXPORT_PRIVATE TypeCache final {
   Type const kJSDateWeekdayType =
       Type::Union(CreateRange(0, 6.0), Type::NaN(), zone());
 
-  // The JSDate::year property always contains a tagged number in the signed
-  // small range or NaN.
+  // The JSDate::year property always contains a tagged number in the range
+  // [-271821, 275760] or NaN.
   Type const kJSDateYearType =
-      Type::Union(Type::SignedSmall(), Type::NaN(), zone());
+      Type::Union(CreateRange(-271821, 275760), Type::NaN(), zone());
 
   // The valid number of arguments for JavaScript functions. We can never
   // materialize more than the max size of a fixed array, because we require a

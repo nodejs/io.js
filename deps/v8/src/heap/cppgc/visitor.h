@@ -66,7 +66,7 @@ class V8_EXPORT_PRIVATE ConservativeTracingVisitor {
   virtual void VisitInConstructionConservatively(HeapObjectHeader&,
                                                  TraceConservativelyCallback) {}
 
-  void TryTracePointerConservatively(Address address);
+  void TryTracePointerConservatively(ConstAddress address);
 
   HeapBase& heap_;
   PageBackend& page_backend_;

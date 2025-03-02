@@ -48,7 +48,8 @@ RUNTIME_FUNCTION(Runtime_SymbolDescriptiveString) {
   IncrementalStringBuilder builder(isolate);
   builder.AppendCStringLiteral("Symbol(");
   if (IsString(symbol->description())) {
-    builder.AppendString(handle(Cast<String>(symbol->description()), isolate));
+    builder.AppendString(
+        direct_handle(Cast<String>(symbol->description()), isolate));
   }
   builder.AppendCharacter(')');
   RETURN_RESULT_OR_FAILURE(isolate, builder.Finish());

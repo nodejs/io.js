@@ -1207,7 +1207,7 @@ void Assembler::Move32BitImmediate(Register rd, const Operand& x,
     // can be patched.
     DCHECK(!x.MustOutputRelocInfo(this));
     UseScratchRegisterScope temps(this);
-    // Re-use the destination register as a scratch if possible.
+    // Reuse the destination register as a scratch if possible.
     Register target = rd != pc && rd != sp ? rd : temps.Acquire();
     uint32_t imm32 = static_cast<uint32_t>(x.immediate());
     movw(target, imm32 & 0xFFFF, cond);
@@ -1260,7 +1260,7 @@ void Assembler::AddrMode1(Instr instr, Register rd, Register rn,
     } else if ((opcode == ADD || opcode == SUB) && !set_flags && (rd == rn) &&
                !temps.CanAcquire()) {
       // Split the operation into a sequence of additions if we cannot use a
-      // scratch register. In this case, we cannot re-use rn and the assembler
+      // scratch register. In this case, we cannot reuse rn and the assembler
       // does not have any scratch registers to spare.
       uint32_t imm = x.immediate();
       do {
@@ -1291,7 +1291,7 @@ void Assembler::AddrMode1(Instr instr, Register rd, Register rn,
       // The immediate operand cannot be encoded as a shifter operand, so load
       // it first to a scratch register and change the original instruction to
       // use it.
-      // Re-use the destination register if possible.
+      // Reuse the destination register if possible.
       Register scratch = (rd.is_valid() && rd != rn && rd != pc && rd != sp)
                              ? rd
                              : temps.Acquire();
@@ -1357,7 +1357,7 @@ void Assembler::AddrMode2(Instr instr, Register rd, const MemOperand& x) {
       // Immediate offset cannot be encoded, load it first to a scratch
       // register.
       UseScratchRegisterScope temps(this);
-      // Allow re-using rd for load instructions if possible.
+      // Allow reuse of rd for load instructions if possible.
       bool is_load = (instr & L) == L;
       Register scratch = (is_load && rd != x.rn_ && rd != pc && rd != sp)
                              ? rd
@@ -1399,7 +1399,7 @@ void Assembler::AddrMode3(Instr instr, Register rd, const MemOperand& x) {
       // Immediate offset cannot be encoded, load it first to a scratch
       // register.
       UseScratchRegisterScope temps(this);
-      // Allow re-using rd for load instructions if possible.
+      // Allow reuse of rd for load instructions if possible.
       Register scratch = (is_load && rd != x.rn_ && rd != pc && rd != sp)
                              ? rd
                              : temps.Acquire();
@@ -1414,7 +1414,7 @@ void Assembler::AddrMode3(Instr instr, Register rd, const MemOperand& x) {
     // Scaled register offsets are not supported, compute the offset separately
     // to a scratch register.
     UseScratchRegisterScope temps(this);
-    // Allow re-using rd for load instructions if possible.
+    // Allow reuse of rd for load instructions if possible.
     Register scratch =
         (is_load && rd != x.rn_ && rd != pc && rd != sp) ? rd : temps.Acquire();
     mov(scratch, Operand(x.rm_, x.shift_op_, x.shift_imm_), LeaveCC,

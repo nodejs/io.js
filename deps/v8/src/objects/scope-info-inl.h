@@ -29,9 +29,13 @@ bool ScopeInfo::HasSimpleParameters() const {
   return HasSimpleParametersBit::decode(Flags());
 }
 
-uint32_t ScopeInfo::Flags() const { return flags(); }
+uint32_t ScopeInfo::Flags() const { return flags(kRelaxedLoad); }
 int ScopeInfo::ParameterCount() const { return parameter_count(); }
 int ScopeInfo::ContextLocalCount() const { return context_local_count(); }
+
+Tagged<DependentCode> ScopeInfo::dependent_code() const {
+  return Cast<DependentCode>(TorqueGeneratedScopeInfo::dependent_code());
+}
 
 ObjectSlot ScopeInfo::data_start() { return RawField(OffsetOfElementAt(0)); }
 
@@ -99,7 +103,7 @@ class ScopeInfo::LocalNamesRange {
 
     void advance_hashtable_index() {
       DisallowGarbageCollection no_gc;
-      ReadOnlyRoots roots = scope_info()->GetReadOnlyRoots();
+      ReadOnlyRoots roots = GetReadOnlyRoots();
       InternalIndex max = range_->max_index();
       // Increment until iterator points to a valid key or max.
       while (index_ < max) {
@@ -132,9 +136,9 @@ class ScopeInfo::LocalNamesRange {
 };
 
 // static
-ScopeInfo::LocalNamesRange<Handle<ScopeInfo>> ScopeInfo::IterateLocalNames(
-    Handle<ScopeInfo> scope_info) {
-  return LocalNamesRange<Handle<ScopeInfo>>(scope_info);
+ScopeInfo::LocalNamesRange<DirectHandle<ScopeInfo>>
+ScopeInfo::IterateLocalNames(DirectHandle<ScopeInfo> scope_info) {
+  return LocalNamesRange<DirectHandle<ScopeInfo>>(scope_info);
 }
 
 // static

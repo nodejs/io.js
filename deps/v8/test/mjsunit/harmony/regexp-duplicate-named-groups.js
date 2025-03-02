@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --js-regexp-duplicate-named-groups
 
 // Duplicate names are only valid in alterations. Test that previous behaviour
 // is still correct (early syntax error).

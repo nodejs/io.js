@@ -47,10 +47,7 @@ set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 
 option(ABSL_PROPAGATE_CXX_STD
   "Use CMake C++ standard meta features (e.g. cxx_std_14) that propagate to targets that link to Abseil"
-  OFF)  # TODO: Default to ON for CMake 3.8 and greater.
-if(NOT ABSL_PROPAGATE_CXX_STD)
-  message(WARNING "A future Abseil release will default ABSL_PROPAGATE_CXX_STD to ON for CMake 3.8 and up. We recommend enabling this option to ensure your project still builds correctly.")
-endif()
+  ON)
 
 option(ABSL_USE_SYSTEM_INCLUDES
   "Silence warnings in Abseil headers by marking them as SYSTEM includes"
@@ -214,11 +211,13 @@ if(ABSL_ENABLE_INSTALL)
     )
   endif()  # absl_VERSION
 
+  # Install the headers except for "options.h" which is installed separately.
   install(DIRECTORY absl
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     FILES_MATCHING
       PATTERN "*.inc"
       PATTERN "*.h"
+      PATTERN "options.h" EXCLUDE
       PATTERN "copts" EXCLUDE
       PATTERN "testdata" EXCLUDE
     )
@@ -258,7 +257,21 @@ if(ABSL_ENABLE_INSTALL)
     ABSL_INTERNAL_OPTIONS_H_PINNED
     "${ABSL_INTERNAL_OPTIONS_H_CONTENTS}")
 
-  file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/options-pinned.h" CONTENT "${ABSL_INTERNAL_OPTIONS_H_PINNED}")
+  # If the file already exists, check if it matches the new contents.
+  # This avoids writing the file if it is already up-to-date when the CMake
+  # generation is triggered and triggering unnecessary rebuilds.
+  set(ABSL_INTERNAL_OPTIONS_H_PINNED_NEEDS_UPDATE TRUE)
+  if (EXISTS "${CMAKE_BINARY_DIR}/options-pinned.h")
+    file(READ "${CMAKE_BINARY_DIR}/options-pinned.h" ABSL_INTERNAL_OPTIONS_PINNED_H_CONTENTS)
+    if ("${ABSL_INTERNAL_OPTIONS_H_PINNED}" STREQUAL "${ABSL_INTERNAL_OPTIONS_PINNED_H_CONTENTS}")
+      set(ABSL_INTERNAL_OPTIONS_H_PINNED_NEEDS_UPDATE FALSE)
+    endif()
+  endif()
+
+  # If the file needs an update, generate it.
+  if (ABSL_INTERNAL_OPTIONS_H_PINNED_NEEDS_UPDATE)
+    file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/options-pinned.h" CONTENT "${ABSL_INTERNAL_OPTIONS_H_PINNED}")
+  endif()
 
   install(FILES "${CMAKE_BINARY_DIR}/options-pinned.h"
          DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/absl/base

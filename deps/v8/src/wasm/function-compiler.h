@@ -114,12 +114,6 @@ class V8_EXPORT_PRIVATE WasmCompilationUnit final {
                                   const WasmFunction*, ExecutionTier);
 
  private:
-  WasmCompilationResult ExecuteFunctionCompilation(
-      CompilationEnv*, const WireBytesStorage*, Counters*,
-      WasmDetectedFeatures* detected);
-
-  WasmCompilationResult ExecuteImportWrapperCompilation(CompilationEnv*);
-
   int func_index_;
   ExecutionTier tier_;
   ForDebugging for_debugging_;
@@ -132,10 +126,8 @@ static_assert(sizeof(WasmCompilationUnit) <= 2 * kSystemPointerSize);
 
 class V8_EXPORT_PRIVATE JSToWasmWrapperCompilationUnit final {
  public:
-  JSToWasmWrapperCompilationUnit(Isolate* isolate, const FunctionSig* sig,
-                                 uint32_t canonical_sig_index,
-                                 const wasm::WasmModule* module,
-                                 WasmEnabledFeatures enabled_features);
+  JSToWasmWrapperCompilationUnit(Isolate* isolate, const CanonicalSig* sig,
+                                 CanonicalTypeIndex sig_index);
   ~JSToWasmWrapperCompilationUnit();
 
   // Allow move construction and assignment, for putting units in a std::vector.
@@ -147,16 +139,14 @@ class V8_EXPORT_PRIVATE JSToWasmWrapperCompilationUnit final {
   Isolate* isolate() const { return isolate_; }
 
   void Execute();
-  Handle<Code> Finalize();
+  DirectHandle<Code> Finalize();
 
-  const FunctionSig* sig() const { return sig_; }
-  uint32_t canonical_sig_index() const { return canonical_sig_index_; }
+  const CanonicalSig* sig() const { return sig_; }
+  CanonicalTypeIndex sig_index() const { return sig_index_; }
 
   // Run a compilation unit synchronously.
-  static Handle<Code> CompileJSToWasmWrapper(Isolate* isolate,
-                                             const FunctionSig* sig,
-                                             uint32_t canonical_sig_index,
-                                             const WasmModule* module);
+  static DirectHandle<Code> CompileJSToWasmWrapper(
+      Isolate* isolate, const CanonicalSig* sig, CanonicalTypeIndex sig_index);
 
  private:
   // Wrapper compilation is bound to an isolate. Concurrent accesses to the
@@ -164,13 +154,13 @@ class V8_EXPORT_PRIVATE JSToWasmWrapperCompilationUnit final {
   // should only access immutable information (like the root table). The isolate
   // is guaranteed to be alive when this unit executes.
   Isolate* isolate_;
-  const FunctionSig* sig_;
-  uint32_t canonical_sig_index_;
+  const CanonicalSig* sig_;
+  CanonicalTypeIndex sig_index_;
   std::unique_ptr<OptimizedCompilationJob> job_;
 };
 
 inline bool CanUseGenericJsToWasmWrapper(const WasmModule* module,
-                                         const FunctionSig* sig) {
+                                         const CanonicalSig* sig) {
 #if (V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 || V8_TARGET_ARCH_IA32 ||  \
      V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_S390X || V8_TARGET_ARCH_PPC64 || \
      V8_TARGET_ARCH_LOONG64)

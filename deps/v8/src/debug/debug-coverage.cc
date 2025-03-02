@@ -483,8 +483,7 @@ void PrintBlockCoverage(const CoverageFunction* function,
                         bool has_nonempty_source_range,
                         bool function_is_relevant) {
   DCHECK(v8_flags.trace_block_coverage);
-  std::unique_ptr<char[]> function_name =
-      function->name->ToCString(DISALLOW_NULLS, ROBUST_STRING_TRAVERSAL);
+  std::unique_ptr<char[]> function_name = function->name->ToCString();
   i::PrintF(
       "Coverage for function='%s', SFI=%p, has_nonempty_source_range=%d, "
       "function_is_relevant=%d\n",

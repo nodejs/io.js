@@ -17,13 +17,24 @@
 #include "src/flags/flags.h"
 #include "src/sandbox/hardware-support.h"
 #include "src/sandbox/sandboxed-pointer.h"
-#include "src/trap-handler/trap-handler.h"
 #include "src/utils/allocation.h"
 
 namespace v8 {
 namespace internal {
 
 #ifdef V8_ENABLE_SANDBOX
+
+bool Sandbox::first_four_gb_of_address_space_are_reserved_ = false;
+
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+thread_local Sandbox* Sandbox::current_ = nullptr;
+// static
+Sandbox* Sandbox::current_non_inlined() { return current_; }
+// static
+void Sandbox::set_current_non_inlined(Sandbox* sandbox) { current_ = sandbox; }
+#endif  // V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+
+Sandbox* Sandbox::default_sandbox_ = nullptr;
 
 // Best-effort function to determine the approximate size of the virtual
 // address space that can be addressed by this process. Used to determine
@@ -126,6 +137,7 @@ void Sandbox::Initialize(v8::VirtualAddressSpace* vas) {
 
   // Fall back to creating a (smaller) partially reserved sandbox.
   while (!success && reservation_size > kSandboxMinimumReservationSize) {
+    static_assert(kFallbackToPartiallyReservedSandboxAllowed);
     reservation_size /= 2;
     DCHECK_GE(reservation_size, kSandboxMinimumReservationSize);
     success = InitializeAsPartiallyReservedSandbox(vas, kSandboxSize,
@@ -139,7 +151,12 @@ void Sandbox::Initialize(v8::VirtualAddressSpace* vas) {
   }
 
 #if V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
-  trap_handler::SetV8SandboxBaseAndSize(base(), size());
+  if (trap_handler::RegisterV8Sandbox(base(), size())) {
+    trap_handler_initialized_ = true;
+  } else {
+    V8::FatalProcessOutOfMemory(
+        nullptr, "Failed to allocate sandbox record for trap handling.");
+  }
 #endif  // V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
 
   SandboxHardwareSupport::TryEnable(base(), size());
@@ -154,8 +171,24 @@ bool Sandbox::Initialize(v8::VirtualAddressSpace* vas, size_t size,
   CHECK(vas->CanAllocateSubspaces());
 
   size_t reservation_size = size;
+  // As a temporary workaround for crbug.com/40070746 we use larger guard
+  // regions at the end of the sandbox.
+  // TODO(40070746): remove this workaround again once we have a proper fix.
+  size_t true_reservation_size = size;
+#if defined(V8_TARGET_OS_ANDROID)
+  // On Android, we often won't have sufficient virtual address space available.
+  const size_t kAdditionalTrailingGuardRegionSize = 0;
+#else
+  // Worst-case, we currently need 8 (max element size) * 32GB (max ArrayBuffer
+  // size) + 4GB (additional offset for TypedArray access).
+  const size_t kTotalTrailingGuardRegionSize = 260ULL * GB;
+  const size_t kAdditionalTrailingGuardRegionSize =
+      kTotalTrailingGuardRegionSize - kSandboxGuardRegionSize;
+#endif
   if (use_guard_regions) {
     reservation_size += 2 * kSandboxGuardRegionSize;
+    true_reservation_size =
+        reservation_size + kAdditionalTrailingGuardRegionSize;
   }
 
   Address hint = RoundDown(vas->RandomPageAddress(), kSandboxAlignment);
@@ -167,8 +200,9 @@ bool Sandbox::Initialize(v8::VirtualAddressSpace* vas, size_t size,
   // (multiple seconds or even minutes for a 1TB sandbox on macOS 12.X), in
   // turn causing tests to time out. As such, the maximum page permission
   // inside the sandbox should be read + write.
-  address_space_ = vas->AllocateSubspace(
-      hint, reservation_size, kSandboxAlignment, PagePermissions::kReadWrite);
+  address_space_ =
+      vas->AllocateSubspace(hint, true_reservation_size, kSandboxAlignment,
+                            PagePermissions::kReadWrite);
 
   if (!address_space_) return false;
 
@@ -186,7 +220,22 @@ bool Sandbox::Initialize(v8::VirtualAddressSpace* vas, size_t size,
     Address back = end_;
     // These must succeed since nothing was allocated in the subspace yet.
     CHECK(address_space_->AllocateGuardRegion(front, kSandboxGuardRegionSize));
-    CHECK(address_space_->AllocateGuardRegion(back, kSandboxGuardRegionSize));
+    CHECK(address_space_->AllocateGuardRegion(
+        back, kSandboxGuardRegionSize + kAdditionalTrailingGuardRegionSize));
+  }
+
+  // Also try to reserve the first 4GB of the process' address space. This
+  // mitigates Smi<->HeapObject confusion bugs in which we end up treating a
+  // Smi value as a pointer.
+  if (!first_four_gb_of_address_space_are_reserved_) {
+    Address end = 4UL * GB;
+    size_t step = address_space_->allocation_granularity();
+    for (Address start = 0; start <= 1 * MB; start += step) {
+      if (vas->AllocateGuardRegion(start, end - start)) {
+        first_four_gb_of_address_space_are_reserved_ = true;
+        break;
+      }
+    }
   }
 
   initialized_ = true;
@@ -287,6 +336,13 @@ void Sandbox::InitializeConstants() {
 
 void Sandbox::TearDown() {
   if (initialized_) {
+#if V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
+    if (trap_handler_initialized_) {
+      trap_handler::UnregisterV8Sandbox(base(), size());
+      trap_handler_initialized_ = false;
+    }
+#endif  // V8_ENABLE_WEBASSEMBLY && V8_TRAP_HANDLER_SUPPORTED
+
     // This destroys the sub space and frees the underlying reservation.
     address_space_.reset();
     sandbox_page_allocator_.reset();
@@ -300,7 +356,38 @@ void Sandbox::TearDown() {
   }
 }
 
-DEFINE_LAZY_LEAKY_OBJECT_GETTER(Sandbox, GetProcessWideSandbox)
+// static
+void Sandbox::InitializeDefaultOncePerProcess(v8::VirtualAddressSpace* vas) {
+  static base::LeakyObject<Sandbox> default_sandbox;
+  default_sandbox_ = default_sandbox.get();
+
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+  set_current(default_sandbox_);
+#endif
+  default_sandbox_->Initialize(vas);
+}
+
+// static
+void Sandbox::TearDownDefault() {
+  GetDefault()->TearDown();
+
+#ifdef V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
+  set_current(nullptr);
+#endif
+}
+
+// static
+Sandbox* Sandbox::New(v8::VirtualAddressSpace* vas) {
+  if (!COMPRESS_POINTERS_IN_MULTIPLE_CAGES_BOOL) {
+    FATAL(
+        "Creation of new sandboxes requires enabling "
+        "multiple pointer compression cages at build-time");
+  }
+  Sandbox* sandbox = new Sandbox;
+  sandbox->Initialize(vas);
+  CHECK(!v8_flags.sandbox_testing && !v8_flags.sandbox_fuzzing);
+  return sandbox;
+}
 
 #endif  // V8_ENABLE_SANDBOX
 

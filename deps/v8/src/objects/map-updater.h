@@ -73,7 +73,7 @@ class V8_EXPORT_PRIVATE MapUpdater {
   //     bar {} -- bar {a}
   //
   // and JSObject::UpdatePrototype performs a map update and instance migration.
-  Handle<Map> ApplyPrototypeTransition(Handle<HeapObject> prototype);
+  Handle<Map> ApplyPrototypeTransition(DirectHandle<JSPrototype> prototype);
 
   // Prepares for updating deprecated map to most up-to-date non-deprecated
   // version and performs the steps 1-6.
@@ -113,8 +113,8 @@ class V8_EXPORT_PRIVATE MapUpdater {
   };
 
   // Updates map to the most up-to-date non-deprecated version.
-  static inline Handle<Map> UpdateMapNoLock(Isolate* isolate,
-                                            Handle<Map> old_map);
+  static inline DirectHandle<Map> UpdateMapNoLock(Isolate* isolate,
+                                                  Handle<Map> old_map);
 
   // Prepares for updating deprecated map to most up-to-date non-deprecated
   // version and performs the steps 1-6.
@@ -147,13 +147,13 @@ class V8_EXPORT_PRIVATE MapUpdater {
   //   descriptor array of the |target_map_|.
   // - Generalize the |modified_descriptor_| using |new_representation| and
   //   |new_field_type_|.
-  Handle<DescriptorArray> BuildDescriptorArray();
+  DirectHandle<DescriptorArray> BuildDescriptorArray();
 
   // Step 4.
   // - Walk the tree again starting from the root towards |target_map|. Stop at
   //   |split_map|, the first map whose descriptor array does not match the
   //   merged descriptor array.
-  Handle<Map> FindSplitMap(DirectHandle<DescriptorArray> descriptors);
+  DirectHandle<Map> FindSplitMap(DirectHandle<DescriptorArray> descriptors);
 
   // Step 5.
   // - If |target_map| == |split_map|, |target_map| is in the expected state.
@@ -208,7 +208,7 @@ class V8_EXPORT_PRIVATE MapUpdater {
   // it must be either a simple type or a map wrapped in a weak cell.
   static void UpdateFieldType(Isolate* isolate, DirectHandle<Map> map,
                               InternalIndex descriptor_number,
-                              Handle<Name> name,
+                              DirectHandle<Name> name,
                               PropertyConstness new_constness,
                               Representation new_representation,
                               Handle<FieldType> new_type);
@@ -222,7 +222,7 @@ class V8_EXPORT_PRIVATE MapUpdater {
 
   Isolate* isolate_;
   Handle<Map> old_map_;
-  Handle<DescriptorArray> old_descriptors_;
+  DirectHandle<DescriptorArray> old_descriptors_;
   Handle<Map> root_map_;
   Handle<Map> target_map_;
   Handle<Map> result_map_;
@@ -231,14 +231,14 @@ class V8_EXPORT_PRIVATE MapUpdater {
   // Information about integrity level transitions.
   bool has_integrity_level_transition_ = false;
   PropertyAttributes integrity_level_ = NONE;
-  Handle<Symbol> integrity_level_symbol_;
-  Handle<Map> integrity_source_map_;
+  DirectHandle<Symbol> integrity_level_symbol_;
+  DirectHandle<Map> integrity_source_map_;
 
   State state_ = kInitialized;
   ElementsKind new_elements_kind_;
   bool is_transitionable_fast_elements_kind_;
 
-  Handle<HeapObject> new_prototype_;
+  DirectHandle<JSPrototype> new_prototype_;
 
   // If |modified_descriptor_.is_found()|, then the fields below form
   // an "update" of the |old_map_|'s descriptors.
@@ -251,9 +251,6 @@ class V8_EXPORT_PRIVATE MapUpdater {
 
   // Data specific to kField location.
   Handle<FieldType> new_field_type_;
-
-  // Data specific to kDescriptor location.
-  Handle<Object> new_value_;
 };
 
 }  // namespace v8::internal

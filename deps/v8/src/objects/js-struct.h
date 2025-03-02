@@ -29,8 +29,8 @@ class AlwaysSharedSpaceJSObject
       DirectHandle<DescriptorArray> descriptors, int enum_length);
 
   V8_WARN_UNUSED_RESULT static Maybe<bool> DefineOwnProperty(
-      Isolate* isolate, Handle<AlwaysSharedSpaceJSObject> shared_obj,
-      Handle<Object> key, PropertyDescriptor* desc,
+      Isolate* isolate, DirectHandle<AlwaysSharedSpaceJSObject> shared_obj,
+      DirectHandle<Object> key, PropertyDescriptor* desc,
       Maybe<ShouldThrow> should_throw);
 
   // This is a generic `HasInstance` that checks the constructor's initial map
@@ -38,7 +38,7 @@ class AlwaysSharedSpaceJSObject
   // kind of instanceof resolution resolution is used only for shared objects.
   static Maybe<bool> HasInstance(Isolate* isolate,
                                  DirectHandle<JSFunction> constructor,
-                                 Handle<Object> object);
+                                 DirectHandle<Object> object);
 
   static_assert(kHeaderSize == JSObject::kHeaderSize);
   TQ_OBJECT_CONSTRUCTORS(AlwaysSharedSpaceJSObject)
@@ -48,10 +48,11 @@ class JSSharedStruct
     : public TorqueGeneratedJSSharedStruct<JSSharedStruct,
                                            AlwaysSharedSpaceJSObject> {
  public:
-  static Handle<Map> CreateInstanceMap(
-      Isolate* isolate, const std::vector<Handle<Name>>& field_names,
+  static DirectHandle<Map> CreateInstanceMap(
+      Isolate* isolate,
+      const base::Vector<const DirectHandle<Name>> field_names,
       const std::set<uint32_t>& element_names,
-      MaybeHandle<String> maybe_registry_key);
+      MaybeDirectHandle<String> maybe_registry_key);
 
   static MaybeHandle<String> GetRegistryKey(Isolate* isolate,
                                             Tagged<Map> instance_map);
@@ -60,7 +61,7 @@ class JSSharedStruct
                                       Tagged<Map> instance_map,
                                       InternalIndex i);
 
-  static MaybeHandle<NumberDictionary> GetElementsTemplate(
+  static MaybeDirectHandle<NumberDictionary> GetElementsTemplate(
       Isolate* isolate, Tagged<Map> instance_map);
 
   static bool IsElementsTemplateDescriptor(Isolate* isolate,
@@ -82,9 +83,10 @@ class SharedStructTypeRegistry final {
   SharedStructTypeRegistry();
   ~SharedStructTypeRegistry();
 
-  MaybeHandle<Map> Register(Isolate* isolate, Handle<String> key,
-                            const std::vector<Handle<Name>>& field_names,
-                            const std::set<uint32_t>& element_names);
+  MaybeDirectHandle<Map> Register(
+      Isolate* isolate, Handle<String> key,
+      const base::Vector<const DirectHandle<Name>> field_names,
+      const std::set<uint32_t>& element_names);
 
   void IterateElements(Isolate* isolate, RootVisitor* visitor);
   void NotifyElementsRemoved(int count);
@@ -92,13 +94,14 @@ class SharedStructTypeRegistry final {
  private:
   class Data;
 
-  MaybeHandle<Map> RegisterNoThrow(Isolate* isolate, Handle<String> key,
-                                   const std::vector<Handle<Name>>& field_names,
-                                   const std::set<uint32_t>& element_names);
+  MaybeDirectHandle<Map> RegisterNoThrow(
+      Isolate* isolate, Handle<String> key,
+      const base::Vector<const DirectHandle<Name>> field_names,
+      const std::set<uint32_t>& element_names);
 
-  MaybeHandle<Map> CheckIfEntryMatches(
+  MaybeDirectHandle<Map> CheckIfEntryMatches(
       Isolate* isolate, InternalIndex entry, DirectHandle<String> key,
-      const std::vector<Handle<Name>>& field_names,
+      const base::Vector<const DirectHandle<Name>> field_names,
       const std::set<uint32_t>& element_names);
 
   void EnsureCapacity(PtrComprCageBase cage_base, int additional_elements);

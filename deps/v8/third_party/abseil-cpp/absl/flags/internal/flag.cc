@@ -34,7 +34,9 @@
 #include "absl/base/config.h"
 #include "absl/base/const_init.h"
 #include "absl/base/dynamic_annotations.h"
+#include "absl/base/no_destructor.h"
 #include "absl/base/optimization.h"
+#include "absl/base/thread_annotations.h"
 #include "absl/flags/config.h"
 #include "absl/flags/internal/commandlineflag.h"
 #include "absl/flags/usage_config.h"
@@ -85,11 +87,15 @@ class MutexRelock {
 // we move the memory to the freelist where it lives indefinitely, so it can
 // still be safely accessed. This also prevents leak checkers from complaining
 // about the leaked memory that can no longer be accessed through any pointer.
-ABSL_CONST_INIT absl::Mutex s_freelist_guard(absl::kConstInit);
-ABSL_CONST_INIT std::vector<void*>* s_freelist = nullptr;
+absl::Mutex* FreelistMutex() {
+  static absl::NoDestructor<absl::Mutex> mutex;
+  return mutex.get();
+}
+ABSL_CONST_INIT std::vector<void*>* s_freelist ABSL_GUARDED_BY(FreelistMutex())
+    ABSL_PT_GUARDED_BY(FreelistMutex()) = nullptr;
 
 void AddToFreelist(void* p) {
-  absl::MutexLock l(&s_freelist_guard);
+  absl::MutexLock l(FreelistMutex());
   if (!s_freelist) {
     s_freelist = new std::vector<void*>;
   }
@@ -101,7 +107,7 @@ void AddToFreelist(void* p) {
 ///////////////////////////////////////////////////////////////////////////////
 
 uint64_t NumLeakedFlagValues() {
-  absl::MutexLock l(&s_freelist_guard);
+  absl::MutexLock l(FreelistMutex());
   return s_freelist == nullptr ? 0u : s_freelist->size();
 }
 
@@ -335,6 +341,8 @@ void FlagImpl::StoreValue(const void* src, ValueSource source) {
 }
 
 absl::string_view FlagImpl::Name() const { return name_; }
+
+absl::string_view FlagImpl::TypeName() const { return type_name_; }
 
 std::string FlagImpl::Filename() const {
   return flags_internal::GetUsageConfig().normalize_filename(filename_);

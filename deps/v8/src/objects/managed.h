@@ -7,6 +7,8 @@
 
 #include <memory>
 
+#include "include/v8-external-memory-accounter.h"
+#include "src/api/api.h"
 #include "src/execution/isolate.h"
 #include "src/handles/handles.h"
 #include "src/heap/factory.h"
@@ -67,6 +69,7 @@ struct ManagedPtrDestructor
   void* shared_ptr_ptr_ = nullptr;
   void (*destructor_)(void* shared_ptr) = nullptr;
   Address* global_handle_location_ = nullptr;
+  V8_NO_UNIQUE_ADDRESS ExternalMemoryAccounter external_memory_accounter_;
 
   ManagedPtrDestructor(size_t estimated_size, void* shared_ptr_ptr,
                        void (*destructor)(void*))
@@ -111,7 +114,7 @@ class Managed : public Foreign {
 
   // Create a {Managed>} from an existing {std::shared_ptr} or {std::unique_ptr}
   // (which will automatically convert to a {std::shared_ptr}).
-  static Handle<Managed<CppType>> From(
+  static DirectHandle<Managed<CppType>> From(
       Isolate* isolate, size_t estimated_size,
       std::shared_ptr<CppType> shared_ptr,
       AllocationType allocation_type = AllocationType::kYoung);
@@ -156,7 +159,7 @@ class TrustedManaged : public TrustedForeign {
 
   // Create a {Managed<CppType>} from an existing {std::shared_ptr} or
   // {std::unique_ptr} (which will implicitly convert to {std::shared_ptr}).
-  static Handle<TrustedManaged<CppType>> From(
+  static DirectHandle<TrustedManaged<CppType>> From(
       Isolate* isolate, size_t estimated_size,
       std::shared_ptr<CppType> shared_ptr);
 

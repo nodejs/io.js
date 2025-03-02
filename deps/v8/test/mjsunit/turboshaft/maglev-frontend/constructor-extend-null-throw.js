@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --turboshaft-from-maglev --turbofan
+// Flags: --allow-natives-syntax --turbolev --turbofan
 
 // Testing ThrowIfNotSuperConstructor (which triggers because the base class
 // of A1 is "null", which doesn't have a constructor).

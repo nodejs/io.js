@@ -256,9 +256,13 @@ class WasmScript : public Script {
  public:
   static WasmScript* Cast(Script* script);
 
-  enum class DebugSymbolsType { None, SourceMap, EmbeddedDWARF, ExternalDWARF };
-  DebugSymbolsType GetDebugSymbolType() const;
-  MemorySpan<const char> ExternalSymbolsURL() const;
+  struct DebugSymbols {
+    enum class Type { SourceMap, EmbeddedDWARF, ExternalDWARF };
+    Type type;
+    v8::MemorySpan<const char> external_url;
+  };
+  std::vector<DebugSymbols> GetDebugSymbols() const;
+
   int NumFunctions() const;
   int NumImportedFunctions() const;
 
@@ -269,6 +273,8 @@ class WasmScript : public Script {
                    std::vector<int>* function_body_offsets);
 
   uint32_t GetFunctionHash(int function_index);
+
+  Maybe<v8::MemorySpan<const uint8_t>> GetModuleBuildId() const;
 
   int CodeOffset() const;
   int CodeLength() const;
@@ -546,7 +552,7 @@ int64_t GetNextRandomInt64(v8::Isolate* isolate);
 
 MaybeLocal<Value> CallFunctionOn(Local<Context> context,
                                  Local<Function> function, Local<Value> recv,
-                                 int argc, Global<Value> argv[],
+                                 base::Vector<Local<Value>> args,
                                  bool throw_on_side_effect);
 
 enum class EvaluateGlobalMode {

@@ -2,13 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-type-reflection
+// Flags: --wasm-staging
 
 // Test debugger type name resolution for ref types with multiple modules.
 // Due to type canonicalization, for any given canonicalized type there is only
-// one RTT. The RTT has a pointer to the instance and the first instance wins,
-// meaning the name is based on the first module defining any given rec type
-// group.
+// one RTT. In the absence of a name section, we generate type names based on
+// their canonicalized type index, e.g. "$canon3".
 
 utils.load('test/inspector/wasm-inspector-test.js');
 
@@ -51,13 +50,12 @@ InspectorTest.runAsyncTestSuite([
     await WasmInspectorTest.evalWithUrl(
       // Note: Neither the function that has the breakpoint nor the function
       // that created the object is relevant for the type name printed but the
-      // first module that defined any given rec group. In this case
+      // order in which recgroups were encountered. In this case
       // `createStruct` for both modules returns a struct that is printed as
-      // 'ref $type0'.
+      // 'ref $canon3'.
       // Similarly `createArray` - which only exists in module B - derives its
-      // name from the first module that defined it. It just happens that in
-      // module B the array is at index 0 and therefore the type is also printed
-      // as `ref $type0`.
+      // name from the canonical type index assigned to it, in this case
+      // `ref $canon6`.
       `instanceA.exports.main(
         instanceB.exports.createArray(10),
         instanceA.exports.createStruct(11)

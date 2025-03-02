@@ -191,8 +191,8 @@ consts_misc = [
         'value': 'DeoptimizationData::kOptimizationIdIndex'
     },
     {
-        'name': 'DeoptimizationDataSharedFunctionInfoWrapperIndex',
-        'value': 'DeoptimizationData::kSharedFunctionInfoWrapperIndex'
+        'name': 'DeoptimizationDataWrappedSharedFunctionInfoIndex',
+        'value': 'DeoptimizationData::kWrappedSharedFunctionInfoIndex'
     },
     {
         'name': 'DeoptimizationDataInliningPositionsIndex',
@@ -502,7 +502,7 @@ extras_accessors = [
     'HeapObject, map, Map, kMapOffset',
     'JSObject, elements, Object, kElementsOffset',
     'JSObject, internal_fields, uintptr_t, kHeaderSize',
-    'FixedArray, data, uintptr_t, kHeaderSize',
+    'FixedArray, data, uintptr_t, OFFSET_OF_DATA_START(FixedArray)',
     'BytecodeArray, data, uintptr_t, kHeaderSize',
     'JSArrayBuffer, backing_store, uintptr_t, kBackingStoreOffset',
     'JSArrayBuffer, byte_length, size_t, kRawByteLengthOffset',
@@ -814,6 +814,22 @@ def load_objects_from_file(objfilename, checktypes):
       if (cctype in checktypes):
         del checktypes[cctype];
 
+
+def split_commas(s):
+  nesting = 0
+  part_start = 0
+  parts = []
+  for i, c in enumerate(s):
+    if c == '(':
+      nesting += 1
+    elif c == ')':
+      nesting -= 1
+    elif c == ',' and nesting == 0:
+      parts.append(s[part_start:i].strip())
+      part_start = i + 1
+  parts.append(s[part_start:].strip())
+  return parts
+
 #
 # For a given macro call, pick apart the arguments and return an object
 # describing the corresponding output constant.  See load_fields().
@@ -822,25 +838,23 @@ def parse_field(call):
   # Replace newlines with spaces.
   for ii in range(0, len(call)):
     if (call[ii] == '\n'):
-      call[ii] == ' ';
+      call[ii] == ' '
 
-  idx = call.find('(');
-  kind = call[0:idx];
-  rest = call[idx + 1: len(call) - 1];
-  args = re.findall(r'[^\s,][^(),]*(?:\([^()]*\))?(?=\s*(?:,|$))', rest)
+  idx = call.find('(')
+  kind = call[0:idx]
+  rest = call[idx + 1:len(call) - 1]
+  args = split_commas(rest)
 
-  klass = args[0];
-  field = args[1];
+  klass = args[0]
+  field = args[1]
   dtype = None
   offset = None
-  if kind.startswith('WEAK_ACCESSORS'):
-    dtype = 'weak'
-    offset = args[2];
-  elif not (kind.startswith('SMI_ACCESSORS') or kind.startswith('ACCESSORS_TO_SMI')):
-    dtype = args[2].replace('<', '_').replace('>', '_')
-    offset = args[3];
+  if not (kind.startswith('SMI_ACCESSORS') or
+          kind.startswith('ACCESSORS_TO_SMI')):
+    dtype = re.sub(r'[<> ,]+', '_', args[2]).lstrip('(').rstrip(')')
+    offset = args[3]
   else:
-    offset = args[2];
+    offset = args[2]
     dtype = 'SMI'
 
   if offset.startswith("offsetof(") or offset.startswith(
@@ -850,7 +864,7 @@ def parse_field(call):
   else:
     value = '%s::%s' % (klass, offset)
 
-  assert(offset is not None and dtype is not None);
+  assert (offset is not None and dtype is not None)
   return ({'name': 'class_%s__%s__%s' % (klass, field, dtype), 'value': value})
 
 #
@@ -875,13 +889,14 @@ def load_fields_from_file(filename):
   # may span multiple lines and may contain nested parentheses.  We also
   # call parse_field() to pick apart the invocation.
   #
-  prefixes = [ 'ACCESSORS', 'ACCESSORS2', 'ACCESSORS_GCSAFE',
-         'SMI_ACCESSORS', 'ACCESSORS_TO_SMI',
-         'RELEASE_ACQUIRE_ACCESSORS', 'WEAK_ACCESSORS' ];
-  prefixes += ([ prefix + "_CHECKED" for prefix in prefixes ] +
-         [ prefix + "_CHECKED2" for prefix in prefixes ])
-  current = '';
-  opens = 0;
+  prefixes = [
+      'ACCESSORS', 'ACCESSORS2', 'ACCESSORS_GCSAFE', 'SMI_ACCESSORS',
+      'ACCESSORS_TO_SMI', 'RELEASE_ACQUIRE_ACCESSORS'
+  ]
+  prefixes += ([prefix + "_CHECKED" for prefix in prefixes] +
+               [prefix + "_CHECKED2" for prefix in prefixes])
+  current = ''
+  opens = 0
 
   for line in inlfile:
     if (opens > 0):

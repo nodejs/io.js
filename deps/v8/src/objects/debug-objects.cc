@@ -170,15 +170,15 @@ void DebugInfo::SetBreakPoint(Isolate* isolate,
 }
 
 // Get the break point objects for a source position.
-Handle<Object> DebugInfo::GetBreakPoints(Isolate* isolate,
-                                         int source_position) {
+DirectHandle<Object> DebugInfo::GetBreakPoints(Isolate* isolate,
+                                               int source_position) {
   DCHECK(HasBreakInfo());
   Tagged<Object> break_point_info = GetBreakPointInfo(isolate, source_position);
   if (IsUndefined(break_point_info, isolate)) {
     return isolate->factory()->undefined_value();
   }
-  return Handle<Object>(Cast<BreakPointInfo>(break_point_info)->break_points(),
-                        isolate);
+  return DirectHandle<Object>(
+      Cast<BreakPointInfo>(break_point_info)->break_points(), isolate);
 }
 
 // Get the total number of break points.
@@ -195,13 +195,13 @@ int DebugInfo::GetBreakPointCount(Isolate* isolate) {
   return count;
 }
 
-Handle<Object> DebugInfo::FindBreakPointInfo(
+DirectHandle<Object> DebugInfo::FindBreakPointInfo(
     Isolate* isolate, DirectHandle<DebugInfo> debug_info,
     DirectHandle<BreakPoint> break_point) {
   DCHECK(debug_info->HasBreakInfo());
   for (int i = 0; i < debug_info->break_points()->length(); i++) {
     if (!IsUndefined(debug_info->break_points()->get(i), isolate)) {
-      Handle<BreakPointInfo> break_point_info(
+      DirectHandle<BreakPointInfo> break_point_info(
           Cast<BreakPointInfo>(debug_info->break_points()->get(i)), isolate);
       if (BreakPointInfo::HasBreakPoint(isolate, break_point_info,
                                         break_point)) {
@@ -228,8 +228,8 @@ void DebugInfo::ClearCoverageInfo(Isolate* isolate) {
 DebugInfo::SideEffectState DebugInfo::GetSideEffectState(Isolate* isolate) {
   if (side_effect_state() == kNotComputed) {
     SideEffectState has_no_side_effect =
-        DebugEvaluate::FunctionGetSideEffectState(isolate,
-                                                  handle(shared(), isolate));
+        DebugEvaluate::FunctionGetSideEffectState(
+            isolate, direct_handle(shared(), isolate));
     set_side_effect_state(has_no_side_effect);
   }
   return static_cast<SideEffectState>(side_effect_state());
@@ -334,19 +334,19 @@ bool BreakPointInfo::HasBreakPoint(
   return false;
 }
 
-MaybeHandle<BreakPoint> BreakPointInfo::GetBreakPointById(
+MaybeDirectHandle<BreakPoint> BreakPointInfo::GetBreakPointById(
     Isolate* isolate, DirectHandle<BreakPointInfo> break_point_info,
     int breakpoint_id) {
   // No break point.
   if (IsUndefined(break_point_info->break_points(), isolate)) {
-    return MaybeHandle<BreakPoint>();
+    return MaybeDirectHandle<BreakPoint>();
   }
   // Single break point.
   if (!IsFixedArray(break_point_info->break_points())) {
     Tagged<BreakPoint> breakpoint =
         Cast<BreakPoint>(break_point_info->break_points());
     if (breakpoint->id() == breakpoint_id) {
-          return handle(breakpoint, isolate);
+      return direct_handle(breakpoint, isolate);
     }
   } else {
     // Multiple break points.
@@ -355,11 +355,11 @@ MaybeHandle<BreakPoint> BreakPointInfo::GetBreakPointById(
     for (int i = 0; i < array->length(); i++) {
       Tagged<BreakPoint> breakpoint = Cast<BreakPoint>(array->get(i));
       if (breakpoint->id() == breakpoint_id) {
-        return handle(breakpoint, isolate);
+        return direct_handle(breakpoint, isolate);
       }
     }
   }
-  return MaybeHandle<BreakPoint>();
+  return MaybeDirectHandle<BreakPoint>();
 }
 
 // Get the number of break points.
@@ -409,7 +409,7 @@ int StackFrameInfo::GetSourcePosition(DirectHandle<StackFrameInfo> info) {
     return info->bytecode_offset_or_source_position();
   }
   Isolate* isolate = info->GetIsolate();
-  Handle<SharedFunctionInfo> shared(
+  DirectHandle<SharedFunctionInfo> shared(
       Cast<SharedFunctionInfo>(info->shared_or_script()), isolate);
   SharedFunctionInfo::EnsureSourcePositionsAvailable(isolate, shared);
   int source_position = shared->abstract_code(isolate)->SourcePosition(
@@ -419,49 +419,10 @@ int StackFrameInfo::GetSourcePosition(DirectHandle<StackFrameInfo> info) {
   return source_position;
 }
 
-// static
-void ErrorStackData::EnsureStackFrameInfos(
-    Isolate* isolate, DirectHandle<ErrorStackData> error_stack) {
-  if (!IsSmi(error_stack->limit_or_stack_frame_infos())) {
-    return;
-  }
-  int limit = Cast<Smi>(error_stack->limit_or_stack_frame_infos()).value();
-  Handle<FixedArray> call_site_infos(error_stack->call_site_infos(), isolate);
-  Handle<FixedArray> stack_frame_infos =
-      isolate->factory()->NewFixedArray(call_site_infos->length());
-  int index = 0;
-  for (int i = 0; i < call_site_infos->length(); ++i) {
-    DirectHandle<CallSiteInfo> call_site_info(
-        Cast<CallSiteInfo>(call_site_infos->get(i)), isolate);
-    if (call_site_info->IsAsync()) {
-          break;
-    }
-    Handle<Script> script;
-    if (!CallSiteInfo::GetScript(isolate, call_site_info).ToHandle(&script) ||
-        !script->IsSubjectToDebugging()) {
-      continue;
-    }
-    DirectHandle<StackFrameInfo> stack_frame_info =
-        isolate->factory()->NewStackFrameInfo(
-            script, CallSiteInfo::GetSourcePosition(call_site_info),
-            CallSiteInfo::GetFunctionDebugName(call_site_info),
-            IsConstructor(*call_site_info));
-    stack_frame_infos->set(index++, *stack_frame_info);
-  }
-  stack_frame_infos =
-      FixedArray::RightTrimOrEmpty(isolate, stack_frame_infos, index);
-  if (limit < 0 && -limit < index) {
-    // Negative limit encodes cap to be applied to |stack_frame_infos|.
-    stack_frame_infos =
-        FixedArray::RightTrimOrEmpty(isolate, stack_frame_infos, -limit);
-  } else if (limit >= 0 && limit < call_site_infos->length()) {
-    // Positive limit means we need to cap the |call_site_infos|
-    // to that number before exposing them to the world.
-    call_site_infos =
-        FixedArray::RightTrimOrEmpty(isolate, call_site_infos, limit);
-    error_stack->set_call_site_infos(*call_site_infos);
-  }
-  error_stack->set_limit_or_stack_frame_infos(*stack_frame_infos);
+int StackTraceInfo::length() const { return frames()->length(); }
+
+Tagged<StackFrameInfo> StackTraceInfo::get(int index) const {
+  return Cast<StackFrameInfo>(frames()->get(index));
 }
 
 }  // namespace internal

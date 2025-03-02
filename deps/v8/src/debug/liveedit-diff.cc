@@ -150,7 +150,7 @@ class MyersDiffer {
         fr_forward_(input->GetLength1() + input->GetLength2() + 1),
         fr_reverse_(input->GetLength1() + input->GetLength2() + 1) {
     // Length1 + Length2 + 1 is the upper bound for our work arrays.
-    // We allocate the work arrays once and re-use them for all invocations of
+    // We allocate the work arrays once and reuse them for all invocations of
     // `FindMiddleSnake`.
   }
 

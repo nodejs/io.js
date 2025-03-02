@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --harmony-import-attributes --harmony-top-level-await
+// Flags: --allow-natives-syntax
 
 var life1;
 var life2;

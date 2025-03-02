@@ -6,6 +6,7 @@
 #define V8_OBJECTS_JS_WEAK_REFS_INL_H_
 
 #include "src/api/api-inl.h"
+#include "src/heap/heap-layout-inl.h"
 #include "src/heap/heap-write-barrier-inl.h"
 #include "src/objects/js-weak-refs.h"
 #include "src/objects/smi-inl.h"
@@ -27,7 +28,7 @@ BIT_FIELD_ACCESSORS(JSFinalizationRegistry, flags, scheduled_for_cleanup,
 
 void JSFinalizationRegistry::RegisterWeakCellWithUnregisterToken(
     DirectHandle<JSFinalizationRegistry> finalization_registry,
-    Handle<WeakCell> weak_cell, Isolate* isolate) {
+    DirectHandle<WeakCell> weak_cell, Isolate* isolate) {
   Handle<SimpleNumberDictionary> key_map;
   if (IsUndefined(finalization_registry->key_map(), isolate)) {
     key_map = SimpleNumberDictionary::New(isolate, 1);
@@ -101,7 +102,7 @@ bool JSFinalizationRegistry::RemoveUnregisterToken(
   // identity hashes, and identity hashes may collide.
   while (!IsUndefined(value, isolate)) {
     Tagged<WeakCell> weak_cell = Cast<WeakCell>(value);
-    DCHECK(!ObjectInYoungGeneration(weak_cell));
+    DCHECK(!HeapLayout::InYoungGeneration(weak_cell));
     value = weak_cell->key_list_next();
     if (weak_cell->unregister_token() == unregister_token) {
       // weak_cell has the same unregister token; remove it from the key list.

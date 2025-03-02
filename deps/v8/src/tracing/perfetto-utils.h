@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "include/v8config.h"
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/logging.h"
 #include "src/objects/string.h"
 #include "src/objects/tagged.h"

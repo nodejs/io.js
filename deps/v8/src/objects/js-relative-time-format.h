@@ -38,22 +38,22 @@ class JSRelativeTimeFormat
  public:
   // Creates relative time format object with properties derived from input
   // locales and options.
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSRelativeTimeFormat> New(
-      Isolate* isolate, DirectHandle<Map> map, Handle<Object> locales,
-      Handle<Object> options);
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSRelativeTimeFormat> New(
+      Isolate* isolate, DirectHandle<Map> map, DirectHandle<Object> locales,
+      DirectHandle<Object> options);
 
-  V8_WARN_UNUSED_RESULT static Handle<JSObject> ResolvedOptions(
+  V8_WARN_UNUSED_RESULT static DirectHandle<JSObject> ResolvedOptions(
       Isolate* isolate, DirectHandle<JSRelativeTimeFormat> format_holder);
 
-  Handle<String> NumericAsString() const;
+  Handle<String> NumericAsString(Isolate* isolate) const;
 
   // ecma402/#sec-Intl.RelativeTimeFormat.prototype.format
-  V8_WARN_UNUSED_RESULT static MaybeHandle<String> Format(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<String> Format(
       Isolate* isolate, Handle<Object> value_obj, Handle<Object> unit_obj,
       DirectHandle<JSRelativeTimeFormat> format);
 
   // ecma402/#sec-Intl.RelativeTimeFormat.prototype.formatToParts
-  V8_WARN_UNUSED_RESULT static MaybeHandle<JSArray> FormatToParts(
+  V8_WARN_UNUSED_RESULT static MaybeDirectHandle<JSArray> FormatToParts(
       Isolate* isolate, Handle<Object> value_obj, Handle<Object> unit_obj,
       DirectHandle<JSRelativeTimeFormat> format);
 

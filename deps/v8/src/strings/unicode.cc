@@ -14,7 +14,7 @@
 #include "src/strings/unicode-inl.h"
 
 #if V8_ENABLE_WEBASSEMBLY
-#include "src/third_party/utf8-decoder/generalized-utf8-decoder.h"
+#include "third_party/utf8-decoder/generalized-utf8-decoder.h"
 #endif
 
 #ifdef V8_INTL_SUPPORT

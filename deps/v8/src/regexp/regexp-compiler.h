@@ -43,10 +43,10 @@ constexpr int kLineTerminatorRanges[] = {0x000A, 0x000B, 0x000D,         0x000E,
 constexpr int kLineTerminatorRangeCount = arraysize(kLineTerminatorRanges);
 
 // More makes code generation slower, less makes V8 benchmark score lower.
-constexpr int kMaxLookaheadForBoyerMoore = 8;
+constexpr uint32_t kMaxLookaheadForBoyerMoore = 8;
 // In a 3-character pattern you can maximally step forwards 3 characters
 // at a time, which is not always enough to pay for the extra logic.
-constexpr int kPatternTooShortForBoyerMoore = 2;
+constexpr uint32_t kPatternTooShortForBoyerMoore = 2;
 
 }  // namespace regexp_compiler_constants
 

@@ -15,8 +15,6 @@
 #include "absl/strings/escaping.h"
 
 #include <cstdint>
-#include <cstdio>
-#include <cstring>
 #include <memory>
 #include <random>
 #include <string>
@@ -25,6 +23,7 @@
 #include "absl/base/internal/raw_logging.h"
 #include "absl/strings/internal/escaping_test_common.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/string_view.h"
 
 namespace {
 
@@ -33,9 +32,12 @@ void BM_CUnescapeHexString(benchmark::State& state) {
   for (int i = 0; i < 50; i++) {
     src += "\\x55";
   }
-  std::string dest;
   for (auto _ : state) {
-    absl::CUnescape(src, &dest);
+    std::string dest;
+    benchmark::DoNotOptimize(src);
+    bool result = absl::CUnescape(src, &dest);
+    benchmark::DoNotOptimize(result);
+    benchmark::DoNotOptimize(dest);
   }
 }
 BENCHMARK(BM_CUnescapeHexString);
@@ -47,21 +49,44 @@ void BM_WebSafeBase64Escape_string(benchmark::State& state) {
       raw += std::string(test_set.plaintext);
     }
   }
-
-  // The actual benchmark loop is tiny...
-  std::string escaped;
   for (auto _ : state) {
+    std::string escaped;
+    benchmark::DoNotOptimize(raw);
     absl::WebSafeBase64Escape(raw, &escaped);
+    benchmark::DoNotOptimize(escaped);
   }
-
-  // We want to be sure the compiler doesn't throw away the loop above,
-  // and the easiest way to ensure that is to round-trip the results and verify
-  // them.
-  std::string round_trip;
-  absl::WebSafeBase64Unescape(escaped, &round_trip);
-  ABSL_RAW_CHECK(round_trip == raw, "");
 }
 BENCHMARK(BM_WebSafeBase64Escape_string);
+
+void BM_HexStringToBytes(benchmark::State& state) {
+  const int size = state.range(0);
+  std::string input, output;
+  for (int i = 0; i < size; ++i) input += "1c";
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(input);
+    bool result = absl::HexStringToBytes(input, &output);
+    benchmark::DoNotOptimize(result);
+    benchmark::DoNotOptimize(output);
+  }
+}
+BENCHMARK(BM_HexStringToBytes)->Range(1, 1 << 8);
+
+void BM_HexStringToBytes_Fail(benchmark::State& state) {
+  std::string binary;
+  absl::string_view hex_input1 = "1c2f003";
+  absl::string_view hex_input2 = "1c2f0032f40123456789abcdef**";
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(hex_input1);
+    bool result1 = absl::HexStringToBytes(hex_input1, &binary);
+    benchmark::DoNotOptimize(result1);
+    benchmark::DoNotOptimize(binary);
+    benchmark::DoNotOptimize(hex_input2);
+    bool result2 = absl::HexStringToBytes(hex_input2, &binary);
+    benchmark::DoNotOptimize(result2);
+    benchmark::DoNotOptimize(binary);
+  }
+}
+BENCHMARK(BM_HexStringToBytes_Fail);
 
 // Used for the CEscape benchmarks
 const char kStringValueNoEscape[] = "1234567890";
@@ -76,7 +101,9 @@ void CEscapeBenchmarkHelper(benchmark::State& state, const char* string_value,
   }
 
   for (auto _ : state) {
-    absl::CEscape(src);
+    benchmark::DoNotOptimize(src);
+    std::string result = absl::CEscape(src);
+    benchmark::DoNotOptimize(result);
   }
 }
 

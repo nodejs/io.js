@@ -41,24 +41,19 @@ V8_INLINE ParkedRecursiveMutexGuard::ParkedRecursiveMutexGuard(
   }
 }
 
-template <base::MutexSharedType kIsShared, base::NullBehavior Behavior>
-V8_INLINE
-ParkedSharedMutexGuardIf<kIsShared, Behavior>::ParkedSharedMutexGuardIf(
-    LocalHeap* local_heap, base::SharedMutex* mutex, bool enable_mutex) {
+V8_INLINE ParkedMutexGuardIf::ParkedMutexGuardIf(LocalIsolate* local_isolate,
+                                                 base::SpinningMutex* mutex,
+                                                 bool enable_mutex)
+    : ParkedMutexGuardIf(local_isolate -> heap(), mutex, enable_mutex) {}
+V8_INLINE ParkedMutexGuardIf::ParkedMutexGuardIf(LocalHeap* local_heap,
+                                                 base::SpinningMutex* mutex,
+                                                 bool enable_mutex) {
   DCHECK(AllowGarbageCollection::IsAllowed());
-  DCHECK_IMPLIES(Behavior == base::NullBehavior::kRequireNotNull,
-                 mutex != nullptr);
   if (!enable_mutex) return;
   mutex_ = mutex;
 
-  if (kIsShared) {
-    if (!mutex_->TryLockShared()) {
-      local_heap->ExecuteWhileParked([this]() { mutex_->LockShared(); });
-    }
-  } else {
-    if (!mutex_->TryLockExclusive()) {
-      local_heap->ExecuteWhileParked([this]() { mutex_->LockExclusive(); });
-    }
+  if (!mutex_->TryLock()) {
+    local_heap->ExecuteWhileParked([this]() { mutex_->Lock(); });
   }
 }
 

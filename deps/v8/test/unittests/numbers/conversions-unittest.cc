@@ -429,13 +429,13 @@ TEST_F(ConversionsTest, PositiveNumberToUint32) {
   // Test Smi conversions.
   DirectHandle<Object> number(Smi::FromInt(0), i_isolate());
   CHECK_EQ(PositiveNumberToUint32(*number), 0u);
-  number = handle(Smi::FromInt(-1), i_isolate());
+  number = direct_handle(Smi::FromInt(-1), i_isolate());
   CHECK_EQ(PositiveNumberToUint32(*number), 0u);
-  number = handle(Smi::FromInt(-1), i_isolate());
+  number = direct_handle(Smi::FromInt(-1), i_isolate());
   CHECK_EQ(PositiveNumberToUint32(*number), 0u);
-  number = handle(Smi::FromInt(Smi::kMinValue), i_isolate());
+  number = direct_handle(Smi::FromInt(Smi::kMinValue), i_isolate());
   CHECK_EQ(PositiveNumberToUint32(*number), 0u);
-  number = handle(Smi::FromInt(Smi::kMaxValue), i_isolate());
+  number = direct_handle(Smi::FromInt(Smi::kMaxValue), i_isolate());
   CHECK_EQ(PositiveNumberToUint32(*number),
            static_cast<uint32_t>(Smi::kMaxValue));
   // Test Double conversions.
@@ -484,12 +484,13 @@ static IntStringPair int_pairs[] = {{0, "0"},
                                     {kMinInt, "-2147483648"},
                                     {kMaxInt, "2147483647"}};
 
-TEST_F(ConversionsTest, IntToCString) {
+TEST_F(ConversionsTest, IntToStringView) {
   std::unique_ptr<char[]> buf(new char[4096]);
 
   for (size_t i = 0; i < arraysize(int_pairs); i++) {
-    ASSERT_STREQ(IntToCString(int_pairs[i].integer, {buf.get(), 4096}),
-                 int_pairs[i].string.c_str());
+    ASSERT_EQ(
+        std::string(IntToStringView(int_pairs[i].integer, {buf.get(), 4096})),
+        int_pairs[i].string);
   }
 }
 
@@ -508,12 +509,13 @@ static DoubleStringPair double_pairs[] = {
     {1.1, "1.1"},
     {0.1, "0.1"}};
 
-TEST_F(ConversionsTest, DoubleToCString) {
+TEST_F(ConversionsTest, DoubleToStringView) {
   std::unique_ptr<char[]> buf(new char[4096]);
 
   for (size_t i = 0; i < arraysize(double_pairs); i++) {
-    ASSERT_STREQ(DoubleToCString(double_pairs[i].number, {buf.get(), 4096}),
-                 double_pairs[i].string.c_str());
+    ASSERT_EQ(std::string(DoubleToStringView(double_pairs[i].number,
+                                             {buf.get(), 4096})),
+              double_pairs[i].string);
   }
 }
 

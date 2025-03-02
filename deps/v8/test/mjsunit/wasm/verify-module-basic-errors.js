@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm
-
 function Foo() { }
 
 assertThrows(function() { new WebAssembly.Module(); })

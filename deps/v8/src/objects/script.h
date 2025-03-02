@@ -163,9 +163,9 @@ class Script : public TorqueGeneratedScript<Script, Struct> {
   inline bool IsMaybeUnfinalized(Isolate* isolate) const;
 
   Tagged<Object> GetNameOrSourceURL();
-  static Handle<String> GetScriptHash(Isolate* isolate,
-                                      DirectHandle<Script> script,
-                                      bool forceForInspector);
+  static DirectHandle<String> GetScriptHash(Isolate* isolate,
+                                            DirectHandle<Script> script,
+                                            bool forceForInspector);
 
   // Retrieve source position from where eval was called.
   static int GetEvalPosition(Isolate* isolate, DirectHandle<Script> script);

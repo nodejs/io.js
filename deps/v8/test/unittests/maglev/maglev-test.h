@@ -26,7 +26,7 @@ class MaglevTest : public TestWithNativeContextAndZone {
  private:
   compiler::JSHeapBroker broker_;
   compiler::JSHeapBrokerScopeForTesting broker_scope_;
-  std::unique_ptr<PersistentHandlesScope> persistent_scope_;
+  std::optional<PersistentHandlesScope> persistent_scope_;
   compiler::CurrentHeapBrokerScope current_broker_;
 };
 

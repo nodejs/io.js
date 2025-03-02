@@ -98,6 +98,8 @@ class Protectors : public AllStatic {
   /* default type hint NUMBER). */                                            \
   V(StringWrapperToPrimitive, StringWrapperToPrimitiveProtector,              \
     string_wrapper_to_primitive_protector)                                    \
+  V(TypedArrayLengthLookupChain, TypedArrayLengthProtector,                   \
+    typed_array_length_protector)                                             \
   V(TypedArraySpeciesLookupChain, TypedArraySpeciesProtector,                 \
     typed_array_species_protector)
 

@@ -42,6 +42,9 @@ AUTO_EXCLUDE = [
     # templates, and their users must provide their prerequisites.
     'src/wasm/function-body-decoder-impl.h',
     'src/wasm/module-decoder-impl.h',
+    # wasm-interpreter-runtime-inl.h should only be included when building
+    # with V8_ENABLE_DRUMBRAKE which is not the case for the default build.
+    'src/wasm/interpreter/wasm-interpreter-runtime-inl.h',
     # TODO(carlscab): Enable once Perfetto is built by default.
     'src/tracing/code-data-source.h',
     'src/tracing/code-trace-context.h',

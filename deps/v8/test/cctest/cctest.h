@@ -106,7 +106,7 @@ class JSHeapBroker;
 #endif
 
 // Similar to TEST, but used when test definitions appear as members of a
-// (probably parameterized) class. This allows re-using the given tests multiple
+// (probably parameterized) class. This allows reusing the given tests multiple
 // times. For this to work, the following conditions must hold:
 //   1. The class has a template parameter named kTestFileName of type  char
 //      const*, which is instantiated with __FILE__ at the *use site*, in order
@@ -381,12 +381,12 @@ static inline uint16_t* AsciiToTwoByteString(const char16_t* source,
 }
 
 template <typename T>
-static inline i::Handle<T> GetGlobal(const char* name) {
+static inline i::DirectHandle<T> GetGlobal(const char* name) {
   i::Isolate* isolate = CcTest::i_isolate();
-  i::Handle<i::String> str_name =
+  i::DirectHandle<i::String> str_name =
       isolate->factory()->InternalizeUtf8String(name);
 
-  i::Handle<i::Object> value =
+  i::DirectHandle<i::Object> value =
       i::Object::GetProperty(isolate, isolate->global_object(), str_name)
           .ToHandleChecked();
   return i::Cast<T>(value);
@@ -783,7 +783,7 @@ class SimulatorHelper {
     state->fp = reinterpret_cast<void*>(
         simulator_->get_register(v8::internal::Simulator::fp));
     state->lr = reinterpret_cast<void*>(simulator_->get_lr());
-#elif V8_TARGET_ARCH_S390 || V8_TARGET_ARCH_S390X
+#elif V8_TARGET_ARCH_S390X
     state->pc = reinterpret_cast<void*>(simulator_->get_pc());
     state->sp = reinterpret_cast<void*>(
         simulator_->get_register(v8::internal::Simulator::sp));

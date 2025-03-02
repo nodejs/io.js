@@ -165,10 +165,10 @@ V8HeapObject GetHeapObject(WRL::ComPtr<IDebugHostContext> sp_context,
   if (referring_pointer != 0) {
     for (size_t type_index = 0; type_index < props->num_guessed_types;
          ++type_index) {
-      const std::string& type_name = props->guessed_types[type_index];
+      const std::string& guessed_type_name = props->guessed_types[type_index];
       Property dest_prop(
-          ConvertToU16String(("guessed type " + type_name).c_str()),
-          ConvertToU16String(type_name), referring_pointer,
+          ConvertToU16String(("guessed type " + guessed_type_name).c_str()),
+          ConvertToU16String(guessed_type_name), referring_pointer,
           is_compressed ? i::kTaggedSize : sizeof(void*));
       obj.properties.push_back(dest_prop);
     }

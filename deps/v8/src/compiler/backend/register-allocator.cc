@@ -2615,24 +2615,25 @@ bool LiveRangeBundle::TryAddRange(TopLevelLiveRange* range) {
 }
 
 void LiveRangeBundle::AddRange(TopLevelLiveRange* range) {
-  TopLevelLiveRange** insert_it = std::lower_bound(
+  TopLevelLiveRange** range_insert_it = std::lower_bound(
       ranges_.begin(), ranges_.end(), range, LiveRangeOrdering());
-  DCHECK_IMPLIES(insert_it != ranges_.end(), *insert_it != range);
+  DCHECK_IMPLIES(range_insert_it != ranges_.end(), *range_insert_it != range);
   // TODO(dlehmann): We might save some memory by using
   // `DoubleEndedSplitVector::insert<kFront>()` here: Since we add ranges
   // mostly backwards, ranges with an earlier `Start()` are inserted mostly
   // at the front.
-  ranges_.insert(insert_it, 1, range);
+  ranges_.insert(range_insert_it, 1, range);
   range->set_bundle(this);
 
   // We also tried `std::merge`ing the sorted vectors of `intervals_` directly,
   // but it turns out the (always happening) copies are more expensive
   // than the (apparently seldom) copies due to insertion in the middle.
   for (UseInterval interval : range->intervals()) {
-    UseInterval* insert_it =
+    UseInterval* interval_insert_it =
         std::lower_bound(intervals_.begin(), intervals_.end(), interval);
-    DCHECK_IMPLIES(insert_it != intervals_.end(), *insert_it != interval);
-    intervals_.insert(insert_it, 1, interval);
+    DCHECK_IMPLIES(interval_insert_it != intervals_.end(),
+                   *interval_insert_it != interval);
+    intervals_.insert(interval_insert_it, 1, interval);
   }
 }
 
@@ -3271,12 +3272,19 @@ void LinearScanAllocator::ComputeStateFromManyPredecessors(
       used_registers[reg] = 1;
     }
   };
+  struct TopLevelLiveRangeComparator {
+    bool operator()(const TopLevelLiveRange* lhs,
+                    const TopLevelLiveRange* rhs) const {
+      return lhs->vreg() < rhs->vreg();
+    }
+  };
   // Typically this map is very small, e.g., on JetStream2 it has at most 3
   // elements ~80% of the time and at most 8 elements ~94% of the time.
   // Thus use a `SmallZoneMap` to avoid allocations and because linear search
   // in an array is faster than map lookup for such small sizes.
   // We don't want too many inline elements though since `Vote` is pretty large.
-  using RangeVoteMap = SmallZoneMap<TopLevelLiveRange*, Vote, 16>;
+  using RangeVoteMap =
+      SmallZoneMap<TopLevelLiveRange*, Vote, 16, TopLevelLiveRangeComparator>;
   static_assert(sizeof(RangeVoteMap) < 4096, "too large stack allocation");
   RangeVoteMap counts(data()->allocation_zone());
 

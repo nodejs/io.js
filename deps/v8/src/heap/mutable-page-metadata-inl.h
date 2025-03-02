@@ -59,6 +59,12 @@ void MutablePageMetadata::SetOldGenerationPageFlags(MarkingMode marking_mode) {
   return Chunk()->SetOldGenerationPageFlags(marking_mode, owner_identity());
 }
 
+template <AccessMode mode>
+void MutablePageMetadata::ClearLiveness() {
+  marking_bitmap()->Clear<mode>();
+  SetLiveBytes(0);
+}
+
 }  // namespace internal
 }  // namespace v8
 

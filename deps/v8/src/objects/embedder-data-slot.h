@@ -10,6 +10,7 @@
 #include "src/common/assert-scope.h"
 #include "src/common/globals.h"
 #include "src/objects/slots.h"
+#include "src/sandbox/isolate.h"
 
 // Has to be the last include (doesn't have include guards):
 #include "src/objects/object-macros.h"
@@ -117,24 +118,25 @@ class EmbedderDataSlot
   // When the sandbox is enabled, calling this method when the raw part of the
   // slot does not contain valid external pointer table index is undefined
   // behaviour and most likely result in crashes.
-  V8_INLINE bool ToAlignedPointer(Isolate* isolate, void** out_result) const;
+  V8_INLINE bool ToAlignedPointer(IsolateForSandbox isolate,
+                                  void** out_result) const;
 
   // Returns true if the pointer was successfully stored or false it the pointer
   // was improperly aligned.
   V8_INLINE V8_WARN_UNUSED_RESULT bool store_aligned_pointer(
-      Isolate* isolate, Tagged<HeapObject> host, void* ptr);
+      IsolateForSandbox isolate, Tagged<HeapObject> host, void* ptr);
 
   V8_INLINE bool MustClearDuringSerialization(
       const DisallowGarbageCollection& no_gc);
-  V8_INLINE RawData load_raw(Isolate* isolate,
+  V8_INLINE RawData load_raw(IsolateForSandbox isolate,
                              const DisallowGarbageCollection& no_gc) const;
-  V8_INLINE void store_raw(Isolate* isolate, RawData data,
+  V8_INLINE void store_raw(IsolateForSandbox isolate, RawData data,
                            const DisallowGarbageCollection& no_gc);
 
  private:
   // Stores given value to the embedder data slot in a concurrent-marker
   // friendly manner (tagged part of the slot is written atomically).
-  V8_INLINE void gc_safe_store(Isolate* isolate, Address value);
+  V8_INLINE void gc_safe_store(IsolateForSandbox isolate, Address value);
 };
 
 }  // namespace internal

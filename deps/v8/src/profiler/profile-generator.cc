@@ -622,9 +622,9 @@ void CpuProfile::AddPath(base::TimeTicks timestamp,
                          const ProfileStackTrace& path, int src_line,
                          bool update_stats, base::TimeDelta sampling_interval,
                          StateTag state_tag,
-                         EmbedderStateTag embedder_state_tag) {
+                         EmbedderStateTag embedder_state_tag,
+                         const std::optional<uint64_t> trace_id) {
   if (!CheckSubsample(sampling_interval)) return;
-
   ProfileNode* top_frame_node =
       top_down_.AddPathFromEnd(path, src_line, update_stats, options_.mode());
 
@@ -635,8 +635,8 @@ void CpuProfile::AddPath(base::TimeTicks timestamp,
       !timestamp.IsNull() && timestamp >= start_time_ && !is_buffer_full;
 
   if (should_record_sample) {
-    samples_.push_back(
-        {top_frame_node, timestamp, src_line, state_tag, embedder_state_tag});
+    samples_.push_back({top_frame_node, timestamp, src_line, state_tag,
+                        embedder_state_tag, trace_id});
   } else if (is_buffer_full && delegate_ != nullptr) {
     const auto task_runner = V8::GetCurrentPlatform()->GetForegroundTaskRunner(
         reinterpret_cast<v8::Isolate*>(profiler_->isolate()));
@@ -707,6 +707,15 @@ void CpuProfile::StreamPendingTraceEvents() {
         value->AppendInteger(samples_[i].node->id());
       }
       value->EndArray();
+      value->BeginDictionary("trace_ids");
+      for (size_t i = streaming_next_sample_; i < samples_.size(); ++i) {
+        if (!samples_[i].trace_id.has_value()) {
+          continue;
+        }
+        value->SetUnsignedInteger(std::to_string(i).c_str(),
+                                  samples_[i].trace_id.value());
+      }
+      value->EndDictionary();
     }
     value->EndDictionary();
   }
@@ -1186,7 +1195,8 @@ void CpuProfilesCollection::AddPathToCurrentProfiles(
     base::TimeTicks timestamp, const ProfileStackTrace& path, int src_line,
     bool update_stats, base::TimeDelta sampling_interval, StateTag state,
     EmbedderStateTag embedder_state_tag, Address native_context_address,
-    Address embedder_native_context_address) {
+    Address embedder_native_context_address,
+    const std::optional<uint64_t> trace_id) {
   // As starting / stopping profiles is rare relatively to this
   // method, we don't bother minimizing the duration of lock holding,
   // e.g. copying contents of the list to a local vector.
@@ -1206,10 +1216,11 @@ void CpuProfilesCollection::AddPathToCurrentProfiles(
         state != StateTag::LOGGING) {
       state = StateTag::IDLE;
     }
-    profile->AddPath(timestamp, accepts_context ? path : empty_path, src_line,
-                     update_stats, sampling_interval, state,
-                     accepts_embedder_context ? embedder_state_tag
-                                              : EmbedderStateTag::EMPTY);
+    profile->AddPath(
+        timestamp, accepts_context ? path : empty_path, src_line, update_stats,
+        sampling_interval, state,
+        accepts_embedder_context ? embedder_state_tag : EmbedderStateTag::EMPTY,
+        trace_id);
   }
 }
 

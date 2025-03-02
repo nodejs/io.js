@@ -17,7 +17,7 @@ function k() {
                 // This causes two deopts, one eager at x = 1 and the
                 // other lazy at t[2] = z.
      t[2] = z; // since we are assigning to Uint8Array, ToNumber
-              // is called which calls this funciton again.
+              // is called which calls this function again.
   }
 }
 

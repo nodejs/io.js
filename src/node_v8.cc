@@ -32,6 +32,7 @@
 namespace node {
 namespace v8_utils {
 using v8::Array;
+using v8::BigInt;
 using v8::CFunction;
 using v8::Context;
 using v8::FunctionCallbackInfo;
@@ -255,6 +256,12 @@ static bool FastIsStringOneByteRepresentation(Local<Value> receiver,
 
 CFunction fast_is_string_one_byte_representation_(
     CFunction::Make(FastIsStringOneByteRepresentation));
+
+void GetHashSeed(const FunctionCallbackInfo<Value>& args) {
+  Isolate* isolate = args.GetIsolate();
+  uint64_t hash_seed = isolate->GetHashSeed();
+  args.GetReturnValue().Set(BigInt::NewFromUnsigned(isolate, hash_seed));
+}
 
 static const char* GetGCTypeName(v8::GCType gc_type) {
   switch (gc_type) {
@@ -503,6 +510,8 @@ void Initialize(Local<Object> target,
                             IsStringOneByteRepresentation,
                             &fast_is_string_one_byte_representation_);
 
+  SetMethodNoSideEffect(context, target, "getHashSeed", GetHashSeed);
+
   // GCProfiler
   Local<FunctionTemplate> t =
       NewFunctionTemplate(env->isolate(), GCProfiler::New);
@@ -518,6 +527,7 @@ void RegisterExternalReferences(ExternalReferenceRegistry* registry) {
   registry->Register(UpdateHeapCodeStatisticsBuffer);
   registry->Register(UpdateHeapSpaceStatisticsBuffer);
   registry->Register(SetFlagsFromString);
+  registry->Register(GetHashSeed);
   registry->Register(SetHeapSnapshotNearHeapLimit);
   registry->Register(GCProfiler::New);
   registry->Register(GCProfiler::Start);

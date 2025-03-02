@@ -232,23 +232,49 @@ uint32_t InstructionGetters<T>::Rvvuimm() const {
 
 template <class T>
 bool InstructionGetters<T>::IsLoad() {
-  return OperandFunct3() == RO_LB || OperandFunct3() == RO_LBU ||
-         OperandFunct3() == RO_LH || OperandFunct3() == RO_LHU ||
-         OperandFunct3() == RO_LW ||
+  switch (OperandFunct3()) {
+    case RO_LB:
+    case RO_LBU:
+    case RO_LH:
+    case RO_LHU:
+    case RO_LW:
 #ifdef V8_TARGET_ARCH_RISCV64
-         OperandFunct3() == RO_LD || OperandFunct3() == RO_LWU ||
+    case RO_LD:
+    case RO_LWU:
 #endif
-         BaseOpcode() == LOAD_FP;
+      return true;
+    case RO_C_LW:
+    case RO_C_LWSP:
+#ifdef V8_TARGET_ARCH_RISCV64
+    case RO_C_LD:
+    case RO_C_LDSP:
+#endif
+      return v8_flags.riscv_c_extension && this->IsShortInstruction();
+    default:
+      return BaseOpcode() == LOAD_FP;
+  }
 }
 
 template <class T>
 bool InstructionGetters<T>::IsStore() {
-  return OperandFunct3() == RO_SB || OperandFunct3() == RO_SH ||
-         OperandFunct3() == RO_SW ||
+  switch (OperandFunct3()) {
+    case RO_SB:
+    case RO_SH:
+    case RO_SW:
 #ifdef V8_TARGET_ARCH_RISCV64
-         OperandFunct3() == RO_SD ||
+    case RO_SD:
 #endif
-         BaseOpcode() == STORE_FP;
+      return true;
+    case RO_C_SW:
+    case RO_C_SWSP:
+#ifdef V8_TARGET_ARCH_RISCV64
+    case RO_C_SD:
+    case RO_C_SDSP:
+#endif
+      return v8_flags.riscv_c_extension && this->IsShortInstruction();
+    default:
+      return BaseOpcode() == STORE_FP;
+  }
 }
 
 template class InstructionGetters<InstructionBase>;

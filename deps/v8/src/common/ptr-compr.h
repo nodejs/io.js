@@ -12,6 +12,10 @@ namespace v8::internal {
 
 class IsolateGroup;
 
+#ifdef V8_ENABLE_SANDBOX
+class Sandbox;
+#endif  // V8_ENABLE_SANDBOX
+
 // This is just a collection of common compression scheme related functions.
 // Each pointer compression cage then has its own compression scheme, which
 // mainly differes in the cage base address they use.
@@ -78,8 +82,10 @@ using V8HeapCompressionScheme = V8HeapCompressionSchemeImpl<MainCage>;
 class TrustedCage : public AllStatic {
   friend class V8HeapCompressionSchemeImpl<TrustedCage>;
 
-  // The TrustedCage is only used in the shared cage build configuration, so
-  // there is no need for a thread_local version.
+  // Just to unify code with other cages in the multi-cage mode.
+  static V8_EXPORT_PRIVATE Address base_non_inlined();
+  static V8_EXPORT_PRIVATE void set_base_non_inlined(Address base);
+
   static V8_EXPORT_PRIVATE uintptr_t base_ V8_CONSTINIT;
 };
 using TrustedSpaceCompressionScheme = V8HeapCompressionSchemeImpl<TrustedCage>;
@@ -155,8 +161,8 @@ class ExternalCodeCompressionScheme {
  private:
   // These non-inlined accessors to base_ field are used in component builds
   // where cross-component access to thread local variables is not allowed.
-  static Address base_non_inlined();
-  static void set_base_non_inlined(Address base);
+  static V8_EXPORT_PRIVATE Address base_non_inlined();
+  static V8_EXPORT_PRIVATE void set_base_non_inlined(Address base);
 
 #ifdef V8_COMPRESS_POINTERS_IN_SHARED_CAGE
   static V8_EXPORT_PRIVATE uintptr_t base_ V8_CONSTINIT;
@@ -225,6 +231,9 @@ class PtrComprCageAccessScope final {
   const Address code_cage_base_;
 #endif  // V8_EXTERNAL_CODE_SPACE
   IsolateGroup* saved_current_isolate_group_;
+#ifdef V8_ENABLE_SANDBOX
+  Sandbox* saved_current_sandbox_;
+#endif
 #endif  // V8_COMPRESS_POINTERS_IN_MULTIPLE_CAGES
 };
 

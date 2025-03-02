@@ -4,6 +4,7 @@
 
 #include "src/codegen/assembler-inl.h"
 #include "src/codegen/callable.h"
+#include "src/codegen/interface-descriptors-inl.h"
 #include "src/codegen/macro-assembler.h"
 #include "src/codegen/optimized-compilation-info.h"
 #include "src/codegen/riscv/constants-riscv.h"
@@ -13,6 +14,11 @@
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/osr.h"
 #include "src/heap/mutable-page-metadata.h"
+
+#if V8_ENABLE_WEBASSEMBLY
+#include "src/wasm/wasm-linkage.h"
+#include "src/wasm/wasm-objects.h"
+#endif  // V8_ENABLE_WEBASSEMBLY
 
 namespace v8 {
 namespace internal {
@@ -385,21 +391,17 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
 #endif  // V8_ENABLE_WEBASSEMBLY
 }  // namespace
 
-#define ASSEMBLE_ATOMIC_LOAD_INTEGER(asm_instr)            \
-  do {                                                     \
-    __ asm_instr(i.OutputRegister(), i.MemoryOperand());   \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr,    \
-                           (__ pc_offset() - kInstrSize)); \
-    __ sync();                                             \
+#define ASSEMBLE_ATOMIC_LOAD_INTEGER(asm_instr)                   \
+  do {                                                            \
+    __ asm_instr(i.OutputRegister(), i.MemoryOperand(), trapper); \
+    __ sync();                                                    \
   } while (0)
 
-#define ASSEMBLE_ATOMIC_STORE_INTEGER(asm_instr)                \
-  do {                                                          \
-    __ sync();                                                  \
-    __ asm_instr(i.InputOrZeroRegister(0), i.MemoryOperand(1)); \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr,         \
-                           (__ pc_offset() - kInstrSize));      \
-    __ sync();                                                  \
+#define ASSEMBLE_ATOMIC_STORE_INTEGER(asm_instr)                         \
+  do {                                                                   \
+    __ sync();                                                           \
+    __ asm_instr(i.InputOrZeroRegister(0), i.MemoryOperand(1), trapper); \
+    __ sync();                                                           \
   } while (0)
 
 #define ASSEMBLE_ATOMIC_BINOP(load_linked, store_conditional, bin_instr)       \
@@ -408,8 +410,8 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
     __ AddWord(i.TempRegister(0), i.InputRegister(0), i.InputRegister(1));     \
     __ sync();                                                                 \
     __ bind(&binop);                                                           \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());       \
-    __ load_linked(i.OutputRegister(0), MemOperand(i.TempRegister(0), 0));     \
+    __ load_linked(i.OutputRegister(0), MemOperand(i.TempRegister(0), 0),      \
+                   trapper);                                                   \
     __ bin_instr(i.TempRegister(1), i.OutputRegister(0),                       \
                  Operand(i.InputRegister(2)));                                 \
     __ store_conditional(i.TempRegister(1), MemOperand(i.TempRegister(0), 0)); \
@@ -453,8 +455,8 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
     __ Sll32(i.TempRegister(3), i.TempRegister(3), 3);                         \
     __ sync();                                                                 \
     __ bind(&binop);                                                           \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());       \
-    __ load_linked(i.TempRegister(1), MemOperand(i.TempRegister(0), 0));       \
+    __ load_linked(i.TempRegister(1), MemOperand(i.TempRegister(0), 0),        \
+                   trapper);                                                   \
     __ ExtractBits(i.OutputRegister(0), i.TempRegister(1), i.TempRegister(3),  \
                    size, sign_extend);                                         \
     __ bin_instr(i.TempRegister(2), i.OutputRegister(0),                       \
@@ -472,8 +474,8 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
     __ sync();                                                                 \
     __ bind(&exchange);                                                        \
     __ AddWord(i.TempRegister(0), i.InputRegister(0), i.InputRegister(1));     \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());       \
-    __ load_linked(i.OutputRegister(0), MemOperand(i.TempRegister(0), 0));     \
+    __ load_linked(i.OutputRegister(0), MemOperand(i.TempRegister(0), 0),      \
+                   trapper);                                                   \
     __ Move(i.TempRegister(1), i.InputRegister(2));                            \
     __ store_conditional(i.TempRegister(1), MemOperand(i.TempRegister(0), 0)); \
     __ BranchShort(&exchange, ne, i.TempRegister(1), Operand(zero_reg));       \
@@ -496,8 +498,8 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
     __ Sll32(i.TempRegister(1), i.TempRegister(1), 3);                         \
     __ sync();                                                                 \
     __ bind(&exchange);                                                        \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());       \
-    __ load_linked(i.TempRegister(2), MemOperand(i.TempRegister(0), 0));       \
+    __ load_linked(i.TempRegister(2), MemOperand(i.TempRegister(0), 0),        \
+                   trapper);                                                   \
     __ ExtractBits(i.OutputRegister(0), i.TempRegister(2), i.TempRegister(1),  \
                    size, sign_extend);                                         \
     __ InsertBits(i.TempRegister(2), i.InputRegister(2), i.TempRegister(1),    \
@@ -515,8 +517,8 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
     __ AddWord(i.TempRegister(0), i.InputRegister(0), i.InputRegister(1));     \
     __ sync();                                                                 \
     __ bind(&compareExchange);                                                 \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());       \
-    __ load_linked(i.OutputRegister(0), MemOperand(i.TempRegister(0), 0));     \
+    __ load_linked(i.OutputRegister(0), MemOperand(i.TempRegister(0), 0),      \
+                   trapper);                                                   \
     __ BranchShort(&exit, ne, i.InputRegister(2),                              \
                    Operand(i.OutputRegister(0)));                              \
     __ Move(i.TempRegister(2), i.InputRegister(3));                            \
@@ -544,8 +546,8 @@ void RecordTrapInfoIfNeeded(Zone* zone, CodeGenerator* codegen,
     __ Sll32(i.TempRegister(1), i.TempRegister(1), 3);                         \
     __ sync();                                                                 \
     __ bind(&compareExchange);                                                 \
-    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());       \
-    __ load_linked(i.TempRegister(2), MemOperand(i.TempRegister(0), 0));       \
+    __ load_linked(i.TempRegister(2), MemOperand(i.TempRegister(0), 0),        \
+                   trapper);                                                   \
     __ ExtractBits(i.OutputRegister(0), i.TempRegister(2), i.TempRegister(1),  \
                    size, sign_extend);                                         \
     __ ExtractBits(i.InputRegister(2), i.InputRegister(2), 0, size,            \
@@ -728,6 +730,9 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
   RiscvOperandConverter i(this, instr);
   InstructionCode opcode = instr->opcode();
   ArchOpcode arch_opcode = ArchOpcodeField::decode(opcode);
+  auto trapper = [this, opcode, instr](int offset) {
+    RecordTrapInfoIfNeeded(zone(), this, opcode, instr, offset);
+  };
   switch (arch_opcode) {
     case kArchCallCodeObject: {
       if (instr->InputAt(0)->IsImmediate()) {
@@ -757,14 +762,19 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       frame_access_state()->ClearSPDelta();
       break;
     }
-    case kArchCallWasmFunction: {
+    case kArchCallWasmFunction:
+    case kArchCallWasmFunctionIndirect: {
       if (instr->InputAt(0)->IsImmediate()) {
+        DCHECK_EQ(arch_opcode, kArchCallWasmFunction);
         Constant constant = i.ToConstant(instr->InputAt(0));
         Address wasm_code = static_cast<Address>(constant.ToInt64());
         __ Call(wasm_code, constant.rmode());
+      } else if (arch_opcode == kArchCallWasmFunctionIndirect) {
+        __ CallWasmCodePointer(
+            i.InputRegister(0),
+            i.InputInt64(instr->WasmSignatureHashInputIndex()));
       } else {
-        __ AddWord(t6, i.InputOrZeroRegister(0), 0);
-        __ Call(t6);
+        __ Call(i.InputRegister(0));
       }
       RecordCallPosition(instr);
       frame_access_state()->ClearSPDelta();
@@ -786,14 +796,23 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       frame_access_state()->SetFrameAccessToDefault();
       break;
     }
-    case kArchTailCallWasm: {
+    case kArchTailCallWasm:
+    case kArchTailCallWasmIndirect: {
       if (instr->InputAt(0)->IsImmediate()) {
+        DCHECK_EQ(arch_opcode, kArchTailCallWasm);
         Constant constant = i.ToConstant(instr->InputAt(0));
         Address wasm_code = static_cast<Address>(constant.ToInt64());
         __ Jump(wasm_code, constant.rmode());
       } else {
         __ AddWord(kScratchReg, i.InputOrZeroRegister(0), 0);
-        __ Jump(kScratchReg);
+        if (arch_opcode == kArchTailCallWasmIndirect) {
+          __ CallWasmCodePointer(
+              i.InputRegister(0),
+              i.InputInt64(instr->WasmSignatureHashInputIndex()),
+              CallJumpMode::kTailCall);
+        } else {
+          __ Jump(kScratchReg);
+        }
       }
       frame_access_state()->ClearSPDelta();
       frame_access_state()->SetFrameAccessToDefault();
@@ -819,7 +838,9 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
         __ Assert(eq, AbortReason::kWrongFunctionContext, cp,
                   Operand(kScratchReg));
       }
-      __ CallJSFunction(func);
+      uint32_t num_arguments =
+          i.InputUint32(instr->JSCallArgumentCountInputIndex());
+      __ CallJSFunction(func, num_arguments);
       RecordCallPosition(instr);
       frame_access_state()->ClearSPDelta();
       break;
@@ -970,6 +991,14 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       break;
     case kArchSetStackPointer: {
       DCHECK(instr->InputAt(0)->IsRegister());
+#ifdef V8_TARGET_ARCH_RISCV64
+      if (masm()->options().enable_simulator_code) {
+        __ RecordComment("-- Set simulator stack limit --");
+        __ LoadStackLimit(kSimulatorBreakArgument,
+                          StackLimitKind::kRealStackLimit);
+        __ break_(kExceptionIsSwitchStackLimit);
+      }
+#endif
       __ Move(sp, i.InputRegister(0));
       break;
     }
@@ -999,13 +1028,12 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       // Indirect pointer writes must use a different opcode.
       DCHECK_NE(mode, RecordWriteMode::kValueIsIndirectPointer);
       Register object = i.InputRegister(0);
+      Register offset = i.InputRegister(1);
       Register value = i.InputRegister(2);
+      __ AddWord(kScratchReg, object, offset);
       auto ool = zone()->New<OutOfLineRecordWrite>(
-          this, object, Operand(i.InputRegister(1)), value, mode,
-          DetermineStubCallMode());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
-      __ AddWord(kScratchReg, object, i.InputRegister(1));
-      __ StoreTaggedField(value, MemOperand(kScratchReg, 0));
+          this, object, Operand(offset), value, mode, DetermineStubCallMode());
+      __ StoreTaggedField(value, MemOperand(kScratchReg, 0), trapper);
       if (mode > RecordWriteMode::kValueIsIndirectPointer) {
         __ JumpIfSmi(value, ool->exit());
       }
@@ -1049,13 +1077,13 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       IndirectPointerTag tag = static_cast<IndirectPointerTag>(i.InputInt64(3));
       DCHECK(IsValidIndirectPointerTag(tag));
       Register object = i.InputRegister(0);
+      Register offset = i.InputRegister(1);
       Register value = i.InputRegister(2);
+      __ AddWord(kScratchReg, object, offset);
       auto ool = zone()->New<OutOfLineRecordWrite>(
-          this, object, Operand(i.InputRegister(1)), value, mode,
-          DetermineStubCallMode(), tag);
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
-      __ AddWord(kScratchReg, object, i.InputRegister(1));
-      __ StoreIndirectPointerField(value, MemOperand(kScratchReg, 0));
+          this, object, Operand(offset), value, mode, DetermineStubCallMode(),
+          tag);
+      __ StoreIndirectPointerField(value, MemOperand(kScratchReg, 0), trapper);
       __ CheckPageFlag(object, MemoryChunk::kPointersFromHereAreInterestingMask,
                        ne, ool->entry());
       __ bind(ool->exit());
@@ -1946,93 +1974,70 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       __ SignExtendShort(i.OutputRegister(), i.InputRegister(0));
       break;
     case kRiscvLbu:
-      __ Lbu(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Lbu(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvLb:
-      __ Lb(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Lb(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvSb:
-      __ Sb(i.InputOrZeroRegister(0), i.MemoryOperand(1));
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Sb(i.InputOrZeroRegister(0), i.MemoryOperand(1), trapper);
       break;
     case kRiscvLhu:
-      __ Lhu(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Lhu(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvUlhu:
       __ Ulhu(i.OutputRegister(), i.MemoryOperand());
       break;
     case kRiscvLh:
-      __ Lh(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Lh(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvUlh:
       __ Ulh(i.OutputRegister(), i.MemoryOperand());
       break;
     case kRiscvSh:
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
-      __ Sh(i.InputOrZeroRegister(0), i.MemoryOperand(1));
+      __ Sh(i.InputOrZeroRegister(0), i.MemoryOperand(1), trapper);
       break;
     case kRiscvUsh:
       __ Ush(i.InputOrZeroRegister(2), i.MemoryOperand());
       break;
     case kRiscvLw:
-      __ Lw(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Lw(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvUlw:
       __ Ulw(i.OutputRegister(), i.MemoryOperand());
       break;
 #if V8_TARGET_ARCH_RISCV64
     case kRiscvLwu:
-      __ Lwu(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Lwu(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvUlwu:
       __ Ulwu(i.OutputRegister(), i.MemoryOperand());
       break;
     case kRiscvLd:
-      __ Ld(i.OutputRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Ld(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     case kRiscvUld:
       __ Uld(i.OutputRegister(), i.MemoryOperand());
       break;
     case kRiscvSd:
-      __ Sd(i.InputOrZeroRegister(0), i.MemoryOperand(1));
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Sd(i.InputOrZeroRegister(0), i.MemoryOperand(1), trapper);
       break;
     case kRiscvUsd:
       __ Usd(i.InputOrZeroRegister(2), i.MemoryOperand());
       break;
 #endif
     case kRiscvSw:
-      __ Sw(i.InputOrZeroRegister(0), i.MemoryOperand(1));
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Sw(i.InputOrZeroRegister(0), i.MemoryOperand(1), trapper);
       break;
     case kRiscvUsw:
       __ Usw(i.InputOrZeroRegister(2), i.MemoryOperand());
       break;
     case kRiscvLoadFloat: {
-      __ LoadFloat(i.OutputSingleRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadFloat(i.OutputSingleRegister(), i.MemoryOperand(), trapper);
       break;
     }
     case kRiscvULoadFloat: {
-      __ ULoadFloat(i.OutputSingleRegister(), i.MemoryOperand(), kScratchReg);
+      __ ULoadFloat(i.OutputSingleRegister(), i.MemoryOperand());
       break;
     }
     case kRiscvStoreFloat: {
@@ -2041,9 +2046,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       if (ft == kSingleRegZero && !__ IsSingleZeroRegSet()) {
         __ LoadFPRImmediate(kSingleRegZero, 0.0f);
       }
-      __ StoreFloat(ft, operand);
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ StoreFloat(ft, operand, trapper);
       break;
     }
     case kRiscvUStoreFloat: {
@@ -2053,25 +2056,22 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       if (ft == kSingleRegZero && !__ IsSingleZeroRegSet()) {
         __ LoadFPRImmediate(kSingleRegZero, 0.0f);
       }
-      __ UStoreFloat(ft, operand, kScratchReg);
+      __ UStoreFloat(ft, operand);
       break;
     }
     case kRiscvLoadDouble:
-      __ LoadDouble(i.OutputDoubleRegister(), i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadDouble(i.OutputDoubleRegister(), i.MemoryOperand(), trapper);
       break;
-    case kRiscvULoadDouble:
-      __ ULoadDouble(i.OutputDoubleRegister(), i.MemoryOperand(), kScratchReg);
+    case kRiscvULoadDouble: {
+      __ ULoadDouble(i.OutputDoubleRegister(), i.MemoryOperand());
       break;
+    }
     case kRiscvStoreDouble: {
       FPURegister ft = i.InputOrZeroDoubleRegister(0);
       if (ft == kDoubleRegZero && !__ IsDoubleZeroRegSet()) {
         __ LoadFPRImmediate(kDoubleRegZero, 0.0);
       }
-      __ StoreDouble(ft, i.MemoryOperand(1));
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ StoreDouble(ft, i.MemoryOperand(1), trapper);
       break;
     }
     case kRiscvUStoreDouble: {
@@ -2079,7 +2079,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       if (ft == kDoubleRegZero && !__ IsDoubleZeroRegSet()) {
         __ LoadFPRImmediate(kDoubleRegZero, 0.0);
       }
-      __ UStoreDouble(ft, i.MemoryOperand(), kScratchReg);
+      __ UStoreDouble(ft, i.MemoryOperand());
       break;
     }
     case kRiscvSync: {
@@ -2492,8 +2492,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       break;
     }
     case kRiscvLoadDecompressProtected: {
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
-      __ DecompressProtected(i.OutputRegister(), i.MemoryOperand());
+      __ DecompressProtected(i.OutputRegister(), i.MemoryOperand(), trapper);
       break;
     }
 #endif
@@ -2504,7 +2503,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       if (memOperand.offset() != 0) {
         __ AddWord(dst, memOperand.rm(), memOperand.offset());
       }
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
+      trapper(__ pc_offset());
       __ vs(i.InputSimd128Register(0), dst, 0, VSew::E8);
       break;
     }
@@ -2515,7 +2514,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       if (i.MemoryOperand().offset() != 0) {
         __ AddWord(src, i.MemoryOperand().rm(), i.MemoryOperand().offset());
       }
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
+      trapper(__ pc_offset());
       __ vl(i.OutputSimd128Register(), src, 0, VSew::E8);
       break;
     }
@@ -2528,9 +2527,7 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     case kRiscvS128Load32Zero: {
       Simd128Register dst = i.OutputSimd128Register();
       __ VU.set(kScratchReg, E32, m1);
-      __ Load32U(kScratchReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ Load32U(kScratchReg, i.MemoryOperand(), trapper);
       __ vmv_sx(dst, kScratchReg);
       break;
     }
@@ -2538,14 +2535,10 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       Simd128Register dst = i.OutputSimd128Register();
       __ VU.set(kScratchReg, E64, m1);
 #if V8_TARGET_ARCH_RISCV64
-      __ LoadWord(kScratchReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadWord(kScratchReg, i.MemoryOperand(), trapper);
       __ vmv_sx(dst, kScratchReg);
 #elif V8_TARGET_ARCH_RISCV32
-      __ LoadDouble(kScratchDoubleReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadDouble(kScratchDoubleReg, i.MemoryOperand(), trapper);
       __ vfmv_sf(dst, kScratchDoubleReg);
 #endif
       break;
@@ -2554,30 +2547,23 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       Simd128Register dst = i.OutputSimd128Register();
       DCHECK_EQ(dst, i.InputSimd128Register(0));
       auto sz = LaneSizeField::decode(opcode);
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr, __ pc_offset());
-      __ LoadLane(sz, dst, i.InputUint8(1), i.MemoryOperand(2));
+      __ LoadLane(sz, dst, i.InputUint8(1), i.MemoryOperand(2), trapper);
       break;
     }
     case kRiscvS128StoreLane: {
       Simd128Register src = i.InputSimd128Register(0);
       DCHECK_EQ(src, i.InputSimd128Register(0));
       auto sz = LaneSizeField::decode(opcode);
-      __ StoreLane(sz, src, i.InputUint8(1), i.MemoryOperand(2));
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ StoreLane(sz, src, i.InputUint8(1), i.MemoryOperand(2), trapper);
       break;
     }
     case kRiscvS128Load64ExtendS: {
       __ VU.set(kScratchReg, E64, m1);
 #if V8_TARGET_ARCH_RISCV64
-      __ LoadWord(kScratchReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadWord(kScratchReg, i.MemoryOperand(), trapper);
       __ vmv_vx(kSimd128ScratchReg, kScratchReg);
 #elif V8_TARGET_ARCH_RISCV32
-      __ LoadDouble(kScratchDoubleReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadDouble(kScratchDoubleReg, i.MemoryOperand(), trapper);
       __ vfmv_vf(kSimd128ScratchReg, kScratchDoubleReg);
 #endif
       __ VU.set(kScratchReg, i.InputInt8(2), m1);
@@ -2587,14 +2573,10 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
     case kRiscvS128Load64ExtendU: {
       __ VU.set(kScratchReg, E64, m1);
 #if V8_TARGET_ARCH_RISCV64
-      __ LoadWord(kScratchReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadWord(kScratchReg, i.MemoryOperand(), trapper);
       __ vmv_vx(kSimd128ScratchReg, kScratchReg);
 #elif V8_TARGET_ARCH_RISCV32
-      __ LoadDouble(kScratchDoubleReg, i.MemoryOperand());
-      RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                             (__ pc_offset() - kInstrSize));
+      __ LoadDouble(kScratchDoubleReg, i.MemoryOperand(), trapper);
       __ vfmv_vf(kSimd128ScratchReg, kScratchDoubleReg);
 #endif
       __ VU.set(kScratchReg, i.InputInt8(2), m1);
@@ -2605,33 +2587,23 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       __ VU.set(kScratchReg, i.InputInt8(2), i.InputInt8(3));
       switch (i.InputInt8(2)) {
         case E8:
-          __ Lb(kScratchReg, i.MemoryOperand());
-          RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                                 (__ pc_offset() - kInstrSize));
+          __ Lb(kScratchReg, i.MemoryOperand(), trapper);
           __ vmv_vx(i.OutputSimd128Register(), kScratchReg);
           break;
         case E16:
-          __ Lh(kScratchReg, i.MemoryOperand());
-          RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                                 (__ pc_offset() - kInstrSize));
+          __ Lh(kScratchReg, i.MemoryOperand(), trapper);
           __ vmv_vx(i.OutputSimd128Register(), kScratchReg);
           break;
         case E32:
-          __ Lw(kScratchReg, i.MemoryOperand());
-          RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                                 (__ pc_offset() - kInstrSize));
+          __ Lw(kScratchReg, i.MemoryOperand(), trapper);
           __ vmv_vx(i.OutputSimd128Register(), kScratchReg);
           break;
         case E64:
 #if V8_TARGET_ARCH_RISCV64
-          __ LoadWord(kScratchReg, i.MemoryOperand());
-          RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                                 (__ pc_offset() - kInstrSize));
+          __ LoadWord(kScratchReg, i.MemoryOperand(), trapper);
           __ vmv_vx(i.OutputSimd128Register(), kScratchReg);
 #elif V8_TARGET_ARCH_RISCV32
-          __ LoadDouble(kScratchDoubleReg, i.MemoryOperand());
-          RecordTrapInfoIfNeeded(zone(), this, opcode, instr,
-                                 (__ pc_offset() - kInstrSize));
+          __ LoadDouble(kScratchDoubleReg, i.MemoryOperand(), trapper);
           __ vfmv_vf(i.OutputSimd128Register(), kScratchDoubleReg);
 #endif
           break;
@@ -3790,6 +3762,22 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
       __ vsext_vf2(i.OutputSimd128Register(), i.InputSimd128Register(0));
       break;
     }
+    case kRiscvEnableDebugTrace: {
+#ifdef USE_SIMULATOR
+      __ Debug(TRACE_ENABLE | LOG_TRACE | LOG_REGS);
+      break;
+#else
+      UNREACHABLE();
+#endif
+    }
+    case kRiscvDisableDebugTrace: {
+#ifdef USE_SIMULATOR
+      __ Debug(TRACE_DISABLE | LOG_TRACE | LOG_REGS);
+      break;
+#else
+      UNREACHABLE();
+#endif
+    }
     default:
 #ifdef DEBUG
       switch (arch_opcode) {
@@ -4403,7 +4391,7 @@ void CodeGenerator::AssembleConstructFrame() {
       __ Prologue();
     } else {
       __ StubPrologue(info()->GetOutputStackFrameType());
-      if (call_descriptor->IsWasmFunctionCall() ||
+      if (call_descriptor->IsAnyWasmFunctionCall() ||
           call_descriptor->IsWasmImportWrapper() ||
           call_descriptor->IsWasmCapiFunction()) {
         __ Push(kWasmImplicitArgRegister);
@@ -4428,6 +4416,16 @@ void CodeGenerator::AssembleConstructFrame() {
     // remaining stack slots.
     __ RecordComment("-- OSR entrypoint --");
     osr_pc_offset_ = __ pc_offset();
+#ifdef V8_ENABLE_SANDBOX_BOOL
+    UseScratchRegisterScope temps(masm());
+    uint32_t expected_frame_size =
+        static_cast<uint32_t>(osr_helper()->UnoptimizedFrameSlots()) *
+            kSystemPointerSize +
+        StandardFrameConstants::kFixedFrameSizeFromFp;
+    Register scratch = temps.Acquire();
+    __ AddWord(scratch, sp, expected_frame_size);
+    __ SbxCheck(eq, AbortReason::kOsrUnexpectedStackSize, scratch, Operand(fp));
+#endif  // V8_ENABLE_SANDBOX_BOOL
     required_slots -= osr_helper()->UnoptimizedFrameSlots();
   }
 
@@ -4456,15 +4454,35 @@ void CodeGenerator::AssembleConstructFrame() {
         __ Branch(&done, uge, sp, Operand(stack_limit));
       }
 
-      __ Call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
-              RelocInfo::WASM_STUB_CALL);
-      // We come from WebAssembly, there are no references for the GC.
-      ReferenceMap* reference_map = zone()->New<ReferenceMap>(zone());
-      RecordSafepoint(reference_map);
-      if (v8_flags.debug_code) {
-        __ stop();
+      if (v8_flags.experimental_wasm_growable_stacks) {
+        RegList regs_to_save;
+        regs_to_save.set(WasmHandleStackOverflowDescriptor::GapRegister());
+        regs_to_save.set(
+            WasmHandleStackOverflowDescriptor::FrameBaseRegister());
+        for (auto reg : wasm::kGpParamRegisters) regs_to_save.set(reg);
+        __ MultiPush(regs_to_save);
+        DoubleRegList fp_regs_to_save;
+        for (auto reg : wasm::kFpParamRegisters) fp_regs_to_save.set(reg);
+        __ MultiPushFPU(fp_regs_to_save);
+        __ li(WasmHandleStackOverflowDescriptor::GapRegister(),
+              required_slots * kSystemPointerSize);
+        __ AddWord(
+            WasmHandleStackOverflowDescriptor::FrameBaseRegister(), fp,
+            Operand(call_descriptor->ParameterSlotCount() * kSystemPointerSize +
+                    CommonFrameConstants::kFixedFrameSizeAboveFp));
+        __ CallBuiltin(Builtin::kWasmHandleStackOverflow);
+        __ MultiPopFPU(fp_regs_to_save);
+        __ MultiPop(regs_to_save);
+      } else {
+        __ Call(static_cast<intptr_t>(Builtin::kWasmStackOverflow),
+                RelocInfo::WASM_STUB_CALL);
+        // We come from WebAssembly, there are no references for the GC.
+        ReferenceMap* reference_map = zone()->New<ReferenceMap>(zone());
+        RecordSafepoint(reference_map);
+        if (v8_flags.debug_code) {
+          __ stop();
+        }
       }
-
       __ bind(&done);
     }
   }
@@ -4538,6 +4556,35 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
                 Operand(static_cast<intptr_t>(0)));
     }
   }
+
+#if V8_ENABLE_WEBASSEMBLY
+  if (call_descriptor->IsAnyWasmFunctionCall() &&
+      v8_flags.experimental_wasm_growable_stacks) {
+    Label done;
+    {
+      UseScratchRegisterScope temps{masm()};
+      Register scratch = temps.Acquire();
+      __ LoadWord(scratch,
+                  MemOperand(fp, TypedFrameConstants::kFrameTypeOffset));
+      __ BranchShort(
+          &done, ne, scratch,
+          Operand(StackFrame::TypeToMarker(StackFrame::WASM_SEGMENT_START)));
+    }
+    RegList regs_to_save;
+    for (auto reg : wasm::kGpReturnRegisters) regs_to_save.set(reg);
+    __ MultiPush(regs_to_save);
+    __ li(kCArgRegs[0], ExternalReference::isolate_address());
+    {
+      UseScratchRegisterScope temps{masm()};
+      Register scratch = temps.Acquire();
+      __ PrepareCallCFunction(1, scratch);
+    }
+    __ CallCFunction(ExternalReference::wasm_shrink_stack(), 1);
+    __ mv(fp, kReturnRegister0);
+    __ MultiPop(regs_to_save);
+    __ bind(&done);
+  }
+#endif  // V8_ENABLE_WEBASSEMBLY
 
   // Functions with JS linkage have at least one parameter (the receiver).
   // If {parameter_slots} == 0, it means it is a builtin with
@@ -4753,7 +4800,7 @@ void CodeGenerator::AssembleMove(InstructionOperand* source,
           Handle<HeapObject> src_object = src.ToHeapObject();
           RootIndex index;
           if (IsMaterializableFromRoot(src_object, &index)) {
-            __ LoadTaggedRoot(dst, index);
+            __ LoadCompressedTaggedRoot(dst, index);
           } else {
             __ li(dst, src_object, RelocInfo::COMPRESSED_EMBEDDED_OBJECT);
           }
@@ -5069,7 +5116,7 @@ void CodeGenerator::PopTempStackSlots() {
   }
 }
 
-void CodeGenerator::AssembleJumpTable(Label** targets, size_t target_count) {
+void CodeGenerator::AssembleJumpTable(base::Vector<Label*> targets) {
   // On 64-bit RISC-V we emit the jump tables inline.
   UNREACHABLE();
 }

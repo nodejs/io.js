@@ -32,11 +32,6 @@ bool V8_EXPORT_PRIVATE CheckObjectComparisonAllowed(Address a, Address b);
 template <HeapObjectReferenceType kRefType, typename StorageType>
 class TaggedImpl {
  public:
-  // Compressed TaggedImpl are never used for external InstructionStream
-  // pointers, so we can use this shorter alias for calling decompression
-  // functions.
-  using CompressionScheme = V8HeapCompressionScheme;
-
   static_assert(std::is_same<StorageType, Address>::value ||
                     std::is_same<StorageType, Tagged_t>::value,
                 "StorageType must be either Address or Tagged_t");
@@ -240,7 +235,10 @@ class TaggedImpl {
 
  private:
   friend class CompressedObjectSlot;
+  friend class CompressedMaybeObjectSlot;
   friend class FullObjectSlot;
+  friend class FullMaybeObjectSlot;
+  friend class FullHeapObjectSlot;
 
   StorageType ptr_;
 };

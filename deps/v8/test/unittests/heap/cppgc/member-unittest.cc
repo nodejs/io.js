@@ -107,7 +107,20 @@ using MemberWithCustomBarrier =
 struct CustomCheckingPolicy {
   static std::vector<GCed*> Cached;
   static size_t ChecksTriggered;
-  void CheckPointer(const void* ptr) {
+  template <typename T>
+  void CheckPointer(RawPointer raw_pointer) {
+    const void* ptr = raw_pointer.Load();
+    CheckPointer(static_cast<const T*>(ptr));
+  }
+#if defined(CPPGC_POINTER_COMPRESSION)
+  template <typename T>
+  void CheckPointer(CompressedPointer compressed_pointer) {
+    const void* ptr = compressed_pointer.Load();
+    CheckPointer(static_cast<const T*>(ptr));
+  }
+#endif
+  template <typename T>
+  void CheckPointer(const T* ptr) {
     EXPECT_NE(Cached.cend(), std::find(Cached.cbegin(), Cached.cend(), ptr));
     ++ChecksTriggered;
   }
@@ -623,7 +636,7 @@ class LinkedNode final : public GarbageCollected<LinkedNode> {
 
 // The following tests create multiple heaps per thread, which is not supported
 // with pointer compression enabled.
-#if !defined(CPPGC_POINTER_COMPRESSION)
+#if !defined(CPPGC_POINTER_COMPRESSION) && defined(ENABLE_SLOW_DCHECKS)
 TEST_F(MemberHeapDeathTest, CheckForOffHeapMemberCrashesOnReassignment) {
   std::vector<Member<LinkedNode>> off_heap_member;
   // Verification state is constructed on first assignment.
@@ -661,7 +674,7 @@ TEST_F(MemberHeapDeathTest, CheckForOnHeapMemberCrashesOnInitialAssignment) {
         "");
   }
 }
-#endif  // defined(CPPGC_POINTER_COMPRESSION)
+#endif  // defined(CPPGC_POINTER_COMPRESSION) && defined(ENABLE_SLOW_DCHECKS)
 
 #if defined(CPPGC_POINTER_COMPRESSION)
 TEST_F(MemberTest, CompressDecompress) {
@@ -686,6 +699,65 @@ TEST_F(MemberTest, CompressDecompress) {
 #endif  // defined(CPPGC_POINTER_COMPRESSION)
 
 #endif  // V8_ENABLE_CHECKS
+
+#if defined(CPPGC_CAGED_HEAP)
+
+TEST_F(MemberTest, CompressedPointerFindCandidates) {
+  auto try_find = [](const void* candidate, const void* needle) {
+    bool found = false;
+    CompressedPointer::VisitPossiblePointers(
+        needle, [candidate, &found](const void* address) {
+          if (candidate == address) {
+            found = true;
+          }
+        });
+    return found;
+  };
+  auto compress_in_lower_halfword = [](const void* address) {
+    return reinterpret_cast<void*>(
+        static_cast<uintptr_t>(CompressedPointer::Compress(address)));
+  };
+  auto compress_in_upper_halfword = [](const void* address) {
+    return reinterpret_cast<void*>(
+        static_cast<uintptr_t>(CompressedPointer::Compress(address))
+        << (sizeof(CompressedPointer::IntegralType) * CHAR_BIT));
+  };
+  auto decompress_partially = [](const void* address) {
+    return reinterpret_cast<void*>(
+        static_cast<uintptr_t>(CompressedPointer::Compress(address))
+        << api_constants::kPointerCompressionShift);
+  };
+
+  const uintptr_t base = CagedHeapBase::GetBase();
+
+  // There's at least one page that is not used in the beginning of the cage.
+  static constexpr auto kAssumedCageRedZone = kPageSize;
+  const auto begin_needle = reinterpret_cast<void*>(base + kAssumedCageRedZone);
+  EXPECT_TRUE(try_find(begin_needle, begin_needle));
+  EXPECT_TRUE(try_find(begin_needle, compress_in_lower_halfword(begin_needle)));
+  EXPECT_TRUE(try_find(begin_needle, compress_in_upper_halfword(begin_needle)));
+  EXPECT_TRUE(try_find(begin_needle, decompress_partially(begin_needle)));
+
+  static constexpr auto kReservationSize =
+      api_constants::kCagedHeapMaxReservationSize;
+  static_assert(kReservationSize % kAllocationGranularity == 0);
+  const auto end_needle =
+      reinterpret_cast<void*>(base + kReservationSize - kAllocationGranularity);
+  EXPECT_TRUE(try_find(end_needle, end_needle));
+  EXPECT_TRUE(try_find(end_needle, compress_in_lower_halfword(end_needle)));
+  EXPECT_TRUE(try_find(end_needle, compress_in_upper_halfword(end_needle)));
+  EXPECT_TRUE(try_find(end_needle, decompress_partially(end_needle)));
+
+  static constexpr auto kMidOffset = kReservationSize / 2;
+  static_assert(kMidOffset % kAllocationGranularity == 0);
+  const auto mid_needle = reinterpret_cast<void*>(base + kMidOffset);
+  EXPECT_TRUE(try_find(mid_needle, mid_needle));
+  EXPECT_TRUE(try_find(mid_needle, compress_in_lower_halfword(mid_needle)));
+  EXPECT_TRUE(try_find(mid_needle, compress_in_upper_halfword(mid_needle)));
+  EXPECT_TRUE(try_find(mid_needle, decompress_partially(mid_needle)));
+}
+
+#endif  // defined(CPPGC_CAGED_HEAP)
 
 }  // namespace internal
 }  // namespace cppgc

@@ -280,10 +280,10 @@ bool ProtocolTypeTraits<std::unique_ptr<DeferredMessage>>::Deserialize(
   return true;
 }
 
-void ProtocolTypeTraits<std::unique_ptr<DeferredMessage>>::Serialize(
-    const std::unique_ptr<DeferredMessage>& value,
+void ProtocolTypeTraits<DeferredMessage>::Serialize(
+    const DeferredMessage& value,
     std::vector<uint8_t>* bytes) {
-  value->AppendSerialized(bytes);
+  value.AppendSerialized(bytes);
 }
 
 }  // namespace v8_crdtp

@@ -24,7 +24,7 @@ QualifiedName QualifiedName::Parse(std::string qualified_name) {
         qualified_name.substr(0, namespace_delimiter_index));
     qualified_name = qualified_name.substr(namespace_delimiter_index + 2);
   }
-  return QualifiedName(qualifications, qualified_name);
+  return QualifiedName(std::move(qualifications), qualified_name);
 }
 
 std::ostream& operator<<(std::ostream& os, const QualifiedName& name) {

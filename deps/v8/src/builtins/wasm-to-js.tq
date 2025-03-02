@@ -55,7 +55,7 @@ transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
   // done in the very beginning before a GC could be triggered.
   // Caller FP + return address.
   const sigSlot = LoadFramePointer() + kSignatureOffset;
-  *GetRefAt<intptr>(sigSlot, 0) = BitcastTaggedToWord(data.sig);
+  *GetRefAt<RawPtr>(sigSlot, 0) = data.sig;
   const alignment: intptr =
       StackAlignmentInBytes() / torque_internal::SizeOf<intptr>();
   // 1 fixed slot, rounded up to stack alignment.
@@ -69,18 +69,20 @@ transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
     runtime::TierUpWasmToJSWrapper(kNoContext, data);
   }
 
-  const signaturePod = &data.sig.bytes;
-  const serializedSig = torque_internal::unsafe::NewConstSlice<int32>(
-      signaturePod.object, signaturePod.offset,
-      signaturePod.length / torque_internal::SizeOf<int32>());
-  const returnCount =
-      Convert<intptr>(*torque_internal::unsafe::NewReference<int32>(
-          serializedSig.object, serializedSig.offset));
-  dcheck(returnCount < serializedSig.length);
-  const paramCount: intptr = serializedSig.length - returnCount - 1;
-  const returnTypes = Subslice(serializedSig, Convert<intptr>(1), returnCount)
-      otherwise unreachable;
-  const paramTypes = Subslice(serializedSig, returnCount + 1, paramCount)
+  const returnCount = *torque_internal::unsafe::NewOffHeapReference(
+      %RawDownCast<RawPtr<intptr>>(data.sig + 0));
+  const paramCount = *torque_internal::unsafe::NewOffHeapReference(
+      %RawDownCast<RawPtr<intptr>>(
+          data.sig + torque_internal::SizeOf<intptr>()));
+  const valueTypesStorage = *torque_internal::unsafe::NewOffHeapReference(
+      %RawDownCast<RawPtr<RawPtr<int32>>>(
+          data.sig + 2 * torque_internal::SizeOf<intptr>()));
+  const signatureValueTypes =
+      torque_internal::unsafe::NewOffHeapConstSlice<int32>(
+          valueTypesStorage, paramCount + returnCount);
+  const returnTypes =
+      Subslice(signatureValueTypes, 0, returnCount) otherwise unreachable;
+  const paramTypes = Subslice(signatureValueTypes, returnCount, paramCount)
       otherwise unreachable;
 
   // The number of parameters that get pushed on the stack is (at least) the
@@ -99,7 +101,7 @@ transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
   const inParams = torque_internal::unsafe::NewOffHeapReference(
       %RawDownCast<RawPtr<intptr>>(stackParamStart));
 
-  let locationAllocator = LocationAllocatorForParams(inParams);
+  let locationAllocator = LocationAllocatorForParams(inParams, 0);
 
   let paramIt = paramTypes.Iterator();
 
@@ -153,7 +155,7 @@ transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
       outParams.objects[nextIndex++] = Convert<Number>(val);
     } else {
       const paramKind = paramType & kValueTypeKindBitsMask;
-      dcheck(paramKind == ValueKind::kRef || paramKind == ValueKind::kRefNull);
+      check(paramKind == ValueKind::kRef || paramKind == ValueKind::kRefNull);
       nextIndex++;
       hasTaggedParams = true;
     }
@@ -191,7 +193,7 @@ transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
   // to JavaScript is finished. For asm.js source positions it is important to
   // know if an exception happened in the call to JS, or in the ToNumber
   // conversion afterwards.
-  *GetRefAt<intptr>(sigSlot, 0) = BitcastTaggedToWord(SmiConstant(-1));
+  *GetRefAt<intptr>(sigSlot, 0) = -1;
   let resultFixedArray: FixedArray;
   if (returnCount > 1) {
     resultFixedArray =
@@ -258,7 +260,7 @@ transitioning macro WasmToJSWrapper(data: WasmImportData): WasmToJSResult {
       }
     } else {
       const retKind = retType & kValueTypeKindBitsMask;
-      dcheck(retKind == ValueKind::kRef || retKind == ValueKind::kRefNull);
+      check(retKind == ValueKind::kRef || retKind == ValueKind::kRefNull);
       const trustedData = TaggedIsSmi(data.instance_data) ?
           Undefined :
           UnsafeCast<WasmTrustedInstanceData>(data.instance_data);

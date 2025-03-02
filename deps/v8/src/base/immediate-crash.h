@@ -91,7 +91,7 @@
 #define TRAP_SEQUENCE1_() __builtin_trap()
 #define TRAP_SEQUENCE2_() asm volatile("")
 
-#elif V8_HOST_ARCH_S390
+#elif V8_HOST_ARCH_S390X
 
 // GDB software breakpoint instruction.
 // Same as `bkpt` under the assembler.

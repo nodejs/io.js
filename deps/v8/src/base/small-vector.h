@@ -20,9 +20,8 @@ namespace base {
 // dynamic storage when it overflows.
 template <typename T, size_t kSize, typename Allocator = std::allocator<T>>
 class SmallVector {
-  // Currently only support trivially copyable and trivially destructible data
-  // types, as it uses memcpy to copy elements and never calls destructors.
-  ASSERT_TRIVIALLY_COPYABLE(T);
+  // Currently only support trivially destructible data types, as it is not
+  // guaranteed to call destructors.
   static_assert(std::is_trivially_destructible<T>::value);
 
  public:
@@ -55,12 +54,12 @@ class SmallVector {
   V8_INLINE SmallVector(std::initializer_list<T> init,
                         const Allocator& allocator = Allocator())
       : SmallVector(init.size(), allocator) {
-    memcpy(begin_, init.begin(), sizeof(T) * init.size());
+    std::uninitialized_move(init.begin(), init.end(), begin_);
   }
   explicit V8_INLINE SmallVector(base::Vector<const T> init,
                                  const Allocator& allocator = Allocator())
       : SmallVector(init.size(), allocator) {
-    memcpy(begin_, init.begin(), sizeof(T) * init.size());
+    std::uninitialized_copy(init.begin(), init.end(), begin_);
   }
 
   ~SmallVector() {
@@ -77,7 +76,7 @@ class SmallVector {
       begin_ = AllocateDynamicStorage(other_size);
       end_of_storage_ = begin_ + other_size;
     }
-    memcpy(begin_, other.begin_, sizeof(T) * other_size);
+    std::copy(other.begin_, other.end_, begin_);
     end_ = begin_ + other_size;
     return *this;
   }
@@ -92,7 +91,7 @@ class SmallVector {
     } else {
       DCHECK_GE(capacity(), other.size());  // Sanity check.
       size_t other_size = other.size();
-      memcpy(begin_, other.begin_, sizeof(T) * other_size);
+      std::move(other.begin_, other.end_, begin_);
       end_ = begin_ + other_size;
     }
     other.reset_to_inline_storage();
@@ -134,6 +133,11 @@ class SmallVector {
   const T& back() const {
     DCHECK_NE(0, size());
     return end_[-1];
+  }
+
+  T& at(size_t index) {
+    DCHECK_GT(size(), index);
+    return begin_[index];
   }
 
   T& operator[](size_t index) {
@@ -195,6 +199,12 @@ class SmallVector {
     return insert(pos, values.begin(), values.end());
   }
 
+  void erase(T* erase_start) {
+    DCHECK_GE(erase_start, begin_);
+    DCHECK_LE(erase_start, end_);
+    end_ = erase_start;
+  }
+
   void resize_no_init(size_t new_size) {
     // Resizing without initialization is safe if T is trivially copyable.
     ASSERT_TRIVIALLY_COPYABLE(T);
@@ -235,7 +245,7 @@ class SmallVector {
     if (new_storage == nullptr) {
       FatalOOM(OOMType::kProcess, "base::SmallVector::Grow");
     }
-    memcpy(new_storage, begin_, sizeof(T) * in_use);
+    std::uninitialized_move(begin_, end_, new_storage);
     if (is_big()) FreeDynamicStorage();
     begin_ = new_storage;
     end_ = new_storage + in_use;
@@ -261,9 +271,9 @@ class SmallVector {
 
   bool is_big() const { return begin_ != inline_storage_begin(); }
 
-  T* inline_storage_begin() { return reinterpret_cast<T*>(&inline_storage_); }
+  T* inline_storage_begin() { return reinterpret_cast<T*>(inline_storage_); }
   const T* inline_storage_begin() const {
-    return reinterpret_cast<const T*>(&inline_storage_);
+    return reinterpret_cast<const T*>(inline_storage_);
   }
 
   V8_NO_UNIQUE_ADDRESS Allocator allocator_;
@@ -271,8 +281,7 @@ class SmallVector {
   T* begin_ = inline_storage_begin();
   T* end_ = begin_;
   T* end_of_storage_ = begin_ + kInlineSize;
-  typename std::aligned_storage<sizeof(T) * kInlineSize, alignof(T)>::type
-      inline_storage_;
+  alignas(T) char inline_storage_[sizeof(T) * kInlineSize];
 };
 
 }  // namespace base

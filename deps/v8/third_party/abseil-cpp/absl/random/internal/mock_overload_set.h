@@ -51,10 +51,8 @@ struct MockSingleOverload<DistrT, ValidatorT, Ret(MockingBitGen&, Args...)> {
   auto gmock_Call(MockURBG& gen, const ::testing::Matcher<Args>&... matchers)
       -> decltype(MockHelpers::MockFor<KeyT>(gen, ValidatorT())
                       .gmock_Call(matchers...)) {
-    static_assert(
-        std::is_base_of<MockingBitGenImpl<true>, MockURBG>::value ||
-            std::is_base_of<MockingBitGenImpl<false>, MockURBG>::value,
-        "Mocking requires an absl::MockingBitGen");
+    static_assert(std::is_base_of<MockingBitGen, MockURBG>::value,
+                  "Mocking requires an absl::MockingBitGen");
     return MockHelpers::MockFor<KeyT>(gen, ValidatorT())
         .gmock_Call(matchers...);
   }
@@ -74,10 +72,8 @@ struct MockSingleOverload<DistrT, ValidatorT,
                   const ::testing::Matcher<Args>&... matchers)
       -> decltype(MockHelpers::MockFor<KeyT>(gen, ValidatorT())
                       .gmock_Call(matcher, matchers...)) {
-    static_assert(
-        std::is_base_of<MockingBitGenImpl<true>, MockURBG>::value ||
-            std::is_base_of<MockingBitGenImpl<false>, MockURBG>::value,
-        "Mocking requires an absl::MockingBitGen");
+    static_assert(std::is_base_of<MockingBitGen, MockURBG>::value,
+                  "Mocking requires an absl::MockingBitGen");
     return MockHelpers::MockFor<KeyT>(gen, ValidatorT())
         .gmock_Call(matcher, matchers...);
   }

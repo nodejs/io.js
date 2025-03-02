@@ -12,7 +12,7 @@ namespace internal {
 BUILTIN(AbstractModuleSourceToStringTag) {
   HandleScope scope(isolate);
   // 1. Let O be the this value.
-  Handle<Object> receiver = args.receiver();
+  DirectHandle<Object> receiver = args.receiver();
 
   // 2. If O is not an Object, return undefined.
   if (!IsJSReceiver(*receiver)) {

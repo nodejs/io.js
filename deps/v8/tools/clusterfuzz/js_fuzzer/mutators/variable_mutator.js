@@ -19,6 +19,19 @@ function _isInFunctionParam(path) {
   return child && child.parentKey === 'params';
 }
 
+/**
+ * Returns true if path appears on the left-hand side of a variable declarator.
+ *
+ * This also includes nesting:
+ * let lhs_var = rhs_var;
+ * let {prop: lhs_var} = rhs_var;
+ */
+function _isBeingDeclared(path) {
+  const child = path.find(
+      p => p.parent && babelTypes.isVariableDeclarator(p.parent));
+  return child && child.parent.id == child.node;
+}
+
 class VariableMutator extends mutator.Mutator {
   constructor(settings) {
     super();
@@ -38,8 +51,8 @@ class VariableMutator extends mutator.Mutator {
           return;
         }
 
-        // Don't mutate variables that are being declared.
-        if (babelTypes.isVariableDeclarator(path.parent)) {
+        // Don't mutate variables on the left-hand side of a declaration.
+        if (_isBeingDeclared(path)) {
           return;
         }
 

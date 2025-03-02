@@ -722,7 +722,7 @@ TEST_F(PreParserTest, PreParserScopeAnalysis) {
       v8::Local<v8::Value> v = TryRunJS(program.begin()).ToLocalChecked();
       i::DirectHandle<i::Object> o = v8::Utils::OpenDirectHandle(*v);
       i::DirectHandle<i::JSFunction> f = i::Cast<i::JSFunction>(o);
-      i::Handle<i::SharedFunctionInfo> shared = i::handle(f->shared(), isolate);
+      i::DirectHandle<i::SharedFunctionInfo> shared(f->shared(), isolate);
 
       if (inner.bailout == Bailout::BAILOUT_IF_OUTER_SLOPPY &&
           !outer.strict_outer) {

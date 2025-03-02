@@ -165,17 +165,18 @@ class BasicBlock {
   template <typename Func>
   void ForEachSuccessor(Func&& functor) const {
     ControlNode* control = control_node();
-    if (auto node = control->TryCast<UnconditionalControlNode>()) {
-      functor(node->target());
-    } else if (auto node = control->TryCast<BranchControlNode>()) {
-      functor(node->if_true());
-      functor(node->if_false());
-    } else if (auto node = control->TryCast<Switch>()) {
-      for (int i = 0; i < node->size(); i++) {
-        functor(node->targets()[i].block_ptr());
+    if (auto unconditional_control =
+            control->TryCast<UnconditionalControlNode>()) {
+      functor(unconditional_control->target());
+    } else if (auto branch = control->TryCast<BranchControlNode>()) {
+      functor(branch->if_true());
+      functor(branch->if_false());
+    } else if (auto switch_node = control->TryCast<Switch>()) {
+      for (int i = 0; i < switch_node->size(); i++) {
+        functor(switch_node->targets()[i].block_ptr());
       }
-      if (node->has_fallthrough()) {
-        functor(node->fallthrough());
+      if (switch_node->has_fallthrough()) {
+        functor(switch_node->fallthrough());
       }
     }
   }
@@ -301,17 +302,18 @@ class BasicBlock {
 
 inline base::SmallVector<BasicBlock*, 2> BasicBlock::successors() const {
   ControlNode* control = control_node();
-  if (auto node = control->TryCast<UnconditionalControlNode>()) {
-    return {node->target()};
-  } else if (auto node = control->TryCast<BranchControlNode>()) {
-    return {node->if_true(), node->if_false()};
-  } else if (auto node = control->TryCast<Switch>()) {
+  if (auto unconditional_control =
+          control->TryCast<UnconditionalControlNode>()) {
+    return {unconditional_control->target()};
+  } else if (auto branch = control->TryCast<BranchControlNode>()) {
+    return {branch->if_true(), branch->if_false()};
+  } else if (auto switch_node = control->TryCast<Switch>()) {
     base::SmallVector<BasicBlock*, 2> succs;
-    for (int i = 0; i < node->size(); i++) {
-      succs.push_back(node->targets()[i].block_ptr());
+    for (int i = 0; i < switch_node->size(); i++) {
+      succs.push_back(switch_node->targets()[i].block_ptr());
     }
-    if (node->has_fallthrough()) {
-      succs.push_back(node->fallthrough());
+    if (switch_node->has_fallthrough()) {
+      succs.push_back(switch_node->fallthrough());
     }
     return succs;
   } else {

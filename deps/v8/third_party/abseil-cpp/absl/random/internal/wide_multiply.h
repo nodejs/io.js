@@ -75,7 +75,6 @@ inline U256 MultiplyU128ToU256(uint128 a, uint128 b) {
           c00 + (c64a << 64) + (c64b << 64)};
 }
 
-
 template <>
 struct wide_multiply<uint128> {
   using input_type = uint128;

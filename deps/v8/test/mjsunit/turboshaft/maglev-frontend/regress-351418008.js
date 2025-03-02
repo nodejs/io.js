@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 // Flags: --expose-gc --allow-natives-syntax --no-lazy-feedback-allocation
-// Flags: --turboshaft-from-maglev --stress-flush-code
+// Flags: --turbolev --stress-flush-code
 
 let callGC = function () {
   gc();

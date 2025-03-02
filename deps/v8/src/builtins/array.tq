@@ -41,12 +41,13 @@ macro LoadElementOrUndefined(
 
 macro LoadElementOrUndefined(a: FixedDoubleArray, i: Smi):
     NumberOrUndefined {
-  const f: float64 = a.floats[i].Value() otherwise return Undefined;
+  const f: float64 = a.values[i].Value() otherwise return Undefined,
+           return Undefined;
   return AllocateHeapNumberWithValue(f);
 }
 
 macro StoreArrayHole(elements: FixedDoubleArray, k: Smi): void {
-  elements.floats[k] = kDoubleHole;
+  elements.values[k] = kDoubleHole;
 }
 
 macro StoreArrayHole(elements: FixedArray, k: Smi): void {

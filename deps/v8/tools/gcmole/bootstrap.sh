@@ -33,7 +33,7 @@
 # that the resulting binary is easier transferable between different
 # environments.
 
-LLVM_RELEASE=16.0.2
+LLVM_RELEASE=19.1.3
 
 BUILD_TYPE="Release"
 # BUILD_TYPE="Debug"

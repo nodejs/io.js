@@ -11,9 +11,9 @@ namespace v8 {
 namespace internal {
 
 // ecma402/#sec-getoptionsobject
-MaybeHandle<JSReceiver> GetOptionsObject(Isolate* isolate,
-                                         Handle<Object> options,
-                                         const char* method_name) {
+MaybeDirectHandle<JSReceiver> GetOptionsObject(Isolate* isolate,
+                                               DirectHandle<Object> options,
+                                               const char* method_name) {
   // 1. If options is undefined, then
   if (IsUndefined(*options, isolate)) {
     // a. Return ! ObjectCreate(null).
@@ -29,9 +29,8 @@ MaybeHandle<JSReceiver> GetOptionsObject(Isolate* isolate,
 }
 
 // ecma402/#sec-coerceoptionstoobject
-MaybeHandle<JSReceiver> CoerceOptionsToObject(Isolate* isolate,
-                                              Handle<Object> options,
-                                              const char* method_name) {
+MaybeDirectHandle<JSReceiver> CoerceOptionsToObject(
+    Isolate* isolate, DirectHandle<Object> options, const char* method_name) {
   // 1. If options is undefined, then
   if (IsUndefined(*options, isolate)) {
     // a. Return ! ObjectCreate(null).
@@ -43,16 +42,16 @@ MaybeHandle<JSReceiver> CoerceOptionsToObject(Isolate* isolate,
   return Cast<JSReceiver>(options);
 }
 
-Maybe<bool> GetStringOption(Isolate* isolate, Handle<JSReceiver> options,
+Maybe<bool> GetStringOption(Isolate* isolate, DirectHandle<JSReceiver> options,
                             const char* property,
                             const std::vector<const char*>& values,
                             const char* method_name,
                             std::unique_ptr<char[]>* result) {
-  Handle<String> property_str =
+  DirectHandle<String> property_str =
       isolate->factory()->NewStringFromAsciiChecked(property);
 
   // 1. Let value be ? Get(options, property).
-  Handle<Object> value;
+  DirectHandle<Object> value;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value,
       Object::GetPropertyOrElement(isolate, options, property_str),
@@ -63,7 +62,7 @@ Maybe<bool> GetStringOption(Isolate* isolate, Handle<JSReceiver> options,
   }
 
   // 2. c. Let value be ? ToString(value).
-  Handle<String> value_str;
+  DirectHandle<String> value_str;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value_str, Object::ToString(isolate, value), Nothing<bool>());
   std::unique_ptr<char[]> value_cstr = value_str->ToCString();
@@ -80,7 +79,7 @@ Maybe<bool> GetStringOption(Isolate* isolate, Handle<JSReceiver> options,
       }
     }
 
-    Handle<String> method_str =
+    DirectHandle<String> method_str =
         isolate->factory()->NewStringFromAsciiChecked(method_name);
     THROW_NEW_ERROR_RETURN_VALUE(
         isolate,
@@ -94,16 +93,14 @@ Maybe<bool> GetStringOption(Isolate* isolate, Handle<JSReceiver> options,
   return Just(true);
 }
 
-V8_WARN_UNUSED_RESULT Maybe<bool> GetBoolOption(Isolate* isolate,
-                                                Handle<JSReceiver> options,
-                                                const char* property,
-                                                const char* method_name,
-                                                bool* result) {
-  Handle<String> property_str =
+V8_WARN_UNUSED_RESULT Maybe<bool> GetBoolOption(
+    Isolate* isolate, DirectHandle<JSReceiver> options, const char* property,
+    const char* method_name, bool* result) {
+  DirectHandle<String> property_str =
       isolate->factory()->NewStringFromAsciiChecked(property);
 
   // 1. Let value be ? Get(options, property).
-  Handle<Object> value;
+  DirectHandle<Object> value;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value,
       Object::GetPropertyOrElement(isolate, options, property_str),
@@ -122,14 +119,15 @@ V8_WARN_UNUSED_RESULT Maybe<bool> GetBoolOption(Isolate* isolate,
 }
 
 // ecma402/#sec-defaultnumberoption
-Maybe<int> DefaultNumberOption(Isolate* isolate, Handle<Object> value, int min,
-                               int max, int fallback, Handle<String> property) {
+Maybe<int> DefaultNumberOption(Isolate* isolate, DirectHandle<Object> value,
+                               int min, int max, int fallback,
+                               DirectHandle<String> property) {
   // 2. Else, return fallback.
   if (IsUndefined(*value)) return Just(fallback);
 
   // 1. If value is not undefined, then
   // a. Let value be ? ToNumber(value).
-  Handle<Number> value_num;
+  DirectHandle<Number> value_num;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value_num, Object::ToNumber(isolate, value), Nothing<int>());
   DCHECK(IsNumber(*value_num));
@@ -153,11 +151,11 @@ Maybe<int> DefaultNumberOption(Isolate* isolate, Handle<Object> value, int min,
 }
 
 // ecma402/#sec-getnumberoption
-Maybe<int> GetNumberOption(Isolate* isolate, Handle<JSReceiver> options,
-                           Handle<String> property, int min, int max,
+Maybe<int> GetNumberOption(Isolate* isolate, DirectHandle<JSReceiver> options,
+                           DirectHandle<String> property, int min, int max,
                            int fallback) {
   // 1. Let value be ? Get(options, property).
-  Handle<Object> value;
+  DirectHandle<Object> value;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value, JSReceiver::GetProperty(isolate, options, property),
       Nothing<int>());
@@ -168,11 +166,11 @@ Maybe<int> GetNumberOption(Isolate* isolate, Handle<JSReceiver> options,
 
 // #sec-getoption while type is "number"
 Maybe<double> GetNumberOptionAsDouble(Isolate* isolate,
-                                      Handle<JSReceiver> options,
-                                      Handle<String> property,
+                                      DirectHandle<JSReceiver> options,
+                                      DirectHandle<String> property,
                                       double default_value) {
   // 1. Let value be ? Get(options, property).
-  Handle<Object> value;
+  DirectHandle<Object> value;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value, JSReceiver::GetProperty(isolate, options, property),
       Nothing<double>());
@@ -183,7 +181,7 @@ Maybe<double> GetNumberOptionAsDouble(Isolate* isolate,
   }
   // 4. Else if type is "number", then
   // a. Set value to ? ToNumber(value).
-  Handle<Number> value_num;
+  DirectHandle<Number> value_num;
   ASSIGN_RETURN_ON_EXCEPTION_VALUE(
       isolate, value_num, Object::ToNumber(isolate, value), Nothing<double>());
   // b. If value is NaN, throw a RangeError exception.

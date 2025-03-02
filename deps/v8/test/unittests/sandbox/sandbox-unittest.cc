@@ -83,6 +83,13 @@ TEST(SandboxTest, Contains) {
   Sandbox sandbox;
   sandbox.Initialize(&vas);
 
+  if (sandbox.is_partially_reserved()) {
+    // If we couldn't create a "full" sandbox, this test will fail, so skip it.
+    static_assert(Sandbox::kFallbackToPartiallyReservedSandboxAllowed);
+    sandbox.TearDown();
+    return;
+  }
+
   Address base = sandbox.base();
   size_t size = sandbox.size();
   base::RandomNumberGenerator rng(GTEST_FLAG_GET(random_seed));

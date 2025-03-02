@@ -217,7 +217,7 @@ TEST_F(ObjectTest, NoSideEffectsToString) {
   CheckBoolean(i_isolate(), true, "true");
   CheckBoolean(i_isolate(), false, "false");
   CheckBoolean(i_isolate(), false, "false");
-  Handle<Object> smi_42 = handle(Smi::FromInt(42), i_isolate());
+  DirectHandle<Object> smi_42(Smi::FromInt(42), i_isolate());
   CheckObject(i_isolate(),
               BigInt::FromNumber(i_isolate(), smi_42).ToHandleChecked(), "42");
   CheckObject(i_isolate(), factory->undefined_value(), "undefined");
@@ -388,10 +388,11 @@ TEST_F(ObjectTest, EnumCache) {
 
   // {b} can reuse the existing EnumCache, hence we only need to set the correct
   // EnumLength on the map without modifying the cache itself.
-  previous_enum_cache =
-      handle(a->map()->instance_descriptors()->enum_cache(), a->GetIsolate());
-  previous_keys = handle(previous_enum_cache->keys(), a->GetIsolate());
-  previous_indices = handle(previous_enum_cache->indices(), a->GetIsolate());
+  previous_enum_cache = direct_handle(
+      a->map()->instance_descriptors()->enum_cache(), a->GetIsolate());
+  previous_keys = direct_handle(previous_enum_cache->keys(), a->GetIsolate());
+  previous_indices =
+      direct_handle(previous_enum_cache->indices(), a->GetIsolate());
   RunJS("var s = 0; for (let key in b) { s += b[key] };");
   {
     CHECK_EQ(a->map()->EnumLength(), 1);
@@ -662,10 +663,10 @@ TEST_F(ObjectTest, AddDataPropertyNameCollision) {
   v8::HandleScope scope(isolate());
   Factory* factory = i_isolate()->factory();
 
-  Handle<JSObject> object =
+  DirectHandle<JSObject> object =
       factory->NewJSObject(i_isolate()->object_function());
 
-  Handle<String> key = factory->NewStringFromStaticChars("key_string");
+  DirectHandle<String> key = factory->NewStringFromStaticChars("key_string");
   DirectHandle<Object> value1(Smi::FromInt(0), i_isolate());
   DirectHandle<Object> value2 = factory->NewStringFromAsciiChecked("corrupt");
 
@@ -697,14 +698,15 @@ TEST_F(ObjectTest, AddDataPropertyNameCollisionDeprecatedMap) {
       "a = {'regular_prop':5};"
       "b = {'regular_prop':5};");
 
-  Handle<JSObject> a = Cast<JSObject>(v8::Utils::OpenHandle(
+  DirectHandle<JSObject> a = Cast<JSObject>(v8::Utils::OpenHandle(
       *context()->Global()->Get(context(), NewString("a")).ToLocalChecked()));
   DirectHandle<JSObject> b = Cast<JSObject>(v8::Utils::OpenHandle(
       *context()->Global()->Get(context(), NewString("b")).ToLocalChecked()));
 
   CHECK(a->map() == b->map());
 
-  Handle<String> key = factory->NewStringFromStaticChars("corrupted_prop");
+  DirectHandle<String> key =
+      factory->NewStringFromStaticChars("corrupted_prop");
   DirectHandle<Object> value = factory->NewStringFromAsciiChecked("corrupt");
   LookupIterator it(i_isolate(), a, key, a,
                     LookupIterator::OWN_SKIP_INTERCEPTOR);

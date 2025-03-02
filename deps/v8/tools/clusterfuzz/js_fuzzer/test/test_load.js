@@ -37,6 +37,11 @@ describe('V8 dependencies', () => {
         'mjsunit/test_load_self.js',
         'mjsunit/test_load_self_expected.js');
   });
+  it('loads mjsunit dependencies also from another corpus', () => {
+    testLoad(
+        'load/fuzzilli_scenario/fuzzilli/fuzzdir-1/corpus/program_x.js',
+        'load/fuzzilli_scenario/test_load_expected.js');
+  });
 });
 
 describe('Chakra dependencies', () => {
@@ -54,7 +59,7 @@ describe('JSTest dependencies', () => {
 
   it('test', () => {
     const fakeStubs = sourceHelpers.loadSource(
-        helpers.BASE_DIR, 'JSTests/fake_stub.js');
+        helpers.TEST_CORPUS, 'JSTests/fake_stub.js');
     sandbox.stub(sourceHelpers, 'loadResource').callsFake(() => fakeStubs);
     testLoad('JSTests/load.js', 'JSTests/load_expected.js');
   });
@@ -65,5 +70,13 @@ describe('SpiderMonkey dependencies', () => {
     testLoad(
         'spidermonkey/test/load.js',
         'spidermonkey/test/load_expected.js');
+  });
+});
+
+describe('Sandbox dependencies', () => {
+  it('test', () => {
+    testLoad(
+        'sandbox/load.js',
+        'sandbox/load_expected.js');
   });
 });

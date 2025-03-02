@@ -163,6 +163,7 @@ transitioning macro GroupByImpl(
   }
 }
 
+@incrementUseCounter('v8::Isolate::kArrayGroup')
 transitioning javascript builtin ObjectGroupBy(
     js-implicit context: NativeContext, receiver: JSAny)(items: JSAny,
     callback: JSAny): JSAny {

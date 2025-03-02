@@ -21,19 +21,6 @@ var prettyPrinted = function prettyPrinted(msg) { return msg; };
   }
 })();
 
-// Mock Math.pow. Work around an optimization for -0.5.
-(function() {
-  const origMathPow = Math.pow;
-  Math.pow = function(a, b) {
-    if (b === -0.5) {
-      return 0;
-    } else {
-      return origMathPow(a, b);
-    }
-  }
-})();
-
-
 // Mock Date.
 (function() {
   let index = 0;
@@ -296,3 +283,9 @@ Atomics.waitAsync = function() {
 
 // Mock serializer API with no-ops.
 d8.serializer = {'serialize': (x) => x, 'deserialize': (x) => x}
+
+// Mock profiler API with no-ops.
+d8.profiler = {'setOnProfileEndListener': (x) => x, 'triggerSample': (x) => x}
+
+// Mock logging API with no-ops.
+d8.log = {'getAndStop': (x) => x}

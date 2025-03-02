@@ -148,7 +148,7 @@ class TemporalParserTest : public TestWithIsolate {
       const char* str, bool utc_designator, int32_t tzuo_sign,
       int32_t tzuo_hour, int32_t tzuo_minute, int32_t tzuo_second,
       int32_t tzuo_nanosecond) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseTemporalInstantString(i_isolate(), input);
     CHECK(result.has_value());
@@ -161,7 +161,7 @@ class TemporalParserTest : public TestWithIsolate {
   }
 
   void VerifyParseCalendarNameSuccess(const char* str) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseCalendarName(i_isolate(), input);
     CHECK(result.has_value());
@@ -174,7 +174,7 @@ class TemporalParserTest : public TestWithIsolate {
   }
 
   void VerifyParseTimeZoneIdentifierSuccess(const char* str) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseTimeZoneIdentifier(i_isolate(), input);
     CHECK(result.has_value());
@@ -211,7 +211,7 @@ class TemporalParserTest : public TestWithIsolate {
                                   int64_t minutes_fraction,
                                   int64_t whole_seconds,
                                   int64_t seconds_fraction) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
@@ -230,7 +230,7 @@ class TemporalParserTest : public TestWithIsolate {
   }
 
   void VerifyParseDurationWithPositiveSign(const char* str) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
@@ -243,7 +243,7 @@ class TemporalParserTest : public TestWithIsolate {
   void VerifyParseDurationWithMinusSign(const char* str) {
     std::string with_sign("-");
     with_sign += str;
-    Handle<String> input = MakeString(with_sign.c_str());
+    DirectHandle<String> input = MakeString(with_sign.c_str());
     std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
@@ -254,7 +254,7 @@ class TemporalParserTest : public TestWithIsolate {
   }
 
   void VerifyParseDurationWithLowerCase(const char* str) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
@@ -267,7 +267,7 @@ class TemporalParserTest : public TestWithIsolate {
   void VerifyParseDurationWithComma(const char* str) {
     std::string period(str);
     std::transform(period.begin(), period.end(), period.begin(), commatoperiod);
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Duration> result =
         TemporalParser::ParseTemporalDurationString(i_isolate(), input);
     CHECK(result.has_value());
@@ -278,7 +278,7 @@ class TemporalParserTest : public TestWithIsolate {
   void VerifyParseTimeZoneNumericUTCOffsetSuccess(
       const char* str, int32_t tzuo_sign, int32_t tzuo_hour,
       int32_t tzuo_minute, int32_t tzuo_second, int32_t tzuo_nanosecond) {
-    Handle<String> input = MakeString(str);
+    DirectHandle<String> input = MakeString(str);
     std::optional<ParsedISO8601Result> result =
         TemporalParser::ParseTimeZoneNumericUTCOffset(i_isolate(), input);
     CHECK(result.has_value());
@@ -289,7 +289,7 @@ class TemporalParserTest : public TestWithIsolate {
 
 #define VERIFY_PARSE_FAIL(R, str)                                     \
   do {                                                                \
-    Handle<String> input = MakeString(str);                           \
+    DirectHandle<String> input = MakeString(str);                     \
     CHECK(!TemporalParser::Parse##R(i_isolate(), input).has_value()); \
   } while (false)
 

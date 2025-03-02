@@ -7,7 +7,7 @@
 
 #include <cstdint>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 
 namespace v8 {
 

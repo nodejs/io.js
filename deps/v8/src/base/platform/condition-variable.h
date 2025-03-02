@@ -5,6 +5,7 @@
 #ifndef V8_BASE_PLATFORM_CONDITION_VARIABLE_H_
 #define V8_BASE_PLATFORM_CONDITION_VARIABLE_H_
 
+#include "absl/synchronization/mutex.h"
 #include "src/base/base-export.h"
 #include "src/base/lazy-instance.h"
 #include "src/base/platform/mutex.h"
@@ -65,24 +66,8 @@ class V8_BASE_EXPORT ConditionVariable {
   // was notified prior to the timeout.
   bool WaitFor(Mutex* mutex, const TimeDelta& rel_time) V8_WARN_UNUSED_RESULT;
 
-  // The implementation-defined native handle type.
-#if V8_OS_POSIX
-  using NativeHandle = pthread_cond_t;
-#elif V8_OS_WIN
-  using NativeHandle = V8_CONDITION_VARIABLE;
-#elif V8_OS_STARBOARD
-  using NativeHandle = SbConditionVariable;
-#endif
-
-  NativeHandle& native_handle() {
-    return native_handle_;
-  }
-  const NativeHandle& native_handle() const {
-    return native_handle_;
-  }
-
  private:
-  NativeHandle native_handle_;
+  absl::CondVar native_handle_;
 };
 
 // POD ConditionVariable initialized lazily (i.e. the first time Pointer() is

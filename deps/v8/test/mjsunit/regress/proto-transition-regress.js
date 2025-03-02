@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --allow-natives-syntax --expose-gc --move-prototype-transitions-first
+// Flags: --allow-natives-syntax --expose-gc
 
 // Check proto transitions are applied first
 (function() {

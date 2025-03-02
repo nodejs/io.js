@@ -15,7 +15,7 @@ namespace v8 {
 namespace internal {
 
 std::unique_ptr<DebugPropertyIterator> DebugPropertyIterator::Create(
-    Isolate* isolate, Handle<JSReceiver> receiver, bool skip_indices) {
+    Isolate* isolate, DirectHandle<JSReceiver> receiver, bool skip_indices) {
   // Can't use std::make_unique as Ctor is private.
   auto iterator = std::unique_ptr<DebugPropertyIterator>(
       new DebugPropertyIterator(isolate, receiver, skip_indices));
@@ -33,7 +33,7 @@ std::unique_ptr<DebugPropertyIterator> DebugPropertyIterator::Create(
 }
 
 DebugPropertyIterator::DebugPropertyIterator(Isolate* isolate,
-                                             Handle<JSReceiver> receiver,
+                                             DirectHandle<JSReceiver> receiver,
                                              bool skip_indices)
     : isolate_(isolate),
       prototype_iterator_(isolate, receiver, kStartAtReceiver,
@@ -90,12 +90,12 @@ bool DebugPropertyIterator::has_native_setter() {
          static_cast<int>(debug::NativeAccessorType::HasSetter);
 }
 
-Handle<Name> DebugPropertyIterator::raw_name() const {
+DirectHandle<Name> DebugPropertyIterator::raw_name() const {
   DCHECK(!Done());
   if (stage_ == kExoticIndices) {
     return isolate_->factory()->SizeToString(current_key_index_);
   } else {
-    return Cast<Name>(handle(
+    return Cast<Name>(direct_handle(
         current_keys_->get(static_cast<int>(current_key_index_)), isolate_));
   }
 }
@@ -105,9 +105,10 @@ v8::Local<v8::Name> DebugPropertyIterator::name() const {
 }
 
 v8::Maybe<v8::PropertyAttribute> DebugPropertyIterator::attributes() {
-  Handle<JSReceiver> receiver =
+  DirectHandle<JSReceiver> receiver =
       PrototypeIterator::GetCurrent<JSReceiver>(prototype_iterator_);
-  auto result = JSReceiver::GetPropertyAttributes(receiver, raw_name());
+  auto result =
+      JSReceiver::GetPropertyAttributes(isolate_, receiver, raw_name());
   if (result.IsNothing()) return Nothing<v8::PropertyAttribute>();
   // This should almost never happen, however we have seen cases where we do
   // trigger this check. In these rare events, it typically is a
@@ -137,7 +138,7 @@ v8::Maybe<v8::PropertyAttribute> DebugPropertyIterator::attributes() {
 }
 
 v8::Maybe<v8::debug::PropertyDescriptor> DebugPropertyIterator::descriptor() {
-  Handle<JSReceiver> receiver =
+  DirectHandle<JSReceiver> receiver =
       PrototypeIterator::GetCurrent<JSReceiver>(prototype_iterator_);
 
   PropertyDescriptor descriptor;
@@ -183,7 +184,7 @@ bool DebugPropertyIterator::FillKeysForCurrentPrototypeAndStage() {
   current_keys_ = isolate_->factory()->empty_fixed_array();
   current_keys_length_ = 0;
   if (is_done_) return true;
-  Handle<JSReceiver> receiver =
+  DirectHandle<JSReceiver> receiver =
       PrototypeIterator::GetCurrent<JSReceiver>(prototype_iterator_);
   if (stage_ == kExoticIndices) {
     if (skip_indices_ || !IsJSTypedArray(*receiver)) return true;
@@ -210,7 +211,7 @@ bool DebugPropertyIterator::should_move_to_next_stage() const {
 
 namespace {
 base::Flags<debug::NativeAccessorType, int> GetNativeAccessorDescriptorInternal(
-    Handle<JSReceiver> object, Handle<Name> name) {
+    DirectHandle<JSReceiver> object, DirectHandle<Name> name) {
   Isolate* isolate = object->GetIsolate();
   PropertyKey key(isolate, name);
   if (key.is_element()) return debug::NativeAccessorType::None;
@@ -246,7 +247,7 @@ void DebugPropertyIterator::CalculateNativeAccessorFlags() {
   if (stage_ == kExoticIndices) {
     native_accessor_flags_ = 0;
   } else {
-    Handle<JSReceiver> receiver =
+    DirectHandle<JSReceiver> receiver =
         PrototypeIterator::GetCurrent<JSReceiver>(prototype_iterator_);
     native_accessor_flags_ =
         GetNativeAccessorDescriptorInternal(receiver, raw_name());

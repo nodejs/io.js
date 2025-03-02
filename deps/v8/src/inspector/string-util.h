@@ -8,9 +8,11 @@
 #include <stdint.h>
 
 #include <memory>
+#include <optional>
 
 #include "../../third_party/inspector_protocol/crdtp/protocol_core.h"
 #include "include/v8-inspector.h"
+#include "include/v8-memory-span.h"
 #include "src/base/logging.h"
 #include "src/base/macros.h"
 #include "src/inspector/string-16.h"
@@ -44,14 +46,18 @@ class StringUtil {
 // A read-only sequence of uninterpreted bytes with reference-counted storage.
 class V8_EXPORT Binary {
  public:
-  Binary() = default;
+  Binary() : bytes_(std::make_shared<std::vector<uint8_t>>()) {}
 
   const uint8_t* data() const { return bytes_->data(); }
   size_t size() const { return bytes_->size(); }
   String toBase64() const;
   static Binary fromBase64(const String& base64, bool* success);
-  static Binary fromSpan(const uint8_t* data, size_t size) {
-    return Binary(std::make_shared<std::vector<uint8_t>>(data, data + size));
+  static Binary fromSpan(v8_crdtp::span<uint8_t> span) {
+    return fromSpan(v8::MemorySpan<const uint8_t>(span.begin(), span.size()));
+  }
+  static Binary fromSpan(v8::MemorySpan<const uint8_t> span) {
+    return Binary(
+        std::make_shared<std::vector<uint8_t>>(span.begin(), span.end()));
   }
 
  private:
@@ -107,19 +113,6 @@ struct ProtocolTypeTraits<v8_inspector::protocol::Binary> {
   static void Serialize(const v8_inspector::protocol::Binary& value,
                         std::vector<uint8_t>* bytes);
 };
-
-namespace detail {
-template <>
-struct MaybeTypedef<v8_inspector::String16> {
-  typedef ValueMaybe<v8_inspector::String16> type;
-};
-
-template <>
-struct MaybeTypedef<v8_inspector::protocol::Binary> {
-  typedef ValueMaybe<v8_inspector::protocol::Binary> type;
-};
-
-}  // namespace detail
 
 }  // namespace v8_crdtp
 

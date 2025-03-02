@@ -22,14 +22,18 @@
 #include "src/wasm/wasm-import-wrapper-cache.h"
 #endif
 
-namespace v8 {
-namespace internal {
-
+namespace v8::internal {
 namespace {
-class MemoryMeasurementResultBuilder {
+// Must only be used from stack.
+//
+// TODO(374253377): This should be implemented purely on the public API and move
+// to d8. There's no reason V8 would need to provide a default delegate on its
+// API.
+class MemoryMeasurementResultBuilder final {
  public:
-  MemoryMeasurementResultBuilder(Isolate* isolate, Factory* factory)
-      : isolate_(isolate), factory_(factory) {
+  explicit MemoryMeasurementResultBuilder(v8::Isolate* isolate)
+      : isolate_(reinterpret_cast<Isolate*>(isolate)),
+        factory_(isolate_->factory()) {
     result_ = NewJSObject();
   }
   void AddTotal(size_t estimate, size_t lower_bound, size_t upper_bound) {
@@ -46,7 +50,7 @@ class MemoryMeasurementResultBuilder {
     other_.push_back(NewResult(estimate, lower_bound, upper_bound));
   }
   void AddWasm(size_t code, size_t metadata) {
-    Handle<JSObject> wasm = NewJSObject();
+    DirectHandle<JSObject> wasm = NewJSObject();
     AddProperty(wasm, factory_->NewStringFromAsciiChecked("code"),
                 NewNumber(code));
     AddProperty(wasm, factory_->NewStringFromAsciiChecked("metadata"),
@@ -54,7 +58,7 @@ class MemoryMeasurementResultBuilder {
     AddProperty(result_, factory_->NewStringFromAsciiChecked("WebAssembly"),
                 wasm);
   }
-  Handle<JSObject> Build() {
+  DirectHandle<JSObject> Build() {
     if (detailed_) {
       int length = static_cast<int>(other_.size());
       DirectHandle<FixedArray> other = factory_->NewFixedArray(length);
@@ -77,13 +81,13 @@ class MemoryMeasurementResultBuilder {
     AddProperty(result, factory_->jsMemoryRange_string(), range);
     return result;
   }
-  Handle<Object> NewNumber(size_t value) {
+  DirectHandle<Object> NewNumber(size_t value) {
     return factory_->NewNumberFromSize(value);
   }
   Handle<JSObject> NewJSObject() {
     return factory_->NewJSObject(isolate_->object_function());
   }
-  Handle<JSArray> NewRange(size_t lower_bound, size_t upper_bound) {
+  DirectHandle<JSArray> NewRange(size_t lower_bound, size_t upper_bound) {
     DirectHandle<Object> lower = NewNumber(lower_bound);
     DirectHandle<Object> upper = NewNumber(upper_bound);
     DirectHandle<FixedArray> elements = factory_->NewFixedArray(2);
@@ -91,7 +95,7 @@ class MemoryMeasurementResultBuilder {
     elements->set(1, *upper);
     return factory_->NewJSArrayWithElements(elements);
   }
-  void AddProperty(Handle<JSObject> object, Handle<String> name,
+  void AddProperty(DirectHandle<JSObject> object, DirectHandle<String> name,
                    DirectHandle<Object> value) {
     JSObject::AddProperty(isolate_, object, name, value, NONE);
   }
@@ -106,57 +110,52 @@ class MemoryMeasurementResultBuilder {
 class V8_EXPORT_PRIVATE MeasureMemoryDelegate
     : public v8::MeasureMemoryDelegate {
  public:
-  MeasureMemoryDelegate(Isolate* isolate, DirectHandle<NativeContext> context,
-                        DirectHandle<JSPromise> promise,
+  MeasureMemoryDelegate(v8::Isolate* isolate, v8::Local<v8::Context> context,
+                        v8::Local<v8::Promise::Resolver> promise,
                         v8::MeasureMemoryMode mode);
-  ~MeasureMemoryDelegate() override;
+  ~MeasureMemoryDelegate() override = default;
 
   // v8::MeasureMemoryDelegate overrides:
   bool ShouldMeasure(v8::Local<v8::Context> context) override;
   void MeasurementComplete(Result result) override;
 
  private:
-  Isolate* isolate_;
-  Handle<JSPromise> promise_;
-  Handle<NativeContext> context_;
-  v8::MeasureMemoryMode mode_;
+  v8::Isolate* isolate_;
+  const v8::Global<v8::Context> context_;
+  const v8::Global<v8::Promise::Resolver> promise_;
+  const v8::MeasureMemoryMode mode_;
 };
 
 MeasureMemoryDelegate::MeasureMemoryDelegate(
-    Isolate* isolate, DirectHandle<NativeContext> context,
-    DirectHandle<JSPromise> promise, v8::MeasureMemoryMode mode)
-    : isolate_(isolate), mode_(mode) {
-  context_ = isolate->global_handles()->Create(*context);
-  promise_ = isolate->global_handles()->Create(*promise);
-}
+    v8::Isolate* isolate, v8::Local<v8::Context> context,
+    v8::Local<v8::Promise::Resolver> promise, v8::MeasureMemoryMode mode)
+    : isolate_(isolate),
+      context_(isolate_, context),
+      promise_(isolate_, promise),
+      mode_(mode) {}
 
-MeasureMemoryDelegate::~MeasureMemoryDelegate() {
-  isolate_->global_handles()->Destroy(promise_.location());
-  isolate_->global_handles()->Destroy(context_.location());
-}
-
-bool MeasureMemoryDelegate::ShouldMeasure(v8::Local<v8::Context> context) {
-  auto native_context = Cast<NativeContext>(Utils::OpenDirectHandle(*context));
-  return context_->security_token() == native_context->security_token();
+bool MeasureMemoryDelegate::ShouldMeasure(
+    v8::Local<v8::Context> other_context) {
+  return context_.Get(isolate_)->GetSecurityToken() ==
+         other_context->GetSecurityToken();
 }
 
 void MeasureMemoryDelegate::MeasurementComplete(Result result) {
   size_t shared_size = result.unattributed_size_in_bytes;
   size_t wasm_code = result.wasm_code_size_in_bytes;
   size_t wasm_metadata = result.wasm_metadata_size_in_bytes;
-  v8::Local<v8::Context> v8_context =
-      Utils::Convert<HeapObject, v8::Context>(context_);
+  v8::Local<v8::Context> v8_context = context_.Get(isolate_);
   v8::Context::Scope scope(v8_context);
   size_t total_size = 0;
   size_t current_size = 0;
   DCHECK_EQ(result.contexts.size(), result.sizes_in_bytes.size());
   for (size_t i = 0; i < result.contexts.size(); ++i) {
     total_size += result.sizes_in_bytes[i];
-    if (*Utils::OpenDirectHandle(*result.contexts[i]) == *context_) {
+    if (context_ == result.contexts[i]) {
       current_size = result.sizes_in_bytes[i];
     }
   }
-  MemoryMeasurementResultBuilder result_builder(isolate_, isolate_->factory());
+  MemoryMeasurementResultBuilder result_builder(isolate_);
   result_builder.AddTotal(total_size, total_size, total_size + shared_size);
   if (wasm_code > 0 || wasm_metadata > 0) {
     result_builder.AddWasm(wasm_code, wasm_metadata);
@@ -166,7 +165,7 @@ void MeasureMemoryDelegate::MeasurementComplete(Result result) {
     result_builder.AddCurrent(current_size, current_size,
                               current_size + shared_size);
     for (size_t i = 0; i < result.contexts.size(); ++i) {
-      if (*Utils::OpenDirectHandle(*result.contexts[i]) != *context_) {
+      if (context_ != result.contexts[i]) {
         size_t other_size = result.sizes_in_bytes[i];
         result_builder.AddOther(other_size, other_size,
                                 other_size + shared_size);
@@ -174,9 +173,10 @@ void MeasureMemoryDelegate::MeasurementComplete(Result result) {
     }
   }
 
-  Handle<JSObject> jsresult = result_builder.Build();
-  if (JSPromise::Resolve(promise_, jsresult).is_null()) {
-    CHECK(isolate_->is_execution_terminating());
+  auto v8_result = ToApiHandle<v8::Object>(result_builder.Build());
+  auto v8_promise = promise_.Get(isolate_);
+  if (v8_promise->Resolve(v8_context, v8_result).IsNothing()) {
+    CHECK(reinterpret_cast<Isolate*>(isolate_)->is_execution_terminating());
   }
 }
 
@@ -335,7 +335,7 @@ int MemoryMeasurement::NextGCTaskDelayInSeconds() {
 }
 
 void MemoryMeasurement::ReportResults() {
-  while (!done_.empty()) {
+  while (!done_.empty() && !isolate_->is_execution_terminating()) {
     Request request = std::move(done_.front());
     done_.pop_front();
     HandleScope handle_scope(isolate_);
@@ -366,8 +366,8 @@ void MemoryMeasurement::ReportResults() {
 }
 
 std::unique_ptr<v8::MeasureMemoryDelegate> MemoryMeasurement::DefaultDelegate(
-    Isolate* isolate, Handle<NativeContext> context, Handle<JSPromise> promise,
-    v8::MeasureMemoryMode mode) {
+    v8::Isolate* isolate, v8::Local<v8::Context> context,
+    v8::Local<v8::Promise::Resolver> promise, v8::MeasureMemoryMode mode) {
   return std::make_unique<MeasureMemoryDelegate>(isolate, context, promise,
                                                  mode);
 }
@@ -393,5 +393,4 @@ void NativeContextStats::IncrementExternalSize(Address context, Tagged<Map> map,
   size_by_context_[context] += external_size;
 }
 
-}  // namespace internal
-}  // namespace v8
+}  // namespace v8::internal

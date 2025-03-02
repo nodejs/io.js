@@ -23,15 +23,11 @@ class V8_EXPORT TypedArray : public ArrayBufferView {
    * The largest supported typed array byte size. Each subclass defines a
    * type-specific kMaxLength for the maximum length that can be passed to New.
    */
-#if V8_ENABLE_SANDBOX
-  static constexpr size_t kMaxByteLength =
-      internal::kMaxSafeBufferSizeForSandbox;
-#elif V8_HOST_ARCH_32_BIT
-  static constexpr size_t kMaxByteLength = std::numeric_limits<int>::max();
-#else
-  // The maximum safe integer (2^53 - 1).
-  static constexpr size_t kMaxByteLength =
-      static_cast<size_t>((uint64_t{1} << 53) - 1);
+  static constexpr size_t kMaxByteLength = ArrayBuffer::kMaxByteLength;
+
+#ifdef V8_ENABLE_SANDBOX
+  static_assert(v8::TypedArray::kMaxByteLength <=
+                v8::internal::kMaxSafeBufferSizeForSandbox);
 #endif
 
   /**

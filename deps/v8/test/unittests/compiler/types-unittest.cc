@@ -2,11 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "src/compiler/types.h"
-
 #include <vector>
 
 #include "src/base/strings.h"
+#include "src/compiler/turbofan-types.h"
 #include "src/execution/isolate.h"
 #include "src/heap/factory-inl.h"
 #include "src/objects/objects.h"
@@ -30,8 +29,6 @@ using bitset = Type::bitset;
 
 class TypesTest : public TestWithNativeContextAndZone {
  public:
-  using TypeIterator = Types::TypeVector::iterator;
-  using ValueIterator = Types::ValueVector::iterator;
   Types T;
 
   TypesTest()
@@ -94,8 +91,7 @@ class TypesTest : public TestWithNativeContextAndZone {
   }
 
   void IsSomeType() {
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type t = *it;
+    for (Type t : T.types) {
       CHECK_EQ(1, this->IsBitset(t) + t.IsHeapConstant() + t.IsRange() +
                       t.IsOtherNumberConstant() + this->IsUnion(t));
     }
@@ -110,10 +106,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     CHECK(bitset(0xFFFFFFFFFFFFFFFEu) == this->AsBitset(T.Any));
 
     // Union(T1, T2) is bitset for bitsets T1,T2
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type union12 = T.Union(type1, type2);
         CHECK(!(this->IsBitset(type1) && this->IsBitset(type2)) ||
               this->IsBitset(union12));
@@ -121,10 +115,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Intersect(T1, T2) is bitset for bitsets T1,T2
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type intersect12 = T.Intersect(type1, type2);
         CHECK(!(this->IsBitset(type1) && this->IsBitset(type2)) ||
               this->IsBitset(intersect12));
@@ -132,10 +124,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Union(T1, T2) is bitset if T2 is bitset and T1.Is(T2)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type union12 = T.Union(type1, type2);
         CHECK(!(this->IsBitset(type2) && type1.Is(type2)) ||
               this->IsBitset(union12));
@@ -143,10 +133,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Union(T1, T2) is bitwise disjunction for bitsets T1,T2
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type union12 = T.Union(type1, type2);
         if (this->IsBitset(type1) && this->IsBitset(type2)) {
           CHECK((this->AsBitset(type1) | this->AsBitset(type2)) ==
@@ -156,10 +144,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Intersect(T1, T2) is bitwise conjunction for bitsets T1,T2 (modulo None)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         if (this->IsBitset(type1) && this->IsBitset(type2)) {
           Type intersect12 = T.Intersect(type1, type2);
           bitset bits = this->AsBitset(type1) & this->AsBitset(type2);
@@ -171,16 +157,14 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Constant() {
     // Constructor
-    for (ValueIterator vt = T.values.begin(); vt != T.values.end(); ++vt) {
-      Handle<i::Object> value = *vt;
+    for (IndirectHandle<i::Object> value : T.values) {
       Type type = T.Constant(value);
       CHECK(type.IsBitset() || type.IsHeapConstant() ||
             type.IsOtherNumberConstant() || type.IsRange());
     }
 
     // Value attribute
-    for (ValueIterator vt = T.values.begin(); vt != T.values.end(); ++vt) {
-      Handle<i::Object> value = *vt;
+    for (IndirectHandle<i::Object> value : T.values) {
       Type type = T.Constant(value);
       if (type.IsHeapConstant()) {
         CHECK(value.address() == type.AsHeapConstant()->Value().address());
@@ -199,10 +183,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Functionality & Injectivity: Constant(V1) = Constant(V2) iff V1 = V2
-    for (ValueIterator vt1 = T.values.begin(); vt1 != T.values.end(); ++vt1) {
-      for (ValueIterator vt2 = T.values.begin(); vt2 != T.values.end(); ++vt2) {
-        Handle<i::Object> value1 = *vt1;
-        Handle<i::Object> value2 = *vt2;
+    for (IndirectHandle<i::Object> value1 : T.values) {
+      for (IndirectHandle<i::Object> value2 : T.values) {
         Type type1 = T.Constant(value1);
         Type type2 = T.Constant(value2);
         if (type1.IsOtherNumberConstant() && type2.IsOtherNumberConstant()) {
@@ -221,89 +203,52 @@ class TypesTest : public TestWithNativeContextAndZone {
 
     // Typing of numbers
     Factory* fac = isolate()->factory();
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0))).Is(T.UnsignedSmall));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(1))).Is(T.UnsignedSmall));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(42)))
-              .Equals(T.Range(42, 42)));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0x3FFFFFFF)))
-              .Is(T.UnsignedSmall));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-1))).Is(T.Negative31));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x3FFFFFFF)))
-              .Is(T.Negative31));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x40000000)))
-              .Is(T.Negative31));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0x40000000)))
-              .Is(T.Unsigned31));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0x40000000)))
-               .Is(T.Unsigned30));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0x7FFFFFFF)))
-              .Is(T.Unsigned31));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0x7FFFFFFF)))
-               .Is(T.Unsigned30));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x40000001)))
-              .Is(T.Negative32));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(-0x40000001)))
-               .Is(T.Negative31));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x7FFFFFFF)))
-              .Is(T.Negative32));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(-0x7FFFFFFF - 1)))
-               .Is(T.Negative31));
+    CHECK(T.Constant(0).Is(T.UnsignedSmall));
+    CHECK(T.Constant(1).Is(T.UnsignedSmall));
+    CHECK(T.Constant(42).Equals(T.Range(42, 42)));
+    CHECK(T.Constant(0x3FFFFFFF).Is(T.UnsignedSmall));
+    CHECK(T.Constant(-1).Is(T.Negative31));
+    CHECK(T.Constant(-0x3FFFFFFF).Is(T.Negative31));
+    CHECK(T.Constant(-0x40000000).Is(T.Negative31));
+    CHECK(T.Constant(0x40000000).Is(T.Unsigned31));
+    CHECK(!T.Constant(0x40000000).Is(T.Unsigned30));
+    CHECK(T.Constant(0x7FFFFFFF).Is(T.Unsigned31));
+    CHECK(!T.Constant(0x7FFFFFFF).Is(T.Unsigned30));
+    CHECK(T.Constant(-0x40000001).Is(T.Negative32));
+    CHECK(!T.Constant(-0x40000001).Is(T.Negative31));
+    CHECK(T.Constant(-0x7FFFFFFF).Is(T.Negative32));
+    CHECK(!T.Constant(-0x7FFFFFFF - 1).Is(T.Negative31));
     if (SmiValuesAre31Bits()) {
-      CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0x40000000)))
-                 .Is(T.UnsignedSmall));
-      CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0x7FFFFFFF)))
-                 .Is(T.UnsignedSmall));
-      CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(-0x40000001)))
-                 .Is(T.SignedSmall));
-      CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(-0x7FFFFFFF - 1)))
-                 .Is(T.SignedSmall));
+      CHECK(!T.Constant(0x40000000).Is(T.UnsignedSmall));
+      CHECK(!T.Constant(0x7FFFFFFF).Is(T.UnsignedSmall));
+      CHECK(!T.Constant(-0x40000001).Is(T.SignedSmall));
+      CHECK(!T.Constant(-0x7FFFFFFF - 1).Is(T.SignedSmall));
     } else {
       CHECK(SmiValuesAre32Bits());
-      CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0x40000000)))
-                .Is(T.UnsignedSmall));
-      CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0x7FFFFFFF)))
-                .Is(T.UnsignedSmall));
-      CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x40000001)))
-                .Is(T.SignedSmall));
-      CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x7FFFFFFF - 1)))
-                .Is(T.SignedSmall));
+      CHECK(T.Constant(0x40000000).Is(T.UnsignedSmall));
+      CHECK(T.Constant(0x7FFFFFFF).Is(T.UnsignedSmall));
+      CHECK(T.Constant(-0x40000001).Is(T.SignedSmall));
+      CHECK(T.Constant(-0x7FFFFFFF - 1).Is(T.SignedSmall));
     }
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0x80000000u)))
-              .Is(T.Unsigned32));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0x80000000u)))
-               .Is(T.Unsigned31));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0xFFFFFFFFu)))
-              .Is(T.Unsigned32));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0xFFFFFFFFu)))
-               .Is(T.Unsigned31));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0xFFFFFFFFu + 1.0)))
-              .Is(T.PlainNumber));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0xFFFFFFFFu + 1.0)))
-               .Is(T.Integral32));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0x7FFFFFFF - 2.0)))
-              .Is(T.PlainNumber));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(-0x7FFFFFFF - 2.0)))
-               .Is(T.Integral32));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(0.1))).Is(T.PlainNumber));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(0.1))).Is(T.Integral32));
-    CHECK(
-        T.Constant(T.CanonicalHandle(fac->NewNumber(-10.1))).Is(T.PlainNumber));
-    CHECK(
-        !T.Constant(T.CanonicalHandle(fac->NewNumber(-10.1))).Is(T.Integral32));
-    CHECK(
-        T.Constant(T.CanonicalHandle(fac->NewNumber(10e60))).Is(T.PlainNumber));
-    CHECK(
-        !T.Constant(T.CanonicalHandle(fac->NewNumber(10e60))).Is(T.Integral32));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-1.0 * 0.0)))
-              .Is(T.MinusZero));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(V8_INFINITY)))
-              .Is(T.PlainNumber));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(V8_INFINITY)))
-               .Is(T.Integral32));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-V8_INFINITY)))
-              .Is(T.PlainNumber));
-    CHECK(!T.Constant(T.CanonicalHandle(fac->NewNumber(-V8_INFINITY)))
-               .Is(T.Integral32));
+    CHECK(T.Constant(0x80000000u).Is(T.Unsigned32));
+    CHECK(!T.Constant(0x80000000u).Is(T.Unsigned31));
+    CHECK(T.Constant(0xFFFFFFFFu).Is(T.Unsigned32));
+    CHECK(!T.Constant(0xFFFFFFFFu).Is(T.Unsigned31));
+    CHECK(T.Constant(0xFFFFFFFFu + 1.0).Is(T.PlainNumber));
+    CHECK(!T.Constant(0xFFFFFFFFu + 1.0).Is(T.Integral32));
+    CHECK(T.Constant(-0x7FFFFFFF - 2.0).Is(T.PlainNumber));
+    CHECK(!T.Constant(-0x7FFFFFFF - 2.0).Is(T.Integral32));
+    CHECK(T.Constant(0.1).Is(T.PlainNumber));
+    CHECK(!T.Constant(0.1).Is(T.Integral32));
+    CHECK(T.Constant(-10.1).Is(T.PlainNumber));
+    CHECK(!T.Constant(-10.1).Is(T.Integral32));
+    CHECK(T.Constant(10e60).Is(T.PlainNumber));
+    CHECK(!T.Constant(10e60).Is(T.Integral32));
+    CHECK(T.Constant(-1.0 * 0.0).Is(T.MinusZero));
+    CHECK(T.Constant(V8_INFINITY).Is(T.PlainNumber));
+    CHECK(!T.Constant(V8_INFINITY).Is(T.Integral32));
+    CHECK(T.Constant(-V8_INFINITY).Is(T.PlainNumber));
+    CHECK(!T.Constant(-V8_INFINITY).Is(T.Integral32));
 
     // Typing of Strings
     Handle<String> s1 = T.CanonicalHandle(fac->NewStringFromAsciiChecked("a"));
@@ -321,21 +266,18 @@ class TypesTest : public TestWithNativeContextAndZone {
     CHECK(T.Constant(fac->hash_table_hole_value()).Equals(T.Hole));
     CHECK(T.Constant(fac->null_value()).Equals(T.Null));
     CHECK(T.Constant(fac->undefined_value()).Equals(T.Undefined));
-    CHECK(T.Constant(fac->minus_zero_value()).Equals(T.MinusZero));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(-0.0)))
-              .Equals(T.MinusZero));
-    CHECK(T.Constant(fac->nan_value()).Equals(T.NaN));
-    CHECK(T.Constant(T.CanonicalHandle(fac->NewNumber(
-                         std::numeric_limits<double>::quiet_NaN())))
-              .Equals(T.NaN));
+    CHECK(T.Constant(fac->minus_zero_value()->value()).Equals(T.MinusZero));
+    CHECK(T.Constant(-0.0).Equals(T.MinusZero));
+    CHECK(T.Constant(fac->nan_value()->value()).Equals(T.NaN));
+    CHECK(T.Constant(std::numeric_limits<double>::quiet_NaN()).Equals(T.NaN));
   }
 
   void Range() {
     // Constructor
-    for (ValueIterator i = T.integers.begin(); i != T.integers.end(); ++i) {
-      for (ValueIterator j = T.integers.begin(); j != T.integers.end(); ++j) {
-        double min = Object::NumberValue(**i);
-        double max = Object::NumberValue(**j);
+    for (DirectHandle<i::Object> value1 : T.integers) {
+      for (DirectHandle<i::Object> value2 : T.integers) {
+        double min = Object::NumberValue(*value1);
+        double max = Object::NumberValue(*value2);
         if (min > max) std::swap(min, max);
         Type type = T.Range(min, max);
         CHECK(type.IsRange());
@@ -343,10 +285,10 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Range attributes
-    for (ValueIterator i = T.integers.begin(); i != T.integers.end(); ++i) {
-      for (ValueIterator j = T.integers.begin(); j != T.integers.end(); ++j) {
-        double min = Object::NumberValue(**i);
-        double max = Object::NumberValue(**j);
+    for (DirectHandle<i::Object> value1 : T.integers) {
+      for (DirectHandle<i::Object> value2 : T.integers) {
+        double min = Object::NumberValue(*value1);
+        double max = Object::NumberValue(*value2);
         if (min > max) std::swap(min, max);
         Type type = T.Range(min, max);
         CHECK(min == type.AsRange()->Min());
@@ -356,11 +298,10 @@ class TypesTest : public TestWithNativeContextAndZone {
 
     // Functionality & Injectivity:
     // Range(min1, max1) = Range(min2, max2) <=> min1 = min2 /\ max1 = max2
-    for (ValueIterator i1 = T.integers.begin(); i1 != T.integers.end(); ++i1) {
-      for (ValueIterator j1 = i1; j1 != T.integers.end(); ++j1) {
-        for (ValueIterator i2 = T.integers.begin(); i2 != T.integers.end();
-             ++i2) {
-          for (ValueIterator j2 = i2; j2 != T.integers.end(); ++j2) {
+    for (auto i1 = T.integers.begin(); i1 != T.integers.end(); ++i1) {
+      for (auto j1 = i1; j1 != T.integers.end(); ++j1) {
+        for (auto i2 = T.integers.begin(); i2 != T.integers.end(); ++i2) {
+          for (auto j2 = i2; j2 != T.integers.end(); ++j2) {
             double min1 = Object::NumberValue(**i1);
             double max1 = Object::NumberValue(**j1);
             double min2 = Object::NumberValue(**i2);
@@ -380,8 +321,7 @@ class TypesTest : public TestWithNativeContextAndZone {
     // If b is regular numeric bitset, then Range(b.Min(), b.Max()).Is(b).
     // TODO(neis): Need to ignore representation for this to be true.
     /*
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       if (this->IsBitset(type) && type.Is(T.Number) &&
           !type.Is(T.None) && !type.Is(T.NaN)) {
         Type range = T.Range(
@@ -393,8 +333,7 @@ class TypesTest : public TestWithNativeContextAndZone {
     */
 
     // If b is regular numeric bitset, then b.Min() and b.Max() are integers.
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       if (this->IsBitset(type) && type.Is(T.Number) && !type.Is(T.NaN)) {
         CHECK(IsInteger(type.Min()) && IsInteger(type.Max()));
       }
@@ -402,10 +341,8 @@ class TypesTest : public TestWithNativeContextAndZone {
 
     // If b1 and b2 are regular numeric bitsets with b1.Is(b2), then
     // b1.Min() >= b2.Min() and b1.Max() <= b2.Max().
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         if (this->IsBitset(type1) && type1.Is(type2) && type2.Is(T.Number) &&
             !type1.Is(T.NaN) && !type2.Is(T.NaN)) {
           CHECK(type1.Min() >= type2.Min());
@@ -415,8 +352,7 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Lub(Range(x,y)).Min() <= x and y <= Lub(Range(x,y)).Max()
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       if (type.IsRange()) {
         Type lub = type.BitsetLubForTesting();
         CHECK(lub.Min() <= type.Min() && type.Max() <= lub.Max());
@@ -425,8 +361,7 @@ class TypesTest : public TestWithNativeContextAndZone {
 
     // Rangification: If T.Is(Range(-inf,+inf)) and T is inhabited, then
     // T.Is(Range(T.Min(), T.Max())).
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(!type.Is(T.Integer) || type.IsNone() ||
             type.Is(T.Range(type.Min(), type.Max())));
     }
@@ -434,27 +369,22 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void BitsetGlb() {
     // Lower: (T->BitsetGlb()).Is(T)
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type glb = type.BitsetGlbForTesting();
       CHECK(glb.Is(type));
     }
 
     // Greatest: If T1.IsBitset() and T1.Is(T2), then T1.Is(T2->BitsetGlb())
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type glb2 = type2.BitsetGlbForTesting();
         CHECK(!this->IsBitset(type1) || !type1.Is(type2) || type1.Is(glb2));
       }
     }
 
     // Monotonicity: T1.Is(T2) implies (T1->BitsetGlb()).Is(T2->BitsetGlb())
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type glb1 = type1.BitsetGlbForTesting();
         Type glb2 = type2.BitsetGlbForTesting();
         CHECK(!type1.Is(type2) || glb1.Is(glb2));
@@ -464,27 +394,22 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void BitsetLub() {
     // Upper: T.Is(T->BitsetLub())
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type lub = type.BitsetLubForTesting();
       CHECK(type.Is(lub));
     }
 
     // Least: If T2.IsBitset() and T1.Is(T2), then (T1->BitsetLub()).Is(T2)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type lub1 = type1.BitsetLubForTesting();
         CHECK(!this->IsBitset(type2) || !type1.Is(type2) || lub1.Is(type2));
       }
     }
 
     // Monotonicity: T1.Is(T2) implies (T1->BitsetLub()).Is(T2->BitsetLub())
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type lub1 = type1.BitsetLubForTesting();
         Type lub2 = type2.BitsetLubForTesting();
         CHECK(!type1.Is(type2) || lub1.Is(lub2));
@@ -494,61 +419,49 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Is1() {
     // Least Element (Bottom): None.Is(T)
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(T.None.Is(type));
     }
 
     // Greatest Element (Top): T.Is(Any)
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(type.Is(T.Any));
     }
 
     // Bottom Uniqueness: T.Is(None) implies T = None
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       if (type.Is(T.None)) CheckEqual(type, T.None);
     }
 
     // Top Uniqueness: Any.Is(T) implies T = Any
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       if (T.Any.Is(type)) CheckEqual(type, T.Any);
     }
 
     // Reflexivity: T.Is(T)
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(type.Is(type));
     }
 
     // Transitivity: T1.Is(T2) and T2.Is(T3) implies T1.Is(T3)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           CHECK(!(type1.Is(type2) && type2.Is(type3)) || type1.Is(type3));
         }
       }
     }
 
     // Antisymmetry: T1.Is(T2) and T2.Is(T1) iff T1 = T2
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         CHECK((type1.Is(type2) && type2.Is(type1)) == Equal(type1, type2));
       }
     }
 
     // (In-)Compatibilities.
-    for (TypeIterator i = T.types.begin(); i != T.types.end(); ++i) {
-      for (TypeIterator j = T.types.begin(); j != T.types.end(); ++j) {
-        Type type1 = *i;
-        Type type2 = *j;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         CHECK(
             !type1.Is(type2) || this->IsBitset(type2) || this->IsUnion(type2) ||
             this->IsUnion(type1) ||
@@ -563,11 +476,10 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Is2() {
     // Range(X1, Y1).Is(Range(X2, Y2)) iff X1 >= X2 /\ Y1 <= Y2
-    for (ValueIterator i1 = T.integers.begin(); i1 != T.integers.end(); ++i1) {
-      for (ValueIterator j1 = i1; j1 != T.integers.end(); ++j1) {
-        for (ValueIterator i2 = T.integers.begin(); i2 != T.integers.end();
-             ++i2) {
-          for (ValueIterator j2 = i2; j2 != T.integers.end(); ++j2) {
+    for (auto i1 = T.integers.begin(); i1 != T.integers.end(); ++i1) {
+      for (auto j1 = i1; j1 != T.integers.end(); ++j1) {
+        for (auto i2 = T.integers.begin(); i2 != T.integers.end(); ++i2) {
+          for (auto j2 = i2; j2 != T.integers.end(); ++j2) {
             double min1 = Object::NumberValue(**i1);
             double max1 = Object::NumberValue(**j1);
             double min2 = Object::NumberValue(**i2);
@@ -583,10 +495,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Constant(V1).Is(Constant(V2)) iff V1 = V2
-    for (ValueIterator vt1 = T.values.begin(); vt1 != T.values.end(); ++vt1) {
-      for (ValueIterator vt2 = T.values.begin(); vt2 != T.values.end(); ++vt2) {
-        Handle<i::Object> value1 = *vt1;
-        Handle<i::Object> value2 = *vt2;
+    for (IndirectHandle<i::Object> value1 : T.values) {
+      for (IndirectHandle<i::Object> value2 : T.values) {
         Type const_type1 = T.Constant(value1);
         Type const_type2 = T.Constant(value2);
         if (const_type1.IsOtherNumberConstant() &&
@@ -608,8 +518,7 @@ class TypesTest : public TestWithNativeContextAndZone {
     // Range-specific subtyping
 
     // Lub(Range(x,y)).Is(T.Union(T.Integral32, T.OtherNumber))
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       if (type.IsRange()) {
         Type lub = type.BitsetLubForTesting();
         CHECK(lub.Is(T.PlainNumber));
@@ -668,65 +577,52 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Maybe() {
     // T.Maybe(Any) iff T inhabited
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(type.Maybe(T.Any) == !type.IsNone());
     }
 
     // T.Maybe(None) never
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(!type.Maybe(T.None));
     }
 
     // Reflexivity upto Inhabitation: T.Maybe(T) iff T inhabited
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       CHECK(type.Maybe(type) == !type.IsNone());
     }
 
     // Symmetry: T1.Maybe(T2) iff T2.Maybe(T1)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         CHECK(type1.Maybe(type2) == type2.Maybe(type1));
       }
     }
 
     // T1.Maybe(T2) implies T1, T2 inhabited
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         CHECK(!type1.Maybe(type2) || (!type1.IsNone() && !type2.IsNone()));
       }
     }
 
     // T1.Maybe(T2) implies Intersect(T1, T2) inhabited
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type intersect12 = T.Intersect(type1, type2);
         CHECK(!type1.Maybe(type2) || !intersect12.IsNone());
       }
     }
 
     // T1.Is(T2) and T1 inhabited implies T1.Maybe(T2)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         CHECK(!(type1.Is(type2) && !type1.IsNone()) || type1.Maybe(type2));
       }
     }
 
     // Constant(V1).Maybe(Constant(V2)) iff V1 = V2
-    for (ValueIterator vt1 = T.values.begin(); vt1 != T.values.end(); ++vt1) {
-      for (ValueIterator vt2 = T.values.begin(); vt2 != T.values.end(); ++vt2) {
-        Handle<i::Object> value1 = *vt1;
-        Handle<i::Object> value2 = *vt2;
+    for (IndirectHandle<i::Object> value1 : T.values) {
+      for (IndirectHandle<i::Object> value2 : T.values) {
         Type const_type1 = T.Constant(value1);
         Type const_type2 = T.Constant(value2);
         if (const_type1.IsOtherNumberConstant() &&
@@ -782,31 +678,26 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Union1() {
     // Identity: Union(T, None) = T
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type union_type = T.Union(type, T.None);
       CheckEqual(union_type, type);
     }
 
     // Domination: Union(T, Any) = Any
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type union_type = T.Union(type, T.Any);
       CheckEqual(union_type, T.Any);
     }
 
     // Idempotence: Union(T, T) = T
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type union_type = T.Union(type, type);
       CheckEqual(union_type, type);
     }
 
     // Commutativity: Union(T1, T2) = Union(T2, T1)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type union12 = T.Union(type1, type2);
         Type union21 = T.Union(type2, type1);
         CheckEqual(union12, union21);
@@ -818,12 +709,9 @@ class TypesTest : public TestWithNativeContextAndZone {
     // (Unsigned32 \/ Range(0,5)) \/ Range(-5,0) = Unsigned32 \/ Range(-5,0)
     // Unsigned32 \/ (Range(0,5) \/ Range(-5,0)) = Unsigned32 \/ Range(-5,5)
     /*
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type union12 = T.Union(type1, type2);
           Type union23 = T.Union(type2, type3);
           Type union1_23 = T.Union(type1, union23);
@@ -835,10 +723,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     */
 
     // Meet: T1.Is(Union(T1, T2)) and T2.Is(Union(T1, T2))
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type union12 = T.Union(type1, type2);
         CHECK(type1.Is(union12));
         CHECK(type2.Is(union12));
@@ -846,10 +732,8 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Upper Boundedness: T1.Is(T2) implies Union(T1, T2) = T2
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type union12 = T.Union(type1, type2);
         if (type1.Is(type2)) CheckEqual(union12, type2);
       }
@@ -860,12 +744,9 @@ class TypesTest : public TestWithNativeContextAndZone {
     // Range(-5,-1) <= Signed32
     // Range(-5,-1) \/ Range(1,5) = Range(-5,5) </= Signed32 \/ Range(1,5)
     /*
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type union13 = T.Union(type1, type3);
           Type union23 = T.Union(type2, type3);
           CHECK(!type1.Is(type2) || union13.Is(union23));
@@ -882,12 +763,9 @@ class TypesTest : public TestWithNativeContextAndZone {
     // Range(2^33, 2^33) <= OtherNumber
     // Range(-2^33, 2^33) </= OtherNumber
     /*
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type union12 = T.Union(type1, type2);
           CHECK(!(type1.Is(type3) && type2.Is(type3)) || union12.Is(type3));
         }
@@ -898,13 +776,10 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Union3() {
     // Monotonicity: T1.Is(T2) or T1.Is(T3) implies T1.Is(Union(T2, T3))
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
+    for (Type type1 : T.types) {
       HandleScope scope(isolate());
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = it2; it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type union23 = T.Union(type2, type3);
           CHECK(!(type1.Is(type2) || type1.Is(type3)) || type1.Is(union23));
         }
@@ -944,31 +819,26 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void Intersect() {
     // Identity: Intersect(T, Any) = T
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type intersect_type = T.Intersect(type, T.Any);
       CheckEqual(intersect_type, type);
     }
 
     // Domination: Intersect(T, None) = None
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type intersect_type = T.Intersect(type, T.None);
       CheckEqual(intersect_type, T.None);
     }
 
     // Idempotence: Intersect(T, T) = T
-    for (TypeIterator it = T.types.begin(); it != T.types.end(); ++it) {
-      Type type = *it;
+    for (Type type : T.types) {
       Type intersect_type = T.Intersect(type, type);
       CheckEqual(intersect_type, type);
     }
 
     // Commutativity: Intersect(T1, T2) = Intersect(T2, T1)
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type intersect12 = T.Intersect(type1, type2);
         Type intersect21 = T.Intersect(type2, type1);
         CheckEqual(intersect12, intersect21);
@@ -976,23 +846,18 @@ class TypesTest : public TestWithNativeContextAndZone {
     }
 
     // Lower Boundedness: T1.Is(T2) implies Intersect(T1, T2) = T1
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        Type type1 = *it1;
-        Type type2 = *it2;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
         Type intersect12 = T.Intersect(type1, type2);
         if (type1.Is(type2)) CheckEqual(intersect12, type1);
       }
     }
 
     // Monotonicity: T1.Is(T2) and T1.Is(T3) implies T1.Is(Intersect(T2, T3))
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
+    for (Type type1 : T.types) {
       HandleScope scope(isolate());
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type intersect23 = T.Intersect(type2, type3);
           CHECK(!(type1.Is(type2) && type1.Is(type3)) || type1.Is(intersect23));
         }
@@ -1020,12 +885,9 @@ class TypesTest : public TestWithNativeContextAndZone {
     // Untagged /\ (Untagged \/ Class(../Tagged)) = Untagged
     // because Untagged <= Untagged \/ Class(../Tagged)
     /*
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type union12 = T.Union(type1, type2);
           Type union13 = T.Union(type1, type3);
           Type intersect23 = T.Intersect(type2, type3);
@@ -1043,12 +905,9 @@ class TypesTest : public TestWithNativeContextAndZone {
     // (Untagged /\ Untagged) \/ (Untagged /\ Class(../Tagged)) =
     // Untagged \/ Class(../Tagged)
     /*
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      for (TypeIterator it2 = T.types.begin(); it2 != T.types.end(); ++it2) {
-        for (TypeIterator it3 = T.types.begin(); it3 != T.types.end(); ++it3) {
-          Type type1 = *it1;
-          Type type2 = *it2;
-          Type type3 = *it3;
+    for (Type type1 : T.types) {
+      for (Type type2 : T.types) {
+        for (Type type3 : T.types) {
           Type intersect12 = T.Intersect(type1, type2);
           Type intersect13 = T.Intersect(type1, type3);
           Type union23 = T.Union(type2, type3);
@@ -1063,8 +922,7 @@ class TypesTest : public TestWithNativeContextAndZone {
 
   void GetRange() {
     // GetRange(Range(a, b)) = Range(a, b).
-    for (TypeIterator it1 = T.types.begin(); it1 != T.types.end(); ++it1) {
-      Type type1 = *it1;
+    for (Type type1 : T.types) {
       if (type1.IsRange()) {
         const RangeType* range = type1.GetRange().AsRange();
         CHECK(type1.Min() == range->Min());

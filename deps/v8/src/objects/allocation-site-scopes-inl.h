@@ -32,7 +32,7 @@ Handle<AllocationSite> AllocationSiteUsageContext::EnterNewScope() {
 }
 
 void AllocationSiteUsageContext::ExitScope(
-    DirectHandle<AllocationSite> scope_site, Handle<JSObject> object) {
+    DirectHandle<AllocationSite> scope_site, DirectHandle<JSObject> object) {
   // This assert ensures that we are pointing at the right sub-object in a
   // recursive walk of a nested literal.
   DCHECK(object.is_null() || *object == scope_site->boilerplate());

@@ -20,3 +20,8 @@ function foo() {
 
 var a = {0: "", 1: "", get 1(){}};
 var b = -10;
+
+let c = [0, 1];
+let d = [0, 1, 2];
+
+3 ** foo();

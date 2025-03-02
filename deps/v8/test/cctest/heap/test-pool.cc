@@ -22,7 +22,8 @@ class MockPlatformForPool : public TestPlatform {
  public:
   ~MockPlatformForPool() override {
     for (auto& task : worker_tasks_) {
-      CcTest::default_platform()->CallOnWorkerThread(std::move(task));
+      CcTest::default_platform()->PostTaskOnWorkerThread(
+          TaskPriority::kUserVisible, std::move(task));
     }
     worker_tasks_.clear();
   }

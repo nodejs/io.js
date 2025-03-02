@@ -27,7 +27,7 @@
 
 // Flags: --allow-natives-syntax --expose-gc
 // Flags: --deopt-every-n-times=0
-// Flags: --js-float16array
+// Flags: --js-staging
 
 var elements_kind = {
   fast_smi_only             :  'fast smi only elements',

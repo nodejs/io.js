@@ -45,6 +45,9 @@ namespace internal {
  * during execution of RegExp code (it doesn't hold the value assumed when
  * creating JS code), so Root related macro operations can be used.
  *
+ * xmm0 - xmm5 are free to use. On Windows, xmm6 - xmm15 are callee-saved and
+ * therefore need to be saved/restored.
+ *
  * Each call to a C++ method should retain these registers.
  *
  * The stack will have the following content, in some order, indexable from the
@@ -127,11 +130,9 @@ RegExpMacroAssemblerX64::~RegExpMacroAssemblerX64() {
   fallback_label_.Unuse();
 }
 
-
-int RegExpMacroAssemblerX64::stack_limit_slack()  {
-  return RegExpStack::kStackLimitSlack;
+int RegExpMacroAssemblerX64::stack_limit_slack_slot_count() {
+  return RegExpStack::kStackLimitSlackSlotCount;
 }
-
 
 void RegExpMacroAssemblerX64::AdvanceCurrentPosition(int by) {
   if (by != 0) {
@@ -171,13 +172,10 @@ void RegExpMacroAssemblerX64::Backtrack() {
   // and jump to location.
   Pop(rbx);
   __ addq(rbx, code_object_pointer());
-#ifdef V8_ENABLE_CET_IBT
+
   // TODO(sroettger): This jump needs an endbr64 instruction but the code is
   // performance sensitive. Needs more thought how to do this in a fast way.
   __ jmp(rbx, /*notrack=*/true);
-#else
-  __ jmp(rbx);
-#endif
 }
 
 
@@ -596,7 +594,7 @@ void RegExpMacroAssemblerX64::CheckBitInTable(
     __ andq(rbx, Immediate(kTableMask));
     index = rbx;
   }
-  __ cmpb(FieldOperand(rax, index, times_1, ByteArray::kHeaderSize),
+  __ cmpb(FieldOperand(rax, index, times_1, OFFSET_OF_DATA_START(ByteArray)),
           Immediate(0));
   BranchOrBacktrack(not_equal, on_bit_set);
 }
@@ -623,26 +621,26 @@ void RegExpMacroAssemblerX64::SkipUntilBitInTable(
     // Load table and mask constants.
     // For a description of the table layout, check the comment on
     // BoyerMooreLookahead::GetSkipTable in regexp-compiler.cc.
-    XMMRegister nibble_table = xmm1;
+    XMMRegister nibble_table = xmm0;
     __ Move(r11, nibble_table_array);
-    __ Movdqu(nibble_table, FieldOperand(r11, ByteArray::kHeaderSize));
-    XMMRegister nibble_mask = xmm2;
+    __ Movdqu(nibble_table, FieldOperand(r11, OFFSET_OF_DATA_START(ByteArray)));
+    XMMRegister nibble_mask = xmm1;
     __ Move(r11, 0x0f0f0f0f'0f0f0f0f);
     __ movq(nibble_mask, r11);
     __ Movddup(nibble_mask, nibble_mask);
-    XMMRegister hi_nibble_lookup_mask = xmm3;
+    XMMRegister hi_nibble_lookup_mask = xmm2;
     __ Move(r11, 0x80402010'08040201);
     __ movq(hi_nibble_lookup_mask, r11);
     __ Movddup(hi_nibble_lookup_mask, hi_nibble_lookup_mask);
 
     Bind(&simd_repeat);
     // Load next characters into vector.
-    XMMRegister input_vec = xmm4;
+    XMMRegister input_vec = xmm3;
     __ Movdqu(input_vec, Operand(rsi, rdi, times_1, cp_offset));
 
     // Extract low nibbles.
     // lo_nibbles = input & 0x0f
-    XMMRegister lo_nibbles = xmm5;
+    XMMRegister lo_nibbles = xmm4;
     if (CpuFeatures::IsSupported(AVX)) {
       __ Andps(lo_nibbles, nibble_mask, input_vec);
     } else {
@@ -657,7 +655,7 @@ void RegExpMacroAssemblerX64::SkipUntilBitInTable(
 
     // Get rows of nibbles table based on low nibbles.
     // row = nibble_table[lo_nibbles]
-    XMMRegister row = xmm6;
+    XMMRegister row = xmm5;
     __ Pshufb(row, nibble_table, lo_nibbles);
 
     // Check if high nibble is set in row.
@@ -665,7 +663,7 @@ void RegExpMacroAssemblerX64::SkipUntilBitInTable(
     //         = hi_nibbles_lookup_mask[hi_nibbles] & 0x7
     // Note: The hi_nibbles & 0x7 part is implicitly executed, as pshufb sets
     // the result byte to zero if bit 7 is set in the source byte.
-    XMMRegister bitmask = xmm7;
+    XMMRegister bitmask = ReassignRegister(lo_nibbles);
     __ Pshufb(bitmask, hi_nibble_lookup_mask, hi_nibbles);
 
     // result = row & bitmask == bitmask
@@ -713,8 +711,9 @@ void RegExpMacroAssemblerX64::SkipUntilBitInTable(
     __ movq(index, current_character());
     __ andq(index, Immediate(kTableMask));
   }
-  __ cmpb(FieldOperand(table_reg, index, times_1, ByteArray::kHeaderSize),
-          Immediate(0));
+  __ cmpb(
+      FieldOperand(table_reg, index, times_1, OFFSET_OF_DATA_START(ByteArray)),
+      Immediate(0));
   __ j(not_equal, &cont);
   AdvanceCurrentPosition(advance_by);
   __ jmp(&scalar_repeat);
@@ -899,7 +898,8 @@ void RegExpMacroAssemblerX64::PopRegExpBasePointer(Register stack_pointer_out,
   StoreRegExpStackPointerToMemory(stack_pointer_out, scratch);
 }
 
-Handle<HeapObject> RegExpMacroAssemblerX64::GetCode(Handle<String> source) {
+Handle<HeapObject> RegExpMacroAssemblerX64::GetCode(Handle<String> source,
+                                                    RegExpFlags flags) {
   Label return_rax;
   // Finalize code - write the entry point code now we know how many registers
   // we need.
@@ -1269,7 +1269,8 @@ Handle<HeapObject> RegExpMacroAssemblerX64::GetCode(Handle<String> source) {
                           .set_self_reference(masm_.CodeObject())
                           .set_empty_source_position_table()
                           .Build();
-  PROFILE(isolate, RegExpCodeCreateEvent(Cast<AbstractCode>(code), source));
+  PROFILE(isolate,
+          RegExpCodeCreateEvent(Cast<AbstractCode>(code), source, flags));
   return Cast<HeapObject>(code);
 }
 
@@ -1323,6 +1324,7 @@ void RegExpMacroAssemblerX64::PushBacktrack(Label* label) {
 
 void RegExpMacroAssemblerX64::PushCurrentPosition() {
   Push(rdi);
+  CheckStackLimit();
 }
 
 
@@ -1330,7 +1332,11 @@ void RegExpMacroAssemblerX64::PushRegister(int register_index,
                                            StackCheckFlag check_stack_limit) {
   __ movq(rax, register_location(register_index));
   Push(rax);
-  if (check_stack_limit) CheckStackLimit();
+  if (check_stack_limit) {
+    CheckStackLimit();
+  } else if (V8_UNLIKELY(v8_flags.slow_debug_code)) {
+    AssertAboveStackLimitMinusSlack();
+  }
 }
 
 void RegExpMacroAssemblerX64::ReadCurrentPositionFromRegister(int reg) {
@@ -1599,6 +1605,18 @@ void RegExpMacroAssemblerX64::CheckStackLimit() {
   __ bind(&no_stack_overflow);
 }
 
+void RegExpMacroAssemblerX64::AssertAboveStackLimitMinusSlack() {
+  DCHECK(v8_flags.slow_debug_code);
+  Label no_stack_overflow;
+  ASM_CODE_COMMENT_STRING(&masm_, "AssertAboveStackLimitMinusSlack");
+  auto l = ExternalReference::address_of_regexp_stack_limit_address(isolate());
+  __ load_rax(l);
+  __ subq(rax, Immediate(RegExpStack::kStackLimitSlackSize));
+  __ cmpq(backtrack_stackpointer(), rax);
+  __ j(above, &no_stack_overflow);
+  __ int3();
+  __ bind(&no_stack_overflow);
+}
 
 void RegExpMacroAssemblerX64::LoadCurrentCharacterUnchecked(int cp_offset,
                                                             int characters) {

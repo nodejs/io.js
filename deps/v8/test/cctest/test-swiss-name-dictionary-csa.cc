@@ -50,15 +50,16 @@ class CSATestRunner {
 #endif
   }
 
-  void Add(Handle<Name> key, Handle<Object> value, PropertyDetails details);
-  InternalIndex FindEntry(Handle<Name> key);
-  void Put(InternalIndex entry, Handle<Object> new_value,
+  void Add(DirectHandle<Name> key, DirectHandle<Object> value,
+           PropertyDetails details);
+  InternalIndex FindEntry(DirectHandle<Name> key);
+  void Put(InternalIndex entry, DirectHandle<Object> new_value,
            PropertyDetails new_details);
   void Delete(InternalIndex entry);
   void RehashInplace();
   void Shrink();
 
-  Handle<FixedArray> GetData(InternalIndex entry);
+  DirectHandle<FixedArray> GetData(InternalIndex entry);
   void CheckCounts(std::optional<int> capacity, std::optional<int> elements,
                    std::optional<int> deleted);
   void CheckEnumerationOrder(const std::vector<std::string>& expected_keys);
@@ -67,7 +68,7 @@ class CSATestRunner {
 
   void PrintTable();
 
-  Handle<SwissNameDictionary> table;
+  DirectHandle<SwissNameDictionary> table;
 
  private:
   using Label = compiler::CodeAssemblerLabel;
@@ -82,7 +83,7 @@ class CSATestRunner {
 
   // Used to mirror all operations using C++ versions of all operations,
   // yielding a reference to compare against.
-  Handle<SwissNameDictionary> reference_;
+  DirectHandle<SwissNameDictionary> reference_;
 
   // CSA functions execute the corresponding dictionary operation.
   compiler::FunctionTester find_entry_ft_;
@@ -95,14 +96,14 @@ class CSATestRunner {
   compiler::FunctionTester copy_ft_;
 
   // Used to create the FunctionTesters above.
-  static Handle<Code> create_get_data(Isolate* isolate);
-  static Handle<Code> create_find_entry(Isolate* isolate);
-  static Handle<Code> create_put(Isolate* isolate);
-  static Handle<Code> create_delete(Isolate* isolate);
-  static Handle<Code> create_add(Isolate* isolate);
-  static Handle<Code> create_allocate(Isolate* isolate);
-  static Handle<Code> create_get_counts(Isolate* isolate);
-  static Handle<Code> create_copy(Isolate* isolate);
+  static DirectHandle<Code> create_get_data(Isolate* isolate);
+  static DirectHandle<Code> create_find_entry(Isolate* isolate);
+  static DirectHandle<Code> create_put(Isolate* isolate);
+  static DirectHandle<Code> create_delete(Isolate* isolate);
+  static DirectHandle<Code> create_add(Isolate* isolate);
+  static DirectHandle<Code> create_allocate(Isolate* isolate);
+  static DirectHandle<Code> create_get_counts(Isolate* isolate);
+  static DirectHandle<Code> create_copy(Isolate* isolate);
 
   // Number of parameters of each of the tester functions above.
   static constexpr int kFindEntryParams = 2;  // (table, key)
@@ -131,7 +132,7 @@ CSATestRunner::CSATestRunner(Isolate* isolate, int initial_capacity,
   Allocate(handle(Smi::FromInt(initial_capacity), isolate));
 }
 
-void CSATestRunner::Add(Handle<Name> key, Handle<Object> value,
+void CSATestRunner::Add(DirectHandle<Name> key, DirectHandle<Object> value,
                         PropertyDetails details) {
   ReadOnlyRoots roots(isolate_);
   reference_ =
@@ -160,7 +161,7 @@ void CSATestRunner::Allocate(Handle<Smi> capacity) {
   // AllocateSwissNameDictionary (just like AllocateNameDictionary) always
   // returns a non-zero sized table.
   if ((*capacity).value() == 0) {
-    table = ReadOnlyRoots(isolate_).empty_swiss_property_dictionary_handle();
+    table = isolate_->factory()->empty_swiss_property_dictionary();
   } else {
     table = allocate_ft_.CallChecked<SwissNameDictionary>(capacity);
   }
@@ -168,7 +169,7 @@ void CSATestRunner::Allocate(Handle<Smi> capacity) {
   CheckAgainstReference();
 }
 
-InternalIndex CSATestRunner::FindEntry(Handle<Name> key) {
+InternalIndex CSATestRunner::FindEntry(DirectHandle<Name> key) {
   Tagged<Smi> index = *find_entry_ft_.CallChecked<Smi>(table, key);
   if (index.value() == SwissNameDictionary::kNotFoundSentinel) {
     return InternalIndex::NotFound();
@@ -177,7 +178,7 @@ InternalIndex CSATestRunner::FindEntry(Handle<Name> key) {
   }
 }
 
-Handle<FixedArray> CSATestRunner::GetData(InternalIndex entry) {
+DirectHandle<FixedArray> CSATestRunner::GetData(InternalIndex entry) {
   DCHECK(entry.is_found());
 
   return get_data_ft_.CallChecked<FixedArray>(
@@ -213,7 +214,7 @@ void CSATestRunner::CheckEnumerationOrder(
   // order.
 }
 
-void CSATestRunner::Put(InternalIndex entry, Handle<Object> new_value,
+void CSATestRunner::Put(InternalIndex entry, DirectHandle<Object> new_value,
                         PropertyDetails new_details) {
   DCHECK(entry.is_found());
   reference_->ValueAtPut(entry, *new_value);
@@ -267,7 +268,7 @@ void CSATestRunner::PrintTable() {
 #endif
 }
 
-Handle<Code> CSATestRunner::create_find_entry(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_find_entry(Isolate* isolate) {
   // TODO(v8:11330): Remove once CSA implementation has a fallback for
   // non-SSSE3/AVX configurations.
   if (!IsEnabled()) {
@@ -296,7 +297,7 @@ Handle<Code> CSATestRunner::create_find_entry(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_get_data(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_get_data(Isolate* isolate) {
   static_assert(kGetDataParams == 2);  // (table, entry)
   compiler::CodeAssemblerTester asm_tester(isolate,
                                            JSParameterCount(kGetDataParams));
@@ -320,7 +321,7 @@ Handle<Code> CSATestRunner::create_get_data(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_put(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_put(Isolate* isolate) {
   static_assert(kPutParams == 4);  // (table, entry, value, details)
   compiler::CodeAssemblerTester asm_tester(isolate,
                                            JSParameterCount(kPutParams));
@@ -342,7 +343,7 @@ Handle<Code> CSATestRunner::create_put(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_delete(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_delete(Isolate* isolate) {
   // TODO(v8:11330): Remove once CSA implementation has a fallback for
   // non-SSSE3/AVX configurations.
   if (!IsEnabled()) {
@@ -368,7 +369,7 @@ Handle<Code> CSATestRunner::create_delete(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_add(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_add(Isolate* isolate) {
   // TODO(v8:11330): Remove once CSA implementation has a fallback for
   // non-SSSE3/AVX configurations.
   if (!IsEnabled()) {
@@ -398,7 +399,7 @@ Handle<Code> CSATestRunner::create_add(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_allocate(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_allocate(Isolate* isolate) {
   static_assert(kAllocateParams == 1);  // (capacity)
   compiler::CodeAssemblerTester asm_tester(isolate,
                                            JSParameterCount(kAllocateParams));
@@ -414,7 +415,7 @@ Handle<Code> CSATestRunner::create_allocate(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_get_counts(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_get_counts(Isolate* isolate) {
   static_assert(kGetCountsParams == 1);  // (table)
   compiler::CodeAssemblerTester asm_tester(isolate,
                                            JSParameterCount(kGetCountsParams));
@@ -448,7 +449,7 @@ Handle<Code> CSATestRunner::create_get_counts(Isolate* isolate) {
   return asm_tester.GenerateCodeCloseAndEscape();
 }
 
-Handle<Code> CSATestRunner::create_copy(Isolate* isolate) {
+DirectHandle<Code> CSATestRunner::create_copy(Isolate* isolate) {
   static_assert(kCopyParams == 1);  // (table)
   compiler::CodeAssemblerTester asm_tester(isolate,
                                            JSParameterCount(kCopyParams));

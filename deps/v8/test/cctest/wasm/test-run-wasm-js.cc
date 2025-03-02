@@ -145,7 +145,7 @@ void RunJSSelectTest(TestExecutionTier tier, int which) {
     }
 
     double expected = inputs.arg_d(which);
-    r.CheckCallApplyViaJS(expected, t.function_index(), nullptr, 0);
+    r.CheckCallApplyViaJS(expected, t.function_index(), {});
   }
 }
 
@@ -203,7 +203,7 @@ void RunWASMSelectTest(TestExecutionTier tier, int which) {
     WasmFunctionCompiler& t = r.NewFunction(&sig);
     t.Build({WASM_LOCAL_GET(which)});
 
-    Handle<Object> args[] = {
+    DirectHandle<Object> args[] = {
         isolate->factory()->NewNumber(inputs.arg_d(0)),
         isolate->factory()->NewNumber(inputs.arg_d(1)),
         isolate->factory()->NewNumber(inputs.arg_d(2)),
@@ -215,7 +215,7 @@ void RunWASMSelectTest(TestExecutionTier tier, int which) {
     };
 
     double expected = inputs.arg_d(which);
-    r.CheckCallApplyViaJS(expected, t.function_index(), args, kMaxParams);
+    r.CheckCallApplyViaJS(expected, t.function_index(), {args, kMaxParams});
   }
 }
 
@@ -275,20 +275,22 @@ void RunWASMSelectAlignTest(TestExecutionTier tier, int num_args,
     WasmFunctionCompiler& t = r.NewFunction(&sig);
     t.Build({WASM_LOCAL_GET(which)});
 
-    Handle<Object> args[] = {isolate->factory()->NewNumber(inputs.arg_d(0)),
-                             isolate->factory()->NewNumber(inputs.arg_d(1)),
-                             isolate->factory()->NewNumber(inputs.arg_d(2)),
-                             isolate->factory()->NewNumber(inputs.arg_d(3)),
-                             isolate->factory()->NewNumber(inputs.arg_d(4)),
-                             isolate->factory()->NewNumber(inputs.arg_d(5)),
-                             isolate->factory()->NewNumber(inputs.arg_d(6)),
-                             isolate->factory()->NewNumber(inputs.arg_d(7)),
-                             isolate->factory()->NewNumber(inputs.arg_d(8)),
-                             isolate->factory()->NewNumber(inputs.arg_d(9))};
+    DirectHandle<Object> args[] = {
+        isolate->factory()->NewNumber(inputs.arg_d(0)),
+        isolate->factory()->NewNumber(inputs.arg_d(1)),
+        isolate->factory()->NewNumber(inputs.arg_d(2)),
+        isolate->factory()->NewNumber(inputs.arg_d(3)),
+        isolate->factory()->NewNumber(inputs.arg_d(4)),
+        isolate->factory()->NewNumber(inputs.arg_d(5)),
+        isolate->factory()->NewNumber(inputs.arg_d(6)),
+        isolate->factory()->NewNumber(inputs.arg_d(7)),
+        isolate->factory()->NewNumber(inputs.arg_d(8)),
+        isolate->factory()->NewNumber(inputs.arg_d(9))};
 
     double nan = std::numeric_limits<double>::quiet_NaN();
     double expected = which < num_args ? inputs.arg_d(which) : nan;
-    r.CheckCallApplyViaJS(expected, t.function_index(), args, num_args);
+    r.CheckCallApplyViaJS(expected, t.function_index(),
+                          {args, static_cast<size_t>(num_args)});
   }
 }
 
@@ -389,7 +391,7 @@ void RunJSSelectAlignTest(TestExecutionTier tier, int num_args,
     WasmFunctionCompiler& t = r.NewFunction(&sig);
     t.Build(base::VectorOf(code.data(), end));
 
-    Handle<Object> args[] = {
+    DirectHandle<Object> args[] = {
         factory->NewNumber(inputs.arg_d(0)),
         factory->NewNumber(inputs.arg_d(1)),
         factory->NewNumber(inputs.arg_d(2)),
@@ -404,7 +406,8 @@ void RunJSSelectAlignTest(TestExecutionTier tier, int num_args,
 
     double nan = std::numeric_limits<double>::quiet_NaN();
     double expected = which < num_args ? inputs.arg_d(which) : nan;
-    r.CheckCallApplyViaJS(expected, t.function_index(), args, num_args);
+    r.CheckCallApplyViaJS(expected, t.function_index(),
+                          {args, static_cast<size_t>(num_args)});
   }
 }
 
@@ -495,7 +498,7 @@ void RunPickerTest(TestExecutionTier tier, bool indirect) {
   WasmFunctionCompiler& rc_fn = r.NewFunction(sigs.i_i(), "rc");
 
   if (indirect) {
-    uint8_t sig_index = r.builder().AddSignature(sigs.i_iii());
+    ModuleTypeIndex sig_index = r.builder().AddSignature(sigs.i_iii());
     uint16_t indirect_function_table[] = {static_cast<uint16_t>(js_index)};
 
     r.builder().AddIndirectFunctionTable(indirect_function_table,
@@ -509,11 +512,13 @@ void RunPickerTest(TestExecutionTier tier, bool indirect) {
         js_index, WASM_I32V(left), WASM_I32V(right), WASM_LOCAL_GET(0))});
   }
 
-  Handle<Object> args_left[] = {isolate->factory()->NewNumber(1)};
-  r.CheckCallApplyViaJS(left, rc_fn.function_index(), args_left, 1);
+  DirectHandle<Object> args_left[] = {isolate->factory()->NewNumber(1)};
+  r.CheckCallApplyViaJS(left, rc_fn.function_index(),
+                        base::VectorOf(args_left));
 
-  Handle<Object> args_right[] = {isolate->factory()->NewNumber(0)};
-  r.CheckCallApplyViaJS(right, rc_fn.function_index(), args_right, 1);
+  DirectHandle<Object> args_right[] = {isolate->factory()->NewNumber(0)};
+  r.CheckCallApplyViaJS(right, rc_fn.function_index(),
+                        base::VectorOf(args_right));
 }
 
 WASM_COMPILED_EXEC_TEST(Run_ReturnCallImportedFunction) {

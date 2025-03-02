@@ -12,7 +12,7 @@
 #include <memory>
 #include <type_traits>
 
-#include "src/base/functional.h"
+#include "src/base/hashing.h"
 #include "src/base/logging.h"
 #include "src/base/macros.h"
 
@@ -142,8 +142,16 @@ class Vector {
     return *this;
   }
 
-  // Implicit conversion from Vector<T> to Vector<const T>.
-  operator Vector<const T>() const { return {start_, length_}; }
+  // Implicit conversion from Vector<T> to Vector<const U> if
+  // - T* is convertible to const U*, and
+  // - U and T have the same size.
+  // Note that this conversion is only safe for `*const* U`; writes would
+  // violate covariance.
+  template <typename U>
+    requires std::is_convertible_v<T*, const U*> && (sizeof(U) == sizeof(T))
+  operator Vector<const U>() const {
+    return {start_, length_};
+  }
 
   template <typename S>
   static Vector<T> cast(Vector<S> input) {
@@ -165,15 +173,15 @@ class Vector {
     return !operator==(other);
   }
 
-  template<typename TT = T>
-  std::enable_if_t<!std::is_const_v<TT>, bool> operator==(
-      const Vector<const T>& other) const {
+  template <typename TT = T>
+    requires(!std::is_const_v<TT>)
+  bool operator==(const Vector<const T>& other) const {
     return std::equal(begin(), end(), other.begin(), other.end());
   }
 
-  template<typename TT = T>
-  std::enable_if_t<!std::is_const_v<TT>, bool> operator!=(
-      const Vector<const T>& other) const {
+  template <typename TT = T>
+    requires(!std::is_const_v<TT>)
+  bool operator!=(const Vector<const T>& other) const {
     return !operator==(other);
   }
 
@@ -217,16 +225,14 @@ class OwnedVector {
   // {OwnedVector<const T>}.
   // These also function as the standard move construction/assignment operator.
   // {other} is left as an empty vector.
-  template <typename U,
-            typename = typename std::enable_if<std::is_convertible<
-                std::unique_ptr<U>, std::unique_ptr<T>>::value>::type>
+  template <typename U>
+    requires std::is_convertible_v<std::unique_ptr<U>, std::unique_ptr<T>>
   OwnedVector(OwnedVector<U>&& other) V8_NOEXCEPT {
     *this = std::move(other);
   }
 
-  template <typename U,
-            typename = typename std::enable_if<std::is_convertible<
-                std::unique_ptr<U>, std::unique_ptr<T>>::value>::type>
+  template <typename U>
+    requires std::is_convertible_v<std::unique_ptr<U>, std::unique_ptr<T>>
   OwnedVector& operator=(OwnedVector<U>&& other) V8_NOEXCEPT {
     static_assert(sizeof(U) == sizeof(T));
     data_ = std::move(other.data_);
@@ -287,24 +293,17 @@ class OwnedVector {
   // Elements in the new vector are default-initialized.
   static OwnedVector<T> NewForOverwrite(size_t size) {
     if (size == 0) return {};
-    // TODO(v8): Use {std::make_unique_for_overwrite} once we allow C++20.
-    return OwnedVector<T>(std::unique_ptr<T[]>(new T[size]), size);
+    return OwnedVector<T>(std::make_unique_for_overwrite<T[]>(size), size);
   }
 
   // Allocates a new vector containing the specified collection of values.
   // {Iterator} is the common type of {std::begin} and {std::end} called on a
   // {const U&}. This function is only instantiable if that type exists.
-  template <typename U, typename Iterator = typename std::common_type<
-                            decltype(std::begin(std::declval<const U&>())),
-                            decltype(std::end(std::declval<const U&>()))>::type>
-  static OwnedVector<T> Of(const U& collection) {
-    Iterator begin = std::begin(collection);
-    Iterator end = std::end(collection);
-    using non_const_t = typename std::remove_const<T>::type;
-    auto vec =
-        OwnedVector<non_const_t>::NewForOverwrite(std::distance(begin, end));
-    std::copy(begin, end, vec.begin());
-    return vec;
+  template <typename U>
+  static OwnedVector<U> NewByCopying(const U* data, size_t size) {
+    auto result = OwnedVector<U>::NewForOverwrite(size);
+    std::copy(data, data + size, result.begin());
+    return result;
   }
 
   bool operator==(std::nullptr_t) const { return data_ == nullptr; }
@@ -376,6 +375,22 @@ inline constexpr auto VectorOf(Container&& c)
 template <typename T>
 inline constexpr Vector<const T> VectorOf(std::initializer_list<T> list) {
   return VectorOf(list.begin(), list.size());
+}
+
+// Construct an OwnedVector from a start pointer and a size.
+// The data will be copied.
+template <typename T>
+inline OwnedVector<T> OwnedCopyOf(const T* data, size_t size) {
+  return OwnedVector<T>::NewByCopying(data, size);
+}
+
+// Construct an OwnedVector from anything compatible with std::data and
+// std::size (e.g. an array, or a container providing a {data()} and {size()}
+// accessor). The data will be copied.
+template <typename Container>
+inline auto OwnedCopyOf(const Container& c)
+    -> decltype(OwnedCopyOf(std::data(c), std::size(c))) {
+  return OwnedCopyOf(std::data(c), std::size(c));
 }
 
 template <typename T, size_t kSize>

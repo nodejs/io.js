@@ -76,6 +76,10 @@ bool Expression::IsStringLiteral() const {
   return IsLiteral() && AsLiteral()->type() == Literal::kString;
 }
 
+bool Expression::IsConsStringLiteral() const {
+  return IsLiteral() && AsLiteral()->type() == Literal::kConsString;
+}
+
 bool Expression::IsPropertyName() const {
   return IsLiteral() && AsLiteral()->IsPropertyName();
 }
@@ -250,7 +254,9 @@ std::unique_ptr<char[]> FunctionLiteral::GetDebugName() const {
     }
   }
   std::unique_ptr<char[]> result(new char[result_vec.size() + 1]);
-  memcpy(result.get(), result_vec.data(), result_vec.size());
+  if (result_vec.size()) {
+    memcpy(result.get(), result_vec.data(), result_vec.size());
+  }
   result[result_vec.size()] = '\0';
   return result;
 }
@@ -277,7 +283,7 @@ ObjectLiteralProperty::ObjectLiteralProperty(AstValueFactory* ast_value_factory,
                                              Expression* key, Expression* value,
                                              bool is_computed_name)
     : LiteralProperty(key, value, is_computed_name), emit_store_(true) {
-  if (!is_computed_name && key->AsLiteral()->IsString() &&
+  if (!is_computed_name && key->AsLiteral()->IsRawString() &&
       key->AsLiteral()->AsRawString() == ast_value_factory->proto_string()) {
     kind_ = PROTOTYPE;
   } else if (value_->AsMaterializedLiteral() != nullptr) {
@@ -546,7 +552,7 @@ bool ObjectLiteralBoilerplateBuilder::IsFastCloningSupported() const {
 
 // static
 template <typename IsolateT>
-Handle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
+DirectHandle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
     Expression* expression, IsolateT* isolate) {
   if (expression->IsLiteral()) {
     return expression->AsLiteral()->BuildValue(isolate);
@@ -566,10 +572,10 @@ Handle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
   return isolate->factory()->uninitialized_value();
 }
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
+    DirectHandle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
         Expression* expression, Isolate* isolate);
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
+    DirectHandle<Object> LiteralBoilerplateBuilder::GetBoilerplateValue(
         Expression* expression, LocalIsolate* isolate);
 
 void ArrayLiteralBoilerplateBuilder::InitDepthAndFlags() {
@@ -628,6 +634,7 @@ void ArrayLiteralBoilerplateBuilder::InitDepthAndFlags() {
             break;
           case Literal::kBigInt:
           case Literal::kString:
+          case Literal::kConsString:
           case Literal::kBoolean:
           case Literal::kUndefined:
           case Literal::kNull:
@@ -661,7 +668,7 @@ void ArrayLiteralBoilerplateBuilder::BuildBoilerplateDescription(
   ElementsKind kind = boilerplate_descriptor_kind();
   bool use_doubles = IsDoubleElementsKind(kind);
 
-  Handle<FixedArrayBase> elements;
+  DirectHandle<FixedArrayBase> elements;
   if (use_doubles) {
     elements = isolate->factory()->NewFixedDoubleArray(constants_length,
                                                        AllocationType::kOld);
@@ -698,7 +705,7 @@ void ArrayLiteralBoilerplateBuilder::BuildBoilerplateDescription(
         BuildConstants(isolate, m_literal);
       }
 
-      // New handle scope here, needs to be after BuildContants().
+      // New handle scope here, needs to be after BuildConstants().
       typename IsolateT::HandleScopeType scope(isolate);
 
       Tagged<Object> boilerplate_value = *GetBoilerplateValue(element, isolate);
@@ -728,7 +735,7 @@ void ArrayLiteralBoilerplateBuilder::BuildBoilerplateDescription(
   if (is_simple() && depth() == kShallow && array_index > 0 &&
       IsSmiOrObjectElementsKind(kind)) {
     elements->set_map_safe_transition(
-        ReadOnlyRoots(isolate).fixed_cow_array_map());
+        isolate, ReadOnlyRoots(isolate).fixed_cow_array_map(), kReleaseStore);
   }
 
   boilerplate_description_ =
@@ -801,8 +808,9 @@ template EXPORT_TEMPLATE_DEFINE(V8_BASE_EXPORT) void LiteralBoilerplateBuilder::
 template <typename IsolateT>
 Handle<TemplateObjectDescription> GetTemplateObject::GetOrBuildDescription(
     IsolateT* isolate) {
-  Handle<FixedArray> raw_strings_handle = isolate->factory()->NewFixedArray(
-      this->raw_strings()->length(), AllocationType::kOld);
+  DirectHandle<FixedArray> raw_strings_handle =
+      isolate->factory()->NewFixedArray(this->raw_strings()->length(),
+                                        AllocationType::kOld);
   bool raw_and_cooked_match = true;
   {
     DisallowGarbageCollection no_gc;
@@ -822,7 +830,7 @@ Handle<TemplateObjectDescription> GetTemplateObject::GetOrBuildDescription(
       raw_strings->set(i, *this->raw_strings()->at(i)->string());
     }
   }
-  Handle<FixedArray> cooked_strings_handle = raw_strings_handle;
+  DirectHandle<FixedArray> cooked_strings_handle = raw_strings_handle;
   if (!raw_and_cooked_match) {
     cooked_strings_handle = isolate->factory()->NewFixedArray(
         this->cooked_strings()->length(), AllocationType::kOld);
@@ -1040,15 +1048,17 @@ bool Literal::AsArrayIndex(uint32_t* value) const {
 }
 
 template <typename IsolateT>
-Handle<Object> Literal::BuildValue(IsolateT* isolate) const {
+DirectHandle<Object> Literal::BuildValue(IsolateT* isolate) const {
   switch (type()) {
     case kSmi:
-      return handle(Smi::FromInt(smi_), isolate);
+      return direct_handle(Smi::FromInt(smi_), isolate);
     case kHeapNumber:
       return isolate->factory()->template NewNumber<AllocationType::kOld>(
           number_);
     case kString:
       return string_->string();
+    case kConsString:
+      return cons_string_->AllocateFlat(isolate);
     case kBoolean:
       return isolate->factory()->ToBoolean(boolean_);
     case kNull:
@@ -1065,9 +1075,9 @@ Handle<Object> Literal::BuildValue(IsolateT* isolate) const {
   UNREACHABLE();
 }
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<Object> Literal::BuildValue(Isolate* isolate) const;
+    DirectHandle<Object> Literal::BuildValue(Isolate* isolate) const;
 template EXPORT_TEMPLATE_DEFINE(V8_EXPORT_PRIVATE)
-    Handle<Object> Literal::BuildValue(LocalIsolate* isolate) const;
+    DirectHandle<Object> Literal::BuildValue(LocalIsolate* isolate) const;
 
 bool Literal::ToBooleanIsTrue() const {
   switch (type()) {
@@ -1077,6 +1087,8 @@ bool Literal::ToBooleanIsTrue() const {
       return DoubleToBoolean(number_);
     case kString:
       return !string_->IsEmpty();
+    case kConsString:
+      return !cons_string_->IsEmpty();
     case kNull:
     case kUndefined:
       return false;
@@ -1101,14 +1113,15 @@ bool Literal::ToBooleanIsTrue() const {
 }
 
 uint32_t Literal::Hash() {
+  DCHECK(IsRawString() || IsNumber());
   uint32_t index;
   if (AsArrayIndex(&index)) {
     // Treat array indices as numbers, so that array indices are de-duped
     // correctly even if one of them is a string and the other is a number.
     return ComputeLongHash(index);
   }
-  return IsString() ? AsRawString()->Hash()
-                    : ComputeLongHash(base::double_to_uint64(AsNumber()));
+  return IsRawString() ? AsRawString()->Hash()
+                       : ComputeLongHash(base::double_to_uint64(AsNumber()));
 }
 
 // static
@@ -1120,7 +1133,7 @@ bool Literal::Match(void* a, void* b) {
   if (x->AsArrayIndex(&index_x)) {
     return y->AsArrayIndex(&index_y) && index_x == index_y;
   }
-  return (x->IsString() && y->IsString() &&
+  return (x->IsRawString() && y->IsRawString() &&
           x->AsRawString() == y->AsRawString()) ||
          (x->IsNumber() && y->IsNumber() && x->AsNumber() == y->AsNumber());
 }

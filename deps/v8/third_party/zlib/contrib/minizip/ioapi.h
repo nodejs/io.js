@@ -18,8 +18,8 @@
 
 */
 
-#ifndef _ZLIBIOAPI64_H
-#define _ZLIBIOAPI64_H
+#ifndef ZLIBIOAPI64_H
+#define ZLIBIOAPI64_H
 
 #if (!defined(_WIN32)) && (!defined(WIN32)) && (!defined(__APPLE__))
 
@@ -67,39 +67,12 @@
 #endif
 #endif
 
-/*
-#ifndef ZPOS64_T
-  #ifdef _WIN32
-                #define ZPOS64_T fpos_t
-  #else
-    #include <stdint.h>
-    #define ZPOS64_T uint64_t
-  #endif
-#endif
-*/
-
 #ifdef HAVE_MINIZIP64_CONF_H
 #include "mz64conf.h"
 #endif
 
-/* a type chosen by DEFINE */
-#ifdef HAVE_64BIT_INT_CUSTOM
-typedef  64BIT_INT_CUSTOM_TYPE ZPOS64_T;
-#else
-#ifdef HAS_STDINT_H
-#include "stdint.h"
-typedef uint64_t ZPOS64_T;
-#else
-
-
-
-#if defined(_MSC_VER) || defined(__BORLANDC__)
-typedef unsigned __int64 ZPOS64_T;
-#else
-typedef unsigned long long int ZPOS64_T;
-#endif
-#endif
-#endif
+#include "ints.h"
+typedef ui64_t ZPOS64_T;
 
 /* Maximum unsigned 32-bit value used as placeholder for zip64 */
 #ifndef MAXU32

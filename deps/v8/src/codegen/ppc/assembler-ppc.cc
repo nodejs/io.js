@@ -201,7 +201,7 @@ void Assembler::AllocateAndInstallRequestedHeapNumbers(LocalIsolate* isolate) {
             request.heap_number());
     Address pc = reinterpret_cast<Address>(buffer_start_) + request.offset();
     Address constant_pool = kNullAddress;
-    set_target_address_at(pc, constant_pool, object.address(),
+    set_target_address_at(pc, constant_pool, object.address(), nullptr,
                           SKIP_ICACHE_FLUSH);
   }
 }
@@ -1344,17 +1344,6 @@ void Assembler::mov(Register dst, const Operand& src) {
   bool relocatable = src.must_output_reloc_info(this);
   bool canOptimize;
 
-  if (src.rmode_ == RelocInfo::WASM_CANONICAL_SIG_ID) {
-    if (relocatable) {
-      RecordRelocInfo(src.rmode_);
-    }
-    CHECK(is_int32(value));
-    // If this is changed then also change `uint32_constant_at` and
-    // `set_uint32_constant_at`.
-    bitwise_mov32(dst, value);
-    return;
-  }
-
   canOptimize =
       !(relocatable ||
         (is_trampoline_pool_blocked() &&
@@ -2157,7 +2146,7 @@ void Assembler::EmitRelocations() {
       intptr_t pos = static_cast<intptr_t>(target_address_at(pc, kNullAddress));
       set_target_address_at(pc, 0,
                             reinterpret_cast<Address>(buffer_start_) + pos,
-                            SKIP_ICACHE_FLUSH);
+                            nullptr, SKIP_ICACHE_FLUSH);
     }
 
     reloc_info_writer.Write(&rinfo);

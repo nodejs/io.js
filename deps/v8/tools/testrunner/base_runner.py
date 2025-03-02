@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 from collections import OrderedDict, namedtuple
+from functools import cached_property
 from functools import reduce
 from pathlib import Path
 
@@ -88,6 +89,18 @@ TEST_MAP = {
   ],
 }
 
+DEFAULT_FLAGS = {
+  'standard_runner': [
+    '--testing-d8-test-runner',
+  ],
+  'num_fuzzer': [
+    '--fuzzing',
+    '--exit-on-contradictory-flags',
+    '--testing-d8-test-runner',
+    '--no-fail',
+  ],
+}
+
 ModeConfig = namedtuple(
     'ModeConfig', 'label flags timeout_scalefactor status_mode')
 
@@ -133,9 +146,18 @@ class BaseTestRunner(object):
     self.options = None
 
   @property
-  def framework_name(self):
-    """String name of the base-runner subclass, used in test results."""
+  def default_framework_name(self):
+    """Default value for framework_name if not provided on the command line."""
     raise NotImplementedError() # pragma: no cover
+
+  @cached_property
+  def framework_name(self):
+    """String name of the framework flavor that tweaks runner behavior."""
+    assert self.options
+    if self.options.framework != 'default':
+      return self.options.framework
+    else:
+      return self.default_framework_name
 
   def execute(self, sys_args=None):
     if sys_args is None:  # pragma: no cover
@@ -195,6 +217,12 @@ class BaseTestRunner(object):
     return parser
 
   def _add_parser_default_options(self, parser):
+    framework_choices = ('default', 'standard_runner', 'num_fuzzer')
+    parser.add_option('--framework',
+                      type='choice',
+                      choices=framework_choices,
+                      default='default',
+                      help=f'Choose framework from: {framework_choices}')
     parser.add_option("--gn", help="Scan out.gn for the last built"
                       " configuration",
                       default=False, action="store_true")
@@ -333,9 +361,6 @@ class BaseTestRunner(object):
       raise TestRunnerError
 
     print('Build found: %s' % self.outdir)
-    if str(self.build_config):
-      print('>>> Autodetected:')
-      print(self.build_config)
 
     # Represents the OS where tests are run on. Same as host OS except for
     # Android and iOS, which are determined by build output.
@@ -535,7 +560,9 @@ class BaseTestRunner(object):
 
   def _load_testsuite_generators(self, ctx, names):
     test_config = self._create_test_config()
-    variables = self._get_statusfile_variables()
+    variables = self._get_statusfile_variables(ctx)
+    print('>>> Statusfile variables:')
+    print(', '.join(f'{k}={v}' for k, v in sorted(variables.items())))
 
     # Head generator with no elements
     test_chain = testsuite.TestGenerator(0, [], [], [])
@@ -588,7 +615,7 @@ class BaseTestRunner(object):
 
     return False
 
-  def _get_statusfile_variables(self):
+  def _get_statusfile_variables(self, context):
     """Returns all attributes accessible in status files.
 
     All build-time flags from V8's BUILD.gn file as defined by the action
@@ -598,6 +625,7 @@ class BaseTestRunner(object):
     variables.update({
         "byteorder": sys.byteorder,
         "deopt_fuzzer": False,
+        "device_type": context.device_type,
         "endurance_fuzzer": False,
         "gc_fuzzer": False,
         "gc_stress": False,
@@ -616,7 +644,7 @@ class BaseTestRunner(object):
 
   def _runner_flags(self):
     """Extra default flags specific to the test runner implementation."""
-    return [] # pragma: no cover
+    return DEFAULT_FLAGS[self.framework_name]
 
   def _create_test_config(self):
     shard_id, shard_count = self.options.shard_info

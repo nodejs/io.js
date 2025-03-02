@@ -16,9 +16,9 @@
 #define ABSL_RANDOM_INTERNAL_DISTRIBUTION_TEST_UTIL_H_
 
 #include <cstddef>
-#include <iostream>
-#include <vector>
+#include <ostream>
 
+#include "absl/base/config.h"
 #include "absl/strings/string_view.h"
 #include "absl/types/span.h"
 
@@ -96,7 +96,7 @@ double BetaIncomplete(double x, double p, double q);
 //   https://www.jstor.org/stable/2346798
 //   https://www.jstor.org/stable/2346887
 //
-// BetaIncompleteInv(p, q, beta, alhpa)
+// BetaIncompleteInv(p, q, beta, alpha)
 //   `p` is beta parameter p, `q` is beta parameter q.
 //   `alpha` is the value of the lower tail area.
 //

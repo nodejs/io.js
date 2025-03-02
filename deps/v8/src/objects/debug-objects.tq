@@ -81,6 +81,13 @@ extern class StackFrameInfo extends Struct {
   flags: SmiTagged<StackFrameInfoFlags>;
 }
 
+extern class StackTraceInfo extends Struct {
+  // Unique ID of this stack trace.
+  id: Smi;
+  // FixedArray of StackFrameInfos.
+  frames: FixedArray;
+}
+
 // This struct is used by V8 as error_data_symbol on JSError
 // instances when the inspector asks V8 to keep (detailed)
 // stack traces in addition to the (simple) stack traces that
@@ -88,38 +95,17 @@ extern class StackFrameInfo extends Struct {
 //
 // This can have one of the following forms:
 //
-// (1) A pair of FixedArray<CallSiteInfo> and positive limit
-//     if the stack information is not formatted yet and the
-//     inspector did not yet request any information about the
-//     error's stack trace. The positive limit specifies the cap
-//     for the number of call sites exposed to error.stack.
-// (2) A pair of FixedArray<CallSiteInfo> and negative limit
-//     is similar to the above, except that the limit should be
-//     applied to the inspector StackFrameInfo list once computed
-//     rather than the number of call sites exposed to error.stack.
-// (3) A FixedArray<CallSiteInfo> and FixedArray<StackFrameInfo>
-//     pair indicates that the inspector already asked for the
-//     detailed stack information, but the error.stack property
-//     was not yet formatted. If any limit (negative or positive)
-//     was stored in the second field before, it was applied to the
-//     appropriate FixedArray now.
-// (4) A valid JavaScript object and FixedArray<StackFrameInfo>
-//     once error.stack was accessed.
-//
-// Memorizing the limits is important to ensure that the fact that
-// the inspector is active doesn't influence the script execution
-// (i.e. the observable limit of call sites in error.stack is the
-// same independent of whether the inspector is active or not).
+// (1) A FixedArray<CallSiteInfo> and StackTraceInfo pair
+//     indicates that the inspector already asked for the
+//     detailed stack information, but the error.stack
+//     property was not yet formatted.
+// (2) A valid JavaScript object and StackTraceInfo once
+//     error.stack was accessed.
 extern class ErrorStackData extends Struct {
   // This holds either the FixedArray of CallSiteInfo instances or
   // the formatted stack value (usually a string) that's returned
   // from the error.stack property.
   call_site_infos_or_formatted_stack: FixedArray|JSAny;
-  // This holds either the FixedArray of StackFrameInfo instances
-  // for the inspector stack trace or a stack trace limit, which
-  // if positive specifies how many of the CallSiteInfo instances
-  // in the first field are to be revealed via error.stack or if
-  // negative specifies the (negated) limit for the inspector
-  // stack traces.
-  limit_or_stack_frame_infos: Smi|FixedArray;
+  // This holds the StackTraceInfo for inspector stack trace.
+  stack_trace: StackTraceInfo;
 }

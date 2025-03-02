@@ -54,8 +54,25 @@ struct CodeProtectionInfoListEntry {
 extern size_t gNumCodeObjects;
 extern CodeProtectionInfoListEntry* gCodeObjects;
 
-extern uintptr_t gV8SandboxBase;
-extern uintptr_t gV8SandboxSize;
+// This list describes sandboxes as bases and sizes.
+struct SandboxRecord {
+  uintptr_t base;
+  size_t size;
+  SandboxRecord* next;
+};
+
+class SandboxRecordsLock {
+  static std::atomic_flag spinlock_;
+
+ public:
+  SandboxRecordsLock();
+  ~SandboxRecordsLock();
+
+  SandboxRecordsLock(const SandboxRecordsLock&) = delete;
+  void operator=(const SandboxRecordsLock&) = delete;
+};
+
+extern SandboxRecord* gSandboxRecordsHead;
 
 extern std::atomic_size_t gRecoveredTrapCount;
 

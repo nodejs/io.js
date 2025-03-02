@@ -734,10 +734,16 @@ Simulator::Simulator(Isolate* isolate) : isolate_(isolate) {
   registers_[lr] = bad_lr;
 
   last_debugger_input_ = nullptr;
+
+  global_monitor_ = GlobalMonitor::Get();
+  global_monitor_->PrependProcessor(&global_monitor_processor_);
+
+  // Enabling deadlock detection while simulating is too slow.
+  SetMutexDeadlockDetectionMode(absl::OnDeadlockCycle::kIgnore);
 }
 
 Simulator::~Simulator() {
-  GlobalMonitor::Get()->RemoveProcessor(&global_monitor_processor_);
+  global_monitor_->RemoveProcessor(&global_monitor_processor_);
   base::Free(stack_);
 }
 
@@ -972,32 +978,32 @@ void Simulator::TrashCallerSaveRegisters() {
 int Simulator::ReadW(int32_t addr) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoad(addr);
   return base::ReadUnalignedValue<intptr_t>(addr);
 }
 
 int Simulator::ReadExW(int32_t addr) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoadExcl(addr, TransactionSize::Word);
-  GlobalMonitor::Get()->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
   return base::ReadUnalignedValue<intptr_t>(addr);
 }
 
 void Simulator::WriteW(int32_t addr, int value) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyStore(addr);
-  GlobalMonitor::Get()->NotifyStore_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyStore_Locked(addr, &global_monitor_processor_);
   base::WriteUnalignedValue<intptr_t>(addr, value);
 }
 
 int Simulator::WriteExW(int32_t addr, int value) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   if (local_monitor_.NotifyStoreExcl(addr, TransactionSize::Word) &&
-      GlobalMonitor::Get()->NotifyStoreExcl_Locked(
-          addr, &global_monitor_processor_)) {
+      global_monitor_->NotifyStoreExcl_Locked(addr,
+                                              &global_monitor_processor_)) {
     base::WriteUnalignedValue<intptr_t>(addr, value);
     return 0;
   } else {
@@ -1008,7 +1014,7 @@ int Simulator::WriteExW(int32_t addr, int value) {
 uint16_t Simulator::ReadHU(int32_t addr) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoad(addr);
   return base::ReadUnalignedValue<uint16_t>(addr);
 }
@@ -1016,41 +1022,41 @@ uint16_t Simulator::ReadHU(int32_t addr) {
 int16_t Simulator::ReadH(int32_t addr) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoad(addr);
   return base::ReadUnalignedValue<int16_t>(addr);
 }
 
 uint16_t Simulator::ReadExHU(int32_t addr) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoadExcl(addr, TransactionSize::HalfWord);
-  GlobalMonitor::Get()->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
   return base::ReadUnalignedValue<uint16_t>(addr);
 }
 
 void Simulator::WriteH(int32_t addr, uint16_t value) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyStore(addr);
-  GlobalMonitor::Get()->NotifyStore_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyStore_Locked(addr, &global_monitor_processor_);
   base::WriteUnalignedValue(addr, value);
 }
 
 void Simulator::WriteH(int32_t addr, int16_t value) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyStore(addr);
-  GlobalMonitor::Get()->NotifyStore_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyStore_Locked(addr, &global_monitor_processor_);
   base::WriteUnalignedValue(addr, value);
 }
 
 int Simulator::WriteExH(int32_t addr, uint16_t value) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   if (local_monitor_.NotifyStoreExcl(addr, TransactionSize::HalfWord) &&
-      GlobalMonitor::Get()->NotifyStoreExcl_Locked(
-          addr, &global_monitor_processor_)) {
+      global_monitor_->NotifyStoreExcl_Locked(addr,
+                                              &global_monitor_processor_)) {
     base::WriteUnalignedValue(addr, value);
     return 0;
   } else {
@@ -1059,43 +1065,43 @@ int Simulator::WriteExH(int32_t addr, uint16_t value) {
 }
 
 uint8_t Simulator::ReadBU(int32_t addr) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoad(addr);
   return base::ReadUnalignedValue<uint8_t>(addr);
 }
 
 int8_t Simulator::ReadB(int32_t addr) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoad(addr);
   return base::ReadUnalignedValue<int8_t>(addr);
 }
 
 uint8_t Simulator::ReadExBU(int32_t addr) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoadExcl(addr, TransactionSize::Byte);
-  GlobalMonitor::Get()->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
   return base::ReadUnalignedValue<uint8_t>(addr);
 }
 
 void Simulator::WriteB(int32_t addr, uint8_t value) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyStore(addr);
-  GlobalMonitor::Get()->NotifyStore_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyStore_Locked(addr, &global_monitor_processor_);
   base::WriteUnalignedValue(addr, value);
 }
 
 void Simulator::WriteB(int32_t addr, int8_t value) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyStore(addr);
-  GlobalMonitor::Get()->NotifyStore_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyStore_Locked(addr, &global_monitor_processor_);
   base::WriteUnalignedValue(addr, value);
 }
 
 int Simulator::WriteExB(int32_t addr, uint8_t value) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   if (local_monitor_.NotifyStoreExcl(addr, TransactionSize::Byte) &&
-      GlobalMonitor::Get()->NotifyStoreExcl_Locked(
-          addr, &global_monitor_processor_)) {
+      global_monitor_->NotifyStoreExcl_Locked(addr,
+                                              &global_monitor_processor_)) {
     base::WriteUnalignedValue(addr, value);
     return 0;
   } else {
@@ -1106,33 +1112,33 @@ int Simulator::WriteExB(int32_t addr, uint8_t value) {
 int32_t* Simulator::ReadDW(int32_t addr) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoad(addr);
   return reinterpret_cast<int32_t*>(addr);
 }
 
 int32_t* Simulator::ReadExDW(int32_t addr) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyLoadExcl(addr, TransactionSize::DoubleWord);
-  GlobalMonitor::Get()->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyLoadExcl_Locked(addr, &global_monitor_processor_);
   return reinterpret_cast<int32_t*>(addr);
 }
 
 void Simulator::WriteDW(int32_t addr, int32_t value1, int32_t value2) {
   // All supported ARM targets allow unaligned accesses, so we don't need to
   // check the alignment here.
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   local_monitor_.NotifyStore(addr);
-  GlobalMonitor::Get()->NotifyStore_Locked(addr, &global_monitor_processor_);
+  global_monitor_->NotifyStore_Locked(addr, &global_monitor_processor_);
   base::WriteUnalignedValue(addr, value1);
   base::WriteUnalignedValue(addr + sizeof(value1), value2);
 }
 
 int Simulator::WriteExDW(int32_t addr, int32_t value1, int32_t value2) {
-  base::MutexGuard lock_guard(&GlobalMonitor::Get()->mutex);
+  GlobalMonitor::SimulatorMutex lock_guard(global_monitor_);
   if (local_monitor_.NotifyStoreExcl(addr, TransactionSize::DoubleWord) &&
-      GlobalMonitor::Get()->NotifyStoreExcl_Locked(
-          addr, &global_monitor_processor_)) {
+      global_monitor_->NotifyStoreExcl_Locked(addr,
+                                              &global_monitor_processor_)) {
     base::WriteUnalignedValue(addr, value1);
     base::WriteUnalignedValue(addr + sizeof(value1), value2);
     return 0;
@@ -1154,7 +1160,7 @@ uintptr_t Simulator::StackLimit(uintptr_t c_limit) const {
   return reinterpret_cast<uintptr_t>(stack_) + kAdditionalStackMargin;
 }
 
-base::Vector<uint8_t> Simulator::GetCurrentStackView() const {
+base::Vector<uint8_t> Simulator::GetCentralStackView() const {
   // We do not add an additional safety margin as above in
   // Simulator::StackLimit, as this is currently only used in wasm::StackMemory,
   // which adds its own margin.
@@ -1623,6 +1629,7 @@ using SimulatorRuntimeCompareCall = int64_t (*)(double darg0, double darg1);
 using SimulatorRuntimeFPFPCall = double (*)(double darg0, double darg1);
 using SimulatorRuntimeFPCall = double (*)(double darg0);
 using SimulatorRuntimeFPIntCall = double (*)(double darg0, int32_t arg0);
+using SimulatorRuntimeIntFPCall = int32_t (*)(double darg0);
 // Define four args for future flexibility; at the time of this writing only
 // one is ever used.
 using SimulatorRuntimeFPTaggedCall = double (*)(int32_t arg0, int32_t arg1,
@@ -1691,7 +1698,8 @@ void Simulator::SoftwareInterrupt(Instruction* instr) {
           (redirection->type() == ExternalReference::BUILTIN_FP_FP_CALL) ||
           (redirection->type() == ExternalReference::BUILTIN_COMPARE_CALL) ||
           (redirection->type() == ExternalReference::BUILTIN_FP_CALL) ||
-          (redirection->type() == ExternalReference::BUILTIN_FP_INT_CALL);
+          (redirection->type() == ExternalReference::BUILTIN_FP_INT_CALL) ||
+          (redirection->type() == ExternalReference::BUILTIN_INT_FP_CALL);
       // This is dodgy but it works because the C entry stubs are never moved.
       // See comment in codegen-arm.cc and bug 1242173.
       int32_t saved_lr = get_register(lr);
@@ -1722,6 +1730,11 @@ void Simulator::SoftwareInterrupt(Instruction* instr) {
               PrintF("Call to host function at %p with args %f, %d",
                      reinterpret_cast<void*>(FUNCTION_ADDR(generic_target)),
                      dval0, ival);
+              break;
+            case ExternalReference::BUILTIN_INT_FP_CALL:
+              PrintF("Call to host function at %p with args %f",
+                     reinterpret_cast<void*>(FUNCTION_ADDR(generic_target)),
+                     dval0);
               break;
             default:
               UNREACHABLE();
@@ -1774,12 +1787,23 @@ void Simulator::SoftwareInterrupt(Instruction* instr) {
             SetFpResult(dresult);
             break;
           }
+          case ExternalReference::BUILTIN_INT_FP_CALL: {
+            SimulatorRuntimeIntFPCall target =
+                reinterpret_cast<SimulatorRuntimeIntFPCall>(external);
+            iresult = target(dval0);
+#ifdef DEBUG
+            TrashCallerSaveRegisters();
+#endif
+            set_register(r0, static_cast<int32_t>(iresult));
+            break;
+          }
           default:
             UNREACHABLE();
         }
         if (InstructionTracingEnabled()) {
           switch (redirection->type()) {
             case ExternalReference::BUILTIN_COMPARE_CALL:
+            case ExternalReference::BUILTIN_INT_FP_CALL:
               PrintF("Returned %08x\n", static_cast<int32_t>(iresult));
               break;
             case ExternalReference::BUILTIN_FP_FP_CALL:
@@ -4151,7 +4175,7 @@ template <typename T, int SIZE>
 void ShiftRight(Simulator* simulator, int Vd, int Vm, int shift,
                 bool is_unsigned) {
   if (is_unsigned) {
-    using unsigned_T = typename std::make_unsigned<T>::type;
+    using unsigned_T = std::make_unsigned_t<T>;
     LogicalShiftRight<unsigned_T, SIZE>(simulator, Vd, Vm, shift);
   } else {
     ArithmeticShiftRight<T, SIZE>(simulator, Vd, Vm, shift);
@@ -4220,7 +4244,7 @@ void ShiftByRegister(Simulator* simulator, int Vd, int Vm, int Vn) {
       if (shift_value >= size) {
         src[i] = 0;
       } else {
-        using unsignedT = typename std::make_unsigned<T>::type;
+        using unsignedT = std::make_unsigned_t<T>;
         src[i] = static_cast<unsignedT>(src[i]) << shift_value;
       }
     } else {
@@ -6461,7 +6485,6 @@ bool Simulator::GlobalMonitor::Processor::NotifyStoreExcl_Locked(
 void Simulator::GlobalMonitor::NotifyLoadExcl_Locked(int32_t addr,
                                                      Processor* processor) {
   processor->NotifyLoadExcl_Locked(addr);
-  PrependProcessor_Locked(processor);
 }
 
 void Simulator::GlobalMonitor::NotifyStore_Locked(int32_t addr,
@@ -6475,7 +6498,6 @@ void Simulator::GlobalMonitor::NotifyStore_Locked(int32_t addr,
 
 bool Simulator::GlobalMonitor::NotifyStoreExcl_Locked(int32_t addr,
                                                       Processor* processor) {
-  DCHECK(IsProcessorInLinkedList_Locked(processor));
   if (processor->NotifyStoreExcl_Locked(addr, true)) {
     // Notify the other processors that this StoreExcl succeeded.
     for (Processor* iter = head_; iter; iter = iter->next_) {
@@ -6489,30 +6511,19 @@ bool Simulator::GlobalMonitor::NotifyStoreExcl_Locked(int32_t addr,
   }
 }
 
-bool Simulator::GlobalMonitor::IsProcessorInLinkedList_Locked(
-    Processor* processor) const {
-  return head_ == processor || processor->next_ || processor->prev_;
-}
-
-void Simulator::GlobalMonitor::PrependProcessor_Locked(Processor* processor) {
-  if (IsProcessorInLinkedList_Locked(processor)) {
-    return;
-  }
-
+void Simulator::GlobalMonitor::PrependProcessor(Processor* processor) {
+  base::MutexGuard lock_guard(&mutex_);
   if (head_) {
     head_->prev_ = processor;
   }
   processor->prev_ = nullptr;
   processor->next_ = head_;
   head_ = processor;
+  num_processors_++;
 }
 
 void Simulator::GlobalMonitor::RemoveProcessor(Processor* processor) {
-  base::MutexGuard lock_guard(&mutex);
-  if (!IsProcessorInLinkedList_Locked(processor)) {
-    return;
-  }
-
+  base::MutexGuard lock_guard(&mutex_);
   if (processor->prev_) {
     processor->prev_->next_ = processor->next_;
   } else {
@@ -6523,6 +6534,7 @@ void Simulator::GlobalMonitor::RemoveProcessor(Processor* processor) {
   }
   processor->prev_ = nullptr;
   processor->next_ = nullptr;
+  num_processors_--;
 }
 
 #undef SScanF

@@ -47,7 +47,8 @@ void run() {
   // Instantiate.
   std::cout << "Instantiating module..." << std::endl;
   wasm::own<wasm::Trap> trap;
-  auto instance = wasm::Instance::make(store, module.get(), nullptr, &trap);
+  auto imports = wasm::vec<wasm::Extern*>::make();
+  auto instance = wasm::Instance::make(store, module.get(), imports, &trap);
   if (instance || !trap) {
     std::cout << "> Error instantiating module, expected trap!" << std::endl;
     exit(1);

@@ -26,9 +26,9 @@ namespace v8 {
 namespace internal {
 
 // ecma402 #sec-createsegmentsobject
-MaybeHandle<JSSegments> JSSegments::Create(Isolate* isolate,
-                                           DirectHandle<JSSegmenter> segmenter,
-                                           Handle<String> string) {
+MaybeDirectHandle<JSSegments> JSSegments::Create(
+    Isolate* isolate, DirectHandle<JSSegmenter> segmenter,
+    DirectHandle<String> string) {
   std::shared_ptr<icu::BreakIterator> break_iterator{
       segmenter->icu_break_iterator()->raw()->clone()};
   DCHECK_NOT_NULL(break_iterator);
@@ -42,9 +42,9 @@ MaybeHandle<JSSegments> JSSegments::Create(Isolate* isolate,
   // 2. Let segments be ! ObjectCreate(%Segments.prototype%, internalSlotsList).
   DirectHandle<Map> map(isolate->native_context()->intl_segments_map(),
                         isolate);
-  Handle<JSObject> result = isolate->factory()->NewJSObjectFromMap(map);
+  DirectHandle<JSObject> result = isolate->factory()->NewJSObjectFromMap(map);
 
-  Handle<JSSegments> segments = Cast<JSSegments>(result);
+  DirectHandle<JSSegments> segments = Cast<JSSegments>(result);
   segments->set_flags(0);
 
   // 3. Set segments.[[SegmentsSegmenter]] to segmenter.
@@ -60,9 +60,8 @@ MaybeHandle<JSSegments> JSSegments::Create(Isolate* isolate,
 }
 
 // ecma402 #sec-%segmentsprototype%.containing
-MaybeHandle<Object> JSSegments::Containing(Isolate* isolate,
-                                           DirectHandle<JSSegments> segments,
-                                           double n_double) {
+MaybeDirectHandle<Object> JSSegments::Containing(
+    Isolate* isolate, DirectHandle<JSSegments> segments, double n_double) {
   // 5. Let len be the length of string.
   int32_t len = segments->unicode_string()->raw()->length();
 
@@ -87,7 +86,7 @@ MaybeHandle<Object> JSSegments::Containing(Isolate* isolate,
   // endIndex).
   return CreateSegmentDataObject(
       isolate, segments->granularity(), break_iterator,
-      handle(segments->raw_string(), isolate),
+      direct_handle(segments->raw_string(), isolate),
       *(segments->unicode_string()->raw()), start_index, end_index);
 }
 
@@ -107,7 +106,7 @@ bool CurrentSegmentIsWordLike(icu::BreakIterator* break_iterator) {
 }  // namespace
 
 // ecma402 #sec-createsegmentdataobject
-MaybeHandle<JSSegmentDataObject> JSSegments::CreateSegmentDataObject(
+MaybeDirectHandle<JSSegmentDataObject> JSSegments::CreateSegmentDataObject(
     Isolate* isolate, JSSegmenter::Granularity granularity,
     icu::BreakIterator* break_iterator, DirectHandle<String> input_string,
     const icu::UnicodeString& unicode_string, int32_t start_index,
@@ -128,13 +127,13 @@ MaybeHandle<JSSegmentDataObject> JSSegments::CreateSegmentDataObject(
           ? isolate->native_context()->intl_segment_data_object_wordlike_map()
           : isolate->native_context()->intl_segment_data_object_map(),
       isolate);
-  Handle<JSSegmentDataObject> result =
+  DirectHandle<JSSegmentDataObject> result =
       Cast<JSSegmentDataObject>(factory->NewJSObjectFromMap(map));
 
   // 6. Let segment be the String value equal to the substring of string
   // consisting of the code units at indices startIndex (inclusive) through
   // endIndex (exclusive).
-  Handle<String> segment;
+  DirectHandle<String> segment;
   ASSIGN_RETURN_ON_EXCEPTION(
       isolate, segment,
       Intl::ToString(isolate, unicode_string, start_index, end_index));

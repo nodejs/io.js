@@ -237,10 +237,11 @@ class V8_EXPORT_PRIVATE ParseInfo {
 
   template <typename IsolateT>
   EXPORT_TEMPLATE_DECLARE(V8_EXPORT_PRIVATE)
-  Handle<Script> CreateScript(IsolateT* isolate, Handle<String> source,
-                              MaybeHandle<FixedArray> maybe_wrapped_arguments,
-                              ScriptOriginOptions origin_options,
-                              NativesFlag natives = NOT_NATIVES_CODE);
+  Handle<Script> CreateScript(
+      IsolateT* isolate, DirectHandle<String> source,
+      MaybeDirectHandle<FixedArray> maybe_wrapped_arguments,
+      ScriptOriginOptions origin_options,
+      NativesFlag natives = NOT_NATIVES_CODE);
 
   Zone* zone() const { return reusable_state_->single_parse_zone(); }
 

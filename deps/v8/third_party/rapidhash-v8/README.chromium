@@ -1,0 +1,20 @@
+Name: rapidhash
+URL: https://github.com/Nicoshev/rapidhash/blob/master/rapidhash.h
+Version: N/A
+Date: 2024-07-08
+Revision: 588978411df8683777429f729be5213eb1bfd5f3
+License: BSD 2-clause
+License File: LICENSE
+Shipped: Yes
+Security Critical: yes
+
+Description:
+A fast hash function.
+
+This is a fork of upstream, with the parts that we don't need or want
+removed.  We do not intend to sync regularly with upstream git. This
+particular version is copied over from Chromium.
+
+Local Modifications:
+- Copied over from Chromium's third_party/rapidhash with all its changes.
+- Removed base/ includes and replaced with V8 versions.

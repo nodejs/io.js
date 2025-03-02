@@ -14,9 +14,8 @@
 
 #include "absl/random/seed_gen_exception.h"
 
-#include <iostream>
-
 #include "absl/base/config.h"
+#include "absl/base/internal/raw_logging.h"
 
 namespace absl {
 ABSL_NAMESPACE_BEGIN
@@ -36,7 +35,7 @@ void ThrowSeedGenException() {
 #ifdef ABSL_HAVE_EXCEPTIONS
   throw absl::SeedGenException();
 #else
-  std::cerr << kExceptionMessage << std::endl;
+  ABSL_RAW_LOG(FATAL, "%s", kExceptionMessage);
   std::terminate();
 #endif
 }

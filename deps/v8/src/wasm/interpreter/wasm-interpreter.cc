@@ -13,6 +13,8 @@
 #include "src/base/overflowing-math.h"
 #include "src/builtins/builtins.h"
 #include "src/handles/global-handles-inl.h"
+#include "src/heap/heap-write-barrier.h"
+#include "src/objects/object-macros.h"
 #include "src/snapshot/embedded/embedded-data-inl.h"
 #include "src/wasm/decoder.h"
 #include "src/wasm/function-body-decoder-impl.h"
@@ -29,8 +31,62 @@ namespace wasm {
 #define EMIT_INSTR_HANDLER(name) EmitFnId(k_##name);
 #define EMIT_INSTR_HANDLER_WITH_PC(name, pc) EmitFnId(k_##name, pc);
 
-static auto ReadI16 = Read<int16_t>;
-static auto ReadI32 = Read<int32_t>;
+#define START_EMIT_INSTR_HANDLER()                       \
+  {                                                      \
+    size_t _current_code_offset = code_.size();          \
+    size_t _current_slots_size = slots_.size();          \
+    DCHECK(!no_nested_emit_instr_handler_guard_);        \
+    no_nested_emit_instr_handler_guard_ = true;          \
+    stack_.clear_history();                              \
+    if (v8_flags.drumbrake_compact_bytecode) {           \
+      handler_size_ = InstrHandlerSize::Small;           \
+    } else {                                             \
+      DCHECK_EQ(handler_size_, InstrHandlerSize::Large); \
+    }                                                    \
+    while (true) {                                       \
+      current_instr_encoding_failed_ = false;
+
+#define START_EMIT_INSTR_HANDLER_WITH_ID(name) \
+  START_EMIT_INSTR_HANDLER()                   \
+  EMIT_INSTR_HANDLER(name)
+
+#define START_EMIT_INSTR_HANDLER_WITH_PC(name, pc) \
+  START_EMIT_INSTR_HANDLER()                       \
+  EMIT_INSTR_HANDLER_WITH_PC(name, pc)
+
+#define END_EMIT_INSTR_HANDLER()                                               \
+  if (v8_flags.drumbrake_compact_bytecode && current_instr_encoding_failed_) { \
+    code_.resize(_current_code_offset);                                        \
+    slots_.resize(_current_slots_size);                                        \
+    stack_.rollback();                                                         \
+    current_instr_encoding_failed_ = false;                                    \
+    handler_size_ = InstrHandlerSize::Large;                                   \
+    continue;                                                                  \
+  }                                                                            \
+  break;                                                                       \
+  }                                                                            \
+  DCHECK(!current_instr_encoding_failed_);                                     \
+  no_nested_emit_instr_handler_guard_ = false;                                 \
+  }
+
+////////////////////////////////////////////////////////////////////////////////
+// Memory64 macros
+
+#define EMIT_MEM64_INSTR_HANDLER(name, mem64_name, is_memory64) \
+  if (V8_UNLIKELY(is_memory64)) {                               \
+    EMIT_INSTR_HANDLER(mem64_name);                             \
+  } else {                                                      \
+    EMIT_INSTR_HANDLER(name);                                   \
+  }
+
+#define EMIT_MEM64_INSTR_HANDLER_WITH_PC(name, mem64_name, is_memory64, pc) \
+  if (V8_UNLIKELY(is_memory64)) {                                           \
+    EMIT_INSTR_HANDLER_WITH_PC(mem64_name, pc);                             \
+  } else {                                                                  \
+    EMIT_INSTR_HANDLER_WITH_PC(name, pc);                                   \
+  }
+
+////////////////////////////////////////////////////////////////////////////////
 
 WasmInterpreter::CodeMap::CodeMap(Isolate* isolate, const WasmModule* module,
                                   const uint8_t* module_start, Zone* zone)
@@ -51,17 +107,6 @@ WasmInterpreter::CodeMap::CodeMap(Isolate* isolate, const WasmModule* module,
                   module_start + function.code.end_offset());
     }
   }
-}
-
-void WasmInterpreter::CodeMap::SetFunctionCode(const WasmFunction* function,
-                                               const uint8_t* start,
-                                               const uint8_t* end) {
-  DCHECK_LT(function->func_index, interpreter_code_.size());
-  InterpreterCode* code = &interpreter_code_[function->func_index];
-  DCHECK_EQ(function, code->function);
-  code->start = const_cast<uint8_t*>(start);
-  code->end = const_cast<uint8_t*>(end);
-  Preprocess(function->func_index);
 }
 
 void WasmInterpreter::CodeMap::Preprocess(uint32_t function_index) {
@@ -112,7 +157,7 @@ WasmInterpreterThread* WasmInterpreterThreadMap::GetCurrentInterpreterThread(
     Isolate* isolate) {
   const int current_thread_id = ThreadId::Current().ToInteger();
   {
-    base::MutexGuard guard(&mutex_);
+    base::SpinningMutexGuard guard(&mutex_);
 
     auto it = map_.find(current_thread_id);
     if (it == map_.end()) {
@@ -125,7 +170,7 @@ WasmInterpreterThread* WasmInterpreterThreadMap::GetCurrentInterpreterThread(
 }
 
 void WasmInterpreterThreadMap::NotifyIsolateDisposal(Isolate* isolate) {
-  base::MutexGuard guard(&mutex_);
+  base::SpinningMutexGuard guard(&mutex_);
 
   auto it = map_.begin();
   while (it != map_.end()) {
@@ -366,6 +411,13 @@ WasmInterpreterThread::Activation::CaptureStackTrace(
     frame_state = frame_state->previous_frame_;
   }
 
+  // It is possible to have a WasmInterpreterEntryFrame without having a Wasm
+  // current_function_. This can happen if we call from JS a JS function
+  // imported and exported by Wasm. In this case let's add a dummy stack entry.
+  if (stack_trace.empty()) {
+    stack_trace.push_back(WasmInterpreterStackEntry{0, 0});
+  }
+
   return stack_trace;
 }
 
@@ -383,6 +435,56 @@ int WasmInterpreterThread::Activation::GetFunctionIndex(int index) const {
     return function_indexes[function_indexes.size() - index - 1];
   }
   return -1;
+}
+
+WasmInterpreterThread::WasmInterpreterThread(Isolate* isolate)
+    : isolate_(isolate),
+      state_(State::STOPPED),
+      trap_reason_(TrapReason::kTrapUnreachable),
+      current_stack_size_(kInitialStackSize),
+      stack_mem_(nullptr),
+      reference_stack_(isolate_->global_handles()->Create(
+          ReadOnlyRoots(isolate_).empty_fixed_array())),
+      current_ref_stack_size_(0),
+      execution_timer_(isolate, true) {
+  PageAllocator* page_allocator = GetPlatformPageAllocator();
+  stack_mem_ = AllocatePages(page_allocator, nullptr, kMaxStackSize,
+                             page_allocator->AllocatePageSize(),
+                             PageAllocator::kNoAccess);
+  if (!stack_mem_ ||
+      !SetPermissions(page_allocator, stack_mem_, current_stack_size_,
+                      PageAllocator::Permission::kReadWrite)) {
+    V8::FatalProcessOutOfMemory(nullptr,
+                                "WasmInterpreterThread::WasmInterpreterThread",
+                                "Cannot allocate Wasm interpreter stack");
+    UNREACHABLE();
+  }
+}
+
+WasmInterpreterThread::~WasmInterpreterThread() {
+  GlobalHandles::Destroy(reference_stack_.location());
+  FreePages(GetPlatformPageAllocator(), stack_mem_, kMaxStackSize);
+}
+
+void WasmInterpreterThread::EnsureRefStackSpace(size_t new_size) {
+  if (V8_LIKELY(current_ref_stack_size_ >= new_size)) return;
+  size_t requested_size = base::bits::RoundUpToPowerOfTwo64(new_size);
+  new_size = std::max(size_t{8},
+                      std::max(2 * current_ref_stack_size_, requested_size));
+  int grow_by = static_cast<int>(new_size - current_ref_stack_size_);
+  HandleScope handle_scope(isolate_);  // Avoid leaking handles.
+  Handle<FixedArray> new_ref_stack =
+      isolate_->factory()->CopyFixedArrayAndGrow(reference_stack_, grow_by);
+  new_ref_stack->FillWithHoles(static_cast<int>(current_ref_stack_size_),
+                               static_cast<int>(new_size));
+  isolate_->global_handles()->Destroy(reference_stack_.location());
+  reference_stack_ = isolate_->global_handles()->Create(*new_ref_stack);
+  current_ref_stack_size_ = new_size;
+}
+
+void WasmInterpreterThread::ClearRefStackValues(size_t index, size_t count) {
+  reference_stack_->FillWithHoles(static_cast<int>(index),
+                                  static_cast<int>(index + count));
 }
 
 void WasmInterpreterThread::RaiseException(Isolate* isolate,
@@ -482,19 +584,30 @@ void InitTrapHandlersOnce(Isolate* isolate) {
   // check but rely on a trap handler to intercept the access violation and
   // transform it into a trap.
   EmbeddedData embedded_data = EmbeddedData::FromBlob();
-#define V(name)                                               \
-  trap_handler::RegisterHandlerData(                          \
-      reinterpret_cast<Address>(kInstructionTable[k_##name]), \
-      embedded_data.InstructionSizeOf(Builtin::k##name), 0, nullptr);
+#define V(name)                                                             \
+  if (v8_flags.drumbrake_compact_bytecode) {                                \
+    trap_handler::RegisterHandlerData(                                      \
+        reinterpret_cast<Address>(kInstructionTable[k_##name]),             \
+        embedded_data.InstructionSizeOf(Builtin::k##name##_s), 0, nullptr); \
+  }                                                                         \
+  trap_handler::RegisterHandlerData(                                        \
+      reinterpret_cast<Address>(                                            \
+          kInstructionTable[k_##name + kInstructionCount]),                 \
+      embedded_data.InstructionSizeOf(Builtin::k##name##_l), 0, nullptr);
   FOREACH_LOAD_STORE_INSTR_HANDLER(V)
 #undef V
 }
 
 void InitInstructionTableOnce(Isolate* isolate) {
   size_t index = 0;
-#define V(name)                                            \
-  kInstructionTable[index++] = reinterpret_cast<PWasmOp*>( \
-      isolate->builtins()->code(Builtin::k##name)->instruction_start());
+#define V(name)                                                                \
+  if (v8_flags.drumbrake_compact_bytecode) {                                   \
+    kInstructionTable[index] = reinterpret_cast<PWasmOp*>(                     \
+        isolate->builtins()->code(Builtin::k##name##_s)->instruction_start()); \
+  }                                                                            \
+  kInstructionTable[kInstructionCount + index++] = reinterpret_cast<PWasmOp*>( \
+      isolate->builtins()->code(Builtin::k##name##_l)->instruction_start());
+
 #ifdef __clang__
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wcast-calling-convention"
@@ -504,6 +617,16 @@ void InitInstructionTableOnce(Isolate* isolate) {
 #pragma clang diagnostic pop
 #endif  // __clang__
 #undef V
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+  if (v8_flags.trace_drumbrake_compact_bytecode) {
+    index = 0;
+#define DEFINE_INSTR_HANDLER(name) kInstructionHandlerNames[index++] = #name;
+    FOREACH_INSTR_HANDLER(DEFINE_INSTR_HANDLER)
+    FOREACH_TRACE_INSTR_HANDLER(DEFINE_INSTR_HANDLER)
+#undef DEFINE_INSTR_HANDLER
+  }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
 }
 #endif  // !V8_DRUMBRAKE_BOUNDS_CHECKS
 
@@ -618,805 +741,1196 @@ static void PrintAndClearProfilingData() {
 
 #endif  // DRUMBRAKE_ENABLE_PROFILING
 
-namespace {
-INSTRUCTION_HANDLER_FUNC Trap(const uint8_t* code, uint32_t* sp,
-                              WasmInterpreterRuntime* wasm_runtime, int64_t r0,
-                              double fp0) {
-  TrapReason trap_reason = static_cast<TrapReason>(r0);
-  wasm_runtime->SetTrap(trap_reason, code);
-  MUSTTAIL return s_unwind_func_addr(code, sp, wasm_runtime, trap_reason, .0);
+static int StructFieldOffset(const StructType* struct_type, int field_index) {
+  return wasm::ObjectAccess::ToTagged(WasmStruct::kHeaderSize +
+                                      struct_type->field_offset(field_index));
 }
-}  // namespace
+
+InstructionHandler s_unwind_code = InstructionHandler::k_s2s_Unwind;
+
+class HandlersBase {
+ public:
+  INSTRUCTION_HANDLER_FUNC s2s_Unreachable(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    MUSTTAIL return HandlersBase::Trap(code, sp, wasm_runtime,
+                                       TrapReason::kTrapUnreachable, fp0);
+  }
+
+  INSTRUCTION_HANDLER_FUNC
+  s2s_Unwind(const uint8_t* code, uint32_t* sp,
+             WasmInterpreterRuntime* wasm_runtime, int64_t r0, double fp0) {
+    // Break the chain of calls.
+  }
+
+  INSTRUCTION_HANDLER_FUNC Trap(const uint8_t* code, uint32_t* sp,
+                                WasmInterpreterRuntime* wasm_runtime,
+                                int64_t r0, double fp0) {
+    TrapReason trap_reason = static_cast<TrapReason>(r0);
+    wasm_runtime->SetTrap(trap_reason, code);
+    MUSTTAIL return s_unwind_func_addr(code, sp, wasm_runtime, trap_reason, .0);
+  }
+
+  static constexpr PWasmOp* s_unwind_func_addr = HandlersBase::s2s_Unwind;
+};
 
 #define TRAP(trap_reason) \
-  MUSTTAIL return Trap(code, sp, wasm_runtime, trap_reason, fp0);
+  MUSTTAIL return HandlersBase::Trap(code, sp, wasm_runtime, trap_reason, fp0);
 
 #define INLINED_TRAP(trap_reason)           \
   wasm_runtime->SetTrap(trap_reason, code); \
   MUSTTAIL return s_unwind_func_addr(code, sp, wasm_runtime, trap_reason, .0);
 
-////////////////////////////////////////////////////////////////////////////////
-// GlobalGet
+template <bool Compressed>
+class Handlers : public HandlersBase {
+  using traits = handler_traits<Compressed>;
+  using slot_offset_t = traits::slot_offset_t;
+  using memory_offset32_t = traits::memory_offset32_t;
+  using memory_offset64_t = traits::memory_offset64_t;
 
-template <typename IntT>
-INSTRUCTION_HANDLER_FUNC s2r_GlobalGetI(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  uint8_t* src_addr = wasm_runtime->GetGlobalAddress(index);
-  r0 = base::ReadUnalignedValue<IntT>(reinterpret_cast<Address>(src_addr));
+ public:
+  template <typename T>
+  static inline T Read(const uint8_t*& code) {
+    T res = base::ReadUnalignedValue<T>(reinterpret_cast<Address>(code));
+    code += sizeof(T);
+    return res;
+  }
+  template <>
+  slot_offset_t Read<slot_offset_t>(const uint8_t*& code) {
+    slot_offset_t res = base::ReadUnalignedValue<slot_offset_t>(
+        reinterpret_cast<Address>(code));
+#if V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_compact_bytecode) {
+      printf("Read slot_offset_t %d\n", res);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+    code += sizeof(slot_offset_t);
+    return res;
+  }
 
-  NextOp();
-}
-static auto s2r_I32GlobalGet = s2r_GlobalGetI<int32_t>;
-static auto s2r_I64GlobalGet = s2r_GlobalGetI<int64_t>;
+  // Returns the maximum of the two parameters according to JavaScript
+  // semantics.
+  template <typename T>
+  static inline T JSMax(T x, T y) {
+    if (std::isnan(x) || std::isnan(y)) {
+      return std::numeric_limits<T>::quiet_NaN();
+    }
+    if (std::signbit(x) < std::signbit(y)) return x;
+    return x > y ? x : y;
+  }
 
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC s2r_GlobalGetF(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  uint8_t* src_addr = wasm_runtime->GetGlobalAddress(index);
-  fp0 = base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(src_addr));
+  // Returns the minimum of the two parameters according to JavaScript
+  // semantics.
+  template <typename T>
+  static inline T JSMin(T x, T y) {
+    if (std::isnan(x) || std::isnan(y)) {
+      return std::numeric_limits<T>::quiet_NaN();
+    }
+    if (std::signbit(x) < std::signbit(y)) return y;
+    return x > y ? y : x;
+  }
 
-  NextOp();
-}
-static auto s2r_F32GlobalGet = s2r_GlobalGetF<float>;
-static auto s2r_F64GlobalGet = s2r_GlobalGetF<double>;
+  static inline uint8_t* ReadMemoryAddress(uint8_t*& code) {
+    Address res =
+        base::ReadUnalignedValue<Address>(reinterpret_cast<Address>(code));
+    code += sizeof(Address);
+    return reinterpret_cast<uint8_t*>(res);
+  }
 
-template <typename T>
-INSTRUCTION_HANDLER_FUNC s2s_GlobalGet(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  uint8_t* src_addr = wasm_runtime->GetGlobalAddress(index);
-  push<T>(sp, code, wasm_runtime,
-          base::ReadUnalignedValue<T>(reinterpret_cast<Address>(src_addr)));
+  static inline uint32_t ReadGlobalIndex(const uint8_t*& code) {
+    uint32_t res =
+        base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(code));
+    code += sizeof(uint32_t);
+    return res;
+  }
 
-  NextOp();
-}
-static auto s2s_I32GlobalGet = s2s_GlobalGet<int32_t>;
-static auto s2s_I64GlobalGet = s2s_GlobalGet<int64_t>;
-static auto s2s_F32GlobalGet = s2s_GlobalGet<float>;
-static auto s2s_F64GlobalGet = s2s_GlobalGet<double>;
-static auto s2s_S128GlobalGet = s2s_GlobalGet<Simd128>;
+  template <typename T>
+  static inline void push(uint32_t*& sp, const uint8_t*& code,
+                          WasmInterpreterRuntime* wasm_runtime, T val) {
+    slot_offset_t offset = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<T>(reinterpret_cast<Address>(sp + offset), val);
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution)
+      wasm_runtime->TracePush<T>(offset * kSlotSize);
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+  }
 
-INSTRUCTION_HANDLER_FUNC s2s_RefGlobalGet(const uint8_t* code, uint32_t* sp,
+  template <>
+  inline void push(uint32_t*& sp, const uint8_t*& code,
+                   WasmInterpreterRuntime* wasm_runtime, WasmRef ref) {
+    slot_offset_t offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_index = Read<int32_t>(code);
+    base::WriteUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + offset),
+                                        kSlotsZapValue);
+    wasm_runtime->StoreWasmRef(ref_stack_index, ref);
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution)
+      wasm_runtime->TracePush<WasmRef>(offset * kSlotSize);
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+  }
+
+  template <typename T>
+  static inline T pop(uint32_t*& sp, const uint8_t*& code,
+                      WasmInterpreterRuntime* wasm_runtime) {
+    slot_offset_t offset = Read<slot_offset_t>(code);
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) wasm_runtime->TracePop();
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+    return base::ReadUnalignedValue<T>(reinterpret_cast<Address>(sp + offset));
+  }
+
+  template <>
+  inline WasmRef pop(uint32_t*& sp, const uint8_t*& code,
+                     WasmInterpreterRuntime* wasm_runtime) {
+    uint32_t ref_stack_index = Read<int32_t>(code);
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) wasm_runtime->TracePop();
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+    return wasm_runtime->ExtractWasmRef(ref_stack_index);
+  }
+
+  template <typename T>
+  static inline T ExecuteRemS(T lval, T rval) {
+    if (rval == -1) return 0;
+    return lval % rval;
+  }
+
+  template <typename T>
+  static inline T ExecuteRemU(T lval, T rval) {
+    return lval % rval;
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // GlobalGet
+
+  template <typename IntT>
+  INSTRUCTION_HANDLER_FUNC s2r_GlobalGetI(const uint8_t* code, uint32_t* sp,
                                           WasmInterpreterRuntime* wasm_runtime,
                                           int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  push<WasmRef>(sp, code, wasm_runtime, wasm_runtime->GetGlobalRef(index));
+    uint32_t index = ReadGlobalIndex(code);
+    uint8_t* src_addr = wasm_runtime->GetGlobalAddress(index);
+    r0 = base::ReadUnalignedValue<IntT>(reinterpret_cast<Address>(src_addr));
 
-  NextOp();
-}
+    NextOp();
+  }
+  static auto constexpr s2r_I32GlobalGet = s2r_GlobalGetI<int32_t>;
+  static auto constexpr s2r_I64GlobalGet = s2r_GlobalGetI<int64_t>;
 
-////////////////////////////////////////////////////////////////////////////////
-// GlobalSet
-
-template <typename IntT>
-INSTRUCTION_HANDLER_FUNC r2s_GlobalSetI(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  uint8_t* dst_addr = wasm_runtime->GetGlobalAddress(index);
-  base::WriteUnalignedValue<IntT>(reinterpret_cast<Address>(dst_addr),
-                                  static_cast<IntT>(r0));  // r0: value
-  NextOp();
-}
-static auto r2s_I32GlobalSet = r2s_GlobalSetI<int32_t>;
-static auto r2s_I64GlobalSet = r2s_GlobalSetI<int64_t>;
-
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC r2s_GlobalSetF(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  uint8_t* dst_addr = wasm_runtime->GetGlobalAddress(index);
-  base::WriteUnalignedValue<FloatT>(reinterpret_cast<Address>(dst_addr),
-                                    static_cast<FloatT>(fp0));  // fp0: value
-  NextOp();
-}
-static auto r2s_F32GlobalSet = r2s_GlobalSetF<float>;
-static auto r2s_F64GlobalSet = r2s_GlobalSetF<double>;
-
-template <typename T>
-INSTRUCTION_HANDLER_FUNC s2s_GlobalSet(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  uint8_t* dst_addr = wasm_runtime->GetGlobalAddress(index);
-  base::WriteUnalignedValue<T>(reinterpret_cast<Address>(dst_addr),
-                               pop<T>(sp, code, wasm_runtime));
-  NextOp();
-}
-static auto s2s_I32GlobalSet = s2s_GlobalSet<int32_t>;
-static auto s2s_I64GlobalSet = s2s_GlobalSet<int64_t>;
-static auto s2s_F32GlobalSet = s2s_GlobalSet<float>;
-static auto s2s_F64GlobalSet = s2s_GlobalSet<double>;
-static auto s2s_S128GlobalSet = s2s_GlobalSet<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefGlobalSet(const uint8_t* code, uint32_t* sp,
+  template <typename FloatT>
+  INSTRUCTION_HANDLER_FUNC s2r_GlobalGetF(const uint8_t* code, uint32_t* sp,
                                           WasmInterpreterRuntime* wasm_runtime,
                                           int64_t r0, double fp0) {
-  uint32_t index = ReadGlobalIndex(code);
-  wasm_runtime->SetGlobalRef(index, pop<WasmRef>(sp, code, wasm_runtime));
+    uint32_t index = ReadGlobalIndex(code);
+    uint8_t* src_addr = wasm_runtime->GetGlobalAddress(index);
+    fp0 = base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(src_addr));
 
-  NextOp();
-}
+    NextOp();
+  }
+  static auto constexpr s2r_F32GlobalGet = s2r_GlobalGetF<float>;
+  static auto constexpr s2r_F64GlobalGet = s2r_GlobalGetF<double>;
 
-////////////////////////////////////////////////////////////////////////////////
-// Drop
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC s2s_GlobalGet(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t index = ReadGlobalIndex(code);
+    uint8_t* src_addr = wasm_runtime->GetGlobalAddress(index);
+    push<T>(sp, code, wasm_runtime,
+            base::ReadUnalignedValue<T>(reinterpret_cast<Address>(src_addr)));
 
-template <typename T>
-INSTRUCTION_HANDLER_FUNC r2s_Drop(const uint8_t* code, uint32_t* sp,
-                                  WasmInterpreterRuntime* wasm_runtime,
-                                  int64_t r0, double fp0) {
-  NextOp();
-}
-static auto r2s_I32Drop = r2s_Drop<int32_t>;
-static auto r2s_I64Drop = r2s_Drop<int64_t>;
-static auto r2s_F32Drop = r2s_Drop<float>;
-static auto r2s_F64Drop = r2s_Drop<double>;
+    NextOp();
+  }
+  static auto constexpr s2s_I32GlobalGet = s2s_GlobalGet<int32_t>;
+  static auto constexpr s2s_I64GlobalGet = s2s_GlobalGet<int64_t>;
+  static auto constexpr s2s_F32GlobalGet = s2s_GlobalGet<float>;
+  static auto constexpr s2s_F64GlobalGet = s2s_GlobalGet<double>;
+  static auto constexpr s2s_S128GlobalGet = s2s_GlobalGet<Simd128>;
 
-INSTRUCTION_HANDLER_FUNC r2s_RefDrop(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  UNREACHABLE();
-}
+  INSTRUCTION_HANDLER_FUNC s2s_RefGlobalGet(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t index = ReadGlobalIndex(code);
+    push<WasmRef>(sp, code, wasm_runtime, wasm_runtime->GetGlobalRef(index));
 
-template <typename T>
-INSTRUCTION_HANDLER_FUNC s2s_Drop(const uint8_t* code, uint32_t* sp,
-                                  WasmInterpreterRuntime* wasm_runtime,
-                                  int64_t r0, double fp0) {
-  pop<T>(sp, code, wasm_runtime);
+    NextOp();
+  }
 
-  NextOp();
-}
-static auto s2s_I32Drop = s2s_Drop<int32_t>;
-static auto s2s_I64Drop = s2s_Drop<int64_t>;
-static auto s2s_F32Drop = s2s_Drop<float>;
-static auto s2s_F64Drop = s2s_Drop<double>;
-static auto s2s_S128Drop = s2s_Drop<Simd128>;
+  //////////////////////////////////////////////////////////////////////////////
+  // GlobalSet
 
-INSTRUCTION_HANDLER_FUNC s2s_RefDrop(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  pop<WasmRef>(sp, code, wasm_runtime);
+  template <typename IntT>
+  INSTRUCTION_HANDLER_FUNC r2s_GlobalSetI(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint32_t index = ReadGlobalIndex(code);
+    uint8_t* dst_addr = wasm_runtime->GetGlobalAddress(index);
+    base::WriteUnalignedValue<IntT>(reinterpret_cast<Address>(dst_addr),
+                                    static_cast<IntT>(r0));  // r0: value
+    NextOp();
+  }
+  static auto constexpr r2s_I32GlobalSet = r2s_GlobalSetI<int32_t>;
+  static auto constexpr r2s_I64GlobalSet = r2s_GlobalSetI<int64_t>;
 
-  NextOp();
-}
+  template <typename FloatT>
+  INSTRUCTION_HANDLER_FUNC r2s_GlobalSetF(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint32_t index = ReadGlobalIndex(code);
+    uint8_t* dst_addr = wasm_runtime->GetGlobalAddress(index);
+    base::WriteUnalignedValue<FloatT>(reinterpret_cast<Address>(dst_addr),
+                                      static_cast<FloatT>(fp0));  // fp0: value
+    NextOp();
+  }
+  static auto constexpr r2s_F32GlobalSet = r2s_GlobalSetF<float>;
+  static auto constexpr r2s_F64GlobalSet = r2s_GlobalSetF<double>;
 
-////////////////////////////////////////////////////////////////////////////////
-// LoadMem
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC s2s_GlobalSet(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t index = ReadGlobalIndex(code);
+    uint8_t* dst_addr = wasm_runtime->GetGlobalAddress(index);
+    base::WriteUnalignedValue<T>(reinterpret_cast<Address>(dst_addr),
+                                 pop<T>(sp, code, wasm_runtime));
+    NextOp();
+  }
+  static auto constexpr s2s_I32GlobalSet = s2s_GlobalSet<int32_t>;
+  static auto constexpr s2s_I64GlobalSet = s2s_GlobalSet<int64_t>;
+  static auto constexpr s2s_F32GlobalSet = s2s_GlobalSet<float>;
+  static auto constexpr s2s_F64GlobalSet = s2s_GlobalSet<double>;
+  static auto constexpr s2s_S128GlobalSet = s2s_GlobalSet<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefGlobalSet(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t index = ReadGlobalIndex(code);
+    wasm_runtime->SetGlobalRef(index, pop<WasmRef>(sp, code, wasm_runtime));
+
+    NextOp();
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Drop
+
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC r2s_Drop(const uint8_t* code, uint32_t* sp,
+                                    WasmInterpreterRuntime* wasm_runtime,
+                                    int64_t r0, double fp0) {
+    NextOp();
+  }
+  static auto constexpr r2s_I32Drop = r2s_Drop<int32_t>;
+  static auto constexpr r2s_I64Drop = r2s_Drop<int64_t>;
+  static auto constexpr r2s_F32Drop = r2s_Drop<float>;
+  static auto constexpr r2s_F64Drop = r2s_Drop<double>;
+
+  INSTRUCTION_HANDLER_FUNC r2s_RefDrop(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    UNREACHABLE();
+  }
+
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC s2s_Drop(const uint8_t* code, uint32_t* sp,
+                                    WasmInterpreterRuntime* wasm_runtime,
+                                    int64_t r0, double fp0) {
+    pop<T>(sp, code, wasm_runtime);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32Drop = s2s_Drop<int32_t>;
+  static auto constexpr s2s_I64Drop = s2s_Drop<int64_t>;
+  static auto constexpr s2s_F32Drop = s2s_Drop<float>;
+  static auto constexpr s2s_F64Drop = s2s_Drop<double>;
+  static auto constexpr s2s_S128Drop = s2s_Drop<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefDrop(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    pop<WasmRef>(sp, code, wasm_runtime);
+
+    NextOp();
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // LoadMem
+
+  template <typename IntT, typename IntU = IntT, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC r2r_LoadMemI(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
+    MemIdx index = static_cast<MemIdx>(r0);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(IntU),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    IntU value =
+        base::ReadUnalignedValue<IntU>(reinterpret_cast<Address>(address));
+    r0 = static_cast<IntT>(value);
+
+    NextOp();
+  }
+  static auto constexpr r2r_I32LoadMem8S_Idx64 =
+      r2r_LoadMemI<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I32LoadMem8U_Idx64 =
+      r2r_LoadMemI<int32_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I32LoadMem16S_Idx64 =
+      r2r_LoadMemI<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I32LoadMem16U_Idx64 =
+      r2r_LoadMemI<int32_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem8S_Idx64 =
+      r2r_LoadMemI<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem8U_Idx64 =
+      r2r_LoadMemI<int64_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem16S_Idx64 =
+      r2r_LoadMemI<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem16U_Idx64 =
+      r2r_LoadMemI<int64_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem32S_Idx64 =
+      r2r_LoadMemI<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem32U_Idx64 =
+      r2r_LoadMemI<int64_t, uint32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I32LoadMem_Idx64 =
+      r2r_LoadMemI<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_I64LoadMem_Idx64 =
+      r2r_LoadMemI<int64_t, int64_t, uint64_t, memory_offset64_t>;
+
+  template <typename FloatT, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC r2r_LoadMemF(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    MemIdx index = static_cast<MemIdx>(r0);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(FloatT),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    fp0 = base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(address));
+
+    NextOp();
+  }
+  static auto constexpr r2r_F32LoadMem_Idx64 =
+      r2r_LoadMemF<float, uint64_t, memory_offset64_t>;
+  static auto constexpr r2r_F64LoadMem_Idx64 =
+      r2r_LoadMemF<double, uint64_t, memory_offset64_t>;
+
+  template <typename T, typename U = T, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC r2s_LoadMem(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    MemIdx index = static_cast<MemIdx>(r0);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
+
+    push<T>(sp, code, wasm_runtime, value);
+
+    NextOp();
+  }
+  static auto constexpr r2s_I32LoadMem8S_Idx64 =
+      r2s_LoadMem<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I32LoadMem8U_Idx64 =
+      r2s_LoadMem<int32_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I32LoadMem16S_Idx64 =
+      r2s_LoadMem<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I32LoadMem16U_Idx64 =
+      r2s_LoadMem<int32_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem8S_Idx64 =
+      r2s_LoadMem<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem8U_Idx64 =
+      r2s_LoadMem<int64_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem16S_Idx64 =
+      r2s_LoadMem<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem16U_Idx64 =
+      r2s_LoadMem<int64_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem32S_Idx64 =
+      r2s_LoadMem<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem32U_Idx64 =
+      r2s_LoadMem<int64_t, uint32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I32LoadMem_Idx64 =
+      r2s_LoadMem<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadMem_Idx64 =
+      r2s_LoadMem<int64_t, int64_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_F32LoadMem_Idx64 =
+      r2s_LoadMem<float, float, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_F64LoadMem_Idx64 =
+      r2s_LoadMem<double, double, uint64_t, memory_offset64_t>;
+
+  template <typename IntT, typename IntU = IntT, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2r_LoadMemI(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(IntU),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    r0 = static_cast<IntT>(
+        base::ReadUnalignedValue<IntU>(reinterpret_cast<Address>(address)));
+
+    NextOp();
+  }
+  static auto constexpr s2r_I32LoadMem8S_Idx64 =
+      s2r_LoadMemI<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I32LoadMem8U_Idx64 =
+      s2r_LoadMemI<int32_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I32LoadMem16S_Idx64 =
+      s2r_LoadMemI<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I32LoadMem16U_Idx64 =
+      s2r_LoadMemI<int32_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem8S_Idx64 =
+      s2r_LoadMemI<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem8U_Idx64 =
+      s2r_LoadMemI<int64_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem16S_Idx64 =
+      s2r_LoadMemI<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem16U_Idx64 =
+      s2r_LoadMemI<int64_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem32S_Idx64 =
+      s2r_LoadMemI<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem32U_Idx64 =
+      s2r_LoadMemI<int64_t, uint32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I32LoadMem_Idx64 =
+      s2r_LoadMemI<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_I64LoadMem_Idx64 =
+      s2r_LoadMemI<int64_t, int64_t, uint64_t, memory_offset64_t>;
+
+  template <typename FloatT, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2r_LoadMemF(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(FloatT),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    fp0 = static_cast<FloatT>(
+        base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(address)));
+
+    NextOp();
+  }
+  static auto constexpr s2r_F32LoadMem_Idx64 =
+      s2r_LoadMemF<float, uint64_t, memory_offset64_t>;
+  static auto constexpr s2r_F64LoadMem_Idx64 =
+      s2r_LoadMemF<double, uint64_t, memory_offset64_t>;
+
+  template <typename T, typename U = T, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_LoadMem(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
+
+    push<T>(sp, code, wasm_runtime, value);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32LoadMem8S_Idx64 =
+      s2s_LoadMem<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem8U_Idx64 =
+      s2s_LoadMem<int32_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem16S_Idx64 =
+      s2s_LoadMem<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem16U_Idx64 =
+      s2s_LoadMem<int32_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem8S_Idx64 =
+      s2s_LoadMem<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem8U_Idx64 =
+      s2s_LoadMem<int64_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem16S_Idx64 =
+      s2s_LoadMem<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem16U_Idx64 =
+      s2s_LoadMem<int64_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem32S_Idx64 =
+      s2s_LoadMem<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem32U_Idx64 =
+      s2s_LoadMem<int64_t, uint32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem_Idx64 =
+      s2s_LoadMem<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem_Idx64 =
+      s2s_LoadMem<int64_t, int64_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F32LoadMem_Idx64 =
+      s2s_LoadMem<float, float, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F64LoadMem_Idx64 =
+      s2s_LoadMem<double, double, uint64_t, memory_offset64_t>;
+
+  // LoadMem_LocalSet
+  template <typename T, typename U = T, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_LoadMem_LocalSet(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
+
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<T>(reinterpret_cast<Address>(sp + to),
+                                 static_cast<T>(value));
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32LoadMem8S_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem8U_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int32_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem16S_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem16U_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int32_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem8S_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem8U_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, uint8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem16S_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem16U_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, uint16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem32S_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem32U_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, uint32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32LoadMem_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadMem_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<int64_t, int64_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F32LoadMem_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<float, float, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F64LoadMem_LocalSet_Idx64 =
+      s2s_LoadMem_LocalSet<double, double, uint64_t, memory_offset64_t>;
+
+  // StoreMem
+  template <typename IntT, typename IntU = IntT, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC r2s_StoreMemI(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    IntT value = static_cast<IntT>(r0);
+
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(IntU),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    base::WriteUnalignedValue<IntU>(
+        reinterpret_cast<Address>(address),
+        base::ReadUnalignedValue<IntU>(reinterpret_cast<Address>(&value)));
+
+    NextOp();
+  }
+  static auto constexpr r2s_I32StoreMem8_Idx64 =
+      r2s_StoreMemI<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I32StoreMem16_Idx64 =
+      r2s_StoreMemI<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64StoreMem8_Idx64 =
+      r2s_StoreMemI<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64StoreMem16_Idx64 =
+      r2s_StoreMemI<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64StoreMem32_Idx64 =
+      r2s_StoreMemI<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I32StoreMem_Idx64 =
+      r2s_StoreMemI<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64StoreMem_Idx64 =
+      r2s_StoreMemI<int64_t, int64_t, uint64_t, memory_offset64_t>;
+
+  template <typename FloatT, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC r2s_StoreMemF(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    FloatT value = static_cast<FloatT>(fp0);
+
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(FloatT),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    base::WriteUnalignedValue<FloatT>(
+        reinterpret_cast<Address>(address),
+        base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(&value)));
+
+    NextOp();
+  }
+  static auto constexpr r2s_F32StoreMem_Idx64 =
+      r2s_StoreMemF<float, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_F64StoreMem_Idx64 =
+      r2s_StoreMemF<double, uint64_t, memory_offset64_t>;
+
+  template <typename T, typename U = T, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_StoreMem(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    T value = pop<T>(sp, code, wasm_runtime);
+
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    MemOffsetT offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    base::WriteUnalignedValue<U>(
+        reinterpret_cast<Address>(address),
+        base::ReadUnalignedValue<U>(reinterpret_cast<Address>(&value)));
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32StoreMem8_Idx64 =
+      s2s_StoreMem<int32_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32StoreMem16_Idx64 =
+      s2s_StoreMem<int32_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64StoreMem8_Idx64 =
+      s2s_StoreMem<int64_t, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64StoreMem16_Idx64 =
+      s2s_StoreMem<int64_t, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64StoreMem32_Idx64 =
+      s2s_StoreMem<int64_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I32StoreMem_Idx64 =
+      s2s_StoreMem<int32_t, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64StoreMem_Idx64 =
+      s2s_StoreMem<int64_t, int64_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F32StoreMem_Idx64 =
+      s2s_StoreMem<float, float, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F64StoreMem_Idx64 =
+      s2s_StoreMem<double, double, uint64_t, memory_offset64_t>;
+
+  // LoadStoreMem
+  template <typename T, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC r2s_LoadStoreMem(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+
+    MemOffsetT load_offset = Read<MemOffsetT>(code);
+    uint64_t load_index = r0;
+    uint64_t effective_load_index = load_offset + load_index;
+
+    MemOffsetT store_offset = Read<MemOffsetT>(code);
+    uint64_t store_index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_store_index = store_offset + store_index;
+
+    if (V8_UNLIKELY(
+            effective_load_index < load_index ||
+            !base::IsInBounds<uint64_t>(effective_load_index, sizeof(T),
+                                        wasm_runtime->GetMemorySize()) ||
+            effective_store_index < store_offset ||
+            !base::IsInBounds<uint64_t>(effective_store_index, sizeof(T),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* load_address = memory_start + effective_load_index;
+    uint8_t* store_address = memory_start + effective_store_index;
+
+    base::WriteUnalignedValue<T>(
+        reinterpret_cast<Address>(store_address),
+        base::ReadUnalignedValue<T>(reinterpret_cast<Address>(load_address)));
+
+    NextOp();
+  }
+  static auto constexpr r2s_I32LoadStoreMem_Idx64 =
+      r2s_LoadStoreMem<int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_I64LoadStoreMem_Idx64 =
+      r2s_LoadStoreMem<int64_t, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_F32LoadStoreMem_Idx64 =
+      r2s_LoadStoreMem<float, uint64_t, memory_offset64_t>;
+  static auto constexpr r2s_F64LoadStoreMem_Idx64 =
+      r2s_LoadStoreMem<double, uint64_t, memory_offset64_t>;
+
+  template <typename T, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_LoadStoreMem(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+
+    MemOffsetT load_offset = Read<MemOffsetT>(code);
+    uint64_t load_index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_load_index = load_offset + load_index;
+
+    MemOffsetT store_offset = Read<MemOffsetT>(code);
+    uint64_t store_index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_store_index = store_offset + store_index;
+
+    if (V8_UNLIKELY(
+            effective_load_index < load_index ||
+            !base::IsInBounds<uint64_t>(effective_load_index, sizeof(T),
+                                        wasm_runtime->GetMemorySize()) ||
+            effective_store_index < store_offset ||
+            !base::IsInBounds<uint64_t>(effective_store_index, sizeof(T),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* load_address = memory_start + effective_load_index;
+    uint8_t* store_address = memory_start + effective_store_index;
+
+    base::WriteUnalignedValue<T>(
+        reinterpret_cast<Address>(store_address),
+        base::ReadUnalignedValue<T>(reinterpret_cast<Address>(load_address)));
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32LoadStoreMem_Idx64 =
+      s2s_LoadStoreMem<int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_I64LoadStoreMem_Idx64 =
+      s2s_LoadStoreMem<int64_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F32LoadStoreMem_Idx64 =
+      s2s_LoadStoreMem<float, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_F64LoadStoreMem_Idx64 =
+      s2s_LoadStoreMem<double, uint64_t, memory_offset64_t>;
 
 #if defined(V8_DRUMBRAKE_BOUNDS_CHECKS)
+  static auto constexpr r2r_I32LoadMem8S = r2r_LoadMemI<int32_t, int8_t>;
+  static auto constexpr r2r_I32LoadMem8U = r2r_LoadMemI<int32_t, uint8_t>;
+  static auto constexpr r2r_I32LoadMem16S = r2r_LoadMemI<int32_t, int16_t>;
+  static auto constexpr r2r_I32LoadMem16U = r2r_LoadMemI<int32_t, uint16_t>;
+  static auto constexpr r2r_I64LoadMem8S = r2r_LoadMemI<int64_t, int8_t>;
+  static auto constexpr r2r_I64LoadMem8U = r2r_LoadMemI<int64_t, uint8_t>;
+  static auto constexpr r2r_I64LoadMem16S = r2r_LoadMemI<int64_t, int16_t>;
+  static auto constexpr r2r_I64LoadMem16U = r2r_LoadMemI<int64_t, uint16_t>;
+  static auto constexpr r2r_I64LoadMem32S = r2r_LoadMemI<int64_t, int32_t>;
+  static auto constexpr r2r_I64LoadMem32U = r2r_LoadMemI<int64_t, uint32_t>;
+  static auto constexpr r2r_I32LoadMem = r2r_LoadMemI<int32_t>;
+  static auto constexpr r2r_I64LoadMem = r2r_LoadMemI<int64_t>;
 
-template <typename IntT, typename IntU = IntT>
-INSTRUCTION_HANDLER_FUNC r2r_LoadMemI(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = r0;
-  uint64_t effective_index = offset + index;
+  static auto constexpr r2r_F32LoadMem = r2r_LoadMemF<float>;
+  static auto constexpr r2r_F64LoadMem = r2r_LoadMemF<double>;
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(IntU),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+  static auto constexpr r2s_I32LoadMem8S = r2s_LoadMem<int32_t, int8_t>;
+  static auto constexpr r2s_I32LoadMem8U = r2s_LoadMem<int32_t, uint8_t>;
+  static auto constexpr r2s_I32LoadMem16S = r2s_LoadMem<int32_t, int16_t>;
+  static auto constexpr r2s_I32LoadMem16U = r2s_LoadMem<int32_t, uint16_t>;
+  static auto constexpr r2s_I64LoadMem8S = r2s_LoadMem<int64_t, int8_t>;
+  static auto constexpr r2s_I64LoadMem8U = r2s_LoadMem<int64_t, uint8_t>;
+  static auto constexpr r2s_I64LoadMem16S = r2s_LoadMem<int64_t, int16_t>;
+  static auto constexpr r2s_I64LoadMem16U = r2s_LoadMem<int64_t, uint16_t>;
+  static auto constexpr r2s_I64LoadMem32S = r2s_LoadMem<int64_t, int32_t>;
+  static auto constexpr r2s_I64LoadMem32U = r2s_LoadMem<int64_t, uint32_t>;
+  static auto constexpr r2s_I32LoadMem = r2s_LoadMem<int32_t>;
+  static auto constexpr r2s_I64LoadMem = r2s_LoadMem<int64_t>;
+  static auto constexpr r2s_F32LoadMem = r2s_LoadMem<float>;
+  static auto constexpr r2s_F64LoadMem = r2s_LoadMem<double>;
+
+  static auto constexpr s2r_I32LoadMem8S = s2r_LoadMemI<int32_t, int8_t>;
+  static auto constexpr s2r_I32LoadMem8U = s2r_LoadMemI<int32_t, uint8_t>;
+  static auto constexpr s2r_I32LoadMem16S = s2r_LoadMemI<int32_t, int16_t>;
+  static auto constexpr s2r_I32LoadMem16U = s2r_LoadMemI<int32_t, uint16_t>;
+  static auto constexpr s2r_I64LoadMem8S = s2r_LoadMemI<int64_t, int8_t>;
+  static auto constexpr s2r_I64LoadMem8U = s2r_LoadMemI<int64_t, uint8_t>;
+  static auto constexpr s2r_I64LoadMem16S = s2r_LoadMemI<int64_t, int16_t>;
+  static auto constexpr s2r_I64LoadMem16U = s2r_LoadMemI<int64_t, uint16_t>;
+  static auto constexpr s2r_I64LoadMem32S = s2r_LoadMemI<int64_t, int32_t>;
+  static auto constexpr s2r_I64LoadMem32U = s2r_LoadMemI<int64_t, uint32_t>;
+  static auto constexpr s2r_I32LoadMem = s2r_LoadMemI<int32_t>;
+  static auto constexpr s2r_I64LoadMem = s2r_LoadMemI<int64_t>;
+
+  static auto constexpr s2r_F32LoadMem = s2r_LoadMemF<float>;
+  static auto constexpr s2r_F64LoadMem = s2r_LoadMemF<double>;
+
+  static auto constexpr s2s_I32LoadMem8S = s2s_LoadMem<int32_t, int8_t>;
+  static auto constexpr s2s_I32LoadMem8U = s2s_LoadMem<int32_t, uint8_t>;
+  static auto constexpr s2s_I32LoadMem16S = s2s_LoadMem<int32_t, int16_t>;
+  static auto constexpr s2s_I32LoadMem16U = s2s_LoadMem<int32_t, uint16_t>;
+  static auto constexpr s2s_I64LoadMem8S = s2s_LoadMem<int64_t, int8_t>;
+  static auto constexpr s2s_I64LoadMem8U = s2s_LoadMem<int64_t, uint8_t>;
+  static auto constexpr s2s_I64LoadMem16S = s2s_LoadMem<int64_t, int16_t>;
+  static auto constexpr s2s_I64LoadMem16U = s2s_LoadMem<int64_t, uint16_t>;
+  static auto constexpr s2s_I64LoadMem32S = s2s_LoadMem<int64_t, int32_t>;
+  static auto constexpr s2s_I64LoadMem32U = s2s_LoadMem<int64_t, uint32_t>;
+  static auto constexpr s2s_I32LoadMem = s2s_LoadMem<int32_t>;
+  static auto constexpr s2s_I64LoadMem = s2s_LoadMem<int64_t>;
+  static auto constexpr s2s_F32LoadMem = s2s_LoadMem<float>;
+  static auto constexpr s2s_F64LoadMem = s2s_LoadMem<double>;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // LoadMem_LocalSet
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC r2s_LoadMem_LocalSet(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    memory_offset32_t offset = Read<memory_offset32_t>(code);
+    uint64_t index = static_cast<uint32_t>(r0);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
+
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<T>(reinterpret_cast<Address>(sp + to),
+                                 static_cast<T>(value));
+
+    NextOp();
   }
+  static auto constexpr r2s_I32LoadMem8S_LocalSet =
+      r2s_LoadMem_LocalSet<int32_t, int8_t>;
+  static auto constexpr r2s_I32LoadMem8U_LocalSet =
+      r2s_LoadMem_LocalSet<int32_t, uint8_t>;
+  static auto constexpr r2s_I32LoadMem16S_LocalSet =
+      r2s_LoadMem_LocalSet<int32_t, int16_t>;
+  static auto constexpr r2s_I32LoadMem16U_LocalSet =
+      r2s_LoadMem_LocalSet<int32_t, uint16_t>;
+  static auto constexpr r2s_I64LoadMem8S_LocalSet =
+      r2s_LoadMem_LocalSet<int64_t, int8_t>;
+  static auto constexpr r2s_I64LoadMem8U_LocalSet =
+      r2s_LoadMem_LocalSet<int64_t, uint8_t>;
+  static auto constexpr r2s_I64LoadMem16S_LocalSet =
+      r2s_LoadMem_LocalSet<int64_t, int16_t>;
+  static auto constexpr r2s_I64LoadMem16U_LocalSet =
+      r2s_LoadMem_LocalSet<int64_t, uint16_t>;
+  static auto constexpr r2s_I64LoadMem32S_LocalSet =
+      r2s_LoadMem_LocalSet<int64_t, int32_t>;
+  static auto constexpr r2s_I64LoadMem32U_LocalSet =
+      r2s_LoadMem_LocalSet<int64_t, uint32_t>;
+  static auto constexpr r2s_I32LoadMem_LocalSet = r2s_LoadMem_LocalSet<int32_t>;
+  static auto constexpr r2s_I64LoadMem_LocalSet = r2s_LoadMem_LocalSet<int64_t>;
+  static auto constexpr r2s_F32LoadMem_LocalSet = r2s_LoadMem_LocalSet<float>;
+  static auto constexpr r2s_F64LoadMem_LocalSet = r2s_LoadMem_LocalSet<double>;
 
-  uint8_t* address = memory_start + effective_index;
+  static auto constexpr s2s_I32LoadMem8S_LocalSet =
+      s2s_LoadMem_LocalSet<int32_t, int8_t>;
+  static auto constexpr s2s_I32LoadMem8U_LocalSet =
+      s2s_LoadMem_LocalSet<int32_t, uint8_t>;
+  static auto constexpr s2s_I32LoadMem16S_LocalSet =
+      s2s_LoadMem_LocalSet<int32_t, int16_t>;
+  static auto constexpr s2s_I32LoadMem16U_LocalSet =
+      s2s_LoadMem_LocalSet<int32_t, uint16_t>;
+  static auto constexpr s2s_I64LoadMem8S_LocalSet =
+      s2s_LoadMem_LocalSet<int64_t, int8_t>;
+  static auto constexpr s2s_I64LoadMem8U_LocalSet =
+      s2s_LoadMem_LocalSet<int64_t, uint8_t>;
+  static auto constexpr s2s_I64LoadMem16S_LocalSet =
+      s2s_LoadMem_LocalSet<int64_t, int16_t>;
+  static auto constexpr s2s_I64LoadMem16U_LocalSet =
+      s2s_LoadMem_LocalSet<int64_t, uint16_t>;
+  static auto constexpr s2s_I64LoadMem32S_LocalSet =
+      s2s_LoadMem_LocalSet<int64_t, int32_t>;
+  static auto constexpr s2s_I64LoadMem32U_LocalSet =
+      s2s_LoadMem_LocalSet<int64_t, uint32_t>;
+  static auto constexpr s2s_I32LoadMem_LocalSet = s2s_LoadMem_LocalSet<int32_t>;
+  static auto constexpr s2s_I64LoadMem_LocalSet = s2s_LoadMem_LocalSet<int64_t>;
+  static auto constexpr s2s_F32LoadMem_LocalSet = s2s_LoadMem_LocalSet<float>;
+  static auto constexpr s2s_F64LoadMem_LocalSet = s2s_LoadMem_LocalSet<double>;
 
-  IntU value =
-      base::ReadUnalignedValue<IntU>(reinterpret_cast<Address>(address));
-  r0 = static_cast<IntT>(value);
+  //////////////////////////////////////////////////////////////////////////////
+  // StoreMem
+  static auto constexpr r2s_I32StoreMem8 = r2s_StoreMemI<int32_t, int8_t>;
+  static auto constexpr r2s_I32StoreMem16 = r2s_StoreMemI<int32_t, int16_t>;
+  static auto constexpr r2s_I64StoreMem8 = r2s_StoreMemI<int64_t, int8_t>;
+  static auto constexpr r2s_I64StoreMem16 = r2s_StoreMemI<int64_t, int16_t>;
+  static auto constexpr r2s_I64StoreMem32 = r2s_StoreMemI<int64_t, int32_t>;
+  static auto constexpr r2s_I32StoreMem = r2s_StoreMemI<int32_t>;
+  static auto constexpr r2s_I64StoreMem = r2s_StoreMemI<int64_t>;
 
-  NextOp();
-}
-static auto r2r_I32LoadMem8S = r2r_LoadMemI<int32_t, int8_t>;
-static auto r2r_I32LoadMem8U = r2r_LoadMemI<int32_t, uint8_t>;
-static auto r2r_I32LoadMem16S = r2r_LoadMemI<int32_t, int16_t>;
-static auto r2r_I32LoadMem16U = r2r_LoadMemI<int32_t, uint16_t>;
-static auto r2r_I64LoadMem8S = r2r_LoadMemI<int64_t, int8_t>;
-static auto r2r_I64LoadMem8U = r2r_LoadMemI<int64_t, uint8_t>;
-static auto r2r_I64LoadMem16S = r2r_LoadMemI<int64_t, int16_t>;
-static auto r2r_I64LoadMem16U = r2r_LoadMemI<int64_t, uint16_t>;
-static auto r2r_I64LoadMem32S = r2r_LoadMemI<int64_t, int32_t>;
-static auto r2r_I64LoadMem32U = r2r_LoadMemI<int64_t, uint32_t>;
-static auto r2r_I32LoadMem = r2r_LoadMemI<int32_t>;
-static auto r2r_I64LoadMem = r2r_LoadMemI<int64_t>;
+  static auto constexpr r2s_F32StoreMem = r2s_StoreMemF<float>;
+  static auto constexpr r2s_F64StoreMem = r2s_StoreMemF<double>;
 
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC r2r_LoadMemF(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = r0;
-  uint64_t effective_index = offset + index;
+  static auto constexpr s2s_I32StoreMem8 = s2s_StoreMem<int32_t, int8_t>;
+  static auto constexpr s2s_I32StoreMem16 = s2s_StoreMem<int32_t, int16_t>;
+  static auto constexpr s2s_I64StoreMem8 = s2s_StoreMem<int64_t, int8_t>;
+  static auto constexpr s2s_I64StoreMem16 = s2s_StoreMem<int64_t, int16_t>;
+  static auto constexpr s2s_I64StoreMem32 = s2s_StoreMem<int64_t, int32_t>;
+  static auto constexpr s2s_I32StoreMem = s2s_StoreMem<int32_t>;
+  static auto constexpr s2s_I64StoreMem = s2s_StoreMem<int64_t>;
+  static auto constexpr s2s_F32StoreMem = s2s_StoreMem<float>;
+  static auto constexpr s2s_F64StoreMem = s2s_StoreMem<double>;
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(FloatT),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+  //////////////////////////////////////////////////////////////////////////////
+  // LocalGet_StoreMem
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_LocalGet_StoreMem(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    T value = base::ReadUnalignedValue<T>(reinterpret_cast<Address>(sp + from));
+
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    memory_offset32_t offset = Read<memory_offset32_t>(code);
+    uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+
+    base::WriteUnalignedValue<U>(
+        reinterpret_cast<Address>(address),
+        base::ReadUnalignedValue<U>(reinterpret_cast<Address>(&value)));
+
+    NextOp();
   }
-
-  uint8_t* address = memory_start + effective_index;
-
-  fp0 = base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(address));
-
-  NextOp();
-}
-static auto r2r_F32LoadMem = r2r_LoadMemF<float>;
-static auto r2r_F64LoadMem = r2r_LoadMemF<double>;
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC r2s_LoadMem(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = r0;
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
-
-  push<T>(sp, code, wasm_runtime, value);
-
-  NextOp();
-}
-static auto r2s_I32LoadMem8S = r2s_LoadMem<int32_t, int8_t>;
-static auto r2s_I32LoadMem8U = r2s_LoadMem<int32_t, uint8_t>;
-static auto r2s_I32LoadMem16S = r2s_LoadMem<int32_t, int16_t>;
-static auto r2s_I32LoadMem16U = r2s_LoadMem<int32_t, uint16_t>;
-static auto r2s_I64LoadMem8S = r2s_LoadMem<int64_t, int8_t>;
-static auto r2s_I64LoadMem8U = r2s_LoadMem<int64_t, uint8_t>;
-static auto r2s_I64LoadMem16S = r2s_LoadMem<int64_t, int16_t>;
-static auto r2s_I64LoadMem16U = r2s_LoadMem<int64_t, uint16_t>;
-static auto r2s_I64LoadMem32S = r2s_LoadMem<int64_t, int32_t>;
-static auto r2s_I64LoadMem32U = r2s_LoadMem<int64_t, uint32_t>;
-static auto r2s_I32LoadMem = r2s_LoadMem<int32_t>;
-static auto r2s_I64LoadMem = r2s_LoadMem<int64_t>;
-static auto r2s_F32LoadMem = r2s_LoadMem<float>;
-static auto r2s_F64LoadMem = r2s_LoadMem<double>;
-
-template <typename IntT, typename IntU = IntT>
-INSTRUCTION_HANDLER_FUNC s2r_LoadMemI(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(IntU),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  r0 = static_cast<IntT>(
-      base::ReadUnalignedValue<IntU>(reinterpret_cast<Address>(address)));
-
-  NextOp();
-}
-static auto s2r_I32LoadMem8S = s2r_LoadMemI<int32_t, int8_t>;
-static auto s2r_I32LoadMem8U = s2r_LoadMemI<int32_t, uint8_t>;
-static auto s2r_I32LoadMem16S = s2r_LoadMemI<int32_t, int16_t>;
-static auto s2r_I32LoadMem16U = s2r_LoadMemI<int32_t, uint16_t>;
-static auto s2r_I64LoadMem8S = s2r_LoadMemI<int64_t, int8_t>;
-static auto s2r_I64LoadMem8U = s2r_LoadMemI<int64_t, uint8_t>;
-static auto s2r_I64LoadMem16S = s2r_LoadMemI<int64_t, int16_t>;
-static auto s2r_I64LoadMem16U = s2r_LoadMemI<int64_t, uint16_t>;
-static auto s2r_I64LoadMem32S = s2r_LoadMemI<int64_t, int32_t>;
-static auto s2r_I64LoadMem32U = s2r_LoadMemI<int64_t, uint32_t>;
-static auto s2r_I32LoadMem = s2r_LoadMemI<int32_t>;
-static auto s2r_I64LoadMem = s2r_LoadMemI<int64_t>;
-
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC s2r_LoadMemF(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(FloatT),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  fp0 = static_cast<FloatT>(
-      base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(address)));
-
-  NextOp();
-}
-static auto s2r_F32LoadMem = s2r_LoadMemF<float>;
-static auto s2r_F64LoadMem = s2r_LoadMemF<double>;
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_LoadMem(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
-
-  push<T>(sp, code, wasm_runtime, value);
-
-  NextOp();
-}
-static auto s2s_I32LoadMem8S = s2s_LoadMem<int32_t, int8_t>;
-static auto s2s_I32LoadMem8U = s2s_LoadMem<int32_t, uint8_t>;
-static auto s2s_I32LoadMem16S = s2s_LoadMem<int32_t, int16_t>;
-static auto s2s_I32LoadMem16U = s2s_LoadMem<int32_t, uint16_t>;
-static auto s2s_I64LoadMem8S = s2s_LoadMem<int64_t, int8_t>;
-static auto s2s_I64LoadMem8U = s2s_LoadMem<int64_t, uint8_t>;
-static auto s2s_I64LoadMem16S = s2s_LoadMem<int64_t, int16_t>;
-static auto s2s_I64LoadMem16U = s2s_LoadMem<int64_t, uint16_t>;
-static auto s2s_I64LoadMem32S = s2s_LoadMem<int64_t, int32_t>;
-static auto s2s_I64LoadMem32U = s2s_LoadMem<int64_t, uint32_t>;
-static auto s2s_I32LoadMem = s2s_LoadMem<int32_t>;
-static auto s2s_I64LoadMem = s2s_LoadMem<int64_t>;
-static auto s2s_F32LoadMem = s2s_LoadMem<float>;
-static auto s2s_F64LoadMem = s2s_LoadMem<double>;
-
-////////////////////////////////////////////////////////////////////////////////
-// LoadMem_LocalSet
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC r2s_LoadMem_LocalSet(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = r0;
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
-
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<T>(reinterpret_cast<Address>(sp + to),
-                               static_cast<T>(value));
-
-  NextOp();
-}
-static auto r2s_I32LoadMem8S_LocalSet = r2s_LoadMem_LocalSet<int32_t, int8_t>;
-static auto r2s_I32LoadMem8U_LocalSet = r2s_LoadMem_LocalSet<int32_t, uint8_t>;
-static auto r2s_I32LoadMem16S_LocalSet = r2s_LoadMem_LocalSet<int32_t, int16_t>;
-static auto r2s_I32LoadMem16U_LocalSet =
-    r2s_LoadMem_LocalSet<int32_t, uint16_t>;
-static auto r2s_I64LoadMem8S_LocalSet = r2s_LoadMem_LocalSet<int64_t, int8_t>;
-static auto r2s_I64LoadMem8U_LocalSet = r2s_LoadMem_LocalSet<int64_t, uint8_t>;
-static auto r2s_I64LoadMem16S_LocalSet = r2s_LoadMem_LocalSet<int64_t, int16_t>;
-static auto r2s_I64LoadMem16U_LocalSet =
-    r2s_LoadMem_LocalSet<int64_t, uint16_t>;
-static auto r2s_I64LoadMem32S_LocalSet = r2s_LoadMem_LocalSet<int64_t, int32_t>;
-static auto r2s_I64LoadMem32U_LocalSet =
-    r2s_LoadMem_LocalSet<int64_t, uint32_t>;
-static auto r2s_I32LoadMem_LocalSet = r2s_LoadMem_LocalSet<int32_t>;
-static auto r2s_I64LoadMem_LocalSet = r2s_LoadMem_LocalSet<int64_t>;
-static auto r2s_F32LoadMem_LocalSet = r2s_LoadMem_LocalSet<float>;
-static auto r2s_F64LoadMem_LocalSet = r2s_LoadMem_LocalSet<double>;
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_LoadMem_LocalSet(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<int32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  U value = base::ReadUnalignedValue<U>(reinterpret_cast<Address>(address));
-
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<T>(reinterpret_cast<Address>(sp + to),
-                               static_cast<T>(value));
-
-  NextOp();
-}
-static auto s2s_I32LoadMem8S_LocalSet = s2s_LoadMem_LocalSet<int32_t, int8_t>;
-static auto s2s_I32LoadMem8U_LocalSet = s2s_LoadMem_LocalSet<int32_t, uint8_t>;
-static auto s2s_I32LoadMem16S_LocalSet = s2s_LoadMem_LocalSet<int32_t, int16_t>;
-static auto s2s_I32LoadMem16U_LocalSet =
-    s2s_LoadMem_LocalSet<int32_t, uint16_t>;
-static auto s2s_I64LoadMem8S_LocalSet = s2s_LoadMem_LocalSet<int64_t, int8_t>;
-static auto s2s_I64LoadMem8U_LocalSet = s2s_LoadMem_LocalSet<int64_t, uint8_t>;
-static auto s2s_I64LoadMem16S_LocalSet = s2s_LoadMem_LocalSet<int64_t, int16_t>;
-static auto s2s_I64LoadMem16U_LocalSet =
-    s2s_LoadMem_LocalSet<int64_t, uint16_t>;
-static auto s2s_I64LoadMem32S_LocalSet = s2s_LoadMem_LocalSet<int64_t, int32_t>;
-static auto s2s_I64LoadMem32U_LocalSet =
-    s2s_LoadMem_LocalSet<int64_t, uint32_t>;
-static auto s2s_I32LoadMem_LocalSet = s2s_LoadMem_LocalSet<int32_t>;
-static auto s2s_I64LoadMem_LocalSet = s2s_LoadMem_LocalSet<int64_t>;
-static auto s2s_F32LoadMem_LocalSet = s2s_LoadMem_LocalSet<float>;
-static auto s2s_F64LoadMem_LocalSet = s2s_LoadMem_LocalSet<double>;
-
-////////////////////////////////////////////////////////////////////////////////
-// StoreMem
-
-template <typename IntT, typename IntU = IntT>
-INSTRUCTION_HANDLER_FUNC r2s_StoreMemI(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  IntT value = static_cast<IntT>(r0);
-
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(IntU),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  base::WriteUnalignedValue<IntU>(
-      reinterpret_cast<Address>(address),
-      base::ReadUnalignedValue<IntU>(reinterpret_cast<Address>(&value)));
-
-  NextOp();
-}
-static auto r2s_I32StoreMem8 = r2s_StoreMemI<int32_t, int8_t>;
-static auto r2s_I32StoreMem16 = r2s_StoreMemI<int32_t, int16_t>;
-static auto r2s_I64StoreMem8 = r2s_StoreMemI<int64_t, int8_t>;
-static auto r2s_I64StoreMem16 = r2s_StoreMemI<int64_t, int16_t>;
-static auto r2s_I64StoreMem32 = r2s_StoreMemI<int64_t, int32_t>;
-static auto r2s_I32StoreMem = r2s_StoreMemI<int32_t>;
-static auto r2s_I64StoreMem = r2s_StoreMemI<int64_t>;
-
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC r2s_StoreMemF(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  FloatT value = static_cast<FloatT>(fp0);
-
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(FloatT),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  base::WriteUnalignedValue<FloatT>(
-      reinterpret_cast<Address>(address),
-      base::ReadUnalignedValue<FloatT>(reinterpret_cast<Address>(&value)));
-
-  NextOp();
-}
-static auto r2s_F32StoreMem = r2s_StoreMemF<float>;
-static auto r2s_F64StoreMem = r2s_StoreMemF<double>;
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_StoreMem(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  T value = pop<T>(sp, code, wasm_runtime);
-
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  base::WriteUnalignedValue<U>(
-      reinterpret_cast<Address>(address),
-      base::ReadUnalignedValue<U>(reinterpret_cast<Address>(&value)));
-
-  NextOp();
-}
-static auto s2s_I32StoreMem8 = s2s_StoreMem<int32_t, int8_t>;
-static auto s2s_I32StoreMem16 = s2s_StoreMem<int32_t, int16_t>;
-static auto s2s_I64StoreMem8 = s2s_StoreMem<int64_t, int8_t>;
-static auto s2s_I64StoreMem16 = s2s_StoreMem<int64_t, int16_t>;
-static auto s2s_I64StoreMem32 = s2s_StoreMem<int64_t, int32_t>;
-static auto s2s_I32StoreMem = s2s_StoreMem<int32_t>;
-static auto s2s_I64StoreMem = s2s_StoreMem<int64_t>;
-static auto s2s_F32StoreMem = s2s_StoreMem<float>;
-static auto s2s_F64StoreMem = s2s_StoreMem<double>;
-
-////////////////////////////////////////////////////////////////////////////////
-// LocalGet_StoreMem
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_LocalGet_StoreMem(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  T value = base::ReadUnalignedValue<T>(reinterpret_cast<Address>(sp + from));
-
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(U),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-
-  base::WriteUnalignedValue<U>(
-      reinterpret_cast<Address>(address),
-      base::ReadUnalignedValue<U>(reinterpret_cast<Address>(&value)));
-
-  NextOp();
-}
-static auto s2s_LocalGet_I32StoreMem8 = s2s_LocalGet_StoreMem<int32_t, int8_t>;
-static auto s2s_LocalGet_I32StoreMem16 =
-    s2s_LocalGet_StoreMem<int32_t, int16_t>;
-static auto s2s_LocalGet_I64StoreMem8 = s2s_LocalGet_StoreMem<int64_t, int8_t>;
-static auto s2s_LocalGet_I64StoreMem16 =
-    s2s_LocalGet_StoreMem<int64_t, int16_t>;
-static auto s2s_LocalGet_I64StoreMem32 =
-    s2s_LocalGet_StoreMem<int64_t, int32_t>;
-static auto s2s_LocalGet_I32StoreMem = s2s_LocalGet_StoreMem<int32_t>;
-static auto s2s_LocalGet_I64StoreMem = s2s_LocalGet_StoreMem<int64_t>;
-static auto s2s_LocalGet_F32StoreMem = s2s_LocalGet_StoreMem<float>;
-static auto s2s_LocalGet_F64StoreMem = s2s_LocalGet_StoreMem<double>;
-
-////////////////////////////////////////////////////////////////////////////////
-// LoadStoreMem
-
-template <typename T>
-INSTRUCTION_HANDLER_FUNC r2s_LoadStoreMem(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-
-  uint64_t load_offset = Read<uint64_t>(code);
-  uint64_t load_index = r0;
-  uint64_t effective_load_index = load_offset + load_index;
-
-  uint64_t store_offset = Read<uint64_t>(code);
-  uint64_t store_index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_store_index = store_offset + store_index;
-
-  if (V8_UNLIKELY(effective_load_index < load_index ||
-                  !base::IsInBounds<uint64_t>(effective_load_index, sizeof(T),
-                                              wasm_runtime->GetMemorySize()) ||
-                  effective_store_index < store_offset ||
-                  !base::IsInBounds<uint64_t>(effective_store_index, sizeof(T),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* load_address = memory_start + effective_load_index;
-  uint8_t* store_address = memory_start + effective_store_index;
-
-  base::WriteUnalignedValue<T>(
-      reinterpret_cast<Address>(store_address),
-      base::ReadUnalignedValue<T>(reinterpret_cast<Address>(load_address)));
-
-  NextOp();
-}
-static auto r2s_I32LoadStoreMem = r2s_LoadStoreMem<int32_t>;
-static auto r2s_I64LoadStoreMem = r2s_LoadStoreMem<int64_t>;
-static auto r2s_F32LoadStoreMem = r2s_LoadStoreMem<float>;
-static auto r2s_F64LoadStoreMem = r2s_LoadStoreMem<double>;
-
-template <typename T>
-INSTRUCTION_HANDLER_FUNC s2s_LoadStoreMem(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-
-  uint64_t load_offset = Read<uint64_t>(code);
-  uint64_t load_index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_load_index = load_offset + load_index;
-
-  uint64_t store_offset = Read<uint64_t>(code);
-  uint64_t store_index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_store_index = store_offset + store_index;
-
-  if (V8_UNLIKELY(effective_load_index < load_index ||
-                  !base::IsInBounds<uint64_t>(effective_load_index, sizeof(T),
-                                              wasm_runtime->GetMemorySize()) ||
-                  effective_store_index < store_offset ||
-                  !base::IsInBounds<uint64_t>(effective_store_index, sizeof(T),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* load_address = memory_start + effective_load_index;
-  uint8_t* store_address = memory_start + effective_store_index;
-
-  base::WriteUnalignedValue<T>(
-      reinterpret_cast<Address>(store_address),
-      base::ReadUnalignedValue<T>(reinterpret_cast<Address>(load_address)));
-
-  NextOp();
-}
-static auto s2s_I32LoadStoreMem = s2s_LoadStoreMem<int32_t>;
-static auto s2s_I64LoadStoreMem = s2s_LoadStoreMem<int64_t>;
-static auto s2s_F32LoadStoreMem = s2s_LoadStoreMem<float>;
-static auto s2s_F64LoadStoreMem = s2s_LoadStoreMem<double>;
+  static auto constexpr s2s_LocalGet_I32StoreMem8 =
+      s2s_LocalGet_StoreMem<int32_t, int8_t>;
+  static auto constexpr s2s_LocalGet_I32StoreMem16 =
+      s2s_LocalGet_StoreMem<int32_t, int16_t>;
+  static auto constexpr s2s_LocalGet_I64StoreMem8 =
+      s2s_LocalGet_StoreMem<int64_t, int8_t>;
+  static auto constexpr s2s_LocalGet_I64StoreMem16 =
+      s2s_LocalGet_StoreMem<int64_t, int16_t>;
+  static auto constexpr s2s_LocalGet_I64StoreMem32 =
+      s2s_LocalGet_StoreMem<int64_t, int32_t>;
+  static auto constexpr s2s_LocalGet_I32StoreMem =
+      s2s_LocalGet_StoreMem<int32_t>;
+  static auto constexpr s2s_LocalGet_I64StoreMem =
+      s2s_LocalGet_StoreMem<int64_t>;
+  static auto constexpr s2s_LocalGet_F32StoreMem = s2s_LocalGet_StoreMem<float>;
+  static auto constexpr s2s_LocalGet_F64StoreMem =
+      s2s_LocalGet_StoreMem<double>;
+
+  //////////////////////////////////////////////////////////////////////////////
+  // LoadStoreMem
+  static auto constexpr r2s_I32LoadStoreMem = r2s_LoadStoreMem<int32_t>;
+  static auto constexpr r2s_I64LoadStoreMem = r2s_LoadStoreMem<int64_t>;
+  static auto constexpr r2s_F32LoadStoreMem = r2s_LoadStoreMem<float>;
+  static auto constexpr r2s_F64LoadStoreMem = r2s_LoadStoreMem<double>;
+
+  static auto constexpr s2s_I32LoadStoreMem = s2s_LoadStoreMem<int32_t>;
+  static auto constexpr s2s_I64LoadStoreMem = s2s_LoadStoreMem<int64_t>;
+  static auto constexpr s2s_F32LoadStoreMem = s2s_LoadStoreMem<float>;
+  static auto constexpr s2s_F64LoadStoreMem = s2s_LoadStoreMem<double>;
 
 #endif  // V8_DRUMBRAKE_BOUNDS_CHECKS
 
-////////////////////////////////////////////////////////////////////////////////
-// Select
+  //////////////////////////////////////////////////////////////////////////////
+  // Select
 
-template <typename IntT>
-INSTRUCTION_HANDLER_FUNC r2r_SelectI(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  IntT val2 = pop<IntT>(sp, code, wasm_runtime);
-  IntT val1 = pop<IntT>(sp, code, wasm_runtime);
-
-  // r0: condition
-  r0 = r0 ? val1 : val2;
-
-  NextOp();
-}
-static auto r2r_I32Select = r2r_SelectI<int32_t>;
-static auto r2r_I64Select = r2r_SelectI<int64_t>;
-
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC r2r_SelectF(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  FloatT val2 = pop<FloatT>(sp, code, wasm_runtime);
-  FloatT val1 = pop<FloatT>(sp, code, wasm_runtime);
-
-  // r0: condition
-  fp0 = r0 ? val1 : val2;
-
-  NextOp();
-}
-static auto r2r_F32Select = r2r_SelectF<float>;
-static auto r2r_F64Select = r2r_SelectF<double>;
-
-template <typename T>
-INSTRUCTION_HANDLER_FUNC r2s_Select(const uint8_t* code, uint32_t* sp,
-                                    WasmInterpreterRuntime* wasm_runtime,
-                                    int64_t r0, double fp0) {
-  T val2 = pop<T>(sp, code, wasm_runtime);
-  T val1 = pop<T>(sp, code, wasm_runtime);
-
-  push<T>(sp, code, wasm_runtime, r0 ? val1 : val2);
-
-  NextOp();
-}
-static auto r2s_I32Select = r2s_Select<int32_t>;
-static auto r2s_I64Select = r2s_Select<int64_t>;
-static auto r2s_F32Select = r2s_Select<float>;
-static auto r2s_F64Select = r2s_Select<double>;
-static auto r2s_S128Select = r2s_Select<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC r2s_RefSelect(const uint8_t* code, uint32_t* sp,
+  template <typename IntT>
+  INSTRUCTION_HANDLER_FUNC r2r_SelectI(const uint8_t* code, uint32_t* sp,
                                        WasmInterpreterRuntime* wasm_runtime,
                                        int64_t r0, double fp0) {
-  WasmRef val2 = pop<WasmRef>(sp, code, wasm_runtime);
-  WasmRef val1 = pop<WasmRef>(sp, code, wasm_runtime);
-  push<WasmRef>(sp, code, wasm_runtime, r0 ? val1 : val2);
+    IntT val2 = pop<IntT>(sp, code, wasm_runtime);
+    IntT val1 = pop<IntT>(sp, code, wasm_runtime);
 
-  NextOp();
-}
+    // r0: condition
+    r0 = r0 ? val1 : val2;
 
-template <typename IntT>
-INSTRUCTION_HANDLER_FUNC s2r_SelectI(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
-  IntT val2 = pop<IntT>(sp, code, wasm_runtime);
-  IntT val1 = pop<IntT>(sp, code, wasm_runtime);
+    NextOp();
+  }
+  static auto constexpr r2r_I32Select = r2r_SelectI<int32_t>;
+  static auto constexpr r2r_I64Select = r2r_SelectI<int64_t>;
 
-  r0 = cond ? val1 : val2;
-
-  NextOp();
-}
-static auto s2r_I32Select = s2r_SelectI<int32_t>;
-static auto s2r_I64Select = s2r_SelectI<int64_t>;
-
-template <typename FloatT>
-INSTRUCTION_HANDLER_FUNC s2r_SelectF(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
-  FloatT val2 = pop<FloatT>(sp, code, wasm_runtime);
-  FloatT val1 = pop<FloatT>(sp, code, wasm_runtime);
-
-  fp0 = cond ? val1 : val2;
-
-  NextOp();
-}
-static auto s2r_F32Select = s2r_SelectF<float>;
-static auto s2r_F64Select = s2r_SelectF<double>;
-
-template <typename T>
-INSTRUCTION_HANDLER_FUNC s2s_Select(const uint8_t* code, uint32_t* sp,
-                                    WasmInterpreterRuntime* wasm_runtime,
-                                    int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
-  T val2 = pop<T>(sp, code, wasm_runtime);
-  T val1 = pop<T>(sp, code, wasm_runtime);
-
-  push<T>(sp, code, wasm_runtime, cond ? val1 : val2);
-
-  NextOp();
-}
-static auto s2s_I32Select = s2s_Select<int32_t>;
-static auto s2s_I64Select = s2s_Select<int64_t>;
-static auto s2s_F32Select = s2s_Select<float>;
-static auto s2s_F64Select = s2s_Select<double>;
-static auto s2s_S128Select = s2s_Select<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefSelect(const uint8_t* code, uint32_t* sp,
+  template <typename FloatT>
+  INSTRUCTION_HANDLER_FUNC r2r_SelectF(const uint8_t* code, uint32_t* sp,
                                        WasmInterpreterRuntime* wasm_runtime,
                                        int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
-  WasmRef val2 = pop<WasmRef>(sp, code, wasm_runtime);
-  WasmRef val1 = pop<WasmRef>(sp, code, wasm_runtime);
-  push<WasmRef>(sp, code, wasm_runtime, cond ? val1 : val2);
+    FloatT val2 = pop<FloatT>(sp, code, wasm_runtime);
+    FloatT val1 = pop<FloatT>(sp, code, wasm_runtime);
 
-  NextOp();
-}
+    // r0: condition
+    fp0 = r0 ? val1 : val2;
 
-////////////////////////////////////////////////////////////////////////////////
-// Binary arithmetic operators
+    NextOp();
+  }
+  static auto constexpr r2r_F32Select = r2r_SelectF<float>;
+  static auto constexpr r2r_F64Select = r2r_SelectF<double>;
+
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC r2s_Select(const uint8_t* code, uint32_t* sp,
+                                      WasmInterpreterRuntime* wasm_runtime,
+                                      int64_t r0, double fp0) {
+    T val2 = pop<T>(sp, code, wasm_runtime);
+    T val1 = pop<T>(sp, code, wasm_runtime);
+
+    push<T>(sp, code, wasm_runtime, r0 ? val1 : val2);
+
+    NextOp();
+  }
+  static auto constexpr r2s_I32Select = r2s_Select<int32_t>;
+  static auto constexpr r2s_I64Select = r2s_Select<int64_t>;
+  static auto constexpr r2s_F32Select = r2s_Select<float>;
+  static auto constexpr r2s_F64Select = r2s_Select<double>;
+  static auto constexpr r2s_S128Select = r2s_Select<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC r2s_RefSelect(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    WasmRef val2 = pop<WasmRef>(sp, code, wasm_runtime);
+    WasmRef val1 = pop<WasmRef>(sp, code, wasm_runtime);
+    push<WasmRef>(sp, code, wasm_runtime, r0 ? val1 : val2);
+
+    NextOp();
+  }
+
+  template <typename IntT>
+  INSTRUCTION_HANDLER_FUNC s2r_SelectI(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
+    IntT val2 = pop<IntT>(sp, code, wasm_runtime);
+    IntT val1 = pop<IntT>(sp, code, wasm_runtime);
+
+    r0 = cond ? val1 : val2;
+
+    NextOp();
+  }
+  static auto constexpr s2r_I32Select = s2r_SelectI<int32_t>;
+  static auto constexpr s2r_I64Select = s2r_SelectI<int64_t>;
+
+  template <typename FloatT>
+  INSTRUCTION_HANDLER_FUNC s2r_SelectF(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
+    FloatT val2 = pop<FloatT>(sp, code, wasm_runtime);
+    FloatT val1 = pop<FloatT>(sp, code, wasm_runtime);
+
+    fp0 = cond ? val1 : val2;
+
+    NextOp();
+  }
+  static auto constexpr s2r_F32Select = s2r_SelectF<float>;
+  static auto constexpr s2r_F64Select = s2r_SelectF<double>;
+
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC s2s_Select(const uint8_t* code, uint32_t* sp,
+                                      WasmInterpreterRuntime* wasm_runtime,
+                                      int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
+    T val2 = pop<T>(sp, code, wasm_runtime);
+    T val1 = pop<T>(sp, code, wasm_runtime);
+
+    push<T>(sp, code, wasm_runtime, cond ? val1 : val2);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32Select = s2s_Select<int32_t>;
+  static auto constexpr s2s_I64Select = s2s_Select<int64_t>;
+  static auto constexpr s2s_F32Select = s2s_Select<float>;
+  static auto constexpr s2s_F64Select = s2s_Select<double>;
+  static auto constexpr s2s_S128Select = s2s_Select<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefSelect(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
+    WasmRef val2 = pop<WasmRef>(sp, code, wasm_runtime);
+    WasmRef val1 = pop<WasmRef>(sp, code, wasm_runtime);
+    push<WasmRef>(sp, code, wasm_runtime, cond ? val1 : val2);
+
+    NextOp();
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Binary arithmetic operators
 
 #define FOREACH_ARITHMETIC_BINOP(V) \
   V(I32Add, uint32_t, r0, +, I32)   \
@@ -1476,11 +1990,11 @@ INSTRUCTION_HANDLER_FUNC s2s_RefSelect(const uint8_t* code, uint32_t* sp,
     push<ctype>(sp, code, wasm_runtime, lval op rval);                      \
     NextOp();                                                               \
   }
-FOREACH_ARITHMETIC_BINOP(DEFINE_BINOP)
+  FOREACH_ARITHMETIC_BINOP(DEFINE_BINOP)
 #undef DEFINE_BINOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Binary arithmetic operators that can trap
+  //////////////////////////////////////////////////////////////////////////////
+  // Binary arithmetic operators that can trap
 
 #define FOREACH_SIGNED_DIV_BINOP(V) \
   V(I32DivS, int32_t, r0, /, I32)   \
@@ -1561,7 +2075,7 @@ FOREACH_ARITHMETIC_BINOP(DEFINE_BINOP)
     }                                                                       \
     NextOp();                                                               \
   }
-FOREACH_SIGNED_DIV_BINOP(DEFINE_BINOP)
+  FOREACH_SIGNED_DIV_BINOP(DEFINE_BINOP)
 #undef DEFINE_BINOP
 
 #define DEFINE_BINOP(name, ctype, reg, op, type)                            \
@@ -1616,7 +2130,7 @@ FOREACH_SIGNED_DIV_BINOP(DEFINE_BINOP)
     }                                                                       \
     NextOp();                                                               \
   }
-FOREACH_UNSIGNED_DIV_BINOP(DEFINE_BINOP)
+  FOREACH_UNSIGNED_DIV_BINOP(DEFINE_BINOP)
 #undef DEFINE_BINOP
 
 #define DEFINE_BINOP(name, ctype, reg, op, type)                            \
@@ -1671,11 +2185,11 @@ FOREACH_UNSIGNED_DIV_BINOP(DEFINE_BINOP)
     }                                                                       \
     NextOp();                                                               \
   }
-FOREACH_REM_BINOP(DEFINE_BINOP)
+  FOREACH_REM_BINOP(DEFINE_BINOP)
 #undef DEFINE_BINOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Comparison operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Comparison operators
 
 #define FOREACH_COMPARISON_BINOP(V) \
   V(I32Eq, uint32_t, r0, ==, I32)   \
@@ -1747,11 +2261,11 @@ FOREACH_REM_BINOP(DEFINE_BINOP)
     push<int32_t>(sp, code, wasm_runtime, lval op rval ? 1 : 0);            \
     NextOp();                                                               \
   }
-FOREACH_COMPARISON_BINOP(DEFINE_BINOP)
+  FOREACH_COMPARISON_BINOP(DEFINE_BINOP)
 #undef DEFINE_BINOP
 
-////////////////////////////////////////////////////////////////////////////////
-// More binary operators
+  //////////////////////////////////////////////////////////////////////////////
+  // More binary operators
 
 #define FOREACH_MORE_BINOP(V)                                                \
   V(I32Shl, uint32_t, r0, (lval << (rval & 31)), I32)                        \
@@ -1823,11 +2337,11 @@ FOREACH_COMPARISON_BINOP(DEFINE_BINOP)
     push<ctype>(sp, code, wasm_runtime, op);                                \
     NextOp();                                                               \
   }
-FOREACH_MORE_BINOP(DEFINE_BINOP)
+  FOREACH_MORE_BINOP(DEFINE_BINOP)
 #undef DEFINE_BINOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Unary operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Unary operators
 
 #define FOREACH_SIMPLE_UNOP(V)                       \
   V(F32Abs, float, fp0, abs(val), F32)               \
@@ -1877,40 +2391,40 @@ FOREACH_MORE_BINOP(DEFINE_BINOP)
     push<ctype>(sp, code, wasm_runtime, op);                                \
     NextOp();                                                               \
   }
-FOREACH_SIMPLE_UNOP(DEFINE_UNOP)
+  FOREACH_SIMPLE_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Numeric conversion operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Numeric conversion operators
 
 #define FOREACH_ADDITIONAL_CONVERT_UNOP(V) \
   V(I32ConvertI64, int64_t, I64, r0, int32_t, I32, r0)
 
-INSTRUCTION_HANDLER_FUNC r2r_I32ConvertI64(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  r0 &= 0xffffffff;
-  NextOp();
-}
-INSTRUCTION_HANDLER_FUNC r2s_I32ConvertI64(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  push<int32_t>(sp, code, wasm_runtime, r0 & 0xffffffff);
-  NextOp();
-}
-INSTRUCTION_HANDLER_FUNC s2r_I32ConvertI64(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  r0 = 0xffffffff & pop<int64_t>(sp, code, wasm_runtime);
-  NextOp();
-}
-INSTRUCTION_HANDLER_FUNC s2s_I32ConvertI64(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  push<int32_t>(sp, code, wasm_runtime,
-                0xffffffff & pop<int64_t>(sp, code, wasm_runtime));
-  NextOp();
-}
+  INSTRUCTION_HANDLER_FUNC r2r_I32ConvertI64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    r0 &= 0xffffffff;
+    NextOp();
+  }
+  INSTRUCTION_HANDLER_FUNC r2s_I32ConvertI64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    push<int32_t>(sp, code, wasm_runtime, r0 & 0xffffffff);
+    NextOp();
+  }
+  INSTRUCTION_HANDLER_FUNC s2r_I32ConvertI64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    r0 = 0xffffffff & pop<int64_t>(sp, code, wasm_runtime);
+    NextOp();
+  }
+  INSTRUCTION_HANDLER_FUNC s2s_I32ConvertI64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    push<int32_t>(sp, code, wasm_runtime,
+                  0xffffffff & pop<int64_t>(sp, code, wasm_runtime));
+    NextOp();
+  }
 
 #define FOREACH_I64_CONVERT_FROM_FLOAT_UNOP(V)          \
   V(I64SConvertF32, float, F32, fp0, int64_t, I64, r0)  \
@@ -1992,7 +2506,7 @@ INSTRUCTION_HANDLER_FUNC s2s_I32ConvertI64(const uint8_t* code, uint32_t* sp,
     }                                                                         \
     NextOp();                                                                 \
   }
-FOREACH_I64_CONVERT_FROM_FLOAT_UNOP(DEFINE_UNOP)
+  FOREACH_I64_CONVERT_FROM_FLOAT_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
 #define DEFINE_UNOP(name, from_ctype, from_type, from_reg, to_ctype, to_type, \
@@ -2044,7 +2558,7 @@ FOREACH_I64_CONVERT_FROM_FLOAT_UNOP(DEFINE_UNOP)
     }                                                                         \
     NextOp();                                                                 \
   }
-FOREACH_I32_CONVERT_FROM_FLOAT_UNOP(DEFINE_UNOP)
+  FOREACH_I32_CONVERT_FROM_FLOAT_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
 #define DEFINE_UNOP(name, from_ctype, from_type, from_reg, to_ctype, to_type, \
@@ -2078,11 +2592,11 @@ FOREACH_I32_CONVERT_FROM_FLOAT_UNOP(DEFINE_UNOP)
     push<to_ctype>(sp, code, wasm_runtime, val);                              \
     NextOp();                                                                 \
   }
-FOREACH_OTHER_CONVERT_UNOP(DEFINE_UNOP)
+  FOREACH_OTHER_CONVERT_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Numeric reinterpret operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Numeric reinterpret operators
 
 #define FOREACH_REINTERPRET_UNOP(V)                        \
   V(F32ReinterpretI32, int32_t, I32, r0, float, F32, fp0)  \
@@ -2129,11 +2643,11 @@ FOREACH_OTHER_CONVERT_UNOP(DEFINE_UNOP)
         base::ReadUnalignedValue<to_ctype>(reinterpret_cast<Address>(&val)));  \
     NextOp();                                                                  \
   }
-FOREACH_REINTERPRET_UNOP(DEFINE_UNOP)
+  FOREACH_REINTERPRET_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Bit operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Bit operators
 
 #define FOREACH_BITS_UNOP(V)                                                   \
   V(I32Clz, uint32_t, I32, uint32_t, I32, base::bits::CountLeadingZeros(val))  \
@@ -2177,11 +2691,11 @@ FOREACH_REINTERPRET_UNOP(DEFINE_UNOP)
     push<to_ctype>(sp, code, wasm_runtime, op);                              \
     NextOp();                                                                \
   }
-FOREACH_BITS_UNOP(DEFINE_REG_BINOP)
+  FOREACH_BITS_UNOP(DEFINE_REG_BINOP)
 #undef DEFINE_REG_BINOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Sign extension operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Sign extension operators
 
 #define FOREACH_EXTENSION_UNOP(V)              \
   V(I32SExtendI8, int8_t, I32, int32_t, I32)   \
@@ -2224,11 +2738,11 @@ FOREACH_BITS_UNOP(DEFINE_REG_BINOP)
     push<to_ctype>(sp, code, wasm_runtime, val);                            \
     NextOp();                                                               \
   }
-FOREACH_EXTENSION_UNOP(DEFINE_UNOP)
+  FOREACH_EXTENSION_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
-////////////////////////////////////////////////////////////////////////////////
-// Saturated truncation operators
+  //////////////////////////////////////////////////////////////////////////////
+  // Saturated truncation operators
 
 #define FOREACH_TRUNCSAT_UNOP(V)                            \
   V(I32SConvertSatF32, float, F32, fp0, int32_t, I32, r0)   \
@@ -2275,1276 +2789,1544 @@ FOREACH_EXTENSION_UNOP(DEFINE_UNOP)
     push<to_ctype>(sp, code, wasm_runtime, val);                              \
     NextOp();                                                                 \
   }
-FOREACH_TRUNCSAT_UNOP(DEFINE_UNOP)
+  FOREACH_TRUNCSAT_UNOP(DEFINE_UNOP)
 #undef DEFINE_UNOP
 
-////////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////////////////////////////////////////////////////
 
-INSTRUCTION_HANDLER_FUNC s2s_MemoryGrow(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t delta_pages = pop<uint32_t>(sp, code, wasm_runtime);
+  INSTRUCTION_HANDLER_FUNC s2s_MemoryGrow(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint32_t delta_pages = pop<uint32_t>(sp, code, wasm_runtime);
 
-  int32_t result = wasm_runtime->MemoryGrow(delta_pages);
+    int32_t result = wasm_runtime->MemoryGrow(delta_pages);
 
-  push<int32_t>(sp, code, wasm_runtime, result);
+    push<int32_t>(sp, code, wasm_runtime, result);
 
-  NextOp();
-}
+    NextOp();
+  }
 
-INSTRUCTION_HANDLER_FUNC s2s_MemorySize(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint64_t result = wasm_runtime->MemorySize();
-  if (wasm_runtime->IsMemory64()) {
-    push<uint64_t>(sp, code, wasm_runtime, result);
-  } else {
+  INSTRUCTION_HANDLER_FUNC s2s_Memory64Grow(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int64_t result = -1;
+
+    uint64_t delta_pages = pop<uint64_t>(sp, code, wasm_runtime);
+
+    if (delta_pages <= std::numeric_limits<uint32_t>::max()) {
+      result = wasm_runtime->MemoryGrow(static_cast<uint32_t>(delta_pages));
+    }
+
+    push<int64_t>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_MemorySize(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint64_t result = wasm_runtime->MemorySize();
     push<uint32_t>(sp, code, wasm_runtime, static_cast<uint32_t>(result));
+
+    NextOp();
   }
 
-  NextOp();
-}
+  INSTRUCTION_HANDLER_FUNC s2s_Memory64Size(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint64_t result = wasm_runtime->MemorySize();
+    push<uint64_t>(sp, code, wasm_runtime, result);
 
-INSTRUCTION_HANDLER_FUNC s2s_Return(const uint8_t* code, uint32_t* sp,
-                                    WasmInterpreterRuntime* wasm_runtime,
-                                    int64_t r0, double fp0) {
-  // Break the chain of calls.
-  ReadI32(code);
-}
+    NextOp();
+  }
 
-INSTRUCTION_HANDLER_FUNC s2s_Branch(const uint8_t* code, uint32_t* sp,
-                                    WasmInterpreterRuntime* wasm_runtime,
-                                    int64_t r0, double fp0) {
-  int32_t target_offset = ReadI32(code);
-  code += (target_offset - kCodeOffsetSize);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_BranchIf(const uint8_t* code, uint32_t* sp,
+  INSTRUCTION_HANDLER_FUNC s2s_Return(const uint8_t* code, uint32_t* sp,
                                       WasmInterpreterRuntime* wasm_runtime,
                                       int64_t r0, double fp0) {
-  int64_t cond = r0;
-
-  int32_t if_true_offset = ReadI32(code);
-  if (cond) {
-    // If condition is true, jump to the target branch.
-    code += (if_true_offset - kCodeOffsetSize);
+    // Break the chain of calls.
+    Read<int32_t>(code);
   }
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_BranchIf(const uint8_t* code, uint32_t* sp,
+  INSTRUCTION_HANDLER_FUNC s2s_Branch(const uint8_t* code, uint32_t* sp,
                                       WasmInterpreterRuntime* wasm_runtime,
                                       int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
-
-  int32_t if_true_offset = ReadI32(code);
-  if (cond) {
-    // If condition is true, jump to the target branch.
-    code += (if_true_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_BranchIfWithParams(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int64_t cond = r0;
-
-  int32_t if_false_offset = ReadI32(code);
-  if (!cond) {
-    // If condition is not true, jump to the false branch.
-    code += (if_false_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_BranchIfWithParams(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
-
-  int32_t if_false_offset = ReadI32(code);
-  if (!cond) {
-    // If condition is not true, jump to the false branch.
-    code += (if_false_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_If(const uint8_t* code, uint32_t* sp,
-                                WasmInterpreterRuntime* wasm_runtime,
-                                int64_t r0, double fp0) {
-  int64_t cond = r0;
-
-  int32_t target_offset = ReadI32(code);
-  if (!cond) {
+    int32_t target_offset = Read<int32_t>(code);
     code += (target_offset - kCodeOffsetSize);
+
+    NextOp();
   }
 
-  NextOp();
-}
+  INSTRUCTION_HANDLER_FUNC r2s_BranchIf(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    int64_t cond = r0;
 
-INSTRUCTION_HANDLER_FUNC s2s_If(const uint8_t* code, uint32_t* sp,
-                                WasmInterpreterRuntime* wasm_runtime,
-                                int64_t r0, double fp0) {
-  int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
+    int32_t if_true_offset = Read<int32_t>(code);
+    if (cond) {
+      // If condition is true, jump to the target branch.
+      code += (if_true_offset - kCodeOffsetSize);
+    }
 
-  int32_t target_offset = ReadI32(code);
-  if (!cond) {
-    code += (target_offset - kCodeOffsetSize);
+    NextOp();
   }
 
-  NextOp();
-}
+  INSTRUCTION_HANDLER_FUNC s2s_BranchIf(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
 
-INSTRUCTION_HANDLER_FUNC s2s_Else(const uint8_t* code, uint32_t* sp,
+    int32_t if_true_offset = Read<int32_t>(code);
+    if (cond) {
+      // If condition is true, jump to the target branch.
+      code += (if_true_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_BranchIfWithParams(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int64_t cond = r0;
+
+    int32_t if_false_offset = Read<int32_t>(code);
+    if (!cond) {
+      // If condition is not true, jump to the false branch.
+      code += (if_false_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_BranchIfWithParams(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
+
+    int32_t if_false_offset = Read<int32_t>(code);
+    if (!cond) {
+      // If condition is not true, jump to the false branch.
+      code += (if_false_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_If(const uint8_t* code, uint32_t* sp,
                                   WasmInterpreterRuntime* wasm_runtime,
                                   int64_t r0, double fp0) {
-  int32_t target_offset = ReadI32(code);
-  code += (target_offset - kCodeOffsetSize);
+    int64_t cond = r0;
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_Catch(const uint8_t* code, uint32_t* sp,
-                                   WasmInterpreterRuntime* wasm_runtime,
-                                   int64_t r0, double fp0) {
-  int32_t target_offset = ReadI32(code);
-  code += (target_offset - kCodeOffsetSize);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CallFunction(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  uint32_t function_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  wasm_runtime->ExecuteFunction(code, function_index, stack_pos,
-                                ref_stack_fp_offset, slot_offset,
-                                return_slot_offset);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ReturnCall(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t rets_size = ReadI32(code);
-  uint32_t args_size = ReadI32(code);
-  uint32_t rets_refs = ReadI32(code);
-  uint32_t args_refs = ReadI32(code);
-  uint32_t function_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  // Moves back the stack frame to the caller stack frame.
-  wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
-                                        rets_refs, args_refs,
-                                        ref_stack_fp_offset);
-
-  // Do not call wasm_runtime->ExecuteFunction(), which would add a
-  // new C++ stack frame.
-  wasm_runtime->PrepareTailCall(code, function_index, stack_pos,
-                                return_slot_offset);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CallImportedFunction(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t function_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  wasm_runtime->ExecuteImportedFunction(code, function_index, stack_pos,
-                                        ref_stack_fp_offset, slot_offset,
-                                        return_slot_offset);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ReturnCallImportedFunction(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t rets_size = ReadI32(code);
-  uint32_t args_size = ReadI32(code);
-  uint32_t rets_refs = ReadI32(code);
-  uint32_t args_refs = ReadI32(code);
-  uint32_t function_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  // Moves back the stack frame to the caller stack frame.
-  wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
-                                        rets_refs, args_refs,
-                                        ref_stack_fp_offset);
-
-  wasm_runtime->ExecuteImportedFunction(code, function_index, stack_pos, 0, 0,
-                                        return_slot_offset);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CallIndirect(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint32_t table_index = ReadI32(code);
-  uint32_t sig_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  // This function can trap.
-  wasm_runtime->ExecuteIndirectCall(code, table_index, sig_index, entry_index,
-                                    stack_pos, sp, ref_stack_fp_offset,
-                                    slot_offset, return_slot_offset, false);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ReturnCallIndirect(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t rets_size = ReadI32(code);
-  uint32_t args_size = ReadI32(code);
-  uint32_t rets_refs = ReadI32(code);
-  uint32_t args_refs = ReadI32(code);
-  uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint32_t table_index = ReadI32(code);
-  uint32_t sig_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  // Moves back the stack frame to the caller stack frame.
-  wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
-                                        rets_refs, args_refs,
-                                        ref_stack_fp_offset);
-
-  // This function can trap.
-  wasm_runtime->ExecuteIndirectCall(code, table_index, sig_index, entry_index,
-                                    stack_pos, sp, 0, 0, return_slot_offset,
-                                    true);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_BrTable(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  uint32_t cond = static_cast<int32_t>(r0);
-
-  uint32_t table_length = ReadI32(code);
-  uint32_t index = cond < table_length ? cond : table_length;
-
-  int32_t target_offset = base::ReadUnalignedValue<int32_t>(
-      reinterpret_cast<Address>(code + index * kCodeOffsetSize));
-  code += (target_offset + index * kCodeOffsetSize);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_BrTable(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  uint32_t cond = pop<uint32_t>(sp, code, wasm_runtime);
-
-  uint32_t table_length = ReadI32(code);
-  uint32_t index = cond < table_length ? cond : table_length;
-
-  int32_t target_offset = base::ReadUnalignedValue<int32_t>(
-      reinterpret_cast<Address>(code + index * kCodeOffsetSize));
-  code += (target_offset + index * kCodeOffsetSize);
-
-  NextOp();
-}
-
-const uint32_t kCopySlotMultiIs64Flag = 0x80000000;
-const uint32_t kCopySlotMultiIs64Mask = ~kCopySlotMultiIs64Flag;
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlotMulti(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  uint32_t params_count = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  for (uint32_t i = 0; i < params_count; i++) {
-    uint32_t from = ReadI32(code);
-    bool is_64 = from & kCopySlotMultiIs64Flag;
-    from &= kCopySlotMultiIs64Mask;
-    if (is_64) {
-      base::WriteUnalignedValue<uint64_t>(
-          reinterpret_cast<Address>(sp + to),
-          base::ReadUnalignedValue<uint64_t>(
-              reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-      if (v8_flags.trace_drumbrake_execution &&
-          v8_flags.trace_drumbrake_execution_verbose) {
-        wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
-                            base::ReadUnalignedValue<uint64_t>(
-                                reinterpret_cast<Address>(sp + to)));
-      }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-      to += sizeof(uint64_t) / sizeof(uint32_t);
-    } else {
-      base::WriteUnalignedValue<uint32_t>(
-          reinterpret_cast<Address>(sp + to),
-          base::ReadUnalignedValue<uint32_t>(
-              reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-      if (v8_flags.trace_drumbrake_execution &&
-          v8_flags.trace_drumbrake_execution_verbose) {
-        wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from, to,
-                            *reinterpret_cast<int32_t*>(sp + to));
-      }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-      to += sizeof(uint32_t) / sizeof(uint32_t);
+    int32_t target_offset = Read<int32_t>(code);
+    if (!cond) {
+      code += (target_offset - kCodeOffsetSize);
     }
+
+    NextOp();
   }
 
-  NextOp();
-}
+  INSTRUCTION_HANDLER_FUNC s2s_If(const uint8_t* code, uint32_t* sp,
+                                  WasmInterpreterRuntime* wasm_runtime,
+                                  int64_t r0, double fp0) {
+    int32_t cond = pop<int32_t>(sp, code, wasm_runtime);
 
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot_ll(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t from0 = ReadI32(code);
-  uint32_t from1 = ReadI32(code);
+    int32_t target_offset = Read<int32_t>(code);
+    if (!cond) {
+      code += (target_offset - kCodeOffsetSize);
+    }
 
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(
-          reinterpret_cast<Address>(sp + from0)));
+    NextOp();
+  }
 
+  INSTRUCTION_HANDLER_FUNC s2s_Else(const uint8_t* code, uint32_t* sp,
+                                    WasmInterpreterRuntime* wasm_runtime,
+                                    int64_t r0, double fp0) {
+    int32_t target_offset = Read<int32_t>(code);
+    code += (target_offset - kCodeOffsetSize);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Catch(const uint8_t* code, uint32_t* sp,
+                                     WasmInterpreterRuntime* wasm_runtime,
+                                     int64_t r0, double fp0) {
+    int32_t target_offset = Read<int32_t>(code);
+    code += (target_offset - kCodeOffsetSize);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CallFunction(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t function_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from0, to,
-                        *reinterpret_cast<int32_t*>(sp + to));
-  }
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  to += sizeof(uint32_t) / sizeof(uint32_t);
-
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(
-          reinterpret_cast<Address>(sp + from1)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from1, to,
-                        *reinterpret_cast<int32_t*>(sp + to));
+    wasm_runtime->ExecuteFunction(code, function_index, stack_pos,
+                                  ref_stack_fp_offset, slot_offset,
+                                  return_slot_offset);
+    NextOp();
   }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot_lq(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t from0 = ReadI32(code);
-  uint32_t from1 = ReadI32(code);
-
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(
-          reinterpret_cast<Address>(sp + from0)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from0, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  to += sizeof(uint64_t) / sizeof(uint32_t);
-
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(
-          reinterpret_cast<Address>(sp + from1)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from1, to,
-                        *reinterpret_cast<int32_t*>(sp + to));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot_ql(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t from0 = ReadI32(code);
-  uint32_t from1 = ReadI32(code);
-
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(
-          reinterpret_cast<Address>(sp + from0)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from0, to,
-                        *reinterpret_cast<int32_t*>(sp + to));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  to += sizeof(uint32_t) / sizeof(uint32_t);
-
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(
-          reinterpret_cast<Address>(sp + from1)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from1, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot_qq(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t from0 = ReadI32(code);
-  uint32_t from1 = ReadI32(code);
-
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(
-          reinterpret_cast<Address>(sp + from0)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from0, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  to += sizeof(uint64_t) / sizeof(uint32_t);
-
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(
-          reinterpret_cast<Address>(sp + from1)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from1, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot32(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from, to,
-                        *reinterpret_cast<int32_t*>(sp + to));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot32x2(const uint8_t* code, uint32_t* sp,
+  INSTRUCTION_HANDLER_FUNC s2s_ReturnCall(const uint8_t* code, uint32_t* sp,
                                           WasmInterpreterRuntime* wasm_runtime,
                                           int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + from)));
+    slot_offset_t rets_size = Read<slot_offset_t>(code);
+    slot_offset_t args_size = Read<slot_offset_t>(code);
+    uint32_t rets_refs = Read<int32_t>(code);
+    uint32_t args_refs = Read<int32_t>(code);
+    uint32_t function_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT32 %d %d %08x\n", from, to,
-        base::ReadUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to)));
-  }
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  from = ReadI32(code);
-  to = ReadI32(code);
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + from)));
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT32 %d %d %08x\n", from, to,
-        base::ReadUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to)));
+    // Moves back the stack frame to the caller stack frame.
+    wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
+                                          rets_refs, args_refs,
+                                          ref_stack_fp_offset);
+
+    // Do not call wasm_runtime->ExecuteFunction(), which would add a
+    // new C++ stack frame.
+    wasm_runtime->PrepareTailCall(code, function_index, stack_pos,
+                                  return_slot_offset);
+    NextOp();
   }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CallImportedFunction(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t function_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot64(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
+    wasm_runtime->ExecuteImportedFunction(code, function_index, stack_pos,
+                                          ref_stack_fp_offset, slot_offset,
+                                          return_slot_offset);
+    NextOp();
   }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ReturnCallImportedFunction(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t rets_size = Read<slot_offset_t>(code);
+    slot_offset_t args_size = Read<slot_offset_t>(code);
+    uint32_t rets_refs = Read<int32_t>(code);
+    uint32_t args_refs = Read<int32_t>(code);
+    uint32_t function_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
+    // Moves back the stack frame to the caller stack frame.
+    wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
+                                          rets_refs, args_refs,
+                                          ref_stack_fp_offset);
 
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot128(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<Simd128>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<Simd128>(reinterpret_cast<Address>(sp + from)));
+    wasm_runtime->ExecuteImportedFunction(code, function_index, stack_pos, 0, 0,
+                                          return_slot_offset, true);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CallIndirect(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t sig_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    // This function can trap.
+    wasm_runtime->ExecuteIndirectCall(code, table_index, sig_index, entry_index,
+                                      stack_pos, sp, ref_stack_fp_offset,
+                                      slot_offset, return_slot_offset, false);
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CallIndirect64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint64_t entry_index_64 = pop<uint64_t>(sp, code, wasm_runtime);
+    if (entry_index_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+    uint32_t entry_index = static_cast<uint32_t>(entry_index_64);
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t sig_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    // This function can trap.
+    wasm_runtime->ExecuteIndirectCall(code, table_index, sig_index, entry_index,
+                                      stack_pos, sp, ref_stack_fp_offset,
+                                      slot_offset, return_slot_offset, false);
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ReturnCallIndirect(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t rets_size = Read<slot_offset_t>(code);
+    slot_offset_t args_size = Read<slot_offset_t>(code);
+    uint32_t rets_refs = Read<int32_t>(code);
+    uint32_t args_refs = Read<int32_t>(code);
+    uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t sig_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    // Moves back the stack frame to the caller stack frame.
+    wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
+                                          rets_refs, args_refs,
+                                          ref_stack_fp_offset);
+
+    // This function can trap.
+    wasm_runtime->ExecuteIndirectCall(code, table_index, sig_index, entry_index,
+                                      stack_pos, sp, 0, 0, return_slot_offset,
+                                      true);
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ReturnCallIndirect64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t rets_size = Read<slot_offset_t>(code);
+    slot_offset_t args_size = Read<slot_offset_t>(code);
+    uint32_t rets_refs = Read<int32_t>(code);
+    uint32_t args_refs = Read<int32_t>(code);
+    uint64_t entry_index_64 = pop<uint64_t>(sp, code, wasm_runtime);
+    if (entry_index_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+    uint32_t entry_index = static_cast<uint32_t>(entry_index_64);
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t sig_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    // Moves back the stack frame to the caller stack frame.
+    wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
+                                          rets_refs, args_refs,
+                                          ref_stack_fp_offset);
+
+    // This function can trap.
+    wasm_runtime->ExecuteIndirectCall(code, table_index, sig_index, entry_index,
+                                      stack_pos, sp, 0, 0, return_slot_offset,
+                                      true);
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_BrTable(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    uint32_t cond = static_cast<int32_t>(r0);
+
+    uint32_t table_length = Read<int32_t>(code);
+    uint32_t index = cond < table_length ? cond : table_length;
+
+    int32_t target_offset = base::ReadUnalignedValue<int32_t>(
+        reinterpret_cast<Address>(code + index * kCodeOffsetSize));
+    code += (target_offset + index * kCodeOffsetSize);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_BrTable(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    uint32_t cond = pop<uint32_t>(sp, code, wasm_runtime);
+
+    uint32_t table_length = Read<int32_t>(code);
+    uint32_t index = cond < table_length ? cond : table_length;
+
+    int32_t target_offset = base::ReadUnalignedValue<int32_t>(
+        reinterpret_cast<Address>(code + index * kCodeOffsetSize));
+    code += (target_offset + index * kCodeOffsetSize);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlotMulti(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t params_count = Read<int32_t>(code);
+    DCHECK(params_count > 1 && params_count < 32);
+
+    uint32_t arg_size_mask = Read<int32_t>(code);
+
+    slot_offset_t to = Read<slot_offset_t>(code);
+    for (uint32_t i = 0; i < params_count; i++) {
+      slot_offset_t from = Read<slot_offset_t>(code);
+      bool is_64 = arg_size_mask & (1 << i);
+      if (is_64) {
+        base::WriteUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + to),
+            base::ReadUnalignedValue<uint64_t>(
+                reinterpret_cast<Address>(sp + from)));
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT128 %d %d %" PRIx64 "`%" PRIx64 "\n", from, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)),
+        if (v8_flags.trace_drumbrake_execution &&
+            v8_flags.trace_drumbrake_execution_verbose) {
+          wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
+                              base::ReadUnalignedValue<uint64_t>(
+                                  reinterpret_cast<Address>(sp + to)));
+        }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+        to += sizeof(uint64_t) / sizeof(uint32_t);
+      } else {
+        base::WriteUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + to),
+            base::ReadUnalignedValue<uint32_t>(
+                reinterpret_cast<Address>(sp + from)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+        if (v8_flags.trace_drumbrake_execution &&
+            v8_flags.trace_drumbrake_execution_verbose) {
+          wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from, to,
+                              *reinterpret_cast<int32_t*>(sp + to));
+        }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+        to += sizeof(uint32_t) / sizeof(uint32_t);
+      }
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot_ll(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t from0 = Read<slot_offset_t>(code);
+    slot_offset_t from1 = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from0)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from0, to,
+                          *reinterpret_cast<int32_t*>(sp + to));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    to += sizeof(uint32_t) / sizeof(uint32_t);
+
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from1)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from1, to,
+                          *reinterpret_cast<int32_t*>(sp + to));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot_lq(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t from0 = Read<slot_offset_t>(code);
+    slot_offset_t from1 = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
         base::ReadUnalignedValue<uint64_t>(
-            reinterpret_cast<Address>(sp + to + sizeof(uint64_t))));
-  }
+            reinterpret_cast<Address>(sp + from0)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from0, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
+    to += sizeof(uint64_t) / sizeof(uint32_t);
 
-INSTRUCTION_HANDLER_FUNC s2s_CopySlot64x2(const uint8_t* code, uint32_t* sp,
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from1)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from1, to,
+                          *reinterpret_cast<int32_t*>(sp + to));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot_ql(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t from0 = Read<slot_offset_t>(code);
+    slot_offset_t from1 = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from0)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from0, to,
+                          *reinterpret_cast<int32_t*>(sp + to));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    to += sizeof(uint32_t) / sizeof(uint32_t);
+
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + from1)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from1, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot_qq(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t from0 = Read<slot_offset_t>(code);
+    slot_offset_t from1 = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + from0)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from0, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    to += sizeof(uint64_t) / sizeof(uint32_t);
+
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + from1)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from1, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot32(const uint8_t* code, uint32_t* sp,
                                           WasmInterpreterRuntime* wasm_runtime,
                                           int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + from)));
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from)));
+
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from, to,
+                          *reinterpret_cast<int32_t*>(sp + to));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  from = ReadI32(code);
-  to = ReadI32(code);
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + from)));
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
+    NextOp();
   }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot32x2(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from)));
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from, to,
+                          base::ReadUnalignedValue<int32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CopySlotRef(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  wasm_runtime->StoreWasmRef(to, wasm_runtime->ExtractWasmRef(from));
-
+    from = Read<slot_offset_t>(code);
+    to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from)));
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("COPYSLOTREF %d %d\n", from, to);
-  }
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT32 %d %d %08x\n", from, to,
+                          base::ReadUnalignedValue<int32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlot32(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<uint32_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYSLOT32 %d %d %08x\n", from, to,
-        base::ReadUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to)));
+    NextOp();
   }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlot64(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<uint64_t>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYSLOT64 %d %d %" PRIx64 "\n", from, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlot128(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-
-  base::WriteUnalignedValue<Simd128>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<Simd128>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<Simd128>(
-      reinterpret_cast<Address>(sp + to),
-      base::ReadUnalignedValue<Simd128>(reinterpret_cast<Address>(sp + from)));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYSLOT64 %d %d %" PRIx64 "`%" PRIx64 "\n", from, to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)),
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot64(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
         base::ReadUnalignedValue<uint64_t>(
-            reinterpret_cast<Address>(sp + to + sizeof(uint64_t))));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlotRef(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t from = ReadI32(code);
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-
-  wasm_runtime->StoreWasmRef(preserve, wasm_runtime->ExtractWasmRef(to));
-  wasm_runtime->StoreWasmRef(to, wasm_runtime->ExtractWasmRef(from));
+            reinterpret_cast<Address>(sp + from)));
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace("PRESERVECOPYSLOTREF %d %d\n", from, to);
-  }
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
+    NextOp();
+  }
 
-INSTRUCTION_HANDLER_FUNC r2s_CopyR0ToSlot32(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to),
-                                     static_cast<int32_t>(r0));
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot128(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<Simd128>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<Simd128>(
+            reinterpret_cast<Address>(sp + from)));
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYR0TOSLOT32 %d %08x\n", to,
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace(
+          "COPYSLOT128 %d %d %" PRIx64 "`%" PRIx64 "\n", from, to,
+          base::ReadUnalignedValue<uint64_t>(
+              reinterpret_cast<Address>(sp + to)),
+          base::ReadUnalignedValue<uint64_t>(
+              reinterpret_cast<Address>(sp + to + sizeof(uint64_t))));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlot64x2(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + from)));
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    from = Read<slot_offset_t>(code);
+    to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + from)));
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOT64 %d %d %" PRIx64 "\n", from, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CopySlotRef(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    uint32_t from = Read<int32_t>(code);
+    uint32_t to = Read<int32_t>(code);
+    wasm_runtime->StoreWasmRef(to, wasm_runtime->ExtractWasmRef(from));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYSLOTREF %d %d\n", from, to);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlot32(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + preserve),
+        base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + to)));
+    base::WriteUnalignedValue<uint32_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint32_t>(
+            reinterpret_cast<Address>(sp + from)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("PRESERVECOPYSLOT32 %d %d %08x\n", from, to,
+                          base::ReadUnalignedValue<int32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlot64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + preserve),
+        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
+    base::WriteUnalignedValue<uint64_t>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<uint64_t>(
+            reinterpret_cast<Address>(sp + from)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("PRESERVECOPYSLOT64 %d %d %" PRIx64 "\n", from, to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_PreserveCopySlot128(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t from = Read<slot_offset_t>(code);
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+
+    base::WriteUnalignedValue<Simd128>(
+        reinterpret_cast<Address>(sp + preserve),
+        base::ReadUnalignedValue<Simd128>(reinterpret_cast<Address>(sp + to)));
+    base::WriteUnalignedValue<Simd128>(
+        reinterpret_cast<Address>(sp + to),
+        base::ReadUnalignedValue<Simd128>(
+            reinterpret_cast<Address>(sp + from)));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace(
+          "PRESERVECOPYSLOT64 %d %d %" PRIx64 "`%" PRIx64 "\n", from, to,
+          base::ReadUnalignedValue<uint64_t>(
+              reinterpret_cast<Address>(sp + to)),
+          base::ReadUnalignedValue<uint64_t>(
+              reinterpret_cast<Address>(sp + to + sizeof(uint64_t))));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_CopyR0ToSlot32(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to),
+                                       static_cast<int32_t>(r0));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYR0TOSLOT32 %d %08x\n", to,
+                          base::ReadUnalignedValue<int32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_CopyR0ToSlot64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<int64_t>(reinterpret_cast<Address>(sp + to), r0);
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYR0TOSLOT64 %d %" PRIx64 "\n", to,
+                          base::ReadUnalignedValue<int64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_CopyFp0ToSlot32(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<float>(reinterpret_cast<Address>(sp + to),
+                                     static_cast<float>(fp0));
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYFP0TOSLOT32 %d %08x\n", to,
+                          base::ReadUnalignedValue<uint32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_CopyFp0ToSlot64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<double>(reinterpret_cast<Address>(sp + to), fp0);
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("COPYFP0TOSLOT64 %d %" PRIx64 "\n", to,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyR0ToSlot32(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<int32_t>(
+        reinterpret_cast<Address>(sp + preserve),
         base::ReadUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_CopyR0ToSlot64(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<int64_t>(reinterpret_cast<Address>(sp + to), r0);
+    base::WriteUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to),
+                                       static_cast<int32_t>(r0));
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYR0TOSLOT64 %d %" PRIx64 "\n", to,
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("PRESERVECOPYR0TOSLOT32 %d %d %08x\n", to, preserve,
+                          base::ReadUnalignedValue<uint32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyR0ToSlot64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<int64_t>(
+        reinterpret_cast<Address>(sp + preserve),
         base::ReadUnalignedValue<int64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_CopyFp0ToSlot32(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<float>(reinterpret_cast<Address>(sp + to),
-                                   static_cast<float>(fp0));
+    base::WriteUnalignedValue<int64_t>(reinterpret_cast<Address>(sp + to), r0);
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYFP0TOSLOT32 %d %08x\n", to,
-        base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + to)));
-  }
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("PRESERVECOPYR0TOSLOT64 %d %d %" PRIx64 "\n", to,
+                          preserve,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
+    NextOp();
+  }
 
-INSTRUCTION_HANDLER_FUNC r2s_CopyFp0ToSlot64(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  base::WriteUnalignedValue<double>(reinterpret_cast<Address>(sp + to), fp0);
+  INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyFp0ToSlot32(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<float>(
+        reinterpret_cast<Address>(sp + preserve),
+        base::ReadUnalignedValue<float>(reinterpret_cast<Address>(sp + to)));
+    base::WriteUnalignedValue<float>(reinterpret_cast<Address>(sp + to),
+                                     static_cast<float>(fp0));
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "COPYFP0TOSLOT64 %d %" PRIx64 "\n", to,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("PRESERVECOPYFP0TOSLOT32 %d %d %08x\n", to, preserve,
+                          base::ReadUnalignedValue<uint32_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
+    NextOp();
+  }
 
-INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyR0ToSlot32(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-  base::WriteUnalignedValue<int32_t>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<int32_t>(reinterpret_cast<Address>(sp + to),
-                                     static_cast<int32_t>(r0));
+  INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyFp0ToSlot64(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t to = Read<slot_offset_t>(code);
+    slot_offset_t preserve = Read<slot_offset_t>(code);
+    base::WriteUnalignedValue<double>(
+        reinterpret_cast<Address>(sp + preserve),
+        base::ReadUnalignedValue<double>(reinterpret_cast<Address>(sp + to)));
+    base::WriteUnalignedValue<double>(reinterpret_cast<Address>(sp + to), fp0);
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYR0TOSLOT32 %d %d %08x\n", to, preserve,
-        base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + to)));
-  }
+    if (v8_flags.trace_drumbrake_execution &&
+        v8_flags.trace_drumbrake_execution_verbose) {
+      wasm_runtime->Trace("PRESERVECOPYFP0TOSLOT64 %d %d %" PRIx64 "\n", to,
+                          preserve,
+                          base::ReadUnalignedValue<uint64_t>(
+                              reinterpret_cast<Address>(sp + to)));
+    }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyR0ToSlot64(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-  base::WriteUnalignedValue<int64_t>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<int64_t>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<int64_t>(reinterpret_cast<Address>(sp + to), r0);
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYR0TOSLOT64 %d %d %" PRIx64 "\n", to, preserve,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
+    NextOp();
   }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyFp0ToSlot32(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-  base::WriteUnalignedValue<float>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<float>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<float>(reinterpret_cast<Address>(sp + to),
-                                   static_cast<float>(fp0));
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYFP0TOSLOT32 %d %d %08x\n", to, preserve,
-        base::ReadUnalignedValue<uint32_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC r2s_PreserveCopyFp0ToSlot64(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t to = ReadI32(code);
-  uint32_t preserve = ReadI32(code);
-  base::WriteUnalignedValue<double>(
-      reinterpret_cast<Address>(sp + preserve),
-      base::ReadUnalignedValue<double>(reinterpret_cast<Address>(sp + to)));
-  base::WriteUnalignedValue<double>(reinterpret_cast<Address>(sp + to), fp0);
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution &&
-      v8_flags.trace_drumbrake_execution_verbose) {
-    wasm_runtime->Trace(
-        "PRESERVECOPYFP0TOSLOT64 %d %d %" PRIx64 "\n", to, preserve,
-        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(sp + to)));
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_RefNull(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  push<WasmRef>(
-      sp, code, wasm_runtime,
-      handle(wasm_runtime->GetNullValue(ref_type), wasm_runtime->GetIsolate()));
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_RefIsNull(const uint8_t* code, uint32_t* sp,
+  INSTRUCTION_HANDLER_FUNC s2s_RefNull(const uint8_t* code, uint32_t* sp,
                                        WasmInterpreterRuntime* wasm_runtime,
                                        int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  push<int32_t>(sp, code, wasm_runtime, wasm_runtime->IsRefNull(ref) ? 1 : 0);
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
 
-  NextOp();
-}
+    push<WasmRef>(sp, code, wasm_runtime,
+                  handle(wasm_runtime->GetNullValue(ref_type),
+                         wasm_runtime->GetIsolate()));
 
-INSTRUCTION_HANDLER_FUNC s2s_RefFunc(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  uint32_t index = ReadI32(code);
-  push<WasmRef>(sp, code, wasm_runtime, wasm_runtime->GetFunctionRef(index));
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_RefEq(const uint8_t* code, uint32_t* sp,
-                                   WasmInterpreterRuntime* wasm_runtime,
-                                   int64_t r0, double fp0) {
-  WasmRef lhs = pop<WasmRef>(sp, code, wasm_runtime);
-  WasmRef rhs = pop<WasmRef>(sp, code, wasm_runtime);
-  push<int32_t>(sp, code, wasm_runtime, lhs.is_identical_to(rhs) ? 1 : 0);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_MemoryInit(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint32_t data_segment_index = ReadI32(code);
-  uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t src = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t dst = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->MemoryInit(code, data_segment_index, dst, src, size);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_DataDrop(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint32_t index = ReadI32(code);
-
-  wasm_runtime->DataDrop(index);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_MemoryCopy(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t src = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t dst = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->MemoryCopy(code, dst, src, size);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_MemoryFill(const uint8_t* code, uint32_t* sp,
-                                        WasmInterpreterRuntime* wasm_runtime,
-                                        int64_t r0, double fp0) {
-  uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
-  uint32_t value = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t dst = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->MemoryFill(code, dst, value, size);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableGet(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint32_t table_index = ReadI32(code);
-  uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  WasmRef ref;
-  if (wasm_runtime->TableGet(code, table_index, entry_index, &ref)) {
-    push<WasmRef>(sp, code, wasm_runtime, ref);
+    NextOp();
   }
 
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableSet(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint32_t table_index = ReadI32(code);
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->TableSet(code, table_index, entry_index, ref);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableInit(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t table_index = ReadI32(code);
-  uint32_t element_segment_index = ReadI32(code);
-  uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
-  uint32_t src = pop<uint32_t>(sp, code, wasm_runtime);
-  uint32_t dst = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->TableInit(code, table_index, element_segment_index, dst, src,
-                          size);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ElemDrop(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint32_t index = ReadI32(code);
-
-  wasm_runtime->ElemDrop(index);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableCopy(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t dst_table_index = ReadI32(code);
-  uint32_t src_table_index = ReadI32(code);
-  auto size = pop<uint32_t>(sp, code, wasm_runtime);
-  auto src = pop<uint32_t>(sp, code, wasm_runtime);
-  auto dst = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->TableCopy(code, dst_table_index, src_table_index, dst, src,
-                          size);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableGrow(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t table_index = ReadI32(code);
-  uint32_t delta = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
-
-  uint32_t result = wasm_runtime->TableGrow(table_index, delta, value);
-  push<int32_t>(sp, code, wasm_runtime, result);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableSize(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t table_index = ReadI32(code);
-
-  uint32_t size = wasm_runtime->TableSize(table_index);
-  push<int32_t>(sp, code, wasm_runtime, size);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TableFill(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t table_index = ReadI32(code);
-  uint32_t count = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
-  uint32_t start = pop<uint32_t>(sp, code, wasm_runtime);
-
-  // This function can trap.
-  wasm_runtime->TableFill(code, table_index, count, value, start);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_Unreachable(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0){
-    TRAP(TrapReason::kTrapUnreachable)}
-
-INSTRUCTION_HANDLER_FUNC
-    s2s_Unwind(const uint8_t* code, uint32_t* sp,
-               WasmInterpreterRuntime* wasm_runtime, int64_t r0, double fp0) {
-  // Break the chain of calls.
-}
-PWasmOp* s_unwind_func_addr = s2s_Unwind;
-InstructionHandler s_unwind_code = InstructionHandler::k_s2s_Unwind;
-
-INSTRUCTION_HANDLER_FUNC s2s_OnLoopBackwardJump(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  wasm_runtime->ResetCurrentHandleScope();
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_Nop(const uint8_t* code, uint32_t* sp,
-                                 WasmInterpreterRuntime* wasm_runtime,
-                                 int64_t r0, double fp0) {
-  NextOp();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Atomics operators
-
-INSTRUCTION_HANDLER_FUNC s2s_AtomicNotify(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  int32_t val = pop<int32_t>(sp, code, wasm_runtime);
-
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-  // Check alignment.
-  const uint32_t align_mask = sizeof(int32_t) - 1;
-  if (V8_UNLIKELY((effective_index & align_mask) != 0)) {
-    TRAP(TrapReason::kTrapUnalignedAccess)
-  }
-  // Check bounds.
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  int32_t result = wasm_runtime->AtomicNotify(effective_index, val);
-  push<int32_t>(sp, code, wasm_runtime, result);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_I32AtomicWait(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  int64_t timeout = pop<int64_t>(sp, code, wasm_runtime);
-  int32_t val = pop<int32_t>(sp, code, wasm_runtime);
-
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-  // Check alignment.
-  const uint32_t align_mask = sizeof(int32_t) - 1;
-  if (V8_UNLIKELY((effective_index & align_mask) != 0)) {
-    TRAP(TrapReason::kTrapUnalignedAccess)
-  }
-  // Check bounds.
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-  // Check atomics wait allowed.
-  if (!wasm_runtime->AllowsAtomicsWait()) {
-    TRAP(TrapReason::kTrapUnreachable)
-  }
-
-  int32_t result = wasm_runtime->I32AtomicWait(effective_index, val, timeout);
-  push<int32_t>(sp, code, wasm_runtime, result);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_I64AtomicWait(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  int64_t timeout = pop<int64_t>(sp, code, wasm_runtime);
-  int64_t val = pop<int64_t>(sp, code, wasm_runtime);
-
-  uint64_t offset = Read<uint64_t>(code);
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-  // Check alignment.
-  const uint32_t align_mask = sizeof(int64_t) - 1;
-  if (V8_UNLIKELY((effective_index & align_mask) != 0)) {
-    TRAP(TrapReason::kTrapUnalignedAccess)
-  }
-  // Check bounds.
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-  // Check atomics wait allowed.
-  if (!wasm_runtime->AllowsAtomicsWait()) {
-    TRAP(TrapReason::kTrapUnreachable)
-  }
-
-  int32_t result = wasm_runtime->I64AtomicWait(effective_index, val, timeout);
-  push<int32_t>(sp, code, wasm_runtime, result);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_AtomicFence(const uint8_t* code, uint32_t* sp,
+  INSTRUCTION_HANDLER_FUNC s2s_RefIsNull(const uint8_t* code, uint32_t* sp,
                                          WasmInterpreterRuntime* wasm_runtime,
                                          int64_t r0, double fp0) {
-  std::atomic_thread_fence(std::memory_order_seq_cst);
-  NextOp();
-}
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    push<int32_t>(sp, code, wasm_runtime, wasm_runtime->IsRefNull(ref) ? 1 : 0);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefFunc(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    uint32_t index = Read<int32_t>(code);
+    push<WasmRef>(sp, code, wasm_runtime, wasm_runtime->GetFunctionRef(index));
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefEq(const uint8_t* code, uint32_t* sp,
+                                     WasmInterpreterRuntime* wasm_runtime,
+                                     int64_t r0, double fp0) {
+    WasmRef lhs = pop<WasmRef>(sp, code, wasm_runtime);
+    WasmRef rhs = pop<WasmRef>(sp, code, wasm_runtime);
+    push<int32_t>(sp, code, wasm_runtime, lhs.is_identical_to(rhs) ? 1 : 0);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_MemoryInit(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint32_t data_segment_index = Read<int32_t>(code);
+    uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t src = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t dst = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->MemoryInit(code, data_segment_index, dst, src, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Memory64Init(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t data_segment_index = Read<int32_t>(code);
+    uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t src = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t dst = pop<uint64_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->MemoryInit(code, data_segment_index, dst, src, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_DataDrop(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint32_t index = Read<int32_t>(code);
+
+    wasm_runtime->DataDrop(index);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_MemoryCopy(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t src = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t dst = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->MemoryCopy(code, dst, src, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Memory64Copy(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint64_t size = pop<uint64_t>(sp, code, wasm_runtime);
+    uint64_t value = pop<uint64_t>(sp, code, wasm_runtime);
+    uint64_t dst = pop<uint64_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->MemoryCopy(code, dst, value, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_MemoryFill(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint64_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    uint32_t value = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t dst = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->MemoryFill(code, dst, value, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Memory64Fill(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint64_t size = pop<uint64_t>(sp, code, wasm_runtime);
+    uint32_t value = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t dst = pop<uint64_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->MemoryFill(code, dst, value, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableGet(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    WasmRef ref;
+    if (wasm_runtime->TableGet(code, table_index, entry_index, &ref)) {
+      push<WasmRef>(sp, code, wasm_runtime, ref);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Table64Get(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint64_t entry_index_64 = pop<uint64_t>(sp, code, wasm_runtime);
+
+    if (entry_index_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+
+    uint32_t entry_index = static_cast<uint32_t>(entry_index_64);
+
+    // This function can trap.
+    WasmRef ref;
+    if (wasm_runtime->TableGet(code, table_index, entry_index, &ref)) {
+      push<WasmRef>(sp, code, wasm_runtime, ref);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableSet(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    uint32_t entry_index = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->TableSet(code, table_index, entry_index, ref);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Table64Set(const uint8_t* code, uint32_t* sp,
+                                          WasmInterpreterRuntime* wasm_runtime,
+                                          int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    uint64_t entry_index_64 = pop<uint64_t>(sp, code, wasm_runtime);
+
+    if (entry_index_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+
+    uint32_t entry_index = static_cast<uint32_t>(entry_index_64);
+
+    // This function can trap.
+    wasm_runtime->TableSet(code, table_index, entry_index, ref);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableInit(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t element_segment_index = Read<int32_t>(code);
+    uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    uint32_t src = pop<uint32_t>(sp, code, wasm_runtime);
+    uint32_t dst = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->TableInit(code, table_index, element_segment_index, dst, src,
+                            size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Table64Init(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t element_segment_index = Read<int32_t>(code);
+    uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    uint32_t src = pop<uint32_t>(sp, code, wasm_runtime);
+    uint64_t dst_64 = pop<uint64_t>(sp, code, wasm_runtime);
+
+    if (dst_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+
+    uint32_t dst = static_cast<uint32_t>(dst_64);
+
+    // This function can trap.
+    wasm_runtime->TableInit(code, table_index, element_segment_index, dst, src,
+                            size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ElemDrop(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint32_t index = Read<int32_t>(code);
+
+    wasm_runtime->ElemDrop(index);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableCopy(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t dst_table_index = Read<int32_t>(code);
+    uint32_t src_table_index = Read<int32_t>(code);
+    auto size = pop<uint32_t>(sp, code, wasm_runtime);
+    auto src = pop<uint32_t>(sp, code, wasm_runtime);
+    auto dst = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->TableCopy(code, dst_table_index, src_table_index, dst, src,
+                            size);
+
+    NextOp();
+  }
+
+  template <typename IntN, typename IntM, typename IntK>
+  INSTRUCTION_HANDLER_FUNC s2s_Table64CopyImpl(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t dst_table_index = Read<int32_t>(code);
+    uint32_t src_table_index = Read<int32_t>(code);
+    auto size_64 = pop<IntK>(sp, code, wasm_runtime);
+    auto src_64 = pop<IntM>(sp, code, wasm_runtime);
+    auto dst_64 = pop<IntN>(sp, code, wasm_runtime);
+
+    if (src_64 > std::numeric_limits<uint32_t>::max() ||
+        dst_64 > std::numeric_limits<uint32_t>::max() ||
+        size_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+
+    uint32_t size = static_cast<uint32_t>(size_64);
+    uint32_t src = static_cast<uint32_t>(src_64);
+    uint32_t dst = static_cast<uint32_t>(dst_64);
+
+    // This function can trap.
+    wasm_runtime->TableCopy(code, dst_table_index, src_table_index, dst, src,
+                            size);
+
+    NextOp();
+  }
+  static auto constexpr s2s_Table64Copy_32_64_32 =
+      s2s_Table64CopyImpl<uint32_t, uint64_t, uint32_t>;
+  static auto constexpr s2s_Table64Copy_64_32_32 =
+      s2s_Table64CopyImpl<uint64_t, uint32_t, uint32_t>;
+  static auto constexpr s2s_Table64Copy_64_64_64 =
+      s2s_Table64CopyImpl<uint64_t, uint64_t, uint64_t>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableGrow(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t delta = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
+
+    uint32_t result = wasm_runtime->TableGrow(table_index, delta, value);
+    push<int32_t>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Table64Grow(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint64_t delta_64 = pop<uint64_t>(sp, code, wasm_runtime);
+    WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
+
+    if (delta_64 > std::numeric_limits<uint32_t>::max()) {
+      push<int64_t>(sp, code, wasm_runtime, -1);
+    } else {
+      uint32_t delta = static_cast<uint32_t>(delta_64);
+      uint32_t result = wasm_runtime->TableGrow(table_index, delta, value);
+      push<int64_t>(sp, code, wasm_runtime,
+                    static_cast<int64_t>(static_cast<int32_t>(result)));
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableSize(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+
+    uint32_t size = wasm_runtime->TableSize(table_index);
+    push<int32_t>(sp, code, wasm_runtime, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Table64Size(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+
+    uint64_t size = wasm_runtime->TableSize(table_index);
+    push<uint64_t>(sp, code, wasm_runtime, size);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TableFill(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint32_t count = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
+    uint32_t start = pop<uint32_t>(sp, code, wasm_runtime);
+
+    // This function can trap.
+    wasm_runtime->TableFill(code, table_index, count, value, start);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Table64Fill(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    uint32_t table_index = Read<int32_t>(code);
+    uint64_t count_64 = pop<uint64_t>(sp, code, wasm_runtime);
+    WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
+    uint64_t start_64 = pop<uint64_t>(sp, code, wasm_runtime);
+
+    if (count_64 > std::numeric_limits<uint32_t>::max() ||
+        start_64 > std::numeric_limits<uint32_t>::max()) {
+      TRAP(TrapReason::kTrapTableOutOfBounds)
+    }
+
+    uint32_t count = static_cast<uint32_t>(count_64);
+    uint32_t start = static_cast<uint32_t>(start_64);
+
+    // This function can trap.
+    wasm_runtime->TableFill(code, table_index, count, value, start);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_OnLoopBegin(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    wasm_runtime->WasmStackCheck(code, code);
+    wasm_runtime->ResetCurrentHandleScope();
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_OnLoopBeginNoRefSlots(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    wasm_runtime->WasmStackCheck(code, code);
+
+    NextOp();
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // Atomics operators
+
+  template <typename MemIdx = uint32_t, typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_AtomicNotify(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int32_t val = pop<int32_t>(sp, code, wasm_runtime);
+
+    uint64_t offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+    // Check alignment.
+    const uint32_t align_mask = sizeof(int32_t) - 1;
+    if (V8_UNLIKELY((effective_index & align_mask) != 0)) {
+      TRAP(TrapReason::kTrapUnalignedAccess)
+    }
+    // Check bounds.
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    int32_t result = wasm_runtime->AtomicNotify(effective_index, val);
+    push<int32_t>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+  static auto constexpr s2s_AtomicNotify_Idx64 =
+      s2s_AtomicNotify<uint64_t, memory_offset64_t>;
+
+  template <typename MemIdx = uint32_t, typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_I32AtomicWait(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int64_t timeout = pop<int64_t>(sp, code, wasm_runtime);
+    int32_t val = pop<int32_t>(sp, code, wasm_runtime);
+
+    uint64_t offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+    // Check alignment.
+    const uint32_t align_mask = sizeof(int32_t) - 1;
+    if (V8_UNLIKELY((effective_index & align_mask) != 0)) {
+      TRAP(TrapReason::kTrapUnalignedAccess)
+    }
+    // Check bounds.
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+    // Check atomics wait allowed.
+    if (!wasm_runtime->AllowsAtomicsWait()) {
+      TRAP(TrapReason::kTrapUnreachable)
+    }
+
+    int32_t result = wasm_runtime->I32AtomicWait(effective_index, val, timeout);
+    push<int32_t>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I32AtomicWait_Idx64 =
+      s2s_I32AtomicWait<uint64_t, memory_offset64_t>;
+
+  template <typename MemIdx = uint32_t, typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_I64AtomicWait(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int64_t timeout = pop<int64_t>(sp, code, wasm_runtime);
+    int64_t val = pop<int64_t>(sp, code, wasm_runtime);
+
+    uint64_t offset = Read<MemOffsetT>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+    // Check alignment.
+    const uint32_t align_mask = sizeof(int64_t) - 1;
+    if (V8_UNLIKELY((effective_index & align_mask) != 0)) {
+      TRAP(TrapReason::kTrapUnalignedAccess)
+    }
+    // Check bounds.
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+    // Check atomics wait allowed.
+    if (!wasm_runtime->AllowsAtomicsWait()) {
+      TRAP(TrapReason::kTrapUnreachable)
+    }
+
+    int32_t result = wasm_runtime->I64AtomicWait(effective_index, val, timeout);
+    push<int32_t>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I64AtomicWait_Idx64 =
+      s2s_I64AtomicWait<uint64_t, memory_offset64_t>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_AtomicFence(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    NextOp();
+  }
 
 #define FOREACH_ATOMIC_BINOP(V)                                                \
   V(I32AtomicAdd, Uint32, uint32_t, I32, uint32_t, I32, std::atomic_fetch_add) \
@@ -3612,38 +4394,43 @@ INSTRUCTION_HANDLER_FUNC s2s_AtomicFence(const uint8_t* code, uint32_t* sp,
   V(I64AtomicExchange32U, Uint32, uint32_t, I32, uint64_t, I64,                \
     std::atomic_exchange)
 
-#define ATOMIC_BINOP(name, Type, ctype, type, op_ctype, op_type, operation) \
-  INSTRUCTION_HANDLER_FUNC s2s_##name(const uint8_t* code, uint32_t* sp,    \
-                                      WasmInterpreterRuntime* wasm_runtime, \
-                                      int64_t r0, double fp0) {             \
-    ctype val = static_cast<ctype>(pop<op_ctype>(sp, code, wasm_runtime));  \
-                                                                            \
-    uint64_t offset = Read<uint64_t>(code);                                 \
-    uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);                 \
-    uint64_t effective_index = offset + index;                              \
-    /* Check alignment. */                                                  \
-    if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {          \
-      TRAP(TrapReason::kTrapUnalignedAccess)                                \
-    }                                                                       \
-    /* Check bounds. */                                                     \
-    if (V8_UNLIKELY(                                                        \
-            effective_index < index ||                                      \
-            !base::IsInBounds<uint64_t>(effective_index, sizeof(ctype),     \
-                                        wasm_runtime->GetMemorySize()))) {  \
-      TRAP(TrapReason::kTrapMemOutOfBounds)                                 \
-    }                                                                       \
-    static_assert(sizeof(std::atomic<ctype>) == sizeof(ctype),              \
-                  "Size mismatch for types std::atomic<" #ctype             \
-                  ">, and " #ctype);                                        \
-                                                                            \
-    uint8_t* memory_start = wasm_runtime->GetMemoryStart();                 \
-    uint8_t* address = memory_start + effective_index;                      \
-    op_ctype result = static_cast<op_ctype>(                                \
-        operation(reinterpret_cast<std::atomic<ctype>*>(address), val));    \
-    push<op_ctype>(sp, code, wasm_runtime, result);                         \
-    NextOp();                                                               \
-  }
-FOREACH_ATOMIC_BINOP(ATOMIC_BINOP)
+#define ATOMIC_BINOP(name, Type, ctype, type, op_ctype, op_type, operation)    \
+  template <typename MemIdx, typename MemOffsetT>                              \
+  INSTRUCTION_HANDLER_FUNC s2s_##name##I(const uint8_t* code, uint32_t* sp,    \
+                                         WasmInterpreterRuntime* wasm_runtime, \
+                                         int64_t r0, double fp0) {             \
+    ctype val = static_cast<ctype>(pop<op_ctype>(sp, code, wasm_runtime));     \
+                                                                               \
+    uint64_t offset = Read<MemOffsetT>(code);                                  \
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);                      \
+    uint64_t effective_index = offset + index;                                 \
+    /* Check alignment. */                                                     \
+    if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {             \
+      TRAP(TrapReason::kTrapUnalignedAccess)                                   \
+    }                                                                          \
+    /* Check bounds. */                                                        \
+    if (V8_UNLIKELY(                                                           \
+            effective_index < index ||                                         \
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(ctype),        \
+                                        wasm_runtime->GetMemorySize()))) {     \
+      TRAP(TrapReason::kTrapMemOutOfBounds)                                    \
+    }                                                                          \
+    static_assert(sizeof(std::atomic<ctype>) == sizeof(ctype),                 \
+                  "Size mismatch for types std::atomic<" #ctype                \
+                  ">, and " #ctype);                                           \
+                                                                               \
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();                    \
+    uint8_t* address = memory_start + effective_index;                         \
+    op_ctype result = static_cast<op_ctype>(                                   \
+        operation(reinterpret_cast<std::atomic<ctype>*>(address), val));       \
+    push<op_ctype>(sp, code, wasm_runtime, result);                            \
+    NextOp();                                                                  \
+  }                                                                            \
+  static auto constexpr s2s_##name =                                           \
+      s2s_##name##I<uint32_t, memory_offset32_t>;                              \
+  static auto constexpr s2s_##name##_Idx64 =                                   \
+      s2s_##name##I<uint64_t, memory_offset64_t>;
+  FOREACH_ATOMIC_BINOP(ATOMIC_BINOP)
 #undef ATOMIC_BINOP
 
 #define FOREACH_ATOMIC_COMPARE_EXCHANGE_OP(V)                          \
@@ -3656,14 +4443,15 @@ FOREACH_ATOMIC_BINOP(ATOMIC_BINOP)
   V(I64AtomicCompareExchange32U, Uint32, uint32_t, I32, uint64_t, I64)
 
 #define ATOMIC_COMPARE_EXCHANGE_OP(name, Type, ctype, type, op_ctype, op_type) \
-  INSTRUCTION_HANDLER_FUNC s2s_##name(const uint8_t* code, uint32_t* sp,       \
-                                      WasmInterpreterRuntime* wasm_runtime,    \
-                                      int64_t r0, double fp0) {                \
+  template <typename MemIdx = uint32_t, typename MemOffsetT>                   \
+  INSTRUCTION_HANDLER_FUNC s2s_##name##I(const uint8_t* code, uint32_t* sp,    \
+                                         WasmInterpreterRuntime* wasm_runtime, \
+                                         int64_t r0, double fp0) {             \
     ctype new_val = static_cast<ctype>(pop<op_ctype>(sp, code, wasm_runtime)); \
     ctype old_val = static_cast<ctype>(pop<op_ctype>(sp, code, wasm_runtime)); \
                                                                                \
-    uint64_t offset = Read<uint64_t>(code);                                    \
-    uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);                    \
+    uint64_t offset = Read<MemOffsetT>(code);                                  \
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);                      \
     uint64_t effective_index = offset + index;                                 \
     /* Check alignment. */                                                     \
     if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {             \
@@ -3687,8 +4475,12 @@ FOREACH_ATOMIC_BINOP(ATOMIC_BINOP)
         reinterpret_cast<std::atomic<ctype>*>(address), &old_val, new_val);    \
     push<op_ctype>(sp, code, wasm_runtime, static_cast<op_ctype>(old_val));    \
     NextOp();                                                                  \
-  }
-FOREACH_ATOMIC_COMPARE_EXCHANGE_OP(ATOMIC_COMPARE_EXCHANGE_OP)
+  }                                                                            \
+  static auto constexpr s2s_##name =                                           \
+      s2s_##name##I<uint32_t, memory_offset32_t>;                              \
+  static auto constexpr s2s_##name##_Idx64 =                                   \
+      s2s_##name##I<uint64_t, memory_offset64_t>;
+  FOREACH_ATOMIC_COMPARE_EXCHANGE_OP(ATOMIC_COMPARE_EXCHANGE_OP)
 #undef ATOMIC_COMPARE_EXCHANGE_OP
 
 #define FOREACH_ATOMIC_LOAD_OP(V)                           \
@@ -3700,37 +4492,42 @@ FOREACH_ATOMIC_COMPARE_EXCHANGE_OP(ATOMIC_COMPARE_EXCHANGE_OP)
   V(I64AtomicLoad16U, Uint16, uint16_t, I32, uint64_t, I64) \
   V(I64AtomicLoad32U, Uint32, uint32_t, I32, uint64_t, I64)
 
-#define ATOMIC_LOAD_OP(name, Type, ctype, type, op_ctype, op_type)          \
-  INSTRUCTION_HANDLER_FUNC s2s_##name(const uint8_t* code, uint32_t* sp,    \
-                                      WasmInterpreterRuntime* wasm_runtime, \
-                                      int64_t r0, double fp0) {             \
-    uint64_t offset = Read<uint64_t>(code);                                 \
-    uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);                 \
-    uint64_t effective_index = offset + index;                              \
-    /* Check alignment. */                                                  \
-    if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {          \
-      TRAP(TrapReason::kTrapUnalignedAccess)                                \
-    }                                                                       \
-    /* Check bounds. */                                                     \
-    if (V8_UNLIKELY(                                                        \
-            effective_index < index ||                                      \
-            !base::IsInBounds<uint64_t>(effective_index, sizeof(ctype),     \
-                                        wasm_runtime->GetMemorySize()))) {  \
-      TRAP(TrapReason::kTrapMemOutOfBounds)                                 \
-    }                                                                       \
-    static_assert(sizeof(std::atomic<ctype>) == sizeof(ctype),              \
-                  "Size mismatch for types std::atomic<" #ctype             \
-                  ">, and " #ctype);                                        \
-                                                                            \
-    uint8_t* memory_start = wasm_runtime->GetMemoryStart();                 \
-    uint8_t* address = memory_start + effective_index;                      \
-                                                                            \
-    ctype val =                                                             \
-        std::atomic_load(reinterpret_cast<std::atomic<ctype>*>(address));   \
-    push<op_ctype>(sp, code, wasm_runtime, static_cast<op_ctype>(val));     \
-    NextOp();                                                               \
-  }
-FOREACH_ATOMIC_LOAD_OP(ATOMIC_LOAD_OP)
+#define ATOMIC_LOAD_OP(name, Type, ctype, type, op_ctype, op_type)             \
+  template <typename MemIdx, typename MemOffsetT>                              \
+  INSTRUCTION_HANDLER_FUNC s2s_##name##I(const uint8_t* code, uint32_t* sp,    \
+                                         WasmInterpreterRuntime* wasm_runtime, \
+                                         int64_t r0, double fp0) {             \
+    uint64_t offset = Read<MemOffsetT>(code);                                  \
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);                      \
+    uint64_t effective_index = offset + index;                                 \
+    /* Check alignment. */                                                     \
+    if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {             \
+      TRAP(TrapReason::kTrapUnalignedAccess)                                   \
+    }                                                                          \
+    /* Check bounds. */                                                        \
+    if (V8_UNLIKELY(                                                           \
+            effective_index < index ||                                         \
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(ctype),        \
+                                        wasm_runtime->GetMemorySize()))) {     \
+      TRAP(TrapReason::kTrapMemOutOfBounds)                                    \
+    }                                                                          \
+    static_assert(sizeof(std::atomic<ctype>) == sizeof(ctype),                 \
+                  "Size mismatch for types std::atomic<" #ctype                \
+                  ">, and " #ctype);                                           \
+                                                                               \
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();                    \
+    uint8_t* address = memory_start + effective_index;                         \
+                                                                               \
+    ctype val =                                                                \
+        std::atomic_load(reinterpret_cast<std::atomic<ctype>*>(address));      \
+    push<op_ctype>(sp, code, wasm_runtime, static_cast<op_ctype>(val));        \
+    NextOp();                                                                  \
+  }                                                                            \
+  static auto constexpr s2s_##name =                                           \
+      s2s_##name##I<uint32_t, memory_offset32_t>;                              \
+  static auto constexpr s2s_##name##_Idx64 =                                   \
+      s2s_##name##I<uint64_t, memory_offset64_t>;
+  FOREACH_ATOMIC_LOAD_OP(ATOMIC_LOAD_OP)
 #undef ATOMIC_LOAD_OP
 
 #define FOREACH_ATOMIC_STORE_OP(V)                           \
@@ -3742,41 +4539,46 @@ FOREACH_ATOMIC_LOAD_OP(ATOMIC_LOAD_OP)
   V(I64AtomicStore16U, Uint16, uint16_t, I32, uint64_t, I64) \
   V(I64AtomicStore32U, Uint32, uint32_t, I32, uint64_t, I64)
 
-#define ATOMIC_STORE_OP(name, Type, ctype, type, op_ctype, op_type)         \
-  INSTRUCTION_HANDLER_FUNC s2s_##name(const uint8_t* code, uint32_t* sp,    \
-                                      WasmInterpreterRuntime* wasm_runtime, \
-                                      int64_t r0, double fp0) {             \
-    ctype val = static_cast<ctype>(pop<op_ctype>(sp, code, wasm_runtime));  \
-                                                                            \
-    uint64_t offset = Read<uint64_t>(code);                                 \
-    uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);                 \
-    uint64_t effective_index = offset + index;                              \
-    /* Check alignment. */                                                  \
-    if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {          \
-      TRAP(TrapReason::kTrapUnalignedAccess)                                \
-    }                                                                       \
-    /* Check bounds. */                                                     \
-    if (V8_UNLIKELY(                                                        \
-            effective_index < index ||                                      \
-            !base::IsInBounds<uint64_t>(effective_index, sizeof(ctype),     \
-                                        wasm_runtime->GetMemorySize()))) {  \
-      TRAP(TrapReason::kTrapMemOutOfBounds)                                 \
-    }                                                                       \
-    static_assert(sizeof(std::atomic<ctype>) == sizeof(ctype),              \
-                  "Size mismatch for types std::atomic<" #ctype             \
-                  ">, and " #ctype);                                        \
-                                                                            \
-    uint8_t* memory_start = wasm_runtime->GetMemoryStart();                 \
-    uint8_t* address = memory_start + effective_index;                      \
-                                                                            \
-    std::atomic_store(reinterpret_cast<std::atomic<ctype>*>(address), val); \
-    NextOp();                                                               \
-  }
-FOREACH_ATOMIC_STORE_OP(ATOMIC_STORE_OP)
+#define ATOMIC_STORE_OP(name, Type, ctype, type, op_ctype, op_type)            \
+  template <typename MemIdx = uint32_t, typename MemOffsetT>                   \
+  INSTRUCTION_HANDLER_FUNC s2s_##name##I(const uint8_t* code, uint32_t* sp,    \
+                                         WasmInterpreterRuntime* wasm_runtime, \
+                                         int64_t r0, double fp0) {             \
+    ctype val = static_cast<ctype>(pop<op_ctype>(sp, code, wasm_runtime));     \
+                                                                               \
+    uint64_t offset = Read<MemOffsetT>(code);                                  \
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);                      \
+    uint64_t effective_index = offset + index;                                 \
+    /* Check alignment. */                                                     \
+    if (V8_UNLIKELY(!IsAligned(effective_index, sizeof(ctype)))) {             \
+      TRAP(TrapReason::kTrapUnalignedAccess)                                   \
+    }                                                                          \
+    /* Check bounds. */                                                        \
+    if (V8_UNLIKELY(                                                           \
+            effective_index < index ||                                         \
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(ctype),        \
+                                        wasm_runtime->GetMemorySize()))) {     \
+      TRAP(TrapReason::kTrapMemOutOfBounds)                                    \
+    }                                                                          \
+    static_assert(sizeof(std::atomic<ctype>) == sizeof(ctype),                 \
+                  "Size mismatch for types std::atomic<" #ctype                \
+                  ">, and " #ctype);                                           \
+                                                                               \
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();                    \
+    uint8_t* address = memory_start + effective_index;                         \
+                                                                               \
+    std::atomic_store(reinterpret_cast<std::atomic<ctype>*>(address), val);    \
+    NextOp();                                                                  \
+  }                                                                            \
+  static auto constexpr s2s_##name =                                           \
+      s2s_##name##I<uint32_t, memory_offset32_t>;                              \
+  static auto constexpr s2s_##name##_Idx64 =                                   \
+      s2s_##name##I<uint64_t, memory_offset64_t>;
+  FOREACH_ATOMIC_STORE_OP(ATOMIC_STORE_OP)
 #undef ATOMIC_STORE_OP
 
-////////////////////////////////////////////////////////////////////////////////
-// SIMD instructions.
+  //////////////////////////////////////////////////////////////////////////////
+  // SIMD instructions.
 
 #if V8_TARGET_BIG_ENDIAN
 #define LANE(i, type) ((sizeof(type.val) / sizeof(type.val[0])) - (i)-1)
@@ -3794,29 +4596,29 @@ FOREACH_ATOMIC_STORE_OP(ATOMIC_STORE_OP)
     push<Simd128>(sp, code, wasm_runtime, Simd128(s));                         \
     NextOp();                                                                  \
   }
-SPLAT_CASE(F64x2, float64x2, double, F64, 2)
-SPLAT_CASE(F32x4, float32x4, float, F32, 4)
-SPLAT_CASE(I64x2, int64x2, int64_t, I64, 2)
-SPLAT_CASE(I32x4, int32x4, int32_t, I32, 4)
-SPLAT_CASE(I16x8, int16x8, int32_t, I32, 8)
-SPLAT_CASE(I8x16, int8x16, int32_t, I32, 16)
+  SPLAT_CASE(F64x2, float64x2, double, F64, 2)
+  SPLAT_CASE(F32x4, float32x4, float, F32, 4)
+  SPLAT_CASE(I64x2, int64x2, int64_t, I64, 2)
+  SPLAT_CASE(I32x4, int32x4, int32_t, I32, 4)
+  SPLAT_CASE(I16x8, int16x8, int32_t, I32, 8)
+  SPLAT_CASE(I8x16, int8x16, int32_t, I32, 16)
 #undef SPLAT_CASE
 
 #define EXTRACT_LANE_CASE(format, stype, op_type, name)                        \
   INSTRUCTION_HANDLER_FUNC s2s_Simd##format##ExtractLane(                      \
       const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime, \
       int64_t r0, double fp0) {                                                \
-    uint16_t lane = ReadI16(code);                                             \
+    uint16_t lane = Read<int16_t>(code);                                       \
     DCHECK_LT(lane, 4);                                                        \
     Simd128 v = pop<Simd128>(sp, code, wasm_runtime);                          \
     stype s = v.to_##name();                                                   \
     push(sp, code, wasm_runtime, s.val[LANE(lane, s)]);                        \
     NextOp();                                                                  \
   }
-EXTRACT_LANE_CASE(F64x2, float64x2, F64, f64x2)
-EXTRACT_LANE_CASE(F32x4, float32x4, F32, f32x4)
-EXTRACT_LANE_CASE(I64x2, int64x2, I64, i64x2)
-EXTRACT_LANE_CASE(I32x4, int32x4, I32, i32x4)
+  EXTRACT_LANE_CASE(F64x2, float64x2, F64, f64x2)
+  EXTRACT_LANE_CASE(F32x4, float32x4, F32, f32x4)
+  EXTRACT_LANE_CASE(I64x2, int64x2, I64, i64x2)
+  EXTRACT_LANE_CASE(I32x4, int32x4, I32, i32x4)
 #undef EXTRACT_LANE_CASE
 
 // Unsigned extracts require a bit more care. The underlying array in Simd128 is
@@ -3828,7 +4630,7 @@ EXTRACT_LANE_CASE(I32x4, int32x4, I32, i32x4)
   INSTRUCTION_HANDLER_FUNC s2s_Simd##format##ExtractLane##sign(                \
       const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime, \
       int64_t r0, double fp0) {                                                \
-    uint16_t lane = ReadI16(code);                                             \
+    uint16_t lane = Read<int16_t>(code);                                       \
     DCHECK_LT(lane, 16);                                                       \
     Simd128 s = pop<Simd128>(sp, code, wasm_runtime);                          \
     stype ss = s.to_##name();                                                  \
@@ -3843,10 +4645,10 @@ EXTRACT_LANE_CASE(I32x4, int32x4, I32, i32x4)
     }                                                                          \
     NextOp();                                                                  \
   }
-EXTRACT_LANE_EXTEND_CASE(I16x8, int16x8, i16x8, S, int32_t)
-EXTRACT_LANE_EXTEND_CASE(I16x8, int16x8, i16x8, U, uint32_t)
-EXTRACT_LANE_EXTEND_CASE(I8x16, int8x16, i8x16, S, int32_t)
-EXTRACT_LANE_EXTEND_CASE(I8x16, int8x16, i8x16, U, uint32_t)
+  EXTRACT_LANE_EXTEND_CASE(I16x8, int16x8, i16x8, S, int32_t)
+  EXTRACT_LANE_EXTEND_CASE(I16x8, int16x8, i16x8, U, uint32_t)
+  EXTRACT_LANE_EXTEND_CASE(I8x16, int8x16, i8x16, S, int32_t)
+  EXTRACT_LANE_EXTEND_CASE(I8x16, int8x16, i8x16, U, uint32_t)
 #undef EXTRACT_LANE_EXTEND_CASE
 
 #define BINOP_CASE(op, name, stype, count, expr)                              \
@@ -3864,75 +4666,75 @@ EXTRACT_LANE_EXTEND_CASE(I8x16, int8x16, i8x16, U, uint32_t)
     push<Simd128>(sp, code, wasm_runtime, Simd128(res));                      \
     NextOp();                                                                 \
   }
-BINOP_CASE(F64x2Add, f64x2, float64x2, 2, a + b)
-BINOP_CASE(F64x2Sub, f64x2, float64x2, 2, a - b)
-BINOP_CASE(F64x2Mul, f64x2, float64x2, 2, a* b)
-BINOP_CASE(F64x2Div, f64x2, float64x2, 2, base::Divide(a, b))
-BINOP_CASE(F64x2Min, f64x2, float64x2, 2, JSMin(a, b))
-BINOP_CASE(F64x2Max, f64x2, float64x2, 2, JSMax(a, b))
-BINOP_CASE(F64x2Pmin, f64x2, float64x2, 2, std::min(a, b))
-BINOP_CASE(F64x2Pmax, f64x2, float64x2, 2, std::max(a, b))
-BINOP_CASE(F32x4RelaxedMin, f32x4, float32x4, 4, std::min(a, b))
-BINOP_CASE(F32x4RelaxedMax, f32x4, float32x4, 4, std::max(a, b))
-BINOP_CASE(F64x2RelaxedMin, f64x2, float64x2, 2, std::min(a, b))
-BINOP_CASE(F64x2RelaxedMax, f64x2, float64x2, 2, std::max(a, b))
-BINOP_CASE(F32x4Add, f32x4, float32x4, 4, a + b)
-BINOP_CASE(F32x4Sub, f32x4, float32x4, 4, a - b)
-BINOP_CASE(F32x4Mul, f32x4, float32x4, 4, a* b)
-BINOP_CASE(F32x4Div, f32x4, float32x4, 4, a / b)
-BINOP_CASE(F32x4Min, f32x4, float32x4, 4, JSMin(a, b))
-BINOP_CASE(F32x4Max, f32x4, float32x4, 4, JSMax(a, b))
-BINOP_CASE(F32x4Pmin, f32x4, float32x4, 4, std::min(a, b))
-BINOP_CASE(F32x4Pmax, f32x4, float32x4, 4, std::max(a, b))
-BINOP_CASE(I64x2Add, i64x2, int64x2, 2, base::AddWithWraparound(a, b))
-BINOP_CASE(I64x2Sub, i64x2, int64x2, 2, base::SubWithWraparound(a, b))
-BINOP_CASE(I64x2Mul, i64x2, int64x2, 2, base::MulWithWraparound(a, b))
-BINOP_CASE(I32x4Add, i32x4, int32x4, 4, base::AddWithWraparound(a, b))
-BINOP_CASE(I32x4Sub, i32x4, int32x4, 4, base::SubWithWraparound(a, b))
-BINOP_CASE(I32x4Mul, i32x4, int32x4, 4, base::MulWithWraparound(a, b))
-BINOP_CASE(I32x4MinS, i32x4, int32x4, 4, a < b ? a : b)
-BINOP_CASE(I32x4MinU, i32x4, int32x4, 4,
-           static_cast<uint32_t>(a) < static_cast<uint32_t>(b) ? a : b)
-BINOP_CASE(I32x4MaxS, i32x4, int32x4, 4, a > b ? a : b)
-BINOP_CASE(I32x4MaxU, i32x4, int32x4, 4,
-           static_cast<uint32_t>(a) > static_cast<uint32_t>(b) ? a : b)
-BINOP_CASE(S128And, i32x4, int32x4, 4, a& b)
-BINOP_CASE(S128Or, i32x4, int32x4, 4, a | b)
-BINOP_CASE(S128Xor, i32x4, int32x4, 4, a ^ b)
-BINOP_CASE(S128AndNot, i32x4, int32x4, 4, a & ~b)
-BINOP_CASE(I16x8Add, i16x8, int16x8, 8, base::AddWithWraparound(a, b))
-BINOP_CASE(I16x8Sub, i16x8, int16x8, 8, base::SubWithWraparound(a, b))
-BINOP_CASE(I16x8Mul, i16x8, int16x8, 8, base::MulWithWraparound(a, b))
-BINOP_CASE(I16x8MinS, i16x8, int16x8, 8, a < b ? a : b)
-BINOP_CASE(I16x8MinU, i16x8, int16x8, 8,
-           static_cast<uint16_t>(a) < static_cast<uint16_t>(b) ? a : b)
-BINOP_CASE(I16x8MaxS, i16x8, int16x8, 8, a > b ? a : b)
-BINOP_CASE(I16x8MaxU, i16x8, int16x8, 8,
-           static_cast<uint16_t>(a) > static_cast<uint16_t>(b) ? a : b)
-BINOP_CASE(I16x8AddSatS, i16x8, int16x8, 8, SaturateAdd<int16_t>(a, b))
-BINOP_CASE(I16x8AddSatU, i16x8, int16x8, 8, SaturateAdd<uint16_t>(a, b))
-BINOP_CASE(I16x8SubSatS, i16x8, int16x8, 8, SaturateSub<int16_t>(a, b))
-BINOP_CASE(I16x8SubSatU, i16x8, int16x8, 8, SaturateSub<uint16_t>(a, b))
-BINOP_CASE(I16x8RoundingAverageU, i16x8, int16x8, 8,
-           RoundingAverageUnsigned<uint16_t>(a, b))
-BINOP_CASE(I16x8Q15MulRSatS, i16x8, int16x8, 8,
-           SaturateRoundingQMul<int16_t>(a, b))
-BINOP_CASE(I16x8RelaxedQ15MulRS, i16x8, int16x8, 8,
-           SaturateRoundingQMul<int16_t>(a, b))
-BINOP_CASE(I8x16Add, i8x16, int8x16, 16, base::AddWithWraparound(a, b))
-BINOP_CASE(I8x16Sub, i8x16, int8x16, 16, base::SubWithWraparound(a, b))
-BINOP_CASE(I8x16MinS, i8x16, int8x16, 16, a < b ? a : b)
-BINOP_CASE(I8x16MinU, i8x16, int8x16, 16,
-           static_cast<uint8_t>(a) < static_cast<uint8_t>(b) ? a : b)
-BINOP_CASE(I8x16MaxS, i8x16, int8x16, 16, a > b ? a : b)
-BINOP_CASE(I8x16MaxU, i8x16, int8x16, 16,
-           static_cast<uint8_t>(a) > static_cast<uint8_t>(b) ? a : b)
-BINOP_CASE(I8x16AddSatS, i8x16, int8x16, 16, SaturateAdd<int8_t>(a, b))
-BINOP_CASE(I8x16AddSatU, i8x16, int8x16, 16, SaturateAdd<uint8_t>(a, b))
-BINOP_CASE(I8x16SubSatS, i8x16, int8x16, 16, SaturateSub<int8_t>(a, b))
-BINOP_CASE(I8x16SubSatU, i8x16, int8x16, 16, SaturateSub<uint8_t>(a, b))
-BINOP_CASE(I8x16RoundingAverageU, i8x16, int8x16, 16,
-           RoundingAverageUnsigned<uint8_t>(a, b))
+  BINOP_CASE(F64x2Add, f64x2, float64x2, 2, a + b)
+  BINOP_CASE(F64x2Sub, f64x2, float64x2, 2, a - b)
+  BINOP_CASE(F64x2Mul, f64x2, float64x2, 2, a* b)
+  BINOP_CASE(F64x2Div, f64x2, float64x2, 2, base::Divide(a, b))
+  BINOP_CASE(F64x2Min, f64x2, float64x2, 2, JSMin(a, b))
+  BINOP_CASE(F64x2Max, f64x2, float64x2, 2, JSMax(a, b))
+  BINOP_CASE(F64x2Pmin, f64x2, float64x2, 2, std::min(a, b))
+  BINOP_CASE(F64x2Pmax, f64x2, float64x2, 2, std::max(a, b))
+  BINOP_CASE(F32x4RelaxedMin, f32x4, float32x4, 4, std::min(a, b))
+  BINOP_CASE(F32x4RelaxedMax, f32x4, float32x4, 4, std::max(a, b))
+  BINOP_CASE(F64x2RelaxedMin, f64x2, float64x2, 2, std::min(a, b))
+  BINOP_CASE(F64x2RelaxedMax, f64x2, float64x2, 2, std::max(a, b))
+  BINOP_CASE(F32x4Add, f32x4, float32x4, 4, a + b)
+  BINOP_CASE(F32x4Sub, f32x4, float32x4, 4, a - b)
+  BINOP_CASE(F32x4Mul, f32x4, float32x4, 4, a* b)
+  BINOP_CASE(F32x4Div, f32x4, float32x4, 4, a / b)
+  BINOP_CASE(F32x4Min, f32x4, float32x4, 4, JSMin(a, b))
+  BINOP_CASE(F32x4Max, f32x4, float32x4, 4, JSMax(a, b))
+  BINOP_CASE(F32x4Pmin, f32x4, float32x4, 4, std::min(a, b))
+  BINOP_CASE(F32x4Pmax, f32x4, float32x4, 4, std::max(a, b))
+  BINOP_CASE(I64x2Add, i64x2, int64x2, 2, base::AddWithWraparound(a, b))
+  BINOP_CASE(I64x2Sub, i64x2, int64x2, 2, base::SubWithWraparound(a, b))
+  BINOP_CASE(I64x2Mul, i64x2, int64x2, 2, base::MulWithWraparound(a, b))
+  BINOP_CASE(I32x4Add, i32x4, int32x4, 4, base::AddWithWraparound(a, b))
+  BINOP_CASE(I32x4Sub, i32x4, int32x4, 4, base::SubWithWraparound(a, b))
+  BINOP_CASE(I32x4Mul, i32x4, int32x4, 4, base::MulWithWraparound(a, b))
+  BINOP_CASE(I32x4MinS, i32x4, int32x4, 4, a < b ? a : b)
+  BINOP_CASE(I32x4MinU, i32x4, int32x4, 4,
+             static_cast<uint32_t>(a) < static_cast<uint32_t>(b) ? a : b)
+  BINOP_CASE(I32x4MaxS, i32x4, int32x4, 4, a > b ? a : b)
+  BINOP_CASE(I32x4MaxU, i32x4, int32x4, 4,
+             static_cast<uint32_t>(a) > static_cast<uint32_t>(b) ? a : b)
+  BINOP_CASE(S128And, i32x4, int32x4, 4, a& b)
+  BINOP_CASE(S128Or, i32x4, int32x4, 4, a | b)
+  BINOP_CASE(S128Xor, i32x4, int32x4, 4, a ^ b)
+  BINOP_CASE(S128AndNot, i32x4, int32x4, 4, a & ~b)
+  BINOP_CASE(I16x8Add, i16x8, int16x8, 8, base::AddWithWraparound(a, b))
+  BINOP_CASE(I16x8Sub, i16x8, int16x8, 8, base::SubWithWraparound(a, b))
+  BINOP_CASE(I16x8Mul, i16x8, int16x8, 8, base::MulWithWraparound(a, b))
+  BINOP_CASE(I16x8MinS, i16x8, int16x8, 8, a < b ? a : b)
+  BINOP_CASE(I16x8MinU, i16x8, int16x8, 8,
+             static_cast<uint16_t>(a) < static_cast<uint16_t>(b) ? a : b)
+  BINOP_CASE(I16x8MaxS, i16x8, int16x8, 8, a > b ? a : b)
+  BINOP_CASE(I16x8MaxU, i16x8, int16x8, 8,
+             static_cast<uint16_t>(a) > static_cast<uint16_t>(b) ? a : b)
+  BINOP_CASE(I16x8AddSatS, i16x8, int16x8, 8, SaturateAdd<int16_t>(a, b))
+  BINOP_CASE(I16x8AddSatU, i16x8, int16x8, 8, SaturateAdd<uint16_t>(a, b))
+  BINOP_CASE(I16x8SubSatS, i16x8, int16x8, 8, SaturateSub<int16_t>(a, b))
+  BINOP_CASE(I16x8SubSatU, i16x8, int16x8, 8, SaturateSub<uint16_t>(a, b))
+  BINOP_CASE(I16x8RoundingAverageU, i16x8, int16x8, 8,
+             RoundingAverageUnsigned<uint16_t>(a, b))
+  BINOP_CASE(I16x8Q15MulRSatS, i16x8, int16x8, 8,
+             SaturateRoundingQMul<int16_t>(a, b))
+  BINOP_CASE(I16x8RelaxedQ15MulRS, i16x8, int16x8, 8,
+             SaturateRoundingQMul<int16_t>(a, b))
+  BINOP_CASE(I8x16Add, i8x16, int8x16, 16, base::AddWithWraparound(a, b))
+  BINOP_CASE(I8x16Sub, i8x16, int8x16, 16, base::SubWithWraparound(a, b))
+  BINOP_CASE(I8x16MinS, i8x16, int8x16, 16, a < b ? a : b)
+  BINOP_CASE(I8x16MinU, i8x16, int8x16, 16,
+             static_cast<uint8_t>(a) < static_cast<uint8_t>(b) ? a : b)
+  BINOP_CASE(I8x16MaxS, i8x16, int8x16, 16, a > b ? a : b)
+  BINOP_CASE(I8x16MaxU, i8x16, int8x16, 16,
+             static_cast<uint8_t>(a) > static_cast<uint8_t>(b) ? a : b)
+  BINOP_CASE(I8x16AddSatS, i8x16, int8x16, 16, SaturateAdd<int8_t>(a, b))
+  BINOP_CASE(I8x16AddSatU, i8x16, int8x16, 16, SaturateAdd<uint8_t>(a, b))
+  BINOP_CASE(I8x16SubSatS, i8x16, int8x16, 16, SaturateSub<int8_t>(a, b))
+  BINOP_CASE(I8x16SubSatU, i8x16, int8x16, 16, SaturateSub<uint8_t>(a, b))
+  BINOP_CASE(I8x16RoundingAverageU, i8x16, int8x16, 16,
+             RoundingAverageUnsigned<uint8_t>(a, b))
 #undef BINOP_CASE
 
 #define UNOP_CASE(op, name, stype, count, expr)                               \
@@ -3948,32 +4750,32 @@ BINOP_CASE(I8x16RoundingAverageU, i8x16, int8x16, 16,
     push<Simd128>(sp, code, wasm_runtime, Simd128(res));                      \
     NextOp();                                                                 \
   }
-UNOP_CASE(F64x2Abs, f64x2, float64x2, 2, std::abs(a))
-UNOP_CASE(F64x2Neg, f64x2, float64x2, 2, -a)
-UNOP_CASE(F64x2Sqrt, f64x2, float64x2, 2, std::sqrt(a))
-UNOP_CASE(F64x2Ceil, f64x2, float64x2, 2, ceil(a))
-UNOP_CASE(F64x2Floor, f64x2, float64x2, 2, floor(a))
-UNOP_CASE(F64x2Trunc, f64x2, float64x2, 2, trunc(a))
-UNOP_CASE(F64x2NearestInt, f64x2, float64x2, 2, nearbyint(a))
-UNOP_CASE(F32x4Abs, f32x4, float32x4, 4, std::abs(a))
-UNOP_CASE(F32x4Neg, f32x4, float32x4, 4, -a)
-UNOP_CASE(F32x4Sqrt, f32x4, float32x4, 4, std::sqrt(a))
-UNOP_CASE(F32x4Ceil, f32x4, float32x4, 4, ceilf(a))
-UNOP_CASE(F32x4Floor, f32x4, float32x4, 4, floorf(a))
-UNOP_CASE(F32x4Trunc, f32x4, float32x4, 4, truncf(a))
-UNOP_CASE(F32x4NearestInt, f32x4, float32x4, 4, nearbyintf(a))
-UNOP_CASE(I64x2Neg, i64x2, int64x2, 2, base::NegateWithWraparound(a))
-UNOP_CASE(I32x4Neg, i32x4, int32x4, 4, base::NegateWithWraparound(a))
-// Use llabs which will work correctly on both 64-bit and 32-bit.
-UNOP_CASE(I64x2Abs, i64x2, int64x2, 2, std::llabs(a))
-UNOP_CASE(I32x4Abs, i32x4, int32x4, 4, std::abs(a))
-UNOP_CASE(S128Not, i32x4, int32x4, 4, ~a)
-UNOP_CASE(I16x8Neg, i16x8, int16x8, 8, base::NegateWithWraparound(a))
-UNOP_CASE(I16x8Abs, i16x8, int16x8, 8, std::abs(a))
-UNOP_CASE(I8x16Neg, i8x16, int8x16, 16, base::NegateWithWraparound(a))
-UNOP_CASE(I8x16Abs, i8x16, int8x16, 16, std::abs(a))
-UNOP_CASE(I8x16Popcnt, i8x16, int8x16, 16,
-          base::bits::CountPopulation<uint8_t>(a))
+  UNOP_CASE(F64x2Abs, f64x2, float64x2, 2, std::abs(a))
+  UNOP_CASE(F64x2Neg, f64x2, float64x2, 2, -a)
+  UNOP_CASE(F64x2Sqrt, f64x2, float64x2, 2, std::sqrt(a))
+  UNOP_CASE(F64x2Ceil, f64x2, float64x2, 2, ceil(a))
+  UNOP_CASE(F64x2Floor, f64x2, float64x2, 2, floor(a))
+  UNOP_CASE(F64x2Trunc, f64x2, float64x2, 2, trunc(a))
+  UNOP_CASE(F64x2NearestInt, f64x2, float64x2, 2, nearbyint(a))
+  UNOP_CASE(F32x4Abs, f32x4, float32x4, 4, std::abs(a))
+  UNOP_CASE(F32x4Neg, f32x4, float32x4, 4, -a)
+  UNOP_CASE(F32x4Sqrt, f32x4, float32x4, 4, std::sqrt(a))
+  UNOP_CASE(F32x4Ceil, f32x4, float32x4, 4, ceilf(a))
+  UNOP_CASE(F32x4Floor, f32x4, float32x4, 4, floorf(a))
+  UNOP_CASE(F32x4Trunc, f32x4, float32x4, 4, truncf(a))
+  UNOP_CASE(F32x4NearestInt, f32x4, float32x4, 4, nearbyintf(a))
+  UNOP_CASE(I64x2Neg, i64x2, int64x2, 2, base::NegateWithWraparound(a))
+  UNOP_CASE(I32x4Neg, i32x4, int32x4, 4, base::NegateWithWraparound(a))
+  // Use llabs which will work correctly on both 64-bit and 32-bit.
+  UNOP_CASE(I64x2Abs, i64x2, int64x2, 2, std::llabs(a))
+  UNOP_CASE(I32x4Abs, i32x4, int32x4, 4, std::abs(a))
+  UNOP_CASE(S128Not, i32x4, int32x4, 4, ~a)
+  UNOP_CASE(I16x8Neg, i16x8, int16x8, 8, base::NegateWithWraparound(a))
+  UNOP_CASE(I16x8Abs, i16x8, int16x8, 8, std::abs(a))
+  UNOP_CASE(I8x16Neg, i8x16, int8x16, 16, base::NegateWithWraparound(a))
+  UNOP_CASE(I8x16Abs, i8x16, int8x16, 16, std::abs(a))
+  UNOP_CASE(I8x16Popcnt, i8x16, int8x16, 16,
+            base::bits::CountPopulation<uint8_t>(a))
 #undef UNOP_CASE
 
 #define BITMASK_CASE(op, name, stype, count)                                  \
@@ -3989,10 +4791,10 @@ UNOP_CASE(I8x16Popcnt, i8x16, int8x16, 16,
     push<int32_t>(sp, code, wasm_runtime, res);                               \
     NextOp();                                                                 \
   }
-BITMASK_CASE(I8x16BitMask, i8x16, int8x16, 16)
-BITMASK_CASE(I16x8BitMask, i16x8, int16x8, 8)
-BITMASK_CASE(I32x4BitMask, i32x4, int32x4, 4)
-BITMASK_CASE(I64x2BitMask, i64x2, int64x2, 2)
+  BITMASK_CASE(I8x16BitMask, i8x16, int8x16, 16)
+  BITMASK_CASE(I16x8BitMask, i16x8, int16x8, 8)
+  BITMASK_CASE(I32x4BitMask, i32x4, int32x4, 4)
+  BITMASK_CASE(I64x2BitMask, i64x2, int64x2, 2)
 #undef BITMASK_CASE
 
 #define CMPOP_CASE(op, name, stype, out_stype, count, expr)                   \
@@ -4012,73 +4814,73 @@ BITMASK_CASE(I64x2BitMask, i64x2, int64x2, 2)
     NextOp();                                                                 \
   }
 
-CMPOP_CASE(F64x2Eq, f64x2, float64x2, int64x2, 2, a == b)
-CMPOP_CASE(F64x2Ne, f64x2, float64x2, int64x2, 2, a != b)
-CMPOP_CASE(F64x2Gt, f64x2, float64x2, int64x2, 2, a > b)
-CMPOP_CASE(F64x2Ge, f64x2, float64x2, int64x2, 2, a >= b)
-CMPOP_CASE(F64x2Lt, f64x2, float64x2, int64x2, 2, a < b)
-CMPOP_CASE(F64x2Le, f64x2, float64x2, int64x2, 2, a <= b)
-CMPOP_CASE(F32x4Eq, f32x4, float32x4, int32x4, 4, a == b)
-CMPOP_CASE(F32x4Ne, f32x4, float32x4, int32x4, 4, a != b)
-CMPOP_CASE(F32x4Gt, f32x4, float32x4, int32x4, 4, a > b)
-CMPOP_CASE(F32x4Ge, f32x4, float32x4, int32x4, 4, a >= b)
-CMPOP_CASE(F32x4Lt, f32x4, float32x4, int32x4, 4, a < b)
-CMPOP_CASE(F32x4Le, f32x4, float32x4, int32x4, 4, a <= b)
-CMPOP_CASE(I64x2Eq, i64x2, int64x2, int64x2, 2, a == b)
-CMPOP_CASE(I64x2Ne, i64x2, int64x2, int64x2, 2, a != b)
-CMPOP_CASE(I64x2LtS, i64x2, int64x2, int64x2, 2, a < b)
-CMPOP_CASE(I64x2GtS, i64x2, int64x2, int64x2, 2, a > b)
-CMPOP_CASE(I64x2LeS, i64x2, int64x2, int64x2, 2, a <= b)
-CMPOP_CASE(I64x2GeS, i64x2, int64x2, int64x2, 2, a >= b)
-CMPOP_CASE(I32x4Eq, i32x4, int32x4, int32x4, 4, a == b)
-CMPOP_CASE(I32x4Ne, i32x4, int32x4, int32x4, 4, a != b)
-CMPOP_CASE(I32x4GtS, i32x4, int32x4, int32x4, 4, a > b)
-CMPOP_CASE(I32x4GeS, i32x4, int32x4, int32x4, 4, a >= b)
-CMPOP_CASE(I32x4LtS, i32x4, int32x4, int32x4, 4, a < b)
-CMPOP_CASE(I32x4LeS, i32x4, int32x4, int32x4, 4, a <= b)
-CMPOP_CASE(I32x4GtU, i32x4, int32x4, int32x4, 4,
-           static_cast<uint32_t>(a) > static_cast<uint32_t>(b))
-CMPOP_CASE(I32x4GeU, i32x4, int32x4, int32x4, 4,
-           static_cast<uint32_t>(a) >= static_cast<uint32_t>(b))
-CMPOP_CASE(I32x4LtU, i32x4, int32x4, int32x4, 4,
-           static_cast<uint32_t>(a) < static_cast<uint32_t>(b))
-CMPOP_CASE(I32x4LeU, i32x4, int32x4, int32x4, 4,
-           static_cast<uint32_t>(a) <= static_cast<uint32_t>(b))
-CMPOP_CASE(I16x8Eq, i16x8, int16x8, int16x8, 8, a == b)
-CMPOP_CASE(I16x8Ne, i16x8, int16x8, int16x8, 8, a != b)
-CMPOP_CASE(I16x8GtS, i16x8, int16x8, int16x8, 8, a > b)
-CMPOP_CASE(I16x8GeS, i16x8, int16x8, int16x8, 8, a >= b)
-CMPOP_CASE(I16x8LtS, i16x8, int16x8, int16x8, 8, a < b)
-CMPOP_CASE(I16x8LeS, i16x8, int16x8, int16x8, 8, a <= b)
-CMPOP_CASE(I16x8GtU, i16x8, int16x8, int16x8, 8,
-           static_cast<uint16_t>(a) > static_cast<uint16_t>(b))
-CMPOP_CASE(I16x8GeU, i16x8, int16x8, int16x8, 8,
-           static_cast<uint16_t>(a) >= static_cast<uint16_t>(b))
-CMPOP_CASE(I16x8LtU, i16x8, int16x8, int16x8, 8,
-           static_cast<uint16_t>(a) < static_cast<uint16_t>(b))
-CMPOP_CASE(I16x8LeU, i16x8, int16x8, int16x8, 8,
-           static_cast<uint16_t>(a) <= static_cast<uint16_t>(b))
-CMPOP_CASE(I8x16Eq, i8x16, int8x16, int8x16, 16, a == b)
-CMPOP_CASE(I8x16Ne, i8x16, int8x16, int8x16, 16, a != b)
-CMPOP_CASE(I8x16GtS, i8x16, int8x16, int8x16, 16, a > b)
-CMPOP_CASE(I8x16GeS, i8x16, int8x16, int8x16, 16, a >= b)
-CMPOP_CASE(I8x16LtS, i8x16, int8x16, int8x16, 16, a < b)
-CMPOP_CASE(I8x16LeS, i8x16, int8x16, int8x16, 16, a <= b)
-CMPOP_CASE(I8x16GtU, i8x16, int8x16, int8x16, 16,
-           static_cast<uint8_t>(a) > static_cast<uint8_t>(b))
-CMPOP_CASE(I8x16GeU, i8x16, int8x16, int8x16, 16,
-           static_cast<uint8_t>(a) >= static_cast<uint8_t>(b))
-CMPOP_CASE(I8x16LtU, i8x16, int8x16, int8x16, 16,
-           static_cast<uint8_t>(a) < static_cast<uint8_t>(b))
-CMPOP_CASE(I8x16LeU, i8x16, int8x16, int8x16, 16,
-           static_cast<uint8_t>(a) <= static_cast<uint8_t>(b))
+  CMPOP_CASE(F64x2Eq, f64x2, float64x2, int64x2, 2, a == b)
+  CMPOP_CASE(F64x2Ne, f64x2, float64x2, int64x2, 2, a != b)
+  CMPOP_CASE(F64x2Gt, f64x2, float64x2, int64x2, 2, a > b)
+  CMPOP_CASE(F64x2Ge, f64x2, float64x2, int64x2, 2, a >= b)
+  CMPOP_CASE(F64x2Lt, f64x2, float64x2, int64x2, 2, a < b)
+  CMPOP_CASE(F64x2Le, f64x2, float64x2, int64x2, 2, a <= b)
+  CMPOP_CASE(F32x4Eq, f32x4, float32x4, int32x4, 4, a == b)
+  CMPOP_CASE(F32x4Ne, f32x4, float32x4, int32x4, 4, a != b)
+  CMPOP_CASE(F32x4Gt, f32x4, float32x4, int32x4, 4, a > b)
+  CMPOP_CASE(F32x4Ge, f32x4, float32x4, int32x4, 4, a >= b)
+  CMPOP_CASE(F32x4Lt, f32x4, float32x4, int32x4, 4, a < b)
+  CMPOP_CASE(F32x4Le, f32x4, float32x4, int32x4, 4, a <= b)
+  CMPOP_CASE(I64x2Eq, i64x2, int64x2, int64x2, 2, a == b)
+  CMPOP_CASE(I64x2Ne, i64x2, int64x2, int64x2, 2, a != b)
+  CMPOP_CASE(I64x2LtS, i64x2, int64x2, int64x2, 2, a < b)
+  CMPOP_CASE(I64x2GtS, i64x2, int64x2, int64x2, 2, a > b)
+  CMPOP_CASE(I64x2LeS, i64x2, int64x2, int64x2, 2, a <= b)
+  CMPOP_CASE(I64x2GeS, i64x2, int64x2, int64x2, 2, a >= b)
+  CMPOP_CASE(I32x4Eq, i32x4, int32x4, int32x4, 4, a == b)
+  CMPOP_CASE(I32x4Ne, i32x4, int32x4, int32x4, 4, a != b)
+  CMPOP_CASE(I32x4GtS, i32x4, int32x4, int32x4, 4, a > b)
+  CMPOP_CASE(I32x4GeS, i32x4, int32x4, int32x4, 4, a >= b)
+  CMPOP_CASE(I32x4LtS, i32x4, int32x4, int32x4, 4, a < b)
+  CMPOP_CASE(I32x4LeS, i32x4, int32x4, int32x4, 4, a <= b)
+  CMPOP_CASE(I32x4GtU, i32x4, int32x4, int32x4, 4,
+             static_cast<uint32_t>(a) > static_cast<uint32_t>(b))
+  CMPOP_CASE(I32x4GeU, i32x4, int32x4, int32x4, 4,
+             static_cast<uint32_t>(a) >= static_cast<uint32_t>(b))
+  CMPOP_CASE(I32x4LtU, i32x4, int32x4, int32x4, 4,
+             static_cast<uint32_t>(a) < static_cast<uint32_t>(b))
+  CMPOP_CASE(I32x4LeU, i32x4, int32x4, int32x4, 4,
+             static_cast<uint32_t>(a) <= static_cast<uint32_t>(b))
+  CMPOP_CASE(I16x8Eq, i16x8, int16x8, int16x8, 8, a == b)
+  CMPOP_CASE(I16x8Ne, i16x8, int16x8, int16x8, 8, a != b)
+  CMPOP_CASE(I16x8GtS, i16x8, int16x8, int16x8, 8, a > b)
+  CMPOP_CASE(I16x8GeS, i16x8, int16x8, int16x8, 8, a >= b)
+  CMPOP_CASE(I16x8LtS, i16x8, int16x8, int16x8, 8, a < b)
+  CMPOP_CASE(I16x8LeS, i16x8, int16x8, int16x8, 8, a <= b)
+  CMPOP_CASE(I16x8GtU, i16x8, int16x8, int16x8, 8,
+             static_cast<uint16_t>(a) > static_cast<uint16_t>(b))
+  CMPOP_CASE(I16x8GeU, i16x8, int16x8, int16x8, 8,
+             static_cast<uint16_t>(a) >= static_cast<uint16_t>(b))
+  CMPOP_CASE(I16x8LtU, i16x8, int16x8, int16x8, 8,
+             static_cast<uint16_t>(a) < static_cast<uint16_t>(b))
+  CMPOP_CASE(I16x8LeU, i16x8, int16x8, int16x8, 8,
+             static_cast<uint16_t>(a) <= static_cast<uint16_t>(b))
+  CMPOP_CASE(I8x16Eq, i8x16, int8x16, int8x16, 16, a == b)
+  CMPOP_CASE(I8x16Ne, i8x16, int8x16, int8x16, 16, a != b)
+  CMPOP_CASE(I8x16GtS, i8x16, int8x16, int8x16, 16, a > b)
+  CMPOP_CASE(I8x16GeS, i8x16, int8x16, int8x16, 16, a >= b)
+  CMPOP_CASE(I8x16LtS, i8x16, int8x16, int8x16, 16, a < b)
+  CMPOP_CASE(I8x16LeS, i8x16, int8x16, int8x16, 16, a <= b)
+  CMPOP_CASE(I8x16GtU, i8x16, int8x16, int8x16, 16,
+             static_cast<uint8_t>(a) > static_cast<uint8_t>(b))
+  CMPOP_CASE(I8x16GeU, i8x16, int8x16, int8x16, 16,
+             static_cast<uint8_t>(a) >= static_cast<uint8_t>(b))
+  CMPOP_CASE(I8x16LtU, i8x16, int8x16, int8x16, 16,
+             static_cast<uint8_t>(a) < static_cast<uint8_t>(b))
+  CMPOP_CASE(I8x16LeU, i8x16, int8x16, int8x16, 16,
+             static_cast<uint8_t>(a) <= static_cast<uint8_t>(b))
 #undef CMPOP_CASE
 
 #define REPLACE_LANE_CASE(format, name, stype, ctype, op_type)                 \
   INSTRUCTION_HANDLER_FUNC s2s_Simd##format##ReplaceLane(                      \
       const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime, \
       int64_t r0, double fp0) {                                                \
-    uint16_t lane = ReadI16(code);                                             \
+    uint16_t lane = Read<int16_t>(code);                                       \
     DCHECK_LT(lane, 16);                                                       \
     ctype new_val = pop<ctype>(sp, code, wasm_runtime);                        \
     Simd128 simd_val = pop<Simd128>(sp, code, wasm_runtime);                   \
@@ -4087,59 +4889,71 @@ CMPOP_CASE(I8x16LeU, i8x16, int8x16, int8x16, 16,
     push<Simd128>(sp, code, wasm_runtime, Simd128(s));                         \
     NextOp();                                                                  \
   }
-REPLACE_LANE_CASE(F64x2, f64x2, float64x2, double, F64)
-REPLACE_LANE_CASE(F32x4, f32x4, float32x4, float, F32)
-REPLACE_LANE_CASE(I64x2, i64x2, int64x2, int64_t, I64)
-REPLACE_LANE_CASE(I32x4, i32x4, int32x4, int32_t, I32)
-REPLACE_LANE_CASE(I16x8, i16x8, int16x8, int32_t, I32)
-REPLACE_LANE_CASE(I8x16, i8x16, int8x16, int32_t, I32)
+  REPLACE_LANE_CASE(F64x2, f64x2, float64x2, double, F64)
+  REPLACE_LANE_CASE(F32x4, f32x4, float32x4, float, F32)
+  REPLACE_LANE_CASE(I64x2, i64x2, int64x2, int64_t, I64)
+  REPLACE_LANE_CASE(I32x4, i32x4, int32x4, int32_t, I32)
+  REPLACE_LANE_CASE(I16x8, i16x8, int16x8, int32_t, I32)
+  REPLACE_LANE_CASE(I8x16, i8x16, int8x16, int32_t, I32)
 #undef REPLACE_LANE_CASE
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdS128LoadMem(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
+  template <typename MemIdx, typename MemOffsetT>
+  INSTRUCTION_HANDLER_FUNC s2s_SimdS128LoadMemI(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
 
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(Simd128),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(Simd128),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+    Simd128 s =
+        base::ReadUnalignedValue<Simd128>(reinterpret_cast<Address>(address));
+    push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+
+    NextOp();
   }
+  static auto constexpr s2s_SimdS128LoadMem =
+      s2s_SimdS128LoadMemI<uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128LoadMem_Idx64 =
+      s2s_SimdS128LoadMemI<uint64_t, memory_offset64_t>;
 
-  uint8_t* address = memory_start + effective_index;
-  Simd128 s =
-      base::ReadUnalignedValue<Simd128>(reinterpret_cast<Address>(address));
-  push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+  template <typename MemIdx, typename MemOffsetT>
+  INSTRUCTION_HANDLER_FUNC s2s_SimdS128StoreMemI(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    Simd128 val = pop<Simd128>(sp, code, wasm_runtime);
 
-  NextOp();
-}
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdS128StoreMem(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  Simd128 val = pop<Simd128>(sp, code, wasm_runtime);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
 
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(Simd128),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
 
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
+    uint8_t* address = memory_start + effective_index;
+    base::WriteUnalignedValue<Simd128>(reinterpret_cast<Address>(address), val);
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(Simd128),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+    NextOp();
   }
-
-  uint8_t* address = memory_start + effective_index;
-  base::WriteUnalignedValue<Simd128>(reinterpret_cast<Address>(address), val);
-
-  NextOp();
-}
+  static auto constexpr s2s_SimdS128StoreMem =
+      s2s_SimdS128StoreMemI<uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128StoreMem_Idx64 =
+      s2s_SimdS128StoreMemI<uint64_t, memory_offset64_t>;
 
 #define SHIFT_CASE(op, name, stype, count, expr)                              \
   INSTRUCTION_HANDLER_FUNC s2s_Simd##op(const uint8_t* code, uint32_t* sp,    \
@@ -4155,70 +4969,71 @@ INSTRUCTION_HANDLER_FUNC s2s_SimdS128StoreMem(
     push<Simd128>(sp, code, wasm_runtime, Simd128(res));                      \
     NextOp();                                                                 \
   }
-SHIFT_CASE(I64x2Shl, i64x2, int64x2, 2,
-           static_cast<uint64_t>(a) << (shift % 64))
-SHIFT_CASE(I64x2ShrS, i64x2, int64x2, 2, a >> (shift % 64))
-SHIFT_CASE(I64x2ShrU, i64x2, int64x2, 2,
-           static_cast<uint64_t>(a) >> (shift % 64))
-SHIFT_CASE(I32x4Shl, i32x4, int32x4, 4,
-           static_cast<uint32_t>(a) << (shift % 32))
-SHIFT_CASE(I32x4ShrS, i32x4, int32x4, 4, a >> (shift % 32))
-SHIFT_CASE(I32x4ShrU, i32x4, int32x4, 4,
-           static_cast<uint32_t>(a) >> (shift % 32))
-SHIFT_CASE(I16x8Shl, i16x8, int16x8, 8,
-           static_cast<uint16_t>(a) << (shift % 16))
-SHIFT_CASE(I16x8ShrS, i16x8, int16x8, 8, a >> (shift % 16))
-SHIFT_CASE(I16x8ShrU, i16x8, int16x8, 8,
-           static_cast<uint16_t>(a) >> (shift % 16))
-SHIFT_CASE(I8x16Shl, i8x16, int8x16, 16, static_cast<uint8_t>(a) << (shift % 8))
-SHIFT_CASE(I8x16ShrS, i8x16, int8x16, 16, a >> (shift % 8))
-SHIFT_CASE(I8x16ShrU, i8x16, int8x16, 16,
-           static_cast<uint8_t>(a) >> (shift % 8))
+  SHIFT_CASE(I64x2Shl, i64x2, int64x2, 2,
+             static_cast<uint64_t>(a) << (shift % 64))
+  SHIFT_CASE(I64x2ShrS, i64x2, int64x2, 2, a >> (shift % 64))
+  SHIFT_CASE(I64x2ShrU, i64x2, int64x2, 2,
+             static_cast<uint64_t>(a) >> (shift % 64))
+  SHIFT_CASE(I32x4Shl, i32x4, int32x4, 4,
+             static_cast<uint32_t>(a) << (shift % 32))
+  SHIFT_CASE(I32x4ShrS, i32x4, int32x4, 4, a >> (shift % 32))
+  SHIFT_CASE(I32x4ShrU, i32x4, int32x4, 4,
+             static_cast<uint32_t>(a) >> (shift % 32))
+  SHIFT_CASE(I16x8Shl, i16x8, int16x8, 8,
+             static_cast<uint16_t>(a) << (shift % 16))
+  SHIFT_CASE(I16x8ShrS, i16x8, int16x8, 8, a >> (shift % 16))
+  SHIFT_CASE(I16x8ShrU, i16x8, int16x8, 8,
+             static_cast<uint16_t>(a) >> (shift % 16))
+  SHIFT_CASE(I8x16Shl, i8x16, int8x16, 16,
+             static_cast<uint8_t>(a) << (shift % 8))
+  SHIFT_CASE(I8x16ShrS, i8x16, int8x16, 16, a >> (shift % 8))
+  SHIFT_CASE(I8x16ShrU, i8x16, int8x16, 16,
+             static_cast<uint8_t>(a) >> (shift % 8))
 #undef SHIFT_CASE
 
-template <typename s_type, typename d_type, typename narrow, typename wide,
-          uint32_t start>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdExtMul(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  s_type s2 = pop<Simd128>(sp, code, wasm_runtime).to<s_type>();
-  s_type s1 = pop<Simd128>(sp, code, wasm_runtime).to<s_type>();
-  auto end = start + (kSimd128Size / sizeof(wide));
-  d_type res;
-  uint32_t i = start;
-  for (size_t dst = 0; i < end; ++i, ++dst) {
-    // Need static_cast for unsigned narrow types.
-    res.val[LANE(dst, res)] =
-        MultiplyLong<wide>(static_cast<narrow>(s1.val[LANE(start, s1)]),
-                           static_cast<narrow>(s2.val[LANE(start, s2)]));
+  template <typename s_type, typename d_type, typename narrow, typename wide,
+            uint32_t start>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdExtMul(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    s_type s2 = pop<Simd128>(sp, code, wasm_runtime).template to<s_type>();
+    s_type s1 = pop<Simd128>(sp, code, wasm_runtime).template to<s_type>();
+    auto end = start + (kSimd128Size / sizeof(wide));
+    d_type res;
+    uint32_t i = start;
+    for (size_t dst = 0; i < end; ++i, ++dst) {
+      // Need static_cast for unsigned narrow types.
+      res.val[LANE(dst, res)] =
+          MultiplyLong<wide>(static_cast<narrow>(s1.val[LANE(start, s1)]),
+                             static_cast<narrow>(s2.val[LANE(start, s2)]));
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
-static auto s2s_SimdI16x8ExtMulLowI8x16S =
-    s2s_DoSimdExtMul<int8x16, int16x8, int8_t, int16_t, 0>;
-static auto s2s_SimdI16x8ExtMulHighI8x16S =
-    s2s_DoSimdExtMul<int8x16, int16x8, int8_t, int16_t, 8>;
-static auto s2s_SimdI16x8ExtMulLowI8x16U =
-    s2s_DoSimdExtMul<int8x16, int16x8, uint8_t, uint16_t, 0>;
-static auto s2s_SimdI16x8ExtMulHighI8x16U =
-    s2s_DoSimdExtMul<int8x16, int16x8, uint8_t, uint16_t, 8>;
-static auto s2s_SimdI32x4ExtMulLowI16x8S =
-    s2s_DoSimdExtMul<int16x8, int32x4, int16_t, int32_t, 0>;
-static auto s2s_SimdI32x4ExtMulHighI16x8S =
-    s2s_DoSimdExtMul<int16x8, int32x4, int16_t, int32_t, 4>;
-static auto s2s_SimdI32x4ExtMulLowI16x8U =
-    s2s_DoSimdExtMul<int16x8, int32x4, uint16_t, uint32_t, 0>;
-static auto s2s_SimdI32x4ExtMulHighI16x8U =
-    s2s_DoSimdExtMul<int16x8, int32x4, uint16_t, uint32_t, 4>;
-static auto s2s_SimdI64x2ExtMulLowI32x4S =
-    s2s_DoSimdExtMul<int32x4, int64x2, int32_t, int64_t, 0>;
-static auto s2s_SimdI64x2ExtMulHighI32x4S =
-    s2s_DoSimdExtMul<int32x4, int64x2, int32_t, int64_t, 2>;
-static auto s2s_SimdI64x2ExtMulLowI32x4U =
-    s2s_DoSimdExtMul<int32x4, int64x2, uint32_t, uint64_t, 0>;
-static auto s2s_SimdI64x2ExtMulHighI32x4U =
-    s2s_DoSimdExtMul<int32x4, int64x2, uint32_t, uint64_t, 2>;
+  static auto constexpr s2s_SimdI16x8ExtMulLowI8x16S =
+      s2s_DoSimdExtMul<int8x16, int16x8, int8_t, int16_t, 0>;
+  static auto constexpr s2s_SimdI16x8ExtMulHighI8x16S =
+      s2s_DoSimdExtMul<int8x16, int16x8, int8_t, int16_t, 8>;
+  static auto constexpr s2s_SimdI16x8ExtMulLowI8x16U =
+      s2s_DoSimdExtMul<int8x16, int16x8, uint8_t, uint16_t, 0>;
+  static auto constexpr s2s_SimdI16x8ExtMulHighI8x16U =
+      s2s_DoSimdExtMul<int8x16, int16x8, uint8_t, uint16_t, 8>;
+  static auto constexpr s2s_SimdI32x4ExtMulLowI16x8S =
+      s2s_DoSimdExtMul<int16x8, int32x4, int16_t, int32_t, 0>;
+  static auto constexpr s2s_SimdI32x4ExtMulHighI16x8S =
+      s2s_DoSimdExtMul<int16x8, int32x4, int16_t, int32_t, 4>;
+  static auto constexpr s2s_SimdI32x4ExtMulLowI16x8U =
+      s2s_DoSimdExtMul<int16x8, int32x4, uint16_t, uint32_t, 0>;
+  static auto constexpr s2s_SimdI32x4ExtMulHighI16x8U =
+      s2s_DoSimdExtMul<int16x8, int32x4, uint16_t, uint32_t, 4>;
+  static auto constexpr s2s_SimdI64x2ExtMulLowI32x4S =
+      s2s_DoSimdExtMul<int32x4, int64x2, int32_t, int64_t, 0>;
+  static auto constexpr s2s_SimdI64x2ExtMulHighI32x4S =
+      s2s_DoSimdExtMul<int32x4, int64x2, int32_t, int64_t, 2>;
+  static auto constexpr s2s_SimdI64x2ExtMulLowI32x4U =
+      s2s_DoSimdExtMul<int32x4, int64x2, uint32_t, uint64_t, 0>;
+  static auto constexpr s2s_SimdI64x2ExtMulHighI32x4U =
+      s2s_DoSimdExtMul<int32x4, int64x2, uint32_t, uint64_t, 2>;
 #undef EXT_MUL_CASE
 
 #define CONVERT_CASE(op, src_type, name, dst_type, count, start_index, ctype, \
@@ -4235,46 +5050,53 @@ static auto s2s_SimdI64x2ExtMulHighI32x4U =
     push<Simd128>(sp, code, wasm_runtime, Simd128(res));                      \
     NextOp();                                                                 \
   }
-CONVERT_CASE(F32x4SConvertI32x4, int32x4, i32x4, float32x4, 4, 0, int32_t,
-             static_cast<float>(a))
-CONVERT_CASE(F32x4UConvertI32x4, int32x4, i32x4, float32x4, 4, 0, uint32_t,
-             static_cast<float>(a))
-CONVERT_CASE(I32x4SConvertF32x4, float32x4, f32x4, int32x4, 4, 0, float,
-             base::saturated_cast<int32_t>(a))
-CONVERT_CASE(I32x4UConvertF32x4, float32x4, f32x4, int32x4, 4, 0, float,
-             base::saturated_cast<uint32_t>(a))
-CONVERT_CASE(I32x4RelaxedTruncF32x4S, float32x4, f32x4, int32x4, 4, 0, float,
-             base::saturated_cast<int32_t>(a))
-CONVERT_CASE(I32x4RelaxedTruncF32x4U, float32x4, f32x4, int32x4, 4, 0, float,
-             base::saturated_cast<uint32_t>(a))
-CONVERT_CASE(I64x2SConvertI32x4Low, int32x4, i32x4, int64x2, 2, 0, int32_t, a)
-CONVERT_CASE(I64x2SConvertI32x4High, int32x4, i32x4, int64x2, 2, 2, int32_t, a)
-CONVERT_CASE(I64x2UConvertI32x4Low, int32x4, i32x4, int64x2, 2, 0, uint32_t, a)
-CONVERT_CASE(I64x2UConvertI32x4High, int32x4, i32x4, int64x2, 2, 2, uint32_t, a)
-CONVERT_CASE(I32x4SConvertI16x8High, int16x8, i16x8, int32x4, 4, 4, int16_t, a)
-CONVERT_CASE(I32x4UConvertI16x8High, int16x8, i16x8, int32x4, 4, 4, uint16_t, a)
-CONVERT_CASE(I32x4SConvertI16x8Low, int16x8, i16x8, int32x4, 4, 0, int16_t, a)
-CONVERT_CASE(I32x4UConvertI16x8Low, int16x8, i16x8, int32x4, 4, 0, uint16_t, a)
-CONVERT_CASE(I16x8SConvertI8x16High, int8x16, i8x16, int16x8, 8, 8, int8_t, a)
-CONVERT_CASE(I16x8UConvertI8x16High, int8x16, i8x16, int16x8, 8, 8, uint8_t, a)
-CONVERT_CASE(I16x8SConvertI8x16Low, int8x16, i8x16, int16x8, 8, 0, int8_t, a)
-CONVERT_CASE(I16x8UConvertI8x16Low, int8x16, i8x16, int16x8, 8, 0, uint8_t, a)
-CONVERT_CASE(F64x2ConvertLowI32x4S, int32x4, i32x4, float64x2, 2, 0, int32_t,
-             static_cast<double>(a))
-CONVERT_CASE(F64x2ConvertLowI32x4U, int32x4, i32x4, float64x2, 2, 0, uint32_t,
-             static_cast<double>(a))
-CONVERT_CASE(I32x4TruncSatF64x2SZero, float64x2, f64x2, int32x4, 2, 0, double,
-             base::saturated_cast<int32_t>(a))
-CONVERT_CASE(I32x4TruncSatF64x2UZero, float64x2, f64x2, int32x4, 2, 0, double,
-             base::saturated_cast<uint32_t>(a))
-CONVERT_CASE(I32x4RelaxedTruncF64x2SZero, float64x2, f64x2, int32x4, 2, 0,
-             double, base::saturated_cast<int32_t>(a))
-CONVERT_CASE(I32x4RelaxedTruncF64x2UZero, float64x2, f64x2, int32x4, 2, 0,
-             double, base::saturated_cast<uint32_t>(a))
-CONVERT_CASE(F32x4DemoteF64x2Zero, float64x2, f64x2, float32x4, 2, 0, float,
-             DoubleToFloat32(a))
-CONVERT_CASE(F64x2PromoteLowF32x4, float32x4, f32x4, float64x2, 2, 0, float,
-             static_cast<double>(a))
+  CONVERT_CASE(F32x4SConvertI32x4, int32x4, i32x4, float32x4, 4, 0, int32_t,
+               static_cast<float>(a))
+  CONVERT_CASE(F32x4UConvertI32x4, int32x4, i32x4, float32x4, 4, 0, uint32_t,
+               static_cast<float>(a))
+  CONVERT_CASE(I32x4SConvertF32x4, float32x4, f32x4, int32x4, 4, 0, float,
+               base::saturated_cast<int32_t>(a))
+  CONVERT_CASE(I32x4UConvertF32x4, float32x4, f32x4, int32x4, 4, 0, float,
+               base::saturated_cast<uint32_t>(a))
+  CONVERT_CASE(I32x4RelaxedTruncF32x4S, float32x4, f32x4, int32x4, 4, 0, float,
+               base::saturated_cast<int32_t>(a))
+  CONVERT_CASE(I32x4RelaxedTruncF32x4U, float32x4, f32x4, int32x4, 4, 0, float,
+               base::saturated_cast<uint32_t>(a))
+  CONVERT_CASE(I64x2SConvertI32x4Low, int32x4, i32x4, int64x2, 2, 0, int32_t, a)
+  CONVERT_CASE(I64x2SConvertI32x4High, int32x4, i32x4, int64x2, 2, 2, int32_t,
+               a)
+  CONVERT_CASE(I64x2UConvertI32x4Low, int32x4, i32x4, int64x2, 2, 0, uint32_t,
+               a)
+  CONVERT_CASE(I64x2UConvertI32x4High, int32x4, i32x4, int64x2, 2, 2, uint32_t,
+               a)
+  CONVERT_CASE(I32x4SConvertI16x8High, int16x8, i16x8, int32x4, 4, 4, int16_t,
+               a)
+  CONVERT_CASE(I32x4UConvertI16x8High, int16x8, i16x8, int32x4, 4, 4, uint16_t,
+               a)
+  CONVERT_CASE(I32x4SConvertI16x8Low, int16x8, i16x8, int32x4, 4, 0, int16_t, a)
+  CONVERT_CASE(I32x4UConvertI16x8Low, int16x8, i16x8, int32x4, 4, 0, uint16_t,
+               a)
+  CONVERT_CASE(I16x8SConvertI8x16High, int8x16, i8x16, int16x8, 8, 8, int8_t, a)
+  CONVERT_CASE(I16x8UConvertI8x16High, int8x16, i8x16, int16x8, 8, 8, uint8_t,
+               a)
+  CONVERT_CASE(I16x8SConvertI8x16Low, int8x16, i8x16, int16x8, 8, 0, int8_t, a)
+  CONVERT_CASE(I16x8UConvertI8x16Low, int8x16, i8x16, int16x8, 8, 0, uint8_t, a)
+  CONVERT_CASE(F64x2ConvertLowI32x4S, int32x4, i32x4, float64x2, 2, 0, int32_t,
+               static_cast<double>(a))
+  CONVERT_CASE(F64x2ConvertLowI32x4U, int32x4, i32x4, float64x2, 2, 0, uint32_t,
+               static_cast<double>(a))
+  CONVERT_CASE(I32x4TruncSatF64x2SZero, float64x2, f64x2, int32x4, 2, 0, double,
+               base::saturated_cast<int32_t>(a))
+  CONVERT_CASE(I32x4TruncSatF64x2UZero, float64x2, f64x2, int32x4, 2, 0, double,
+               base::saturated_cast<uint32_t>(a))
+  CONVERT_CASE(I32x4RelaxedTruncF64x2SZero, float64x2, f64x2, int32x4, 2, 0,
+               double, base::saturated_cast<int32_t>(a))
+  CONVERT_CASE(I32x4RelaxedTruncF64x2UZero, float64x2, f64x2, int32x4, 2, 0,
+               double, base::saturated_cast<uint32_t>(a))
+  CONVERT_CASE(F32x4DemoteF64x2Zero, float64x2, f64x2, float32x4, 2, 0, float,
+               DoubleToFloat32(a))
+  CONVERT_CASE(F64x2PromoteLowF32x4, float32x4, f32x4, float64x2, 2, 0, float,
+               static_cast<double>(a))
 #undef CONVERT_CASE
 
 #define PACK_CASE(op, src_type, name, dst_type, count, dst_ctype)             \
@@ -4292,126 +5114,126 @@ CONVERT_CASE(F64x2PromoteLowF32x4, float32x4, f32x4, float64x2, 2, 0, float,
     push<Simd128>(sp, code, wasm_runtime, Simd128(res));                      \
     NextOp();                                                                 \
   }
-PACK_CASE(I16x8SConvertI32x4, int32x4, i32x4, int16x8, 8, int16_t)
-PACK_CASE(I16x8UConvertI32x4, int32x4, i32x4, int16x8, 8, uint16_t)
-PACK_CASE(I8x16SConvertI16x8, int16x8, i16x8, int8x16, 16, int8_t)
-PACK_CASE(I8x16UConvertI16x8, int16x8, i16x8, int8x16, 16, uint8_t)
+  PACK_CASE(I16x8SConvertI32x4, int32x4, i32x4, int16x8, 8, int16_t)
+  PACK_CASE(I16x8UConvertI32x4, int32x4, i32x4, int16x8, 8, uint16_t)
+  PACK_CASE(I8x16SConvertI16x8, int16x8, i16x8, int8x16, 16, int8_t)
+  PACK_CASE(I8x16UConvertI16x8, int16x8, i16x8, int8x16, 16, uint8_t)
 #undef PACK_CASE
 
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdSelect(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  int32x4 bool_val = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
-  int32x4 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
-  int32x4 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
-  int32x4 res;
-  for (size_t i = 0; i < 4; ++i) {
-    res.val[LANE(i, res)] =
-        v2.val[LANE(i, v2)] ^ ((v1.val[LANE(i, v1)] ^ v2.val[LANE(i, v2)]) &
-                               bool_val.val[LANE(i, bool_val)]);
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdSelect(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int32x4 bool_val = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
+    int32x4 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
+    int32x4 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
+    int32x4 res;
+    for (size_t i = 0; i < 4; ++i) {
+      res.val[LANE(i, res)] =
+          v2.val[LANE(i, v2)] ^ ((v1.val[LANE(i, v1)] ^ v2.val[LANE(i, v2)]) &
+                                 bool_val.val[LANE(i, bool_val)]);
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
-// Do these 5 instructions really have the same implementation?
-static auto s2s_SimdI8x16RelaxedLaneSelect = s2s_DoSimdSelect;
-static auto s2s_SimdI16x8RelaxedLaneSelect = s2s_DoSimdSelect;
-static auto s2s_SimdI32x4RelaxedLaneSelect = s2s_DoSimdSelect;
-static auto s2s_SimdI64x2RelaxedLaneSelect = s2s_DoSimdSelect;
-static auto s2s_SimdS128Select = s2s_DoSimdSelect;
+  // Do these 5 instructions really have the same implementation?
+  static constexpr auto s2s_SimdI8x16RelaxedLaneSelect = s2s_DoSimdSelect;
+  static constexpr auto s2s_SimdI16x8RelaxedLaneSelect = s2s_DoSimdSelect;
+  static constexpr auto s2s_SimdI32x4RelaxedLaneSelect = s2s_DoSimdSelect;
+  static constexpr auto s2s_SimdI64x2RelaxedLaneSelect = s2s_DoSimdSelect;
+  static constexpr auto s2s_SimdS128Select = s2s_DoSimdSelect;
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdI32x4DotI16x8S(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int16x8 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i16x8();
-  int16x8 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i16x8();
-  int32x4 res;
-  for (size_t i = 0; i < 4; i++) {
-    int32_t lo = (v1.val[LANE(i * 2, v1)] * v2.val[LANE(i * 2, v2)]);
-    int32_t hi = (v1.val[LANE(i * 2 + 1, v1)] * v2.val[LANE(i * 2 + 1, v2)]);
-    res.val[LANE(i, res)] = base::AddWithWraparound(lo, hi);
+  INSTRUCTION_HANDLER_FUNC s2s_SimdI32x4DotI16x8S(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int16x8 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i16x8();
+    int16x8 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i16x8();
+    int32x4 res;
+    for (size_t i = 0; i < 4; i++) {
+      int32_t lo = (v1.val[LANE(i * 2, v1)] * v2.val[LANE(i * 2, v2)]);
+      int32_t hi = (v1.val[LANE(i * 2 + 1, v1)] * v2.val[LANE(i * 2 + 1, v2)]);
+      res.val[LANE(i, res)] = base::AddWithWraparound(lo, hi);
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdI16x8DotI8x16I7x16S(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int16x8 res;
-  for (size_t i = 0; i < 8; i++) {
-    int16_t lo = (v1.val[LANE(i * 2, v1)] * v2.val[LANE(i * 2, v2)]);
-    int16_t hi = (v1.val[LANE(i * 2 + 1, v1)] * v2.val[LANE(i * 2 + 1, v2)]);
-    res.val[LANE(i, res)] = base::AddWithWraparound(lo, hi);
+  INSTRUCTION_HANDLER_FUNC s2s_SimdI16x8DotI8x16I7x16S(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int16x8 res;
+    for (size_t i = 0; i < 8; i++) {
+      int16_t lo = (v1.val[LANE(i * 2, v1)] * v2.val[LANE(i * 2, v2)]);
+      int16_t hi = (v1.val[LANE(i * 2 + 1, v1)] * v2.val[LANE(i * 2 + 1, v2)]);
+      res.val[LANE(i, res)] = base::AddWithWraparound(lo, hi);
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdI32x4DotI8x16I7x16AddS(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int32x4 v3 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
-  int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int32x4 res;
-  for (size_t i = 0; i < 4; i++) {
-    int32_t a = (v1.val[LANE(i * 4, v1)] * v2.val[LANE(i * 4, v2)]);
-    int32_t b = (v1.val[LANE(i * 4 + 1, v1)] * v2.val[LANE(i * 4 + 1, v2)]);
-    int32_t c = (v1.val[LANE(i * 4 + 2, v1)] * v2.val[LANE(i * 4 + 2, v2)]);
-    int32_t d = (v1.val[LANE(i * 4 + 3, v1)] * v2.val[LANE(i * 4 + 3, v2)]);
-    int32_t acc = v3.val[LANE(i, v3)];
-    // a + b + c + d should not wrap
-    res.val[LANE(i, res)] = base::AddWithWraparound(a + b + c + d, acc);
+  INSTRUCTION_HANDLER_FUNC s2s_SimdI32x4DotI8x16I7x16AddS(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int32x4 v3 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
+    int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int32x4 res;
+    for (size_t i = 0; i < 4; i++) {
+      int32_t a = (v1.val[LANE(i * 4, v1)] * v2.val[LANE(i * 4, v2)]);
+      int32_t b = (v1.val[LANE(i * 4 + 1, v1)] * v2.val[LANE(i * 4 + 1, v2)]);
+      int32_t c = (v1.val[LANE(i * 4 + 2, v1)] * v2.val[LANE(i * 4 + 2, v2)]);
+      int32_t d = (v1.val[LANE(i * 4 + 3, v1)] * v2.val[LANE(i * 4 + 3, v2)]);
+      int32_t acc = v3.val[LANE(i, v3)];
+      // a + b + c + d should not wrap
+      res.val[LANE(i, res)] = base::AddWithWraparound(a + b + c + d, acc);
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdI8x16Swizzle(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 res;
-  for (size_t i = 0; i < kSimd128Size; ++i) {
-    int lane = v2.val[LANE(i, v2)];
-    res.val[LANE(i, res)] =
-        lane < kSimd128Size && lane >= 0 ? v1.val[LANE(lane, v1)] : 0;
+  INSTRUCTION_HANDLER_FUNC s2s_SimdI8x16Swizzle(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 res;
+    for (size_t i = 0; i < kSimd128Size; ++i) {
+      int lane = v2.val[LANE(i, v2)];
+      res.val[LANE(i, res)] =
+          lane < kSimd128Size && lane >= 0 ? v1.val[LANE(lane, v1)] : 0;
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
-static auto s2s_SimdI8x16RelaxedSwizzle = s2s_SimdI8x16Swizzle;
+  static constexpr auto s2s_SimdI8x16RelaxedSwizzle = s2s_SimdI8x16Swizzle;
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdI8x16Shuffle(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int8x16 value = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
-  int8x16 res;
-  for (size_t i = 0; i < kSimd128Size; ++i) {
-    int lane = value.val[i];
-    res.val[LANE(i, res)] = lane < kSimd128Size
-                                ? v1.val[LANE(lane, v1)]
-                                : v2.val[LANE(lane - kSimd128Size, v2)];
+  INSTRUCTION_HANDLER_FUNC s2s_SimdI8x16Shuffle(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int8x16 value = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 v2 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 v1 = pop<Simd128>(sp, code, wasm_runtime).to_i8x16();
+    int8x16 res;
+    for (size_t i = 0; i < kSimd128Size; ++i) {
+      int lane = value.val[i];
+      res.val[LANE(i, res)] = lane < kSimd128Size
+                                  ? v1.val[LANE(lane, v1)]
+                                  : v2.val[LANE(lane - kSimd128Size, v2)];
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-  NextOp();
-}
 
-INSTRUCTION_HANDLER_FUNC s2s_SimdV128AnyTrue(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  int32x4 s = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
-  bool res = s.val[LANE(0, s)] | s.val[LANE(1, s)] | s.val[LANE(2, s)] |
-             s.val[LANE(3, s)];
-  push<int32_t>(sp, code, wasm_runtime, res);
-  NextOp();
-}
+  INSTRUCTION_HANDLER_FUNC s2s_SimdV128AnyTrue(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int32x4 s = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
+    bool res = s.val[LANE(0, s)] | s.val[LANE(1, s)] | s.val[LANE(2, s)] |
+               s.val[LANE(3, s)];
+    push<int32_t>(sp, code, wasm_runtime, res);
+    NextOp();
+  }
 
 #define REDUCTION_CASE(op, name, stype, count)                                \
   INSTRUCTION_HANDLER_FUNC s2s_Simd##op(const uint8_t* code, uint32_t* sp,    \
@@ -4425,10 +5247,10 @@ INSTRUCTION_HANDLER_FUNC s2s_SimdV128AnyTrue(
     push<int32_t>(sp, code, wasm_runtime, res);                               \
     NextOp();                                                                 \
   }
-REDUCTION_CASE(I64x2AllTrue, i64x2, int64x2, 2)
-REDUCTION_CASE(I32x4AllTrue, i32x4, int32x4, 4)
-REDUCTION_CASE(I16x8AllTrue, i16x8, int16x8, 8)
-REDUCTION_CASE(I8x16AllTrue, i8x16, int8x16, 16)
+  REDUCTION_CASE(I64x2AllTrue, i64x2, int64x2, 2)
+  REDUCTION_CASE(I32x4AllTrue, i32x4, int32x4, 4)
+  REDUCTION_CASE(I16x8AllTrue, i16x8, int16x8, 8)
+  REDUCTION_CASE(I8x16AllTrue, i8x16, int8x16, 16)
 #undef REDUCTION_CASE
 
 #define QFM_CASE(op, name, stype, count, operation)                           \
@@ -4447,1590 +5269,1762 @@ REDUCTION_CASE(I8x16AllTrue, i8x16, int8x16, 16)
     push<Simd128>(sp, code, wasm_runtime, Simd128(res));                      \
     NextOp();                                                                 \
   }
-QFM_CASE(F32x4Qfma, f32x4, float32x4, 4, +)
-QFM_CASE(F32x4Qfms, f32x4, float32x4, 4, -)
-QFM_CASE(F64x2Qfma, f64x2, float64x2, 2, +)
-QFM_CASE(F64x2Qfms, f64x2, float64x2, 2, -)
+  QFM_CASE(F32x4Qfma, f32x4, float32x4, 4, +)
+  QFM_CASE(F32x4Qfms, f32x4, float32x4, 4, -)
+  QFM_CASE(F64x2Qfma, f64x2, float64x2, 2, +)
+  QFM_CASE(F64x2Qfms, f64x2, float64x2, 2, -)
 #undef QFM_CASE
 
-template <typename s_type, typename load_type>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadSplat(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
+  template <typename s_type, typename load_type, typename MemIdx,
+            typename MemOffsetT>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadSplat(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
 
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index,
-                                              sizeof(load_type),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(load_type),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+    load_type v =
+        base::ReadUnalignedValue<load_type>(reinterpret_cast<Address>(address));
+    s_type s;
+    for (size_t i = 0; i < arraysize(s.val); i++) {
+      s.val[LANE(i, s)] = v;
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+
+    NextOp();
   }
+  static auto constexpr s2s_SimdS128Load8Splat =
+      s2s_DoSimdLoadSplat<int8x16, int8_t, uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load8Splat_Idx64 =
+      s2s_DoSimdLoadSplat<int8x16, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load16Splat =
+      s2s_DoSimdLoadSplat<int16x8, int16_t, uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load16Splat_Idx64 =
+      s2s_DoSimdLoadSplat<int16x8, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load32Splat =
+      s2s_DoSimdLoadSplat<int32x4, int32_t, uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load32Splat_Idx64 =
+      s2s_DoSimdLoadSplat<int32x4, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load64Splat =
+      s2s_DoSimdLoadSplat<int64x2, int64_t, uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load64Splat_Idx64 =
+      s2s_DoSimdLoadSplat<int64x2, int64_t, uint64_t, memory_offset64_t>;
 
-  uint8_t* address = memory_start + effective_index;
-  load_type v =
-      base::ReadUnalignedValue<load_type>(reinterpret_cast<Address>(address));
-  s_type s;
-  for (size_t i = 0; i < arraysize(s.val); i++) {
-    s.val[LANE(i, s)] = v;
+  template <typename s_type, typename wide_type, typename narrow_type,
+            typename MemIdx, typename MemOffsetT>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadExtend(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    static_assert(sizeof(wide_type) == sizeof(narrow_type) * 2,
+                  "size mismatch for wide and narrow types");
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
+
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    // Load 8 bytes and sign/zero extend to 16 bytes.
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+    uint64_t v =
+        base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(address));
+    constexpr int lanes = kSimd128Size / sizeof(wide_type);
+    s_type s;
+    for (int i = 0; i < lanes; i++) {
+      uint8_t shift = i * (sizeof(narrow_type) * 8);
+      narrow_type el = static_cast<narrow_type>(v >> shift);
+      s.val[LANE(i, s)] = static_cast<wide_type>(el);
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+  static auto constexpr s2s_SimdS128Load8x8S =
+      s2s_DoSimdLoadExtend<int16x8, int16_t, int8_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load8x8S_Idx64 =
+      s2s_DoSimdLoadExtend<int16x8, int16_t, int8_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load8x8U =
+      s2s_DoSimdLoadExtend<int16x8, uint16_t, uint8_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load8x8U_Idx64 =
+      s2s_DoSimdLoadExtend<int16x8, uint16_t, uint8_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load16x4S =
+      s2s_DoSimdLoadExtend<int32x4, int32_t, int16_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load16x4S_Idx64 =
+      s2s_DoSimdLoadExtend<int32x4, int32_t, int16_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load16x4U =
+      s2s_DoSimdLoadExtend<int32x4, uint32_t, uint16_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load16x4U_Idx64 =
+      s2s_DoSimdLoadExtend<int32x4, uint32_t, uint16_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load32x2S =
+      s2s_DoSimdLoadExtend<int64x2, int64_t, int32_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load32x2S_Idx64 =
+      s2s_DoSimdLoadExtend<int64x2, int64_t, int32_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load32x2U =
+      s2s_DoSimdLoadExtend<int64x2, uint64_t, uint32_t, uint32_t,
+                           memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load32x2U_Idx64 =
+      s2s_DoSimdLoadExtend<int64x2, uint64_t, uint32_t, uint32_t,
+                           memory_offset32_t>;
 
-  NextOp();
-}
-static auto s2s_SimdS128Load8Splat = s2s_DoSimdLoadSplat<int8x16, int8_t>;
-static auto s2s_SimdS128Load16Splat = s2s_DoSimdLoadSplat<int16x8, int16_t>;
-static auto s2s_SimdS128Load32Splat = s2s_DoSimdLoadSplat<int32x4, int32_t>;
-static auto s2s_SimdS128Load64Splat = s2s_DoSimdLoadSplat<int64x2, int64_t>;
+  template <typename s_type, typename load_type, typename MemIdx,
+            typename MemOffsetT>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadZeroExtend(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
 
-template <typename s_type, typename wide_type, typename narrow_type>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadExtend(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  static_assert(sizeof(wide_type) == sizeof(narrow_type) * 2,
-                "size mismatch for wide and narrow types");
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
 
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
+    // Load a single 32-bit or 64-bit element into the lowest bits of a v128
+    // vector, and initialize all other bits of the v128 vector to zero.
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(load_type),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index, sizeof(uint64_t),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+    uint8_t* address = memory_start + effective_index;
+    load_type v =
+        base::ReadUnalignedValue<load_type>(reinterpret_cast<Address>(address));
+    s_type s;
+    // All lanes are 0.
+    for (size_t i = 0; i < arraysize(s.val); i++) {
+      s.val[LANE(i, s)] = 0;
+    }
+    // Lane 0 is set to the loaded value.
+    s.val[LANE(0, s)] = v;
+    push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+
+    NextOp();
   }
+  static auto constexpr s2s_SimdS128Load32Zero =
+      s2s_DoSimdLoadZeroExtend<int32x4, uint32_t, uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load32Zero_Idx64 =
+      s2s_DoSimdLoadZeroExtend<int32x4, uint32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load64Zero =
+      s2s_DoSimdLoadZeroExtend<int64x2, uint64_t, uint32_t, memory_offset32_t>;
+  static auto constexpr s2s_SimdS128Load64Zero_Idx64 =
+      s2s_DoSimdLoadZeroExtend<int64x2, uint64_t, uint64_t, memory_offset64_t>;
 
-  uint8_t* address = memory_start + effective_index;
-  uint64_t v =
-      base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(address));
-  constexpr int lanes = kSimd128Size / sizeof(wide_type);
-  s_type s;
-  for (int i = 0; i < lanes; i++) {
-    uint8_t shift = i * (sizeof(narrow_type) * 8);
-    narrow_type el = static_cast<narrow_type>(v >> shift);
-    s.val[LANE(i, s)] = static_cast<wide_type>(el);
+  template <typename s_type, typename memory_type, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadLane(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    s_type value = pop<Simd128>(sp, code, wasm_runtime).template to<s_type>();
+
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
+
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
+
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(memory_type),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+
+    uint8_t* address = memory_start + effective_index;
+    memory_type loaded = base::ReadUnalignedValue<memory_type>(
+        reinterpret_cast<Address>(address));
+    uint16_t lane = Read<uint16_t>(code);
+    value.val[LANE(lane, value)] = loaded;
+    push<Simd128>(sp, code, wasm_runtime, Simd128(value));
+
+    NextOp();
   }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+  static auto constexpr s2s_SimdS128Load8Lane =
+      s2s_DoSimdLoadLane<int8x16, int8_t>;
+  static auto constexpr s2s_SimdS128Load16Lane =
+      s2s_DoSimdLoadLane<int16x8, int16_t>;
+  static auto constexpr s2s_SimdS128Load32Lane =
+      s2s_DoSimdLoadLane<int32x4, int32_t>;
+  static auto constexpr s2s_SimdS128Load64Lane =
+      s2s_DoSimdLoadLane<int64x2, uint64_t>;
+  static auto constexpr s2s_SimdS128Load8Lane_Idx64 =
+      s2s_DoSimdLoadLane<int8x16, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load16Lane_Idx64 =
+      s2s_DoSimdLoadLane<int16x8, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load32Lane_Idx64 =
+      s2s_DoSimdLoadLane<int32x4, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Load64Lane_Idx64 =
+      s2s_DoSimdLoadLane<int64x2, int64_t, uint64_t, memory_offset64_t>;
 
-  NextOp();
-}
-static auto s2s_SimdS128Load8x8S =
-    s2s_DoSimdLoadExtend<int16x8, int16_t, int8_t>;
-static auto s2s_SimdS128Load8x8U =
-    s2s_DoSimdLoadExtend<int16x8, uint16_t, uint8_t>;
-static auto s2s_SimdS128Load16x4S =
-    s2s_DoSimdLoadExtend<int32x4, int32_t, int16_t>;
-static auto s2s_SimdS128Load16x4U =
-    s2s_DoSimdLoadExtend<int32x4, uint32_t, uint16_t>;
-static auto s2s_SimdS128Load32x2S =
-    s2s_DoSimdLoadExtend<int64x2, int64_t, int32_t>;
-static auto s2s_SimdS128Load32x2U =
-    s2s_DoSimdLoadExtend<int64x2, uint64_t, uint32_t>;
+  template <typename s_type, typename memory_type, typename MemIdx = uint32_t,
+            typename MemOffsetT = memory_offset32_t>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdStoreLane(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    // Extract a single lane, push it onto the stack, then store the lane.
+    s_type value = pop<Simd128>(sp, code, wasm_runtime).template to<s_type>();
 
-template <typename s_type, typename load_type>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadZeroExtend(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
+    uint8_t* memory_start = wasm_runtime->GetMemoryStart();
+    uint64_t offset = Read<MemOffsetT>(code);
 
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
+    uint64_t index = pop<MemIdx>(sp, code, wasm_runtime);
+    uint64_t effective_index = offset + index;
 
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index,
-                                              sizeof(load_type),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
+    if (V8_UNLIKELY(
+            effective_index < index ||
+            !base::IsInBounds<uint64_t>(effective_index, sizeof(memory_type),
+                                        wasm_runtime->GetMemorySize()))) {
+      TRAP(TrapReason::kTrapMemOutOfBounds)
+    }
+    uint8_t* address = memory_start + effective_index;
+
+    uint16_t lane = Read<uint16_t>(code);
+    memory_type res = value.val[LANE(lane, value)];
+    base::WriteUnalignedValue<memory_type>(reinterpret_cast<Address>(address),
+                                           res);
+
+    NextOp();
   }
+  static auto constexpr s2s_SimdS128Store8Lane =
+      s2s_DoSimdStoreLane<int8x16, int8_t>;
+  static auto constexpr s2s_SimdS128Store16Lane =
+      s2s_DoSimdStoreLane<int16x8, int16_t>;
+  static auto constexpr s2s_SimdS128Store32Lane =
+      s2s_DoSimdStoreLane<int32x4, int32_t>;
+  static auto constexpr s2s_SimdS128Store64Lane =
+      s2s_DoSimdStoreLane<int64x2, uint64_t>;
+  static auto constexpr s2s_SimdS128Store8Lane_Idx64 =
+      s2s_DoSimdStoreLane<int8x16, int8_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Store16Lane_Idx64 =
+      s2s_DoSimdStoreLane<int16x8, int16_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Store32Lane_Idx64 =
+      s2s_DoSimdStoreLane<int32x4, int32_t, uint64_t, memory_offset64_t>;
+  static auto constexpr s2s_SimdS128Store64Lane_Idx64 =
+      s2s_DoSimdStoreLane<int64x2, int64_t, uint64_t, memory_offset64_t>;
 
-  uint8_t* address = memory_start + effective_index;
-  load_type v =
-      base::ReadUnalignedValue<load_type>(reinterpret_cast<Address>(address));
-  s_type s;
-  // All lanes are 0.
-  for (size_t i = 0; i < arraysize(s.val); i++) {
-    s.val[LANE(i, s)] = 0;
+  template <typename DstSimdType, typename SrcSimdType, typename Wide,
+            typename Narrow>
+  INSTRUCTION_HANDLER_FUNC s2s_DoSimdExtAddPairwise(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    constexpr int lanes = kSimd128Size / sizeof(DstSimdType::val[0]);
+    auto v = pop<Simd128>(sp, code, wasm_runtime).template to<SrcSimdType>();
+    DstSimdType res;
+    for (int i = 0; i < lanes; ++i) {
+      res.val[LANE(i, res)] =
+          AddLong<Wide>(static_cast<Narrow>(v.val[LANE(i * 2, v)]),
+                        static_cast<Narrow>(v.val[LANE(i * 2 + 1, v)]));
+    }
+    push<Simd128>(sp, code, wasm_runtime, Simd128(res));
+
+    NextOp();
   }
-  // Lane 0 is set to the loaded value.
-  s.val[LANE(0, s)] = v;
-  push<Simd128>(sp, code, wasm_runtime, Simd128(s));
+  static auto constexpr s2s_SimdI32x4ExtAddPairwiseI16x8S =
+      s2s_DoSimdExtAddPairwise<int32x4, int16x8, int32_t, int16_t>;
+  static auto constexpr s2s_SimdI32x4ExtAddPairwiseI16x8U =
+      s2s_DoSimdExtAddPairwise<int32x4, int16x8, uint32_t, uint16_t>;
+  static auto constexpr s2s_SimdI16x8ExtAddPairwiseI8x16S =
+      s2s_DoSimdExtAddPairwise<int16x8, int8x16, int16_t, int8_t>;
+  static auto constexpr s2s_SimdI16x8ExtAddPairwiseI8x16U =
+      s2s_DoSimdExtAddPairwise<int16x8, int8x16, uint16_t, uint8_t>;
 
-  NextOp();
-}
-static auto s2s_SimdS128Load32Zero =
-    s2s_DoSimdLoadZeroExtend<int32x4, uint32_t>;
-static auto s2s_SimdS128Load64Zero =
-    s2s_DoSimdLoadZeroExtend<int64x2, uint64_t>;
+  ////////////////////////////////////////////////////////////////////////////////
 
-template <typename s_type, typename result_type, typename load_type>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdLoadLane(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  s_type value = pop<Simd128>(sp, code, wasm_runtime).to<s_type>();
-
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index,
-                                              sizeof(load_type),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-
-  uint8_t* address = memory_start + effective_index;
-  result_type loaded =
-      base::ReadUnalignedValue<load_type>(reinterpret_cast<Address>(address));
-  uint16_t lane = Read<uint16_t>(code);
-  value.val[LANE(lane, value)] = loaded;
-  push<Simd128>(sp, code, wasm_runtime, Simd128(value));
-
-  NextOp();
-}
-static auto s2s_SimdS128Load8Lane =
-    s2s_DoSimdLoadLane<int8x16, int32_t, int8_t>;
-static auto s2s_SimdS128Load16Lane =
-    s2s_DoSimdLoadLane<int16x8, int32_t, int16_t>;
-static auto s2s_SimdS128Load32Lane =
-    s2s_DoSimdLoadLane<int32x4, int32_t, int32_t>;
-static auto s2s_SimdS128Load64Lane =
-    s2s_DoSimdLoadLane<int64x2, int64_t, int64_t>;
-
-template <typename s_type, typename result_type, typename load_type>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdStoreLane(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  // Extract a single lane, push it onto the stack, then store the lane.
-  s_type value = pop<Simd128>(sp, code, wasm_runtime).to<s_type>();
-
-  uint8_t* memory_start = wasm_runtime->GetMemoryStart();
-  uint64_t offset = Read<uint64_t>(code);
-
-  uint64_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  uint64_t effective_index = offset + index;
-
-  if (V8_UNLIKELY(effective_index < index ||
-                  !base::IsInBounds<uint64_t>(effective_index,
-                                              sizeof(load_type),
-                                              wasm_runtime->GetMemorySize()))) {
-    TRAP(TrapReason::kTrapMemOutOfBounds)
-  }
-  uint8_t* address = memory_start + effective_index;
-
-  uint16_t lane = Read<uint16_t>(code);
-  result_type res = value.val[LANE(lane, value)];
-  base::WriteUnalignedValue<result_type>(reinterpret_cast<Address>(address),
-                                         res);
-
-  NextOp();
-}
-static auto s2s_SimdS128Store8Lane =
-    s2s_DoSimdStoreLane<int8x16, int32_t, int8_t>;
-static auto s2s_SimdS128Store16Lane =
-    s2s_DoSimdStoreLane<int16x8, int32_t, int16_t>;
-static auto s2s_SimdS128Store32Lane =
-    s2s_DoSimdStoreLane<int32x4, int32_t, int32_t>;
-static auto s2s_SimdS128Store64Lane =
-    s2s_DoSimdStoreLane<int64x2, int64_t, int64_t>;
-
-template <typename DstSimdType, typename SrcSimdType, typename Wide,
-          typename Narrow>
-INSTRUCTION_HANDLER_FUNC s2s_DoSimdExtAddPairwise(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  constexpr int lanes = kSimd128Size / sizeof(DstSimdType::val[0]);
-  auto v = pop<Simd128>(sp, code, wasm_runtime).to<SrcSimdType>();
-  DstSimdType res;
-  for (int i = 0; i < lanes; ++i) {
-    res.val[LANE(i, res)] =
-        AddLong<Wide>(static_cast<Narrow>(v.val[LANE(i * 2, v)]),
-                      static_cast<Narrow>(v.val[LANE(i * 2 + 1, v)]));
-  }
-  push<Simd128>(sp, code, wasm_runtime, Simd128(res));
-
-  NextOp();
-}
-static auto s2s_SimdI32x4ExtAddPairwiseI16x8S =
-    s2s_DoSimdExtAddPairwise<int32x4, int16x8, int32_t, int16_t>;
-static auto s2s_SimdI32x4ExtAddPairwiseI16x8U =
-    s2s_DoSimdExtAddPairwise<int32x4, int16x8, uint32_t, uint16_t>;
-static auto s2s_SimdI16x8ExtAddPairwiseI8x16S =
-    s2s_DoSimdExtAddPairwise<int16x8, int8x16, int16_t, int8_t>;
-static auto s2s_SimdI16x8ExtAddPairwiseI8x16U =
-    s2s_DoSimdExtAddPairwise<int16x8, int8x16, uint16_t, uint8_t>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-INSTRUCTION_HANDLER_FUNC s2s_Throw(const uint8_t* code, uint32_t* sp,
-                                   WasmInterpreterRuntime* wasm_runtime,
-                                   int64_t r0, double fp0) {
-  uint32_t tag_index = ReadI32(code);
-
-  // This will advance the code pointer.
-  wasm_runtime->ThrowException(code, sp, tag_index);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_Rethrow(const uint8_t* code, uint32_t* sp,
+  // Allocate, initialize and throw a new exception. The exception values are
+  // being popped off the operand stack.
+  INSTRUCTION_HANDLER_FUNC s2s_Throw(const uint8_t* code, uint32_t* sp,
                                      WasmInterpreterRuntime* wasm_runtime,
                                      int64_t r0, double fp0) {
-  uint32_t catch_block_index = ReadI32(code);
-  wasm_runtime->RethrowException(code, sp, catch_block_index);
-
-  NextOp();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// GC instruction handlers.
-
-int StructFieldOffset(const StructType* struct_type, int field_index) {
-  return wasm::ObjectAccess::ToTagged(WasmStruct::kHeaderSize +
-                                      struct_type->field_offset(field_index));
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_BranchOnNull(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  // TODO(paolosev@microsoft.com): Implement peek<T>?
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  int32_t if_null_offset = ReadI32(code);
-  if (wasm_runtime->IsNullTypecheck(ref, ref_type)) {
-    // If condition is true (ref is null), jump to the target branch.
-    code += (if_null_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-/*
- * Notice that in s2s_BranchOnNullWithParams the branch happens when the
- * condition is false, not true, as follows:
- *
- *   > s2s_BranchOnNullWithParams
- *       pop - ref
- *       i32: ref value_tye
- *       push - ref
- *       branch_offset (if NOT NULL)  ----+
- *   > s2s_CopySlot                       |
- *       ....                             |
- *   > s2s_Branch (gets here if NULL)     |
- *       branch_offset                    |
- *   > (next instruction) <---------------+
- */
-INSTRUCTION_HANDLER_FUNC s2s_BranchOnNullWithParams(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  // TO(paolosev@microsoft.com): Implement peek<T>?
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  int32_t if_null_offset = ReadI32(code);
-  if (!wasm_runtime->IsNullTypecheck(ref, ref_type)) {
-    // If condition is false (ref is not null), jump to the false branch.
-    code += (if_null_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_BranchOnNonNull(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  // TO(paolosev@microsoft.com): Implement peek<T>?
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  int32_t if_non_null_offset = ReadI32(code);
-  if (!wasm_runtime->IsNullTypecheck(ref, ref_type)) {
-    // If condition is true (ref is not null), jump to the target branch.
-    code += (if_non_null_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_BranchOnNonNullWithParams(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  // TO(paolosev@microsoft.com): Implement peek<T>?
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  int32_t if_non_null_offset = ReadI32(code);
-  if (wasm_runtime->IsNullTypecheck(ref, ref_type)) {
-    // If condition is false (ref is null), jump to the false branch.
-    code += (if_non_null_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-bool DoRefCast(WasmRef ref, ValueType ref_type, HeapType target_type,
-               bool null_succeeds, WasmInterpreterRuntime* wasm_runtime) {
-  if (target_type.is_index()) {
-    Handle<Map> rtt = wasm_runtime->RttCanon(target_type.ref_index());
-    return wasm_runtime->SubtypeCheck(ref, ref_type, rtt,
-                                      ValueType::Rtt(target_type.ref_index()),
-                                      null_succeeds);
-  } else {
-    switch (target_type.representation()) {
-      case HeapType::kEq:
-        return wasm_runtime->RefIsEq(ref, ref_type, null_succeeds);
-      case HeapType::kI31:
-        return wasm_runtime->RefIsI31(ref, ref_type, null_succeeds);
-      case HeapType::kStruct:
-        return wasm_runtime->RefIsStruct(ref, ref_type, null_succeeds);
-      case HeapType::kArray:
-        return wasm_runtime->RefIsArray(ref, ref_type, null_succeeds);
-      case HeapType::kString:
-        return wasm_runtime->RefIsString(ref, ref_type, null_succeeds);
-      case HeapType::kNone:
-      case HeapType::kNoExtern:
-      case HeapType::kNoFunc:
-        DCHECK(null_succeeds);
-        return wasm_runtime->IsNullTypecheck(ref, ref_type);
-      case HeapType::kAny:
-        // Any may never need a cast as it is either implicitly convertible or
-        // never convertible for any given type.
-      default:
-        UNREACHABLE();
-    }
-  }
-}
-
-/*
- * Notice that in s2s_BranchOnCast the branch happens when the condition is
- * false, not true, as follows:
- *
- *   > s2s_BranchOnCast
- *       i32: null_succeeds
- *       i32: target_type HeapType representation
- *       pop - ref
- *       i32: ref value_tye
- *       push - ref
- *       branch_offset (if CAST FAILS) --------+
- *   > s2s_CopySlot                            |
- *       ....                                  |
- *   > s2s_Branch (gets here if CAST SUCCEEDS) |
- *       branch_offset                         |
- *   > (next instruction) <--------------------+
- */
-INSTRUCTION_HANDLER_FUNC s2s_BranchOnCast(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  bool null_succeeds = ReadI32(code);
-  HeapType target_type(ReadI32(code));
-
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-  int32_t no_branch_offset = ReadI32(code);
-
-  if (!DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime)) {
-    // If condition is not true, jump to the 'false' branch.
-    code += (no_branch_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-/*
- * Notice that in s2s_BranchOnCastFail the branch happens when the condition is
- * false, not true, as follows:
- *
- *   > s2s_BranchOnCastFail
- *       i32: null_succeeds
- *       i32: target_type HeapType representation
- *       pop - ref
- *       i32: ref value_tye
- *       push - ref
- *       branch_offset (if CAST SUCCEEDS) --+
- *   > s2s_CopySlot                         |
- *       ....                               |
- *   > s2s_Branch (gets here if CAST FAILS) |
- *       branch_offset                      |
- *   > (next instruction) <-----------------+
- */
-INSTRUCTION_HANDLER_FUNC s2s_BranchOnCastFail(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  bool null_succeeds = ReadI32(code);
-  HeapType target_type(ReadI32(code));
-
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-  int32_t branch_offset = ReadI32(code);
-
-  if (DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime)) {
-    // If condition is true, jump to the 'true' branch.
-    code += (branch_offset - kCodeOffsetSize);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_CallRef(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  WasmRef func_ref = pop<WasmRef>(sp, code, wasm_runtime);
-  uint32_t sig_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(func_ref))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-
-  // This can trap.
-  wasm_runtime->ExecuteCallRef(code, func_ref, sig_index, stack_pos, sp,
-                               ref_stack_fp_offset, slot_offset,
-                               return_slot_offset, false);
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ReturnCallRef(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  uint32_t rets_size = ReadI32(code);
-  uint32_t args_size = ReadI32(code);
-  uint32_t rets_refs = ReadI32(code);
-  uint32_t args_refs = ReadI32(code);
-
-  WasmRef func_ref = pop<WasmRef>(sp, code, wasm_runtime);
-  uint32_t sig_index = ReadI32(code);
-  uint32_t stack_pos = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  uint32_t ref_stack_fp_offset = ReadI32(code);
-  uint32_t return_slot_offset = 0;
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-  if (v8_flags.trace_drumbrake_execution) {
-    return_slot_offset = ReadI32(code);
-  }
-#endif  // V8_ENABLE_DRUMBRAKE_TRACING
-
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(func_ref))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-
-  // Moves back the stack frame to the caller stack frame.
-  wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
-                                        rets_refs, args_refs,
-                                        ref_stack_fp_offset);
-
-  // TODO(paolosev@microsoft.com) - This calls adds a new C++ stack frame, which
-  // is not ideal in a tail-call.
-  wasm_runtime->ExecuteCallRef(code, func_ref, sig_index, stack_pos, sp, 0, 0,
-                               return_slot_offset, true);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_StructNew(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t index = ReadI32(code);
-  std::pair<Handle<WasmStruct>, const StructType*> struct_new_result =
-      wasm_runtime->StructNewUninitialized(index);
-  Handle<Object> struct_obj = struct_new_result.first;
-  const StructType* struct_type = struct_new_result.second;
-
-  {
-    // The new struct is uninitialized, which means GC might fail until
-    // initialization.
-    DisallowHeapAllocation no_gc;
-
-    for (uint32_t i = struct_type->field_count(); i > 0;) {
-      i--;
-      int offset = StructFieldOffset(struct_type, i);
-      Address field_addr = (*struct_obj).ptr() + offset;
-
-      ValueKind kind = struct_type->field(i).kind();
-      switch (kind) {
-        case kI8:
-          *reinterpret_cast<int8_t*>(field_addr) =
-              pop<int32_t>(sp, code, wasm_runtime);
-          break;
-        case kI16:
-          base::WriteUnalignedValue<int16_t>(
-              field_addr, pop<int32_t>(sp, code, wasm_runtime));
-          break;
-        case kI32:
-          base::WriteUnalignedValue<int32_t>(
-              field_addr, pop<int32_t>(sp, code, wasm_runtime));
-          break;
-        case kI64:
-          base::WriteUnalignedValue<int64_t>(
-              field_addr, pop<int64_t>(sp, code, wasm_runtime));
-          break;
-        case kF32:
-          base::WriteUnalignedValue<float>(field_addr,
-                                           pop<float>(sp, code, wasm_runtime));
-          break;
-        case kF64:
-          base::WriteUnalignedValue<double>(
-              field_addr, pop<double>(sp, code, wasm_runtime));
-          break;
-        case kS128:
-          base::WriteUnalignedValue<Simd128>(
-              field_addr, pop<Simd128>(sp, code, wasm_runtime));
-          break;
-        case kRef:
-        case kRefNull: {
-          WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-          base::WriteUnalignedValue<Tagged_t>(
-              field_addr,
-              V8HeapCompressionScheme::CompressObject((*ref).ptr()));
-          break;
-        }
-        default:
-          UNREACHABLE();
-      }
-    }
-  }
-
-  push<WasmRef>(sp, code, wasm_runtime, struct_obj);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_StructNewDefault(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t index = ReadI32(code);
-  std::pair<Handle<WasmStruct>, const StructType*> struct_new_result =
-      wasm_runtime->StructNewUninitialized(index);
-  Handle<Object> struct_obj = struct_new_result.first;
-  const StructType* struct_type = struct_new_result.second;
-
-  {
-    // The new struct is uninitialized, which means GC might fail until
-    // initialization.
-    DisallowHeapAllocation no_gc;
-
-    for (uint32_t i = struct_type->field_count(); i > 0;) {
-      i--;
-      int offset = StructFieldOffset(struct_type, i);
-      Address field_addr = (*struct_obj).ptr() + offset;
-
-      const ValueType value_type = struct_type->field(i);
-      const ValueKind kind = value_type.kind();
-      switch (kind) {
-        case kI8:
-          *reinterpret_cast<int8_t*>(field_addr) = int8_t{};
-          break;
-        case kI16:
-          base::WriteUnalignedValue<int16_t>(field_addr, int16_t{});
-          break;
-        case kI32:
-          base::WriteUnalignedValue<int32_t>(field_addr, int32_t{});
-          break;
-        case kI64:
-          base::WriteUnalignedValue<int64_t>(field_addr, int64_t{});
-          break;
-        case kF32:
-          base::WriteUnalignedValue<float>(field_addr, float{});
-          break;
-        case kF64:
-          base::WriteUnalignedValue<double>(field_addr, double{});
-          break;
-        case kS128:
-          base::WriteUnalignedValue<Simd128>(field_addr, Simd128{});
-          break;
-        case kRef:
-        case kRefNull:
-          base::WriteUnalignedValue<Tagged_t>(
-              field_addr, static_cast<Tagged_t>(
-                              wasm_runtime->GetNullValue(value_type).ptr()));
-          break;
-        default:
-          UNREACHABLE();
-      }
-    }
-  }
-
-  push<WasmRef>(sp, code, wasm_runtime, struct_obj);
-
-  NextOp();
-}
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_StructGet(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
-
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  int offset = ReadI32(code);
-  Address field_addr = (*struct_obj).ptr() + offset;
-  push<T>(sp, code, wasm_runtime, base::ReadUnalignedValue<U>(field_addr));
-
-  NextOp();
-}
-static auto s2s_I8SStructGet = s2s_StructGet<int32_t, int8_t>;
-static auto s2s_I8UStructGet = s2s_StructGet<uint32_t, uint8_t>;
-static auto s2s_I16SStructGet = s2s_StructGet<int32_t, int16_t>;
-static auto s2s_I16UStructGet = s2s_StructGet<uint32_t, uint16_t>;
-static auto s2s_I32StructGet = s2s_StructGet<int32_t>;
-static auto s2s_I64StructGet = s2s_StructGet<int64_t>;
-static auto s2s_F32StructGet = s2s_StructGet<float>;
-static auto s2s_F64StructGet = s2s_StructGet<double>;
-static auto s2s_S128StructGet = s2s_StructGet<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefStructGet(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  int offset = ReadI32(code);
-  Address field_addr = (*struct_obj).ptr() + offset;
-  // DrumBrake expects pointer compression.
-  Tagged_t ref_tagged = base::ReadUnalignedValue<uint32_t>(field_addr);
-  Isolate* isolate = wasm_runtime->GetIsolate();
-  Tagged<Object> ref_uncompressed(
-      V8HeapCompressionScheme::DecompressTagged(isolate, ref_tagged));
-  WasmRef ref_handle = handle(ref_uncompressed, isolate);
-  push<WasmRef>(sp, code, wasm_runtime, ref_handle);
-
-  NextOp();
-}
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_StructSet(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  int offset = ReadI32(code);
-  T value = pop<T>(sp, code, wasm_runtime);
-  WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  Address field_addr = (*struct_obj).ptr() + offset;
-  base::WriteUnalignedValue<U>(field_addr, value);
-
-  NextOp();
-}
-static auto s2s_I8StructSet = s2s_StructSet<int32_t, int8_t>;
-static auto s2s_I16StructSet = s2s_StructSet<int32_t, int16_t>;
-static auto s2s_I32StructSet = s2s_StructSet<int32_t>;
-static auto s2s_I64StructSet = s2s_StructSet<int64_t>;
-static auto s2s_F32StructSet = s2s_StructSet<float>;
-static auto s2s_F64StructSet = s2s_StructSet<double>;
-static auto s2s_S128StructSet = s2s_StructSet<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefStructSet(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  int offset = ReadI32(code);
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  Address field_addr = (*struct_obj).ptr() + offset;
-  base::WriteUnalignedValue<Tagged_t>(
-      field_addr, V8HeapCompressionScheme::CompressObject((*ref).ptr()));
-
-  NextOp();
-}
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_ArrayNew(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  const uint32_t array_index = ReadI32(code);
-  const uint32_t elem_count = pop<int32_t>(sp, code, wasm_runtime);
-  const T value = pop<T>(sp, code, wasm_runtime);
-
-  std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
-      wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
-  Handle<WasmArray> array = array_new_result.first;
-  if (V8_UNLIKELY(array.is_null())) {
-    TRAP(TrapReason::kTrapArrayTooLarge)
-  }
-
-  {
-    // The new array is uninitialized, which means GC might fail until
-    // initialization.
-    DisallowHeapAllocation no_gc;
-
-    const ArrayType* array_type = array_new_result.second;
-    const ValueKind kind = array_type->element_type().kind();
-    const uint32_t element_size = value_kind_size(kind);
-    DCHECK_EQ(element_size, sizeof(U));
-
-    Address element_addr = array->ElementAddress(0);
-    for (uint32_t i = 0; i < elem_count; i++) {
-      base::WriteUnalignedValue<U>(element_addr, value);
-      element_addr += element_size;
-    }
-  }
-
-  push<WasmRef>(sp, code, wasm_runtime, array);
-
-  NextOp();
-}
-static auto s2s_I8ArrayNew = s2s_ArrayNew<int32_t, int8_t>;
-static auto s2s_I16ArrayNew = s2s_ArrayNew<int32_t, int16_t>;
-static auto s2s_I32ArrayNew = s2s_ArrayNew<int32_t>;
-static auto s2s_I64ArrayNew = s2s_ArrayNew<int64_t>;
-static auto s2s_F32ArrayNew = s2s_ArrayNew<float>;
-static auto s2s_F64ArrayNew = s2s_ArrayNew<double>;
-static auto s2s_S128ArrayNew = s2s_ArrayNew<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefArrayNew(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  const uint32_t array_index = ReadI32(code);
-  const uint32_t elem_count = pop<int32_t>(sp, code, wasm_runtime);
-  const WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
-
-  std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
-      wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
-  Handle<WasmArray> array = array_new_result.first;
-  if (V8_UNLIKELY(array.is_null())) {
-    TRAP(TrapReason::kTrapArrayTooLarge)
-  }
-
-#if DEBUG
-  const ArrayType* array_type = array_new_result.second;
-  DCHECK_EQ(value_kind_size(array_type->element_type().kind()),
-            sizeof(Tagged_t));
-#endif
-
-  {
-    // The new array is uninitialized, which means GC might fail until
-    // initialization.
-    DisallowHeapAllocation no_gc;
-
-    Address element_addr = array->ElementAddress(0);
-    for (uint32_t i = 0; i < elem_count; i++) {
-      base::WriteUnalignedValue<Tagged_t>(
-          element_addr,
-          V8HeapCompressionScheme::CompressObject((*value).ptr()));
-      element_addr += sizeof(Tagged_t);
-    }
-  }
-
-  push<WasmRef>(sp, code, wasm_runtime, array);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ArrayNewFixed(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  const uint32_t array_index = ReadI32(code);
-  const uint32_t elem_count = ReadI32(code);
-
-  std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
-      wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
-  Handle<WasmArray> array = array_new_result.first;
-  if (V8_UNLIKELY(array.is_null())) {
-    TRAP(TrapReason::kTrapArrayTooLarge)
-  }
-
-  {
-    // The new array is uninitialized, which means GC might fail until
-    // initialization.
-    DisallowHeapAllocation no_gc;
-
-    if (elem_count > 0) {
-      const ArrayType* array_type = array_new_result.second;
-      const ValueKind kind = array_type->element_type().kind();
-      const uint32_t element_size = value_kind_size(kind);
-
-      Address element_addr = array->ElementAddress(elem_count - 1);
-      for (uint32_t i = 0; i < elem_count; i++) {
-        switch (kind) {
-          case kI8:
-            *reinterpret_cast<int8_t*>(element_addr) =
-                pop<int32_t>(sp, code, wasm_runtime);
+    Isolate* isolate = wasm_runtime->GetIsolate();
+    {
+      HandleScope handle_scope(isolate);  // Avoid leaking handles.
+
+      uint32_t tag_index = Read<int32_t>(code);
+
+      Handle<WasmExceptionPackage> exception_object =
+          wasm_runtime->CreateWasmExceptionPackage(tag_index);
+      Handle<FixedArray> encoded_values = Cast<FixedArray>(
+          WasmExceptionPackage::GetExceptionValues(isolate, exception_object));
+
+      // Encode the exception values on the operand stack into the exception
+      // package allocated above.
+      const WasmTagSig* sig = wasm_runtime->GetWasmTag(tag_index).sig;
+      uint32_t encoded_index = 0;
+      for (size_t index = 0; index < sig->parameter_count(); index++) {
+        switch (sig->GetParam(index).kind()) {
+          case kI32: {
+            uint32_t u32 = pop<uint32_t>(sp, code, wasm_runtime);
+            EncodeI32ExceptionValue(encoded_values, &encoded_index, u32);
             break;
-          case kI16:
-            base::WriteUnalignedValue<int16_t>(
-                element_addr, pop<int32_t>(sp, code, wasm_runtime));
+          }
+          case kF32: {
+            float f32 = pop<float>(sp, code, wasm_runtime);
+            EncodeI32ExceptionValue(encoded_values, &encoded_index,
+                                    *reinterpret_cast<uint32_t*>(&f32));
             break;
-          case kI32:
-            base::WriteUnalignedValue<int32_t>(
-                element_addr, pop<int32_t>(sp, code, wasm_runtime));
+          }
+          case kI64: {
+            uint64_t u64 = pop<uint64_t>(sp, code, wasm_runtime);
+            EncodeI64ExceptionValue(encoded_values, &encoded_index, u64);
             break;
-          case kI64:
-            base::WriteUnalignedValue<int64_t>(
-                element_addr, pop<int64_t>(sp, code, wasm_runtime));
+          }
+          case kF64: {
+            double f64 = pop<double>(sp, code, wasm_runtime);
+            EncodeI64ExceptionValue(encoded_values, &encoded_index,
+                                    *reinterpret_cast<uint64_t*>(&f64));
             break;
-          case kF32:
-            base::WriteUnalignedValue<float>(
-                element_addr, pop<float>(sp, code, wasm_runtime));
+          }
+          case kS128: {
+            int32x4 s128 = pop<Simd128>(sp, code, wasm_runtime).to_i32x4();
+            EncodeI32ExceptionValue(encoded_values, &encoded_index,
+                                    s128.val[0]);
+            EncodeI32ExceptionValue(encoded_values, &encoded_index,
+                                    s128.val[1]);
+            EncodeI32ExceptionValue(encoded_values, &encoded_index,
+                                    s128.val[2]);
+            EncodeI32ExceptionValue(encoded_values, &encoded_index,
+                                    s128.val[3]);
             break;
-          case kF64:
-            base::WriteUnalignedValue<double>(
-                element_addr, pop<double>(sp, code, wasm_runtime));
-            break;
-          case kS128:
-            base::WriteUnalignedValue<Simd128>(
-                element_addr, pop<Simd128>(sp, code, wasm_runtime));
-            break;
+          }
           case kRef:
           case kRefNull: {
-            WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-            base::WriteUnalignedValue<Tagged_t>(
-                element_addr,
-                V8HeapCompressionScheme::CompressObject((*ref).ptr()));
+            Handle<Object> ref = pop<WasmRef>(sp, code, wasm_runtime);
+            if (IsWasmNull(*ref, isolate)) {
+              ref = handle(ReadOnlyRoots(isolate).null_value(), isolate);
+            }
+            encoded_values->set(encoded_index++, *ref);
             break;
           }
           default:
             UNREACHABLE();
         }
-        element_addr -= element_size;
+      }
+
+      wasm_runtime->ThrowException(code, sp, *exception_object);
+    }
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_Rethrow(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    uint32_t catch_block_index = Read<int32_t>(code);
+    wasm_runtime->RethrowException(code, sp, catch_block_index);
+
+    NextOp();
+  }
+
+  //////////////////////////////////////////////////////////////////////////////
+  // GC instruction handlers.
+
+  INSTRUCTION_HANDLER_FUNC s2s_BranchOnNull(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    // TODO(paolosev@microsoft.com): Implement peek<T>?
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    int32_t if_null_offset = Read<int32_t>(code);
+    if (wasm_runtime->IsNullTypecheck(ref, ref_type)) {
+      // If condition is true (ref is null), jump to the target branch.
+      code += (if_null_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  /*
+   * Notice that in s2s_BranchOnNullWithParams the branch happens when the
+   * condition is false, not true, as follows:
+   *
+   *   > s2s_BranchOnNullWithParams
+   *       pop - ref
+   *       i32: ref value_tye
+   *       push - ref
+   *       branch_offset (if NOT NULL)  ----+
+   *   > s2s_CopySlot                       |
+   *       ....                             |
+   *   > s2s_Branch (gets here if NULL)     |
+   *       branch_offset                    |
+   *   > (next instruction) <---------------+
+   */
+  INSTRUCTION_HANDLER_FUNC s2s_BranchOnNullWithParams(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    // TO(paolosev@microsoft.com): Implement peek<T>?
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    int32_t if_null_offset = Read<int32_t>(code);
+    if (!wasm_runtime->IsNullTypecheck(ref, ref_type)) {
+      // If condition is false (ref is not null), jump to the false branch.
+      code += (if_null_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_BranchOnNonNull(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    // TO(paolosev@microsoft.com): Implement peek<T>?
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    int32_t if_non_null_offset = Read<int32_t>(code);
+    if (!wasm_runtime->IsNullTypecheck(ref, ref_type)) {
+      // If condition is true (ref is not null), jump to the target branch.
+      code += (if_non_null_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_BranchOnNonNullWithParams(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    // TO(paolosev@microsoft.com): Implement peek<T>?
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    int32_t if_non_null_offset = Read<int32_t>(code);
+    if (wasm_runtime->IsNullTypecheck(ref, ref_type)) {
+      // If condition is false (ref is null), jump to the false branch.
+      code += (if_non_null_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  static bool DoRefCast(WasmRef ref, ValueType ref_type, HeapType target_type,
+                        bool null_succeeds,
+                        WasmInterpreterRuntime* wasm_runtime) {
+    if (target_type.is_index()) {
+      Handle<Map> rtt = wasm_runtime->RttCanon(target_type.ref_index().index);
+      return wasm_runtime->SubtypeCheck(ref, ref_type, rtt,
+                                        ValueType::Rtt(target_type.ref_index()),
+                                        null_succeeds);
+    } else {
+      switch (target_type.representation()) {
+        case HeapType::kEq:
+          return wasm_runtime->RefIsEq(ref, ref_type, null_succeeds);
+        case HeapType::kI31:
+          return wasm_runtime->RefIsI31(ref, ref_type, null_succeeds);
+        case HeapType::kStruct:
+          return wasm_runtime->RefIsStruct(ref, ref_type, null_succeeds);
+        case HeapType::kArray:
+          return wasm_runtime->RefIsArray(ref, ref_type, null_succeeds);
+        case HeapType::kString:
+          return wasm_runtime->RefIsString(ref, ref_type, null_succeeds);
+        case HeapType::kNone:
+        case HeapType::kNoExtern:
+        case HeapType::kNoFunc:
+          DCHECK(null_succeeds);
+          return wasm_runtime->IsNullTypecheck(ref, ref_type);
+        case HeapType::kAny:
+          // Any may never need a cast as it is either implicitly convertible or
+          // never convertible for any given type.
+        default:
+          UNREACHABLE();
       }
     }
   }
 
-  push<WasmRef>(sp, code, wasm_runtime, array);
+  /*
+   * Notice that in s2s_BranchOnCast the branch happens when the condition is
+   * false, not true, as follows:
+   *
+   *   > s2s_BranchOnCast
+   *       i32: null_succeeds
+   *       i32: target_type HeapType representation
+   *       pop - ref
+   *       i32: ref value_tye
+   *       push - ref
+   *       branch_offset (if CAST FAILS) --------+
+   *   > s2s_CopySlot                            |
+   *       ....                                  |
+   *   > s2s_Branch (gets here if CAST SUCCEEDS) |
+   *       branch_offset                         |
+   *   > (next instruction) <--------------------+
+   */
+  INSTRUCTION_HANDLER_FUNC s2s_BranchOnCast(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    bool null_succeeds = Read<int32_t>(code);
+    HeapType target_type(
+        ModuleTypeIndex({static_cast<uint32_t>(Read<int32_t>(code))}));
 
-  NextOp();
-}
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+    int32_t no_branch_offset = Read<int32_t>(code);
 
-INSTRUCTION_HANDLER_FUNC
-s2s_ArrayNewDefault(const uint8_t* code, uint32_t* sp,
-                    WasmInterpreterRuntime* wasm_runtime, int64_t r0,
-                    double fp0) {
-  const uint32_t array_index = ReadI32(code);
-  const uint32_t elem_count = pop<int32_t>(sp, code, wasm_runtime);
+    if (!DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime)) {
+      // If condition is not true, jump to the 'false' branch.
+      code += (no_branch_offset - kCodeOffsetSize);
+    }
 
-  std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
-      wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
-  Handle<WasmArray> array = array_new_result.first;
-  if (V8_UNLIKELY(array.is_null())) {
-    TRAP(TrapReason::kTrapArrayTooLarge)
+    NextOp();
   }
 
-  {
-    // The new array is uninitialized, which means GC might fail until
-    // initialization.
-    DisallowHeapAllocation no_gc;
+  /*
+   * Notice that in s2s_BranchOnCastFail the branch happens when the condition
+   * is false, not true, as follows:
+   *
+   *   > s2s_BranchOnCastFail
+   *       i32: null_succeeds
+   *       i32: target_type HeapType representation
+   *       pop - ref
+   *       i32: ref value_tye
+   *       push - ref
+   *       branch_offset (if CAST SUCCEEDS) --+
+   *   > s2s_CopySlot                         |
+   *       ....                               |
+   *   > s2s_Branch (gets here if CAST FAILS) |
+   *       branch_offset                      |
+   *   > (next instruction) <-----------------+
+   */
+  INSTRUCTION_HANDLER_FUNC s2s_BranchOnCastFail(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    bool null_succeeds = Read<int32_t>(code);
+    HeapType target_type(
+        ModuleTypeIndex({static_cast<uint32_t>(Read<int32_t>(code))}));
 
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+    int32_t branch_offset = Read<int32_t>(code);
+
+    if (DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime)) {
+      // If condition is true, jump to the 'true' branch.
+      code += (branch_offset - kCodeOffsetSize);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_CallRef(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    WasmRef func_ref = pop<WasmRef>(sp, code, wasm_runtime);
+    uint32_t sig_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(func_ref))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+
+    // This can trap.
+    wasm_runtime->ExecuteCallRef(code, func_ref, sig_index, stack_pos, sp,
+                                 ref_stack_fp_offset, slot_offset,
+                                 return_slot_offset, false);
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ReturnCallRef(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t rets_size = Read<slot_offset_t>(code);
+    slot_offset_t args_size = Read<slot_offset_t>(code);
+    uint32_t rets_refs = Read<int32_t>(code);
+    uint32_t args_refs = Read<int32_t>(code);
+
+    WasmRef func_ref = pop<WasmRef>(sp, code, wasm_runtime);
+    uint32_t sig_index = Read<int32_t>(code);
+    uint32_t stack_pos = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    uint32_t ref_stack_fp_offset = Read<int32_t>(code);
+    slot_offset_t return_slot_offset = 0;
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+    if (v8_flags.trace_drumbrake_execution) {
+      return_slot_offset = Read<slot_offset_t>(code);
+    }
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(func_ref))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+
+    // Moves back the stack frame to the caller stack frame.
+    wasm_runtime->UnwindCurrentStackFrame(sp, slot_offset, rets_size, args_size,
+                                          rets_refs, args_refs,
+                                          ref_stack_fp_offset);
+
+    // TODO(paolosev@microsoft.com) - This calls adds a new C++ stack frame,
+    // which is not ideal in a tail-call.
+    wasm_runtime->ExecuteCallRef(code, func_ref, sig_index, stack_pos, sp, 0, 0,
+                                 return_slot_offset, true);
+
+    NextOp();
+  }
+
+  static void StoreRefIntoMemory(Tagged<HeapObject> host, Address dst_addr,
+                                 uint32_t offset, Tagged<Object> value,
+                                 WriteBarrierMode mode) {
+    DCHECK_EQ(dst_addr, host.ptr() + offset - kHeapObjectTag);
+
+    // Only stores the lower 32-bit.
+    base::WriteUnalignedValue<Tagged_t>(
+        dst_addr, V8HeapCompressionScheme::CompressObject(value.ptr()));
+
+    // Need to generate a GC write barrier.
+    CONDITIONAL_WRITE_BARRIER(host, offset, value, mode);
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_StructNew(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t index = Read<int32_t>(code);
+    std::pair<Handle<WasmStruct>, const StructType*> struct_new_result =
+        wasm_runtime->StructNewUninitialized(index);
+    Handle<HeapObject> struct_obj = struct_new_result.first;
+    const StructType* struct_type = struct_new_result.second;
+
+    {
+      // The new struct is uninitialized, which means GC might fail until
+      // initialization.
+      DisallowHeapAllocation no_gc;
+
+      for (uint32_t i = struct_type->field_count(); i > 0;) {
+        i--;
+        int field_offset = StructFieldOffset(struct_type, i);
+        Address field_addr = (*struct_obj).ptr() + field_offset;
+
+        ValueKind kind = struct_type->field(i).kind();
+        switch (kind) {
+          case kI8:
+            *reinterpret_cast<int8_t*>(field_addr) =
+                pop<int32_t>(sp, code, wasm_runtime);
+            break;
+          case kI16:
+            base::WriteUnalignedValue<int16_t>(
+                field_addr, pop<int32_t>(sp, code, wasm_runtime));
+            break;
+          case kI32:
+            base::WriteUnalignedValue<int32_t>(
+                field_addr, pop<int32_t>(sp, code, wasm_runtime));
+            break;
+          case kI64:
+            base::WriteUnalignedValue<int64_t>(
+                field_addr, pop<int64_t>(sp, code, wasm_runtime));
+            break;
+          case kF32:
+            base::WriteUnalignedValue<float>(
+                field_addr, pop<float>(sp, code, wasm_runtime));
+            break;
+          case kF64:
+            base::WriteUnalignedValue<double>(
+                field_addr, pop<double>(sp, code, wasm_runtime));
+            break;
+          case kS128:
+            base::WriteUnalignedValue<Simd128>(
+                field_addr, pop<Simd128>(sp, code, wasm_runtime));
+            break;
+          case kRef:
+          case kRefNull: {
+            WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+            StoreRefIntoMemory(
+                *struct_obj, field_addr,
+                field_offset + kHeapObjectTag,  // field_offset is offset into
+                                                // tagged object.
+                *ref, SKIP_WRITE_BARRIER);
+            break;
+          }
+          default:
+            UNREACHABLE();
+        }
+      }
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, struct_obj);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_StructNewDefault(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t index = Read<int32_t>(code);
+    std::pair<Handle<WasmStruct>, const StructType*> struct_new_result =
+        wasm_runtime->StructNewUninitialized(index);
+    Handle<HeapObject> struct_obj = struct_new_result.first;
+    const StructType* struct_type = struct_new_result.second;
+
+    {
+      // The new struct is uninitialized, which means GC might fail until
+      // initialization.
+      DisallowHeapAllocation no_gc;
+
+      for (uint32_t i = struct_type->field_count(); i > 0;) {
+        i--;
+        int field_offset = StructFieldOffset(struct_type, i);
+        Address field_addr = (*struct_obj).ptr() + field_offset;
+
+        const ValueType value_type = struct_type->field(i);
+        const ValueKind kind = value_type.kind();
+        switch (kind) {
+          case kI8:
+            *reinterpret_cast<int8_t*>(field_addr) = int8_t{};
+            break;
+          case kI16:
+            base::WriteUnalignedValue<int16_t>(field_addr, int16_t{});
+            break;
+          case kI32:
+            base::WriteUnalignedValue<int32_t>(field_addr, int32_t{});
+            break;
+          case kI64:
+            base::WriteUnalignedValue<int64_t>(field_addr, int64_t{});
+            break;
+          case kF32:
+            base::WriteUnalignedValue<float>(field_addr, float{});
+            break;
+          case kF64:
+            base::WriteUnalignedValue<double>(field_addr, double{});
+            break;
+          case kS128:
+            base::WriteUnalignedValue<Simd128>(field_addr, Simd128{});
+            break;
+          case kRef:
+          case kRefNull:
+            StoreRefIntoMemory(
+                *struct_obj, field_addr,
+                field_offset + kHeapObjectTag,  // field_offset is offset into
+                                                // tagged object.
+                wasm_runtime->GetNullValue(value_type), SKIP_WRITE_BARRIER);
+            break;
+          default:
+            UNREACHABLE();
+        }
+      }
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, struct_obj);
+
+    NextOp();
+  }
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_StructGet(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
+
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    int offset = Read<int32_t>(code);
+    Address field_addr = (*struct_obj).ptr() + offset;
+    push<T>(sp, code, wasm_runtime, base::ReadUnalignedValue<U>(field_addr));
+
+    NextOp();
+  }
+  static auto constexpr s2s_I8SStructGet = s2s_StructGet<int32_t, int8_t>;
+  static auto constexpr s2s_I8UStructGet = s2s_StructGet<uint32_t, uint8_t>;
+  static auto constexpr s2s_I16SStructGet = s2s_StructGet<int32_t, int16_t>;
+  static auto constexpr s2s_I16UStructGet = s2s_StructGet<uint32_t, uint16_t>;
+  static auto constexpr s2s_I32StructGet = s2s_StructGet<int32_t>;
+  static auto constexpr s2s_I64StructGet = s2s_StructGet<int64_t>;
+  static auto constexpr s2s_F32StructGet = s2s_StructGet<float>;
+  static auto constexpr s2s_F64StructGet = s2s_StructGet<double>;
+  static auto constexpr s2s_S128StructGet = s2s_StructGet<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefStructGet(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    int offset = Read<int32_t>(code);
+    Address field_addr = (*struct_obj).ptr() + offset;
+    // DrumBrake expects pointer compression.
+    Tagged_t ref_tagged = base::ReadUnalignedValue<uint32_t>(field_addr);
+    Isolate* isolate = wasm_runtime->GetIsolate();
+    Tagged<Object> ref_uncompressed(
+        V8HeapCompressionScheme::DecompressTagged(isolate, ref_tagged));
+    WasmRef ref_handle = handle(ref_uncompressed, isolate);
+    push<WasmRef>(sp, code, wasm_runtime, ref_handle);
+
+    NextOp();
+  }
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_StructSet(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    int offset = Read<int32_t>(code);
+    T value = pop<T>(sp, code, wasm_runtime);
+    WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    Address field_addr = (*struct_obj).ptr() + offset;
+    base::WriteUnalignedValue<U>(field_addr, value);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I8StructSet = s2s_StructSet<int32_t, int8_t>;
+  static auto constexpr s2s_I16StructSet = s2s_StructSet<int32_t, int16_t>;
+  static auto constexpr s2s_I32StructSet = s2s_StructSet<int32_t>;
+  static auto constexpr s2s_I64StructSet = s2s_StructSet<int64_t>;
+  static auto constexpr s2s_F32StructSet = s2s_StructSet<float>;
+  static auto constexpr s2s_F64StructSet = s2s_StructSet<double>;
+  static auto constexpr s2s_S128StructSet = s2s_StructSet<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefStructSet(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    int field_offset = Read<int32_t>(code);
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    WasmRef struct_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(struct_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    Address field_addr = (*struct_obj).ptr() + field_offset;
+    StoreRefIntoMemory(
+        Cast<HeapObject>(*struct_obj), field_addr,
+        field_offset +
+            kHeapObjectTag,  // field_offset is offset into tagged object.
+        *ref, UPDATE_WRITE_BARRIER);
+
+    NextOp();
+  }
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayNew(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    const uint32_t array_index = Read<int32_t>(code);
+    const uint32_t elem_count = pop<int32_t>(sp, code, wasm_runtime);
+    const T value = pop<T>(sp, code, wasm_runtime);
+
+    std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
+        wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
+    Handle<WasmArray> array = array_new_result.first;
+    if (V8_UNLIKELY(array.is_null())) {
+      TRAP(TrapReason::kTrapArrayTooLarge)
+    }
+
+    {
+      // The new array is uninitialized, which means GC might fail until
+      // initialization.
+      DisallowHeapAllocation no_gc;
+
+      const ArrayType* array_type = array_new_result.second;
+      const ValueKind kind = array_type->element_type().kind();
+      const uint32_t element_size = value_kind_size(kind);
+      DCHECK_EQ(element_size, sizeof(U));
+
+      Address element_addr = array->ElementAddress(0);
+      for (uint32_t i = 0; i < elem_count; i++) {
+        base::WriteUnalignedValue<U>(element_addr, value);
+        element_addr += element_size;
+      }
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, array);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I8ArrayNew = s2s_ArrayNew<int32_t, int8_t>;
+  static auto constexpr s2s_I16ArrayNew = s2s_ArrayNew<int32_t, int16_t>;
+  static auto constexpr s2s_I32ArrayNew = s2s_ArrayNew<int32_t>;
+  static auto constexpr s2s_I64ArrayNew = s2s_ArrayNew<int64_t>;
+  static auto constexpr s2s_F32ArrayNew = s2s_ArrayNew<float>;
+  static auto constexpr s2s_F64ArrayNew = s2s_ArrayNew<double>;
+  static auto constexpr s2s_S128ArrayNew = s2s_ArrayNew<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefArrayNew(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    const uint32_t array_index = Read<int32_t>(code);
+    const uint32_t elem_count = pop<int32_t>(sp, code, wasm_runtime);
+    const WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
+
+    std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
+        wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
+    Handle<WasmArray> array = array_new_result.first;
+    if (V8_UNLIKELY(array.is_null())) {
+      TRAP(TrapReason::kTrapArrayTooLarge)
+    }
+
+#if DEBUG
     const ArrayType* array_type = array_new_result.second;
-    const ValueType element_type = array_type->element_type();
-    const ValueKind kind = element_type.kind();
-    const uint32_t element_size = value_kind_size(kind);
+    DCHECK_EQ(value_kind_size(array_type->element_type().kind()),
+              sizeof(Tagged_t));
+#endif
 
-    Address element_addr = array->ElementAddress(0);
-    for (uint32_t i = 0; i < elem_count; i++) {
-      switch (kind) {
-        case kI8:
-          *reinterpret_cast<int8_t*>(element_addr) = int8_t{};
-          break;
-        case kI16:
-          base::WriteUnalignedValue<int16_t>(element_addr, int16_t{});
-          break;
+    {
+      // The new array is uninitialized, which means GC might fail until
+      // initialization.
+      DisallowHeapAllocation no_gc;
+
+      Address element_addr = array->ElementAddress(0);
+      uint32_t element_offset = array->element_offset(0);
+      for (uint32_t i = 0; i < elem_count; i++) {
+        StoreRefIntoMemory(Cast<HeapObject>(*array), element_addr,
+                           element_offset, *value, SKIP_WRITE_BARRIER);
+        element_addr += sizeof(Tagged_t);
+        element_offset += sizeof(Tagged_t);
+      }
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, array);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayNewFixed(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    const uint32_t array_index = Read<int32_t>(code);
+    const uint32_t elem_count = Read<int32_t>(code);
+
+    std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
+        wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
+    Handle<WasmArray> array = array_new_result.first;
+    if (V8_UNLIKELY(array.is_null())) {
+      TRAP(TrapReason::kTrapArrayTooLarge)
+    }
+
+    {
+      // The new array is uninitialized, which means GC might fail until
+      // initialization.
+      DisallowHeapAllocation no_gc;
+
+      if (elem_count > 0) {
+        const ArrayType* array_type = array_new_result.second;
+        const ValueKind kind = array_type->element_type().kind();
+        const uint32_t element_size = value_kind_size(kind);
+
+        Address element_addr = array->ElementAddress(elem_count - 1);
+        uint32_t element_offset = array->element_offset(elem_count - 1);
+        for (uint32_t i = 0; i < elem_count; i++) {
+          switch (kind) {
+            case kI8:
+              *reinterpret_cast<int8_t*>(element_addr) =
+                  pop<int32_t>(sp, code, wasm_runtime);
+              break;
+            case kI16:
+              base::WriteUnalignedValue<int16_t>(
+                  element_addr, pop<int32_t>(sp, code, wasm_runtime));
+              break;
+            case kI32:
+              base::WriteUnalignedValue<int32_t>(
+                  element_addr, pop<int32_t>(sp, code, wasm_runtime));
+              break;
+            case kI64:
+              base::WriteUnalignedValue<int64_t>(
+                  element_addr, pop<int64_t>(sp, code, wasm_runtime));
+              break;
+            case kF32:
+              base::WriteUnalignedValue<float>(
+                  element_addr, pop<float>(sp, code, wasm_runtime));
+              break;
+            case kF64:
+              base::WriteUnalignedValue<double>(
+                  element_addr, pop<double>(sp, code, wasm_runtime));
+              break;
+            case kS128:
+              base::WriteUnalignedValue<Simd128>(
+                  element_addr, pop<Simd128>(sp, code, wasm_runtime));
+              break;
+            case kRef:
+            case kRefNull: {
+              WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+              StoreRefIntoMemory(Cast<HeapObject>(*array), element_addr,
+                                 element_offset, *ref, SKIP_WRITE_BARRIER);
+              break;
+            }
+            default:
+              UNREACHABLE();
+          }
+          element_addr -= element_size;
+          element_offset -= element_size;
+        }
+      }
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, array);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC
+  s2s_ArrayNewDefault(const uint8_t* code, uint32_t* sp,
+                      WasmInterpreterRuntime* wasm_runtime, int64_t r0,
+                      double fp0) {
+    const uint32_t array_index = Read<int32_t>(code);
+    const uint32_t elem_count = pop<int32_t>(sp, code, wasm_runtime);
+
+    std::pair<Handle<WasmArray>, const ArrayType*> array_new_result =
+        wasm_runtime->ArrayNewUninitialized(elem_count, array_index);
+    Handle<WasmArray> array = array_new_result.first;
+    if (V8_UNLIKELY(array.is_null())) {
+      TRAP(TrapReason::kTrapArrayTooLarge)
+    }
+
+    {
+      // The new array is uninitialized, which means GC might fail until
+      // initialization.
+      DisallowHeapAllocation no_gc;
+
+      const ArrayType* array_type = array_new_result.second;
+      const ValueType element_type = array_type->element_type();
+      const ValueKind kind = element_type.kind();
+      const uint32_t element_size = value_kind_size(kind);
+
+      Address element_addr = array->ElementAddress(0);
+      uint32_t element_offset = array->element_offset(0);
+      for (uint32_t i = 0; i < elem_count; i++) {
+        switch (kind) {
+          case kI8:
+            *reinterpret_cast<int8_t*>(element_addr) = int8_t{};
+            break;
+          case kI16:
+            base::WriteUnalignedValue<int16_t>(element_addr, int16_t{});
+            break;
+          case kI32:
+            base::WriteUnalignedValue<int32_t>(element_addr, int32_t{});
+            break;
+          case kI64:
+            base::WriteUnalignedValue<int64_t>(element_addr, int64_t{});
+            break;
+          case kF32:
+            base::WriteUnalignedValue<float>(element_addr, float{});
+            break;
+          case kF64:
+            base::WriteUnalignedValue<double>(element_addr, double{});
+            break;
+          case kS128:
+            base::WriteUnalignedValue<Simd128>(element_addr, Simd128{});
+            break;
+          case kRef:
+          case kRefNull:
+            StoreRefIntoMemory(
+                Cast<HeapObject>(*array), element_addr, element_offset,
+                wasm_runtime->GetNullValue(element_type), SKIP_WRITE_BARRIER);
+            break;
+          default:
+            UNREACHABLE();
+        }
+        element_addr += element_size;
+        element_offset += element_size;
+      }
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, array);
+
+    NextOp();
+  }
+
+  template <TrapReason OutOfBoundsError>
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayNewSegment(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    const uint32_t array_index = Read<int32_t>(code);
+    // TODO(paolosev@microsoft.com): already validated?
+    if (V8_UNLIKELY(!Smi::IsValid(array_index))) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    const uint32_t data_index = Read<int32_t>(code);
+    // TODO(paolosev@microsoft.com): already validated?
+    if (V8_UNLIKELY(!Smi::IsValid(data_index))) {
+      TRAP(OutOfBoundsError)
+    }
+
+    uint32_t length = pop<int32_t>(sp, code, wasm_runtime);
+    uint32_t offset = pop<int32_t>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(!Smi::IsValid(offset))) {
+      TRAP(OutOfBoundsError)
+    }
+    if (V8_UNLIKELY(length >= static_cast<uint32_t>(WasmArray::MaxLength(
+                                  wasm_runtime->GetArrayType(array_index))))) {
+      TRAP(TrapReason::kTrapArrayTooLarge)
+    }
+
+    WasmRef result = wasm_runtime->WasmArrayNewSegment(array_index, data_index,
+                                                       offset, length);
+    if (V8_UNLIKELY(result.is_null())) {
+      wasm::TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
+          wasm_runtime->GetIsolate());
+      INLINED_TRAP(reason)
+    }
+    push<WasmRef>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+  // The instructions array.new_data and array.new_elem have the same
+  // implementation after validation. The only difference is that
+  // array.init_elem is used with arrays that contain elements of reference
+  // types, and array.init_data with arrays that contain elements of numeric
+  // types.
+  static auto constexpr s2s_ArrayNewData =
+      s2s_ArrayNewSegment<kTrapDataSegmentOutOfBounds>;
+  static auto constexpr s2s_ArrayNewElem =
+      s2s_ArrayNewSegment<kTrapElementSegmentOutOfBounds>;
+
+  template <bool init_data>
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayInitSegment(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    const uint32_t array_index = Read<int32_t>(code);
+    // TODO(paolosev@microsoft.com): already validated?
+    if (V8_UNLIKELY(!Smi::IsValid(array_index))) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    const uint32_t data_index = Read<int32_t>(code);
+    // TODO(paolosev@microsoft.com): already validated?
+    if (V8_UNLIKELY(!Smi::IsValid(data_index))) {
+      TRAP(TrapReason::kTrapElementSegmentOutOfBounds)
+    }
+
+    uint32_t size = pop<int32_t>(sp, code, wasm_runtime);
+    uint32_t src_offset = pop<int32_t>(sp, code, wasm_runtime);
+    uint32_t dest_offset = pop<int32_t>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(!Smi::IsValid(size)) || !Smi::IsValid(dest_offset)) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+    if (V8_UNLIKELY(!Smi::IsValid(src_offset))) {
+      TrapReason reason = init_data
+                              ? TrapReason::kTrapDataSegmentOutOfBounds
+                              : TrapReason::kTrapElementSegmentOutOfBounds;
+      INLINED_TRAP(reason);
+    }
+
+    WasmRef array = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+
+    bool ok = wasm_runtime->WasmArrayInitSegment(data_index, array, dest_offset,
+                                                 src_offset, size);
+    if (V8_UNLIKELY(!ok)) {
+      TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
+          wasm_runtime->GetIsolate());
+      INLINED_TRAP(reason)
+    }
+
+    NextOp();
+  }
+  // The instructions array.init_data and array.init_elem have the same
+  // implementation after validation. The only difference is that
+  // array.init_elem is used with arrays that contain elements of reference
+  // types, and array.init_data with arrays that contain elements of numeric
+  // types.
+  static auto constexpr s2s_ArrayInitData = s2s_ArrayInitSegment<true>;
+  static auto constexpr s2s_ArrayInitElem = s2s_ArrayInitSegment<false>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayLen(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    push<int32_t>(sp, code, wasm_runtime, array->length());
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayCopy(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    const uint32_t dest_array_index = Read<int32_t>(code);
+    const uint32_t src_array_index = Read<int32_t>(code);
+    // TODO(paolosev@microsoft.com): already validated?
+    if (V8_UNLIKELY(!Smi::IsValid(dest_array_index) ||
+                    !Smi::IsValid(src_array_index))) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    uint32_t size = pop<int32_t>(sp, code, wasm_runtime);
+    uint32_t src_offset = pop<int32_t>(sp, code, wasm_runtime);
+    WasmRef src_array = pop<WasmRef>(sp, code, wasm_runtime);
+    uint32_t dest_offset = pop<int32_t>(sp, code, wasm_runtime);
+    WasmRef dest_array = pop<WasmRef>(sp, code, wasm_runtime);
+
+    if (V8_UNLIKELY(!Smi::IsValid(size) || !Smi::IsValid(src_offset) ||
+                    !Smi::IsValid(dest_offset))) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    } else if (V8_UNLIKELY(wasm_runtime->IsRefNull(dest_array))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    } else if (V8_UNLIKELY(dest_offset + size >
+                           Cast<WasmArray>(*dest_array)->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    } else if (V8_UNLIKELY(wasm_runtime->IsRefNull(src_array))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    } else if (V8_UNLIKELY(src_offset + size >
+                           Cast<WasmArray>(*src_array)->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    bool ok = true;
+    if (size > 0) {
+      ok = wasm_runtime->WasmArrayCopy(dest_array, dest_offset, src_array,
+                                       src_offset, size);
+    }
+
+    if (V8_UNLIKELY(!ok)) {
+      wasm::TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
+          wasm_runtime->GetIsolate());
+      INLINED_TRAP(reason)
+    }
+
+    NextOp();
+  }
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayGet(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    if (V8_UNLIKELY(index >= array->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    Address element_addr = array->ElementAddress(index);
+    push<T>(sp, code, wasm_runtime, base::ReadUnalignedValue<U>(element_addr));
+
+    NextOp();
+  }
+  static auto constexpr s2s_I8SArrayGet = s2s_ArrayGet<int32_t, int8_t>;
+  static auto constexpr s2s_I8UArrayGet = s2s_ArrayGet<uint32_t, uint8_t>;
+  static auto constexpr s2s_I16SArrayGet = s2s_ArrayGet<int32_t, int16_t>;
+  static auto constexpr s2s_I16UArrayGet = s2s_ArrayGet<uint32_t, uint16_t>;
+  static auto constexpr s2s_I32ArrayGet = s2s_ArrayGet<int32_t>;
+  static auto constexpr s2s_I64ArrayGet = s2s_ArrayGet<int64_t>;
+  static auto constexpr s2s_F32ArrayGet = s2s_ArrayGet<float>;
+  static auto constexpr s2s_F64ArrayGet = s2s_ArrayGet<double>;
+  static auto constexpr s2s_S128ArrayGet = s2s_ArrayGet<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefArrayGet(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    if (V8_UNLIKELY(index >= array->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime,
+                  wasm_runtime->GetWasmArrayRefElement(array, index));
+
+    NextOp();
+  }
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_ArraySet(const uint8_t* code, uint32_t* sp,
+                                        WasmInterpreterRuntime* wasm_runtime,
+                                        int64_t r0, double fp0) {
+    const T value = pop<T>(sp, code, wasm_runtime);
+    const uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    if (V8_UNLIKELY(index >= array->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    Address element_addr = array->ElementAddress(index);
+    base::WriteUnalignedValue<U>(element_addr, value);
+
+    NextOp();
+  }
+  static auto constexpr s2s_I8ArraySet = s2s_ArraySet<int32_t, int8_t>;
+  static auto constexpr s2s_I16ArraySet = s2s_ArraySet<int32_t, int16_t>;
+  static auto constexpr s2s_I32ArraySet = s2s_ArraySet<int32_t>;
+  static auto constexpr s2s_I64ArraySet = s2s_ArraySet<int64_t>;
+  static auto constexpr s2s_F32ArraySet = s2s_ArraySet<float>;
+  static auto constexpr s2s_F64ArraySet = s2s_ArraySet<double>;
+  static auto constexpr s2s_S128ArraySet = s2s_ArraySet<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefArraySet(const uint8_t* code, uint32_t* sp,
+                                           WasmInterpreterRuntime* wasm_runtime,
+                                           int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    const uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    if (V8_UNLIKELY(index >= array->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    Address element_addr = array->ElementAddress(index);
+    uint32_t element_offset = array->element_offset(index);
+    StoreRefIntoMemory(array, element_addr, element_offset, *ref,
+                       UPDATE_WRITE_BARRIER);
+
+    NextOp();
+  }
+
+  template <typename T, typename U = T>
+  INSTRUCTION_HANDLER_FUNC s2s_ArrayFill(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    T value = pop<U>(sp, code, wasm_runtime);
+    uint32_t offset = pop<uint32_t>(sp, code, wasm_runtime);
+
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    if (V8_UNLIKELY(static_cast<uint64_t>(offset) + size > array->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    Address element_addr = array->ElementAddress(offset);
+    for (uint32_t i = 0; i < size; i++) {
+      base::WriteUnalignedValue<T>(element_addr, value);
+      element_addr += sizeof(T);
+    }
+
+    NextOp();
+  }
+  static auto constexpr s2s_I8ArrayFill = s2s_ArrayFill<int8_t, int32_t>;
+  static auto constexpr s2s_I16ArrayFill = s2s_ArrayFill<int16_t, int32_t>;
+  static auto constexpr s2s_I32ArrayFill = s2s_ArrayFill<int32_t>;
+  static auto constexpr s2s_I64ArrayFill = s2s_ArrayFill<int64_t>;
+  static auto constexpr s2s_F32ArrayFill = s2s_ArrayFill<float>;
+  static auto constexpr s2s_F64ArrayFill = s2s_ArrayFill<double>;
+  static auto constexpr s2s_S128ArrayFill = s2s_ArrayFill<Simd128>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefArrayFill(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    // DrumBrake currently only works with pointer compression.
+    static_assert(COMPRESS_POINTERS_BOOL);
+
+    uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
+    WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
+    Tagged<Object> tagged_value = *value;
+    uint32_t offset = pop<uint32_t>(sp, code, wasm_runtime);
+
+    WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsWasmArray(*array_obj));
+
+    Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
+    if (V8_UNLIKELY(static_cast<uint64_t>(offset) + size > array->length())) {
+      TRAP(TrapReason::kTrapArrayOutOfBounds)
+    }
+
+    Address element_addr = array->ElementAddress(offset);
+    uint32_t element_offset = array->element_offset(offset);
+    for (uint32_t i = 0; i < size; i++) {
+      StoreRefIntoMemory(array, element_addr, element_offset, tagged_value,
+                         UPDATE_WRITE_BARRIER);
+      element_addr += kTaggedSize;
+      element_offset += kTaggedSize;
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefI31(const uint8_t* code, uint32_t* sp,
+                                      WasmInterpreterRuntime* wasm_runtime,
+                                      int64_t r0, double fp0) {
+    uint32_t value = pop<int32_t>(sp, code, wasm_runtime);
+
+    // Truncate high bit.
+    Tagged<Smi> smi(Internals::IntToSmi(value & 0x7fffffff));
+    push<WasmRef>(sp, code, wasm_runtime,
+                  handle(smi, wasm_runtime->GetIsolate()));
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_I31GetS(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(ref))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsSmi(*ref));
+    push<int32_t>(sp, code, wasm_runtime, i::Smi::ToInt(*ref));
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_I31GetU(const uint8_t* code, uint32_t* sp,
+                                       WasmInterpreterRuntime* wasm_runtime,
+                                       int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(ref))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    DCHECK(IsSmi(*ref));
+    push<uint32_t>(sp, code, wasm_runtime,
+                   0x7fffffff & static_cast<uint32_t>(i::Smi::ToInt(*ref)));
+
+    NextOp();
+  }
+
+  template <bool null_succeeds>
+  INSTRUCTION_HANDLER_FUNC RefCast(const uint8_t* code, uint32_t* sp,
+                                   WasmInterpreterRuntime* wasm_runtime,
+                                   int64_t r0, double fp0) {
+    HeapType target_type(
+        ModuleTypeIndex({static_cast<uint32_t>(Read<int32_t>(code))}));
+
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+
+    if (!DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime)) {
+      TRAP(TrapReason::kTrapIllegalCast)
+    }
+
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    NextOp();
+  }
+  static auto constexpr s2s_RefCast = RefCast<false>;
+  static auto constexpr s2s_RefCastNull = RefCast<true>;
+
+  template <bool null_succeeds>
+  INSTRUCTION_HANDLER_FUNC RefTest(const uint8_t* code, uint32_t* sp,
+                                   WasmInterpreterRuntime* wasm_runtime,
+                                   int64_t r0, double fp0) {
+    HeapType target_type(
+        ModuleTypeIndex({static_cast<uint32_t>(Read<int32_t>(code))}));
+
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+
+    bool cast_succeeds =
+        DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime);
+    push<int32_t>(sp, code, wasm_runtime, cast_succeeds ? 1 : 0);
+
+    NextOp();
+  }
+  static auto constexpr s2s_RefTest = RefTest<false>;
+  static auto constexpr s2s_RefTestNull = RefTest<true>;
+
+  INSTRUCTION_HANDLER_FUNC s2s_AssertNullTypecheck(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+    if (!wasm_runtime->IsNullTypecheck(ref, ref_type)) {
+      TRAP(TrapReason::kTrapIllegalCast)
+    }
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_AssertNotNullTypecheck(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    const uint32_t ref_bitfield = Read<int32_t>(code);
+    ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
+    if (wasm_runtime->IsNullTypecheck(ref, ref_type)) {
+      TRAP(TrapReason::kTrapIllegalCast)
+    }
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_TrapIllegalCast(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0){TRAP(TrapReason::kTrapIllegalCast)}
+
+  INSTRUCTION_HANDLER_FUNC
+      s2s_RefTestSucceeds(const uint8_t* code, uint32_t* sp,
+                          WasmInterpreterRuntime* wasm_runtime, int64_t r0,
+                          double fp0) {
+    pop<WasmRef>(sp, code, wasm_runtime);
+    push<int32_t>(sp, code, wasm_runtime, 1);  // true
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC
+  s2s_RefTestFails(const uint8_t* code, uint32_t* sp,
+                   WasmInterpreterRuntime* wasm_runtime, int64_t r0,
+                   double fp0) {
+    pop<WasmRef>(sp, code, wasm_runtime);
+    push<int32_t>(sp, code, wasm_runtime, 0);  // false
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefIsNonNull(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    push<int32_t>(sp, code, wasm_runtime, wasm_runtime->IsRefNull(ref) ? 0 : 1);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_RefAsNonNull(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+    if (V8_UNLIKELY(wasm_runtime->IsRefNull(ref))) {
+      TRAP(TrapReason::kTrapNullDereference)
+    }
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_AnyConvertExtern(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef extern_ref = pop<WasmRef>(sp, code, wasm_runtime);
+    // Pass 0 as canonical type index; see implementation of builtin
+    // WasmAnyConvertExtern.
+    WasmRef result = wasm_runtime->WasmJSToWasmObject(
+        extern_ref, kWasmAnyRef, 0 /* canonical type index */);
+    if (V8_UNLIKELY(result.is_null())) {
+      wasm::TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
+          wasm_runtime->GetIsolate());
+      INLINED_TRAP(reason)
+    }
+    push<WasmRef>(sp, code, wasm_runtime, result);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC s2s_ExternConvertAny(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
+
+    if (wasm_runtime->IsNullTypecheck(ref, kWasmAnyRef)) {
+      ref = handle(wasm_runtime->GetNullValue(kWasmExternRef),
+                   wasm_runtime->GetIsolate());
+    }
+    push<WasmRef>(sp, code, wasm_runtime, ref);
+
+    NextOp();
+  }
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+
+  INSTRUCTION_HANDLER_FUNC s2s_TraceInstruction(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t pc = Read<int32_t>(code);
+    uint32_t opcode = Read<int32_t>(code);
+    uint32_t reg_mode = Read<int32_t>(code);
+
+    if (v8_flags.trace_drumbrake_execution) {
+      wasm_runtime->Trace(
+          "@%-3u:         %-24s: ", pc,
+          wasm::WasmOpcodes::OpcodeName(static_cast<WasmOpcode>(opcode)));
+      wasm_runtime->PrintStack(sp, static_cast<RegMode>(reg_mode), r0, fp0);
+    }
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC trace_UpdateStack(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t stack_index = Read<int32_t>(code);
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    wasm_runtime->TraceUpdate(stack_index, slot_offset);
+
+    NextOp();
+  }
+
+  template <typename T>
+  INSTRUCTION_HANDLER_FUNC trace_PushConstSlot(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    slot_offset_t slot_offset = Read<slot_offset_t>(code);
+    wasm_runtime->TracePush<T>(slot_offset);
+
+    NextOp();
+  }
+  static auto constexpr trace_PushConstI32Slot = trace_PushConstSlot<int32_t>;
+  static auto constexpr trace_PushConstI64Slot = trace_PushConstSlot<int64_t>;
+  static auto constexpr trace_PushConstF32Slot = trace_PushConstSlot<float>;
+  static auto constexpr trace_PushConstF64Slot = trace_PushConstSlot<double>;
+  static auto constexpr trace_PushConstS128Slot = trace_PushConstSlot<Simd128>;
+  static auto constexpr trace_PushConstRefSlot = trace_PushConstSlot<WasmRef>;
+
+  INSTRUCTION_HANDLER_FUNC trace_PushCopySlot(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t stack_index = Read<int32_t>(code);
+
+    wasm_runtime->TracePushCopy(stack_index);
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC trace_PopSlot(const uint8_t* code, uint32_t* sp,
+                                         WasmInterpreterRuntime* wasm_runtime,
+                                         int64_t r0, double fp0) {
+    wasm_runtime->TracePop();
+
+    NextOp();
+  }
+
+  INSTRUCTION_HANDLER_FUNC trace_SetSlotType(
+      const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
+      int64_t r0, double fp0) {
+    uint32_t stack_index = Read<int32_t>(code);
+    uint32_t type = Read<int32_t>(code);
+    wasm_runtime->TraceSetSlotType(stack_index, type);
+
+    NextOp();
+  }
+
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+};      // class Handlers<Compressed>
+
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+
+void WasmBytecodeGenerator::TracePushConstSlot(uint32_t slot_index) {
+  if (v8_flags.trace_drumbrake_execution) {
+    START_EMIT_INSTR_HANDLER() {
+      switch (slots_[slot_index].kind()) {
         case kI32:
-          base::WriteUnalignedValue<int32_t>(element_addr, int32_t{});
+          EMIT_INSTR_HANDLER(trace_PushConstI32Slot);
           break;
         case kI64:
-          base::WriteUnalignedValue<int64_t>(element_addr, int64_t{});
+          EMIT_INSTR_HANDLER(trace_PushConstI64Slot);
           break;
         case kF32:
-          base::WriteUnalignedValue<float>(element_addr, float{});
+          EMIT_INSTR_HANDLER(trace_PushConstF32Slot);
           break;
         case kF64:
-          base::WriteUnalignedValue<double>(element_addr, double{});
+          EMIT_INSTR_HANDLER(trace_PushConstF64Slot);
           break;
         case kS128:
-          base::WriteUnalignedValue<Simd128>(element_addr, Simd128{});
+          EMIT_INSTR_HANDLER(trace_PushConstS128Slot);
           break;
         case kRef:
         case kRefNull:
-          base::WriteUnalignedValue<Tagged_t>(
-              element_addr,
-              static_cast<Tagged_t>(
-                  wasm_runtime->GetNullValue(element_type).ptr()));
+          EMIT_INSTR_HANDLER(trace_PushConstRefSlot);
           break;
         default:
           UNREACHABLE();
       }
-      element_addr += element_size;
+      EmitSlotOffset(slots_[slot_index].slot_offset * kSlotSize);
     }
+    END_EMIT_INSTR_HANDLER()
   }
-
-  push<WasmRef>(sp, code, wasm_runtime, array);
-
-  NextOp();
 }
 
-template <TrapReason OutOfBoundsError>
-INSTRUCTION_HANDLER_FUNC s2s_ArrayNewSegment(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  const uint32_t array_index = ReadI32(code);
-  // TODO(paolosev@microsoft.com): already validated?
-  if (V8_UNLIKELY(!Smi::IsValid(array_index))) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  const uint32_t data_index = ReadI32(code);
-  // TODO(paolosev@microsoft.com): already validated?
-  if (V8_UNLIKELY(!Smi::IsValid(data_index))) {
-    TRAP(OutOfBoundsError)
-  }
-
-  uint32_t length = pop<int32_t>(sp, code, wasm_runtime);
-  uint32_t offset = pop<int32_t>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(!Smi::IsValid(offset))) {
-    TRAP(OutOfBoundsError)
-  }
-  if (V8_UNLIKELY(length >= static_cast<uint32_t>(WasmArray::MaxLength(
-                                wasm_runtime->GetArrayType(array_index))))) {
-    TRAP(TrapReason::kTrapArrayTooLarge)
-  }
-
-  WasmRef result = wasm_runtime->WasmArrayNewSegment(array_index, data_index,
-                                                     offset, length);
-  if (V8_UNLIKELY(result.is_null())) {
-    wasm::TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
-        wasm_runtime->GetIsolate());
-    INLINED_TRAP(reason)
-  }
-  push<WasmRef>(sp, code, wasm_runtime, result);
-
-  NextOp();
-}
-// The instructions array.new_data and array.new_elem have the same
-// implementation after validation. The only difference is that array.init_elem
-// is used with arrays that contain elements of reference types, and
-// array.init_data with arrays that contain elements of numeric types.
-static auto s2s_ArrayNewData = s2s_ArrayNewSegment<kTrapDataSegmentOutOfBounds>;
-static auto s2s_ArrayNewElem =
-    s2s_ArrayNewSegment<kTrapElementSegmentOutOfBounds>;
-
-template <bool init_data>
-INSTRUCTION_HANDLER_FUNC s2s_ArrayInitSegment(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  const uint32_t array_index = ReadI32(code);
-  // TODO(paolosev@microsoft.com): already validated?
-  if (V8_UNLIKELY(!Smi::IsValid(array_index))) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  const uint32_t data_index = ReadI32(code);
-  // TODO(paolosev@microsoft.com): already validated?
-  if (V8_UNLIKELY(!Smi::IsValid(data_index))) {
-    TRAP(TrapReason::kTrapElementSegmentOutOfBounds)
-  }
-
-  uint32_t size = pop<int32_t>(sp, code, wasm_runtime);
-  uint32_t src_offset = pop<int32_t>(sp, code, wasm_runtime);
-  uint32_t dest_offset = pop<int32_t>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(!Smi::IsValid(size)) || !Smi::IsValid(dest_offset)) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-  if (V8_UNLIKELY(!Smi::IsValid(src_offset))) {
-    TrapReason reason = init_data ? TrapReason::kTrapDataSegmentOutOfBounds
-                                  : TrapReason::kTrapElementSegmentOutOfBounds;
-    INLINED_TRAP(reason);
-  }
-
-  WasmRef array = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-
-  bool ok = wasm_runtime->WasmArrayInitSegment(data_index, array, dest_offset,
-                                               src_offset, size);
-  if (V8_UNLIKELY(!ok)) {
-    TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
-        wasm_runtime->GetIsolate());
-    INLINED_TRAP(reason)
-  }
-
-  NextOp();
-}
-// The instructions array.init_data and array.init_elem have the same
-// implementation after validation. The only difference is that array.init_elem
-// is used with arrays that contain elements of reference types, and
-// array.init_data with arrays that contain elements of numeric types.
-static auto s2s_ArrayInitData = s2s_ArrayInitSegment<true>;
-static auto s2s_ArrayInitElem = s2s_ArrayInitSegment<false>;
-
-INSTRUCTION_HANDLER_FUNC s2s_ArrayLen(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  push<int32_t>(sp, code, wasm_runtime, array->length());
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ArrayCopy(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  const uint32_t dest_array_index = ReadI32(code);
-  const uint32_t src_array_index = ReadI32(code);
-  // TODO(paolosev@microsoft.com): already validated?
-  if (V8_UNLIKELY(!Smi::IsValid(dest_array_index) ||
-                  !Smi::IsValid(src_array_index))) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  uint32_t size = pop<int32_t>(sp, code, wasm_runtime);
-  uint32_t src_offset = pop<int32_t>(sp, code, wasm_runtime);
-  WasmRef src_array = pop<WasmRef>(sp, code, wasm_runtime);
-  uint32_t dest_offset = pop<int32_t>(sp, code, wasm_runtime);
-  WasmRef dest_array = pop<WasmRef>(sp, code, wasm_runtime);
-
-  if (V8_UNLIKELY(!Smi::IsValid(src_offset)) || !Smi::IsValid(dest_offset)) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  } else if (V8_UNLIKELY(wasm_runtime->IsRefNull(dest_array))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  } else if (V8_UNLIKELY(dest_offset + size >
-                         Cast<WasmArray>(*dest_array)->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  } else if (V8_UNLIKELY(wasm_runtime->IsRefNull(src_array))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  } else if (V8_UNLIKELY(src_offset + size >
-                         Cast<WasmArray>(*src_array)->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  bool ok = true;
-  if (size > 0) {
-    ok = wasm_runtime->WasmArrayCopy(dest_array, dest_offset, src_array,
-                                     src_offset, size);
-  }
-
-  if (V8_UNLIKELY(!ok)) {
-    wasm::TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
-        wasm_runtime->GetIsolate());
-    INLINED_TRAP(reason)
-  }
-
-  NextOp();
-}
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_ArrayGet(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  if (V8_UNLIKELY(index >= array->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  Address element_addr = array->ElementAddress(index);
-  push<T>(sp, code, wasm_runtime, base::ReadUnalignedValue<U>(element_addr));
-
-  NextOp();
-}
-static auto s2s_I8SArrayGet = s2s_ArrayGet<int32_t, int8_t>;
-static auto s2s_I8UArrayGet = s2s_ArrayGet<uint32_t, uint8_t>;
-static auto s2s_I16SArrayGet = s2s_ArrayGet<int32_t, int16_t>;
-static auto s2s_I16UArrayGet = s2s_ArrayGet<uint32_t, uint16_t>;
-static auto s2s_I32ArrayGet = s2s_ArrayGet<int32_t>;
-static auto s2s_I64ArrayGet = s2s_ArrayGet<int64_t>;
-static auto s2s_F32ArrayGet = s2s_ArrayGet<float>;
-static auto s2s_F64ArrayGet = s2s_ArrayGet<double>;
-static auto s2s_S128ArrayGet = s2s_ArrayGet<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefArrayGet(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  if (V8_UNLIKELY(index >= array->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  push<WasmRef>(sp, code, wasm_runtime,
-                wasm_runtime->GetWasmArrayRefElement(array, index));
-
-  NextOp();
-}
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_ArraySet(const uint8_t* code, uint32_t* sp,
-                                      WasmInterpreterRuntime* wasm_runtime,
-                                      int64_t r0, double fp0) {
-  const T value = pop<T>(sp, code, wasm_runtime);
-  const uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  if (V8_UNLIKELY(index >= array->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  Address element_addr = array->ElementAddress(index);
-  base::WriteUnalignedValue<U>(element_addr, value);
-
-  NextOp();
-}
-static auto s2s_I8ArraySet = s2s_ArraySet<int32_t, int8_t>;
-static auto s2s_I16ArraySet = s2s_ArraySet<int32_t, int16_t>;
-static auto s2s_I32ArraySet = s2s_ArraySet<int32_t>;
-static auto s2s_I64ArraySet = s2s_ArraySet<int64_t>;
-static auto s2s_F32ArraySet = s2s_ArraySet<float>;
-static auto s2s_F64ArraySet = s2s_ArraySet<double>;
-static auto s2s_S128ArraySet = s2s_ArraySet<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefArraySet(const uint8_t* code, uint32_t* sp,
-                                         WasmInterpreterRuntime* wasm_runtime,
-                                         int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  const uint32_t index = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  if (V8_UNLIKELY(index >= array->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  Address element_addr = array->ElementAddress(index);
-  base::WriteUnalignedValue<Tagged_t>(
-      element_addr, V8HeapCompressionScheme::CompressObject((*ref).ptr()));
-
-  NextOp();
-}
-
-template <typename T, typename U = T>
-INSTRUCTION_HANDLER_FUNC s2s_ArrayFill(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
-  T value = pop<U>(sp, code, wasm_runtime);
-  uint32_t offset = pop<uint32_t>(sp, code, wasm_runtime);
-
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  if (V8_UNLIKELY(static_cast<uint64_t>(offset) + size > array->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  Address element_addr = array->ElementAddress(offset);
-  for (uint32_t i = 0; i < size; i++) {
-    base::WriteUnalignedValue<T>(element_addr, value);
-    element_addr += sizeof(T);
-  }
-
-  NextOp();
-}
-static auto s2s_I8ArrayFill = s2s_ArrayFill<int8_t, int32_t>;
-static auto s2s_I16ArrayFill = s2s_ArrayFill<int16_t, int32_t>;
-static auto s2s_I32ArrayFill = s2s_ArrayFill<int32_t>;
-static auto s2s_I64ArrayFill = s2s_ArrayFill<int64_t>;
-static auto s2s_F32ArrayFill = s2s_ArrayFill<float>;
-static auto s2s_F64ArrayFill = s2s_ArrayFill<double>;
-static auto s2s_S128ArrayFill = s2s_ArrayFill<Simd128>;
-
-INSTRUCTION_HANDLER_FUNC s2s_RefArrayFill(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  // DrumBrake currently only works with pointer compression.
-  static_assert(COMPRESS_POINTERS_BOOL);
-
-  uint32_t size = pop<uint32_t>(sp, code, wasm_runtime);
-  WasmRef value = pop<WasmRef>(sp, code, wasm_runtime);
-  Tagged<Object> tagged_value = *value;
-  uint32_t offset = pop<uint32_t>(sp, code, wasm_runtime);
-
-  WasmRef array_obj = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(array_obj))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsWasmArray(*array_obj));
-
-  Tagged<WasmArray> array = Cast<WasmArray>(*array_obj);
-  if (V8_UNLIKELY(static_cast<uint64_t>(offset) + size > array->length())) {
-    TRAP(TrapReason::kTrapArrayOutOfBounds)
-  }
-
-  Address element_addr = array->ElementAddress(offset);
-  for (uint32_t i = 0; i < size; i++) {
-    // Only stores the lower 32-bit.
-    base::WriteUnalignedValue<Tagged_t>(
-        element_addr, static_cast<Tagged_t>(tagged_value.ptr()));
-    element_addr += kTaggedSize;
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_RefI31(const uint8_t* code, uint32_t* sp,
-                                    WasmInterpreterRuntime* wasm_runtime,
-                                    int64_t r0, double fp0) {
-  uint32_t value = pop<int32_t>(sp, code, wasm_runtime);
-
-  // Truncate high bit.
-  Tagged<Smi> smi(Internals::IntToSmi(value & 0x7fffffff));
-  push<WasmRef>(sp, code, wasm_runtime,
-                handle(smi, wasm_runtime->GetIsolate()));
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_I31GetS(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(ref))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsSmi(*ref));
-  push<int32_t>(sp, code, wasm_runtime, i::Smi::ToInt(*ref));
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_I31GetU(const uint8_t* code, uint32_t* sp,
-                                     WasmInterpreterRuntime* wasm_runtime,
-                                     int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(ref))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  DCHECK(IsSmi(*ref));
-  push<uint32_t>(sp, code, wasm_runtime,
-                 0x7fffffff & static_cast<uint32_t>(i::Smi::ToInt(*ref)));
-
-  NextOp();
-}
-
-template <bool null_succeeds>
-INSTRUCTION_HANDLER_FUNC RefCast(const uint8_t* code, uint32_t* sp,
-                                 WasmInterpreterRuntime* wasm_runtime,
-                                 int64_t r0, double fp0) {
-  HeapType target_type(ReadI32(code));
-
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  if (!DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime)) {
-    TRAP(TrapReason::kTrapIllegalCast)
-  }
-
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  NextOp();
-}
-static auto s2s_RefCast = RefCast<false>;
-static auto s2s_RefCastNull = RefCast<true>;
-
-template <bool null_succeeds>
-INSTRUCTION_HANDLER_FUNC RefTest(const uint8_t* code, uint32_t* sp,
-                                 WasmInterpreterRuntime* wasm_runtime,
-                                 int64_t r0, double fp0) {
-  HeapType target_type(ReadI32(code));
-
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-
-  bool cast_succeeds =
-      DoRefCast(ref, ref_type, target_type, null_succeeds, wasm_runtime);
-  push<int32_t>(sp, code, wasm_runtime, cast_succeeds ? 1 : 0);
-
-  NextOp();
-}
-static auto s2s_RefTest = RefTest<false>;
-static auto s2s_RefTestNull = RefTest<true>;
-
-INSTRUCTION_HANDLER_FUNC s2s_AssertNullTypecheck(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-  if (!wasm_runtime->IsNullTypecheck(ref, ref_type)) {
-    TRAP(TrapReason::kTrapIllegalCast)
-  }
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_AssertNotNullTypecheck(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  const uint32_t ref_bitfield = ReadI32(code);
-  ValueType ref_type = ValueType::FromRawBitField(ref_bitfield);
-  if (wasm_runtime->IsNullTypecheck(ref, ref_type)) {
-    TRAP(TrapReason::kTrapIllegalCast)
-  }
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_TrapIllegalCast(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0){TRAP(TrapReason::kTrapIllegalCast)}
-
-INSTRUCTION_HANDLER_FUNC
-    s2s_RefTestSucceeds(const uint8_t* code, uint32_t* sp,
-                        WasmInterpreterRuntime* wasm_runtime, int64_t r0,
-                        double fp0) {
-  pop<WasmRef>(sp, code, wasm_runtime);
-  push<int32_t>(sp, code, wasm_runtime, 1);  // true
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC
-s2s_RefTestFails(const uint8_t* code, uint32_t* sp,
-                 WasmInterpreterRuntime* wasm_runtime, int64_t r0, double fp0) {
-  pop<WasmRef>(sp, code, wasm_runtime);
-  push<int32_t>(sp, code, wasm_runtime, 0);  // false
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_RefIsNonNull(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  push<int32_t>(sp, code, wasm_runtime, wasm_runtime->IsRefNull(ref) ? 0 : 1);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_RefAsNonNull(const uint8_t* code, uint32_t* sp,
-                                          WasmInterpreterRuntime* wasm_runtime,
-                                          int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-  if (V8_UNLIKELY(wasm_runtime->IsRefNull(ref))) {
-    TRAP(TrapReason::kTrapNullDereference)
-  }
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_AnyConvertExtern(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  WasmRef extern_ref = pop<WasmRef>(sp, code, wasm_runtime);
-  // Pass 0 as canonical type index; see implementation of builtin
-  // WasmAnyConvertExtern.
-  WasmRef result = wasm_runtime->WasmJSToWasmObject(
-      extern_ref, kWasmAnyRef, 0 /* canonical type index */);
-  if (V8_UNLIKELY(result.is_null())) {
-    wasm::TrapReason reason = WasmInterpreterThread::GetRuntimeLastWasmError(
-        wasm_runtime->GetIsolate());
-    INLINED_TRAP(reason)
-  }
-  push<WasmRef>(sp, code, wasm_runtime, result);
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC s2s_ExternConvertAny(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  WasmRef ref = pop<WasmRef>(sp, code, wasm_runtime);
-
-  if (wasm_runtime->IsNullTypecheck(ref, kWasmAnyRef)) {
-    ref = handle(wasm_runtime->GetNullValue(kWasmExternRef),
-                 wasm_runtime->GetIsolate());
-  }
-  push<WasmRef>(sp, code, wasm_runtime, ref);
-
-  NextOp();
-}
-
-#ifdef V8_ENABLE_DRUMBRAKE_TRACING
-
-INSTRUCTION_HANDLER_FUNC s2s_TraceInstruction(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t pc = ReadI32(code);
-  uint32_t opcode = ReadI32(code);
-  uint32_t reg_mode = ReadI32(code);
-
+void WasmBytecodeGenerator::TracePushCopySlot(uint32_t from_stack_index) {
   if (v8_flags.trace_drumbrake_execution) {
-    wasm_runtime->Trace(
-        "@%-3u:         %-24s: ", pc,
-        wasm::WasmOpcodes::OpcodeName(static_cast<WasmOpcode>(opcode)));
-    wasm_runtime->PrintStack(sp, static_cast<RegMode>(reg_mode), r0, fp0);
-  }
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC trace_UpdateStack(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  uint32_t stack_index = ReadI32(code);
-  uint32_t slot_offset = ReadI32(code);
-  wasm_runtime->TraceUpdate(stack_index, slot_offset);
-
-  NextOp();
-}
-
-template <typename T>
-INSTRUCTION_HANDLER_FUNC trace_PushConstSlot(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t slot_offset = ReadI32(code);
-  wasm_runtime->TracePush<T>(slot_offset * kSlotSize);
-
-  NextOp();
-}
-static auto trace_PushConstI32Slot = trace_PushConstSlot<int32_t>;
-static auto trace_PushConstI64Slot = trace_PushConstSlot<int64_t>;
-static auto trace_PushConstF32Slot = trace_PushConstSlot<float>;
-static auto trace_PushConstF64Slot = trace_PushConstSlot<double>;
-static auto trace_PushConstS128Slot = trace_PushConstSlot<Simd128>;
-static auto trace_PushConstRefSlot = trace_PushConstSlot<WasmRef>;
-
-void WasmBytecodeGenerator::TracePushConstSlot(uint32_t slot_index) {
-  if (v8_flags.trace_drumbrake_execution) {
-    switch (slots_[slot_index].kind()) {
-      case kI32:
-        EMIT_INSTR_HANDLER(trace_PushConstI32Slot);
-        break;
-      case kI64:
-        EMIT_INSTR_HANDLER(trace_PushConstI64Slot);
-        break;
-      case kF32:
-        EMIT_INSTR_HANDLER(trace_PushConstF32Slot);
-        break;
-      case kF64:
-        EMIT_INSTR_HANDLER(trace_PushConstF64Slot);
-        break;
-      case kS128:
-        EMIT_INSTR_HANDLER(trace_PushConstS128Slot);
-        break;
-      case kRef:
-      case kRefNull:
-        EMIT_INSTR_HANDLER(trace_PushConstRefSlot);
-        break;
-      default:
-        UNREACHABLE();
+    START_EMIT_INSTR_HANDLER_WITH_ID(trace_PushCopySlot) {
+      EmitI32Const(from_stack_index);
     }
-    EmitI32Const(slots_[slot_index].slot_offset);
+    END_EMIT_INSTR_HANDLER()
   }
-}
-
-INSTRUCTION_HANDLER_FUNC trace_PushCopySlot(
-    const uint8_t* code, uint32_t* sp, WasmInterpreterRuntime* wasm_runtime,
-    int64_t r0, double fp0) {
-  uint32_t index = ReadI32(code);
-
-  wasm_runtime->TracePushCopy(index);
-
-  NextOp();
-}
-
-void WasmBytecodeGenerator::TracePushCopySlot(uint32_t from) {
-  if (v8_flags.trace_drumbrake_execution) {
-    EMIT_INSTR_HANDLER(trace_PushCopySlot);
-    EmitI32Const(from);
-  }
-}
-
-INSTRUCTION_HANDLER_FUNC trace_PopSlot(const uint8_t* code, uint32_t* sp,
-                                       WasmInterpreterRuntime* wasm_runtime,
-                                       int64_t r0, double fp0) {
-  wasm_runtime->TracePop();
-
-  NextOp();
-}
-
-INSTRUCTION_HANDLER_FUNC trace_SetSlotType(const uint8_t* code, uint32_t* sp,
-                                           WasmInterpreterRuntime* wasm_runtime,
-                                           int64_t r0, double fp0) {
-  uint32_t stack_index = ReadI32(code);
-  uint32_t type = ReadI32(code);
-  wasm_runtime->TraceSetSlotType(stack_index, type);
-
-  NextOp();
 }
 
 void WasmBytecodeGenerator::TraceSetSlotType(uint32_t stack_index,
                                              ValueType type) {
   if (v8_flags.trace_drumbrake_execution) {
-    EMIT_INSTR_HANDLER(trace_SetSlotType);
-    EmitI32Const(stack_index);
-    EmitI32Const(type.raw_bit_field());
+    START_EMIT_INSTR_HANDLER_WITH_ID(trace_SetSlotType) {
+      EmitI32Const(stack_index);
+      EmitRefValueType(type.raw_bit_field());
+    }
+    END_EMIT_INSTR_HANDLER()
   }
 }
 
@@ -6121,8 +7115,8 @@ void ShadowStack::Slot::Print(WasmInterpreterRuntime* wasm_runtime,
     case kRef:
     case kRefNull:
       DCHECK_EQ(sizeof(uint64_t), sizeof(WasmRef));
-      // TODO(paolosev@microsoft.com): Extract actual ref value from
-      // reference_stack_.
+      // TODO(paolosev@microsoft.com): Extract actual ref value from the
+      // thread's reference_stack_.
       wasm_runtime->Trace(
           "%c%zu:ref:%" PRIx64, kind, index,
           base::ReadUnalignedValue<uint64_t>(reinterpret_cast<Address>(addr)));
@@ -6132,28 +7126,57 @@ void ShadowStack::Slot::Print(WasmInterpreterRuntime* wasm_runtime,
   }
 }
 
+char const* kInstructionHandlerNames[kInstructionTableSize];
+
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
 PWasmOp* kInstructionTable[kInstructionTableSize] = {
-#ifndef V8_DRUMBRAKE_BOUNDS_CHECKS
+
+// 1. Add "small" (compressed) instruction handlers.
+
+#if !V8_DRUMBRAKE_BOUNDS_CHECKS
 // For this case, this table will be initialized in
 // InitInstructionTableOnce.
 #define V(_) nullptr,
     FOREACH_LOAD_STORE_INSTR_HANDLER(V)
 #undef V
 
-#else
-#define V(name) name,
+#else  // !V8_DRUMBRAKE_BOUNDS_CHECKS
+#define V(name) Handlers<true>::name,
     FOREACH_LOAD_STORE_INSTR_HANDLER(V)
         FOREACH_LOAD_STORE_DUPLICATED_INSTR_HANDLER(V)
 #undef V
 
-#endif  // V8_DRUMBRAKE_BOUNDS_CHECKS
+#endif  // !V8_DRUMBRAKE_BOUNDS_CHECKS
 
-#define V(name) name,
+#define V(name) Handlers<true>::name,
         FOREACH_NO_BOUNDSCHECK_INSTR_HANDLER(V)
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
             FOREACH_TRACE_INSTR_HANDLER(V)
+#endif  // V8_ENABLE_DRUMBRAKE_TRACING
+#undef V
+
+// 2. Add "large" instruction handlers.
+
+#if !V8_DRUMBRAKE_BOUNDS_CHECKS
+// For this case, this table will be initialized in
+// InitInstructionTableOnce.
+#define V(_) nullptr,
+                FOREACH_LOAD_STORE_INSTR_HANDLER(V)
+#undef V
+
+#else  // !V8_DRUMBRAKE_BOUNDS_CHECKS
+#define V(name) Handlers<false>::name,
+                FOREACH_LOAD_STORE_INSTR_HANDLER(V)
+                    FOREACH_LOAD_STORE_DUPLICATED_INSTR_HANDLER(V)
+#undef V
+
+#endif  // !V8_DRUMBRAKE_BOUNDS_CHECKS
+
+#define V(name) Handlers<false>::name,
+                    FOREACH_NO_BOUNDSCHECK_INSTR_HANDLER(V)
+#ifdef V8_ENABLE_DRUMBRAKE_TRACING
+                        FOREACH_TRACE_INSTR_HANDLER(V)
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 #undef V
 };
@@ -6337,6 +7360,13 @@ pc_t WasmBytecode::GetPcFromTrapCode(const uint8_t* current_code) const {
   return it->second;
 }
 
+// static
+size_t WasmBytecodeGenerator::total_bytecode_size_ = 0;
+// static
+size_t WasmBytecodeGenerator::emitted_short_slot_offset_count_ = 0;
+// static
+size_t WasmBytecodeGenerator::emitted_short_memory_offset_count_ = 0;
+
 WasmBytecodeGenerator::WasmBytecodeGenerator(uint32_t function_index,
                                              InterpreterCode* wasm_code,
                                              const WasmModule* module)
@@ -6357,8 +7387,18 @@ WasmBytecodeGenerator::WasmBytecodeGenerator(uint32_t function_index,
       was_current_instruction_reachable_(true),
 #endif  // DEBUG
       module_(module),
-      last_instr_offset_(kInvalidCodeOffset) {
+      last_instr_offset_(kInvalidCodeOffset),
+      handler_size_(InstrHandlerSize::Large),
+      current_instr_encoding_failed_(false)
+#ifdef DEBUG
+      ,
+      no_nested_emit_instr_handler_guard_(false)
+#endif  // DEBUG
+{
   DCHECK(v8_flags.wasm_jitless);
+
+  // Multiple memories not supported.
+  DCHECK_LE(module->memories.size(), 1);
 
   size_t wasm_code_size = wasm_code_->end - wasm_code_->start;
   code_.reserve(wasm_code_size * 6);
@@ -6372,6 +7412,15 @@ WasmBytecodeGenerator::WasmBytecodeGenerator(uint32_t function_index,
   return_count_ = static_cast<uint32_t>(sig->return_count());
   rets_slots_size_ = WasmBytecode::RetsSizeInSlots(sig);
   locals_count_ = static_cast<uint32_t>(wasm_code->locals.num_locals);
+
+  is_memory64_ = IsMemory64();
+  if (is_memory64_) {
+    int_mem_push_ = &WasmBytecodeGenerator::I64Push;
+    int_mem_pop_ = &WasmBytecodeGenerator::I64Pop;
+  } else {
+    int_mem_push_ = &WasmBytecodeGenerator::I32Push;
+    int_mem_pop_ = &WasmBytecodeGenerator::I32Pop;
+  }
 }
 
 size_t WasmBytecodeGenerator::Simd128Hash::operator()(
@@ -6444,11 +7493,13 @@ bool WasmBytecodeGenerator::FindSharedSlot(uint32_t stack_index,
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
       if (v8_flags.trace_drumbrake_execution &&
           v8_flags.trace_drumbrake_execution_verbose) {
-        EMIT_INSTR_HANDLER(trace_UpdateStack);
-        EmitI32Const(i);
-        EmitI32Const(slots_[*new_slot_index].slot_offset * kSlotSize);
-        printf("Preserve UpdateStack: [%d] = %d\n", i,
-               slots_[*new_slot_index].slot_offset);
+        START_EMIT_INSTR_HANDLER_WITH_ID(trace_UpdateStack) {
+          EmitStackIndex(i);
+          EmitSlotOffset(slots_[*new_slot_index].slot_offset * kSlotSize);
+          printf("Preserve UpdateStack: [%d] = %d\n", i,
+                 slots_[*new_slot_index].slot_offset);
+        }
+        END_EMIT_INSTR_HANDLER()
       }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
     }
@@ -6461,59 +7512,62 @@ void WasmBytecodeGenerator::EmitCopySlot(ValueType value_type,
                                          uint32_t from_slot_index,
                                          uint32_t to_slot_index,
                                          bool copy_from_reg) {
-  const ValueKind kind = value_type.kind();
-  switch (kind) {
-    case kI32:
-      if (copy_from_reg) {
-        EMIT_INSTR_HANDLER(r2s_CopyR0ToSlot32);
-      } else {
-        EMIT_INSTR_HANDLER(s2s_CopySlot32);
-      }
-      break;
-    case kI64:
-      if (copy_from_reg) {
-        EMIT_INSTR_HANDLER(r2s_CopyR0ToSlot64);
-      } else {
-        EMIT_INSTR_HANDLER(s2s_CopySlot64);
-      }
-      break;
-    case kF32:
-      if (copy_from_reg) {
-        EMIT_INSTR_HANDLER(r2s_CopyFp0ToSlot32);
-      } else {
-        EMIT_INSTR_HANDLER(s2s_CopySlot32);
-      }
-      break;
-    case kF64:
-      if (copy_from_reg) {
-        EMIT_INSTR_HANDLER(r2s_CopyFp0ToSlot64);
-      } else {
-        EMIT_INSTR_HANDLER(s2s_CopySlot64);
-      }
-      break;
-    case kS128:
-      DCHECK(!copy_from_reg);
-      EMIT_INSTR_HANDLER(s2s_CopySlot128);
-      break;
-    case kRef:
-    case kRefNull:
-      DCHECK(!copy_from_reg);
-      EMIT_INSTR_HANDLER(s2s_CopySlotRef);
-      break;
-    default:
-      UNREACHABLE();
-  }
-
-  if (kind == kRefNull || kind == kRef) {
-    DCHECK(!copy_from_reg);
-    EmitI32Const(slots_[from_slot_index].ref_stack_index);
-    EmitI32Const(slots_[to_slot_index].ref_stack_index);
-  } else {
-    if (!copy_from_reg) {
-      EmitI32Const(slots_[from_slot_index].slot_offset);
+  START_EMIT_INSTR_HANDLER() {
+    const ValueKind kind = value_type.kind();
+    switch (kind) {
+      case kI32:
+        if (copy_from_reg) {
+          EMIT_INSTR_HANDLER(r2s_CopyR0ToSlot32);
+        } else {
+          EMIT_INSTR_HANDLER(s2s_CopySlot32);
+        }
+        break;
+      case kI64:
+        if (copy_from_reg) {
+          EMIT_INSTR_HANDLER(r2s_CopyR0ToSlot64);
+        } else {
+          EMIT_INSTR_HANDLER(s2s_CopySlot64);
+        }
+        break;
+      case kF32:
+        if (copy_from_reg) {
+          EMIT_INSTR_HANDLER(r2s_CopyFp0ToSlot32);
+        } else {
+          EMIT_INSTR_HANDLER(s2s_CopySlot32);
+        }
+        break;
+      case kF64:
+        if (copy_from_reg) {
+          EMIT_INSTR_HANDLER(r2s_CopyFp0ToSlot64);
+        } else {
+          EMIT_INSTR_HANDLER(s2s_CopySlot64);
+        }
+        break;
+      case kS128:
+        DCHECK(!copy_from_reg);
+        EMIT_INSTR_HANDLER(s2s_CopySlot128);
+        break;
+      case kRef:
+      case kRefNull:
+        DCHECK(!copy_from_reg);
+        EMIT_INSTR_HANDLER(s2s_CopySlotRef);
+        break;
+      default:
+        UNREACHABLE();
     }
-    EmitI32Const(slots_[to_slot_index].slot_offset);
+
+    if (kind == kRefNull || kind == kRef) {
+      DCHECK(!copy_from_reg);
+      EmitRefStackIndex(slots_[from_slot_index].ref_stack_index);
+      EmitRefStackIndex(slots_[to_slot_index].ref_stack_index);
+    } else {
+      if (!copy_from_reg) {
+        EmitSlotOffset(slots_[from_slot_index].slot_offset);
+      }
+      EmitSlotOffset(slots_[to_slot_index].slot_offset);
+    }
   }
+  END_EMIT_INSTR_HANDLER()
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
   if (v8_flags.trace_drumbrake_bytecode_generator &&
@@ -6558,70 +7612,70 @@ void WasmBytecodeGenerator::CopyToSlot(ValueType value_type,
   // We need to emit a {PreserveCopySlot} instruction to dynamically copy the
   // old value into the new slot.
   if (FindSharedSlot(to_stack_index, &new_slot_index)) {
-    switch (kind) {
-      case kI32:
-        if (copy_from_reg) {
-          EMIT_INSTR_HANDLER(r2s_PreserveCopyR0ToSlot32);
-        } else {
-          EMIT_INSTR_HANDLER(s2s_PreserveCopySlot32);
-        }
-        break;
-      case kI64:
-        if (copy_from_reg) {
-          EMIT_INSTR_HANDLER(r2s_PreserveCopyR0ToSlot64);
-        } else {
-          EMIT_INSTR_HANDLER(s2s_PreserveCopySlot64);
-        }
-        break;
-      case kF32:
-        if (copy_from_reg) {
-          EMIT_INSTR_HANDLER(r2s_PreserveCopyFp0ToSlot32);
-        } else {
-          EMIT_INSTR_HANDLER(s2s_PreserveCopySlot32);
-        }
-        break;
-      case kF64:
-        if (copy_from_reg) {
-          EMIT_INSTR_HANDLER(r2s_PreserveCopyFp0ToSlot64);
-        } else {
-          EMIT_INSTR_HANDLER(s2s_PreserveCopySlot64);
-        }
-        break;
-      case kS128:
-        DCHECK(!copy_from_reg);
-        EMIT_INSTR_HANDLER(s2s_PreserveCopySlot128);
-        break;
-      case kRef:
-      case kRefNull:
-        DCHECK(!copy_from_reg);
-        EMIT_INSTR_HANDLER(s2s_PreserveCopySlotRef);
-        break;
-      default:
-        UNREACHABLE();
-    }
-
-    if (kind == kRefNull || kind == kRef) {
-      DCHECK(!copy_from_reg);
-      EmitI32Const(slots_[from_slot_index].ref_stack_index);
-      EmitI32Const(slots_[to_slot_index].ref_stack_index);
-      EmitI32Const(slots_[new_slot_index].ref_stack_index);
-    } else {
-      if (!copy_from_reg) {
-        EmitI32Const(slots_[from_slot_index].slot_offset);
+    START_EMIT_INSTR_HANDLER() {
+      switch (kind) {
+        case kI32:
+          if (copy_from_reg) {
+            EMIT_INSTR_HANDLER(r2s_PreserveCopyR0ToSlot32);
+          } else {
+            EMIT_INSTR_HANDLER(s2s_PreserveCopySlot32);
+          }
+          break;
+        case kI64:
+          if (copy_from_reg) {
+            EMIT_INSTR_HANDLER(r2s_PreserveCopyR0ToSlot64);
+          } else {
+            EMIT_INSTR_HANDLER(s2s_PreserveCopySlot64);
+          }
+          break;
+        case kF32:
+          if (copy_from_reg) {
+            EMIT_INSTR_HANDLER(r2s_PreserveCopyFp0ToSlot32);
+          } else {
+            EMIT_INSTR_HANDLER(s2s_PreserveCopySlot32);
+          }
+          break;
+        case kF64:
+          if (copy_from_reg) {
+            EMIT_INSTR_HANDLER(r2s_PreserveCopyFp0ToSlot64);
+          } else {
+            EMIT_INSTR_HANDLER(s2s_PreserveCopySlot64);
+          }
+          break;
+        case kS128:
+          DCHECK(!copy_from_reg);
+          EMIT_INSTR_HANDLER(s2s_PreserveCopySlot128);
+          break;
+        case kRef:
+        case kRefNull:
+        default:
+          UNREACHABLE();
       }
-      EmitI32Const(slots_[to_slot_index].slot_offset);
-      EmitI32Const(slots_[new_slot_index].slot_offset);
-    }
+
+      if (kind == kRefNull || kind == kRef) {
+        DCHECK(!copy_from_reg);
+        EmitRefStackIndex(slots_[from_slot_index].ref_stack_index);
+        EmitRefStackIndex(slots_[to_slot_index].ref_stack_index);
+        EmitRefStackIndex(slots_[new_slot_index].ref_stack_index);
+      } else {
+        if (!copy_from_reg) {
+          EmitSlotOffset(slots_[from_slot_index].slot_offset);
+        }
+        EmitSlotOffset(slots_[to_slot_index].slot_offset);
+        EmitSlotOffset(slots_[new_slot_index].slot_offset);
+      }
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
-    if (v8_flags.trace_drumbrake_execution &&
-        v8_flags.trace_drumbrake_execution_verbose) {
-      printf("emit s2s_PreserveCopySlot: %d %d %d\n",
-             slots_[from_slot_index].slot_offset,
-             slots_[to_slot_index].slot_offset,
-             slots_[new_slot_index].slot_offset);
-    }
+      if (v8_flags.trace_drumbrake_execution &&
+          v8_flags.trace_drumbrake_execution_verbose) {
+        printf("emit s2s_PreserveCopySlot: %d %d %d\n",
+               slots_[from_slot_index].slot_offset,
+               slots_[to_slot_index].slot_offset,
+               slots_[new_slot_index].slot_offset);
+      }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
+    }
+    END_EMIT_INSTR_HANDLER()
   } else {
     EmitCopySlot(value_type, from_slot_index, to_slot_index, copy_from_reg);
   }
@@ -6645,7 +7699,8 @@ void WasmBytecodeGenerator::CopyToSlotAndPop(ValueType value_type,
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
     if (v8_flags.trace_drumbrake_execution) {
-      EMIT_INSTR_HANDLER(trace_PopSlot);
+      START_EMIT_INSTR_HANDLER_WITH_ID(trace_PopSlot) {}
+      END_EMIT_INSTR_HANDLER()
     }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
   }
@@ -6728,15 +7783,19 @@ void WasmBytecodeGenerator::StoreBlockParamsIntoSlots(
       if (update_stack) {
         DCHECK_EQ(GetParamType(target_block_data, i),
                   slots_[first_param_slot_index + i].value_type);
+        DCHECK_EQ(GetParamType(target_block_data, i),
+                  slots_[first_param_slot_index + i].value_type);
         UpdateStack(stack_top_index() - (params_count - 1) + i,
                     first_param_slot_index + i);
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
         if (v8_flags.trace_drumbrake_execution) {
-          EMIT_INSTR_HANDLER(trace_UpdateStack);
-          EmitI32Const(stack_top_index() - (params_count - 1) + i);
-          EmitI32Const(slots_[first_param_slot_index + i].slot_offset *
-                       kSlotSize);
+          START_EMIT_INSTR_HANDLER_WITH_ID(trace_UpdateStack) {
+            EmitStackIndex(stack_top_index() - (params_count - 1) + i);
+            EmitSlotOffset(slots_[first_param_slot_index + i].slot_offset *
+                           kSlotSize);
+          }
+          END_EMIT_INSTR_HANDLER()
         }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
       }
@@ -6787,16 +7846,20 @@ void WasmBytecodeGenerator::StoreBlockParamsAndResultsIntoSlots(
     for (uint32_t i = 0; i < rets_count; i++) {
       DCHECK_EQ(GetReturnType(target_block_data, i),
                 slots_[target_block_data.first_block_index_ + i].value_type);
+      DCHECK_EQ(GetReturnType(target_block_data, i),
+                slots_[target_block_data.first_block_index_ + i].value_type);
       UpdateStack(target_block_data.stack_size_ - params_count + i,
                   target_block_data.first_block_index_ + i);
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
       if (v8_flags.trace_drumbrake_execution) {
-        EMIT_INSTR_HANDLER(trace_UpdateStack);
-        EmitI32Const(target_block_data.stack_size_ - params_count + i);
-        EmitI32Const(
-            slots_[target_block_data.first_block_index_ + i].slot_offset *
-            kSlotSize);
+        START_EMIT_INSTR_HANDLER_WITH_ID(trace_UpdateStack) {
+          EmitStackIndex(target_block_data.stack_size_ - params_count + i);
+          EmitSlotOffset(
+              slots_[target_block_data.first_block_index_ + i].slot_offset *
+              kSlotSize);
+        }
+        END_EMIT_INSTR_HANDLER()
       }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
     }
@@ -6815,9 +7878,12 @@ void WasmBytecodeGenerator::RestoreIfElseParams(uint32_t if_block_index) {
                 if_block_data.GetParam(i), GetParamType(if_block_data, i));
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
     if (v8_flags.trace_drumbrake_execution) {
-      EMIT_INSTR_HANDLER(trace_UpdateStack);
-      EmitI32Const(if_block_data.stack_size_ - params_count + i);
-      EmitI32Const(slots_[if_block_data.GetParam(i)].slot_offset * kSlotSize);
+      START_EMIT_INSTR_HANDLER_WITH_ID(trace_UpdateStack) {
+        EmitStackIndex(if_block_data.stack_size_ - params_count + i);
+        EmitSlotOffset(slots_[if_block_data.GetParam(i)].slot_offset *
+                       kSlotSize);
+      }
+      END_EMIT_INSTR_HANDLER()
     }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
   }
@@ -6855,11 +7921,6 @@ int32_t WasmBytecodeGenerator::EndBlock(WasmOpcode opcode) {
 
   StoreBlockParamsAndResultsIntoSlots(current_block_index_, opcode);
 
-  if (block_data.IsLoop()) {
-    loop_end_code_offsets_.push_back(static_cast<uint32_t>(code_.size()));
-    EMIT_INSTR_HANDLER(s2s_OnLoopBackwardJump);
-  }
-
   block_data.end_code_offset_ = CurrentCodePos();
   if (opcode == kExprEnd && block_data.IsElse()) {
     DCHECK_GT(block_data.if_else_block_index_, 0);
@@ -6888,12 +7949,13 @@ void WasmBytecodeGenerator::Return() {
     StoreBlockParamsAndResultsIntoSlots(0, kExprReturn);
   }
 
-  EMIT_INSTR_HANDLER(s2s_Return);
-
-  const WasmBytecodeGenerator::BlockData& target_block_data = blocks_[0];
-  uint32_t final_stack_size =
-      target_block_data.stack_size_ + ReturnsCount(target_block_data);
-  EmitI32Const(final_stack_size);
+  START_EMIT_INSTR_HANDLER_WITH_ID(s2s_Return) {
+    const WasmBytecodeGenerator::BlockData& target_block_data = blocks_[0];
+    uint32_t final_stack_size =
+        target_block_data.stack_size_ + ReturnsCount(target_block_data);
+    EmitStackIndex(final_stack_size);
+  }
+  END_EMIT_INSTR_HANDLER()
 }
 
 WasmInstruction WasmBytecodeGenerator::DecodeInstruction(pc_t pc,
@@ -6925,18 +7987,18 @@ WasmInstruction WasmBytecodeGenerator::DecodeInstruction(pc_t pc,
     case kExprTry: {
       BlockTypeImmediate imm(WasmEnabledFeatures::All(), &decoder,
                              wasm_code_->at(pc + 1), Decoder::kNoValidation);
-      if (imm.sig_index != kInlineSignatureSentinel) {
+      if (imm.sig_index.valid()) {
         // The block has at least one argument or at least two results, its
         // signature is identified by sig_index.
         optional.block.sig_index = imm.sig_index;
         optional.block.value_type_bitfield = kWasmBottom.raw_bit_field();
       } else if (imm.sig.return_count() + imm.sig.parameter_count() == 0) {
         // Void signature: no arguments and no results.
-        optional.block.sig_index = kInlineSignatureSentinel;
+        optional.block.sig_index = ModuleTypeIndex::Invalid();
         optional.block.value_type_bitfield = kWasmVoid.raw_bit_field();
       } else {
         // No arguments and one result.
-        optional.block.sig_index = kInlineSignatureSentinel;
+        optional.block.sig_index = ModuleTypeIndex::Invalid();
         std::optional<wasm::ValueType> wasm_return_type =
             GetWasmReturnTypeFromSignature(&imm.sig);
         DCHECK(wasm_return_type.has_value());
@@ -7008,7 +8070,7 @@ WasmInstruction WasmBytecodeGenerator::DecodeInstruction(pc_t pc,
                                 Decoder::kNoValidation);
       len = 1 + imm.length;
       optional.indirect_call.table_index = imm.table_imm.index;
-      optional.indirect_call.sig_index = imm.sig_imm.index;
+      optional.indirect_call.sig_index = imm.sig_imm.index.index;
       break;
     }
     case kExprDrop:
@@ -7071,15 +8133,15 @@ WasmInstruction WasmBytecodeGenerator::DecodeInstruction(pc_t pc,
       break;
     }
 
-#define LOAD_CASE(name, ctype, mtype, rep, type)                        \
-  case kExpr##name: {                                                   \
-    MemoryAccessImmediate imm(                                          \
-        &decoder, wasm_code_->at(pc + 1), sizeof(ctype),                \
-        !module_->memories.empty() && module_->memories[0].is_memory64, \
-        Decoder::kNoValidation);                                        \
-    len = 1 + imm.length;                                               \
-    optional.offset = imm.offset;                                       \
-    break;                                                              \
+#define LOAD_CASE(name, ctype, mtype, rep, type)                          \
+  case kExpr##name: {                                                     \
+    MemoryAccessImmediate imm(                                            \
+        &decoder, wasm_code_->at(pc + 1), sizeof(ctype),                  \
+        !module_->memories.empty() && module_->memories[0].is_memory64(), \
+        Decoder::kNoValidation);                                          \
+    len = 1 + imm.length;                                                 \
+    optional.offset = imm.offset;                                         \
+    break;                                                                \
   }
       LOAD_CASE(I32LoadMem8S, int32_t, int8_t, kWord8, I32);
       LOAD_CASE(I32LoadMem8U, int32_t, uint8_t, kWord8, I32);
@@ -7097,15 +8159,15 @@ WasmInstruction WasmBytecodeGenerator::DecodeInstruction(pc_t pc,
       LOAD_CASE(F64LoadMem, Float64, uint64_t, kFloat64, F64);
 #undef LOAD_CASE
 
-#define STORE_CASE(name, ctype, mtype, rep, type)                       \
-  case kExpr##name: {                                                   \
-    MemoryAccessImmediate imm(                                          \
-        &decoder, wasm_code_->at(pc + 1), sizeof(ctype),                \
-        !module_->memories.empty() && module_->memories[0].is_memory64, \
-        Decoder::kNoValidation);                                        \
-    len = 1 + imm.length;                                               \
-    optional.offset = imm.offset;                                       \
-    break;                                                              \
+#define STORE_CASE(name, ctype, mtype, rep, type)                         \
+  case kExpr##name: {                                                     \
+    MemoryAccessImmediate imm(                                            \
+        &decoder, wasm_code_->at(pc + 1), sizeof(ctype),                  \
+        !module_->memories.empty() && module_->memories[0].is_memory64(), \
+        Decoder::kNoValidation);                                          \
+    len = 1 + imm.length;                                                 \
+    optional.offset = imm.offset;                                         \
+    break;                                                                \
   }
       STORE_CASE(I32StoreMem8, int32_t, int8_t, kWord8, I32);
       STORE_CASE(I32StoreMem16, int32_t, int16_t, kWord16, I32);
@@ -7246,7 +8308,7 @@ WasmInstruction WasmBytecodeGenerator::DecodeInstruction(pc_t pc,
     case kExprReturnCallRef: {
       SigIndexImmediate imm(&decoder, wasm_code_->at(pc + 1),
                             Decoder::kNoValidation);
-      optional.index = imm.index;
+      optional.index = imm.index.index;
       len = 1 + imm.length;
       break;
     }
@@ -7269,7 +8331,7 @@ void WasmBytecodeGenerator::DecodeGCOp(WasmOpcode opcode,
     case kExprStructNewDefault: {
       StructIndexImmediate imm(decoder, code->at(pc + *len),
                                Decoder::kNoValidation);
-      optional->index = imm.index;
+      optional->index = imm.index.index;
       *len += imm.length;
       break;
     }
@@ -7278,7 +8340,7 @@ void WasmBytecodeGenerator::DecodeGCOp(WasmOpcode opcode,
     case kExprStructGetU:
     case kExprStructSet: {
       FieldImmediate imm(decoder, code->at(pc + *len), Decoder::kNoValidation);
-      optional->gc_field_immediate = {imm.struct_imm.index,
+      optional->gc_field_immediate = {imm.struct_imm.index.index,
                                       imm.field_imm.index};
       *len += imm.length;
       break;
@@ -7292,7 +8354,7 @@ void WasmBytecodeGenerator::DecodeGCOp(WasmOpcode opcode,
     case kExprArrayFill: {
       ArrayIndexImmediate imm(decoder, code->at(pc + *len),
                               Decoder::kNoValidation);
-      optional->index = imm.index;
+      optional->index = imm.index.index;
       *len += imm.length;
       break;
     }
@@ -7300,7 +8362,7 @@ void WasmBytecodeGenerator::DecodeGCOp(WasmOpcode opcode,
     case kExprArrayNewFixed: {
       ArrayIndexImmediate array_imm(decoder, code->at(pc + *len),
                                     Decoder::kNoValidation);
-      optional->gc_array_new_fixed.array_index = array_imm.index;
+      optional->gc_array_new_fixed.array_index = array_imm.index.index;
       *len += array_imm.length;
       IndexImmediate data_imm(decoder, code->at(pc + *len), "array length",
                               Decoder::kNoValidation);
@@ -7315,7 +8377,7 @@ void WasmBytecodeGenerator::DecodeGCOp(WasmOpcode opcode,
     case kExprArrayInitElem: {
       ArrayIndexImmediate array_imm(decoder, code->at(pc + *len),
                                     Decoder::kNoValidation);
-      optional->gc_array_new_or_init_data.array_index = array_imm.index;
+      optional->gc_array_new_or_init_data.array_index = array_imm.index.index;
       *len += array_imm.length;
       IndexImmediate data_imm(decoder, code->at(pc + *len), "segment index",
                               Decoder::kNoValidation);
@@ -7327,11 +8389,11 @@ void WasmBytecodeGenerator::DecodeGCOp(WasmOpcode opcode,
     case kExprArrayCopy: {
       ArrayIndexImmediate dest_array_imm(decoder, code->at(pc + *len),
                                          Decoder::kNoValidation);
-      optional->gc_array_copy.dest_array_index = dest_array_imm.index;
+      optional->gc_array_copy.dest_array_index = dest_array_imm.index.index;
       *len += dest_array_imm.length;
       ArrayIndexImmediate src_array_imm(decoder, code->at(pc + *len),
                                         Decoder::kNoValidation);
-      optional->gc_array_copy.src_array_index = src_array_imm.index;
+      optional->gc_array_copy.src_array_index = src_array_imm.index.index;
       *len += src_array_imm.length;
       break;
     }
@@ -7597,7 +8659,23 @@ void WasmInterpreter::GlobalTearDown() {
   PrintAndClearProfilingData();
 #endif  // DRUMBRAKE_ENABLE_PROFILING
 
+  if (v8_flags.drumbrake_compact_bytecode) {
+    WasmBytecodeGenerator::PrintBytecodeCompressionStats();
+  }
+
   WasmInterpreterThread::Terminate();
+}
+
+// static
+void WasmBytecodeGenerator::PrintBytecodeCompressionStats() {
+  printf("Total bytecode size: %zu bytes.\n", total_bytecode_size_);
+  size_t space_saved_in_bytes = 2 * emitted_short_slot_offset_count_ +
+                                4 * emitted_short_memory_offset_count_;
+  double saved_pct = (total_bytecode_size_ + space_saved_in_bytes == 0)
+                         ? .0
+                         : 100.0 * space_saved_in_bytes /
+                               (total_bytecode_size_ + space_saved_in_bytes);
+  printf("Bytes saved: %zu (%.1f%%).\n", space_saved_in_bytes, saved_pct);
 }
 
 void WasmBytecodeGenerator::InitSlotsForFunctionArgs(const FunctionSig* sig,
@@ -7612,8 +8690,8 @@ void WasmBytecodeGenerator::InitSlotsForFunctionArgs(const FunctionSig* sig,
     stack_index = stack_.size() - sig->parameter_count();
   }
 
-  bool fast_path =
-      sig->parameter_count() > 1 && !WasmBytecode::HasRefOrSimdArgs(sig);
+  bool fast_path = sig->parameter_count() > 1 && sig->parameter_count() < 32 &&
+                   !WasmBytecode::HasRefOrSimdArgs(sig);
   if (fast_path) {
     if (sig->parameter_count() == 2) {
       const ValueType type0 = sig->GetParam(0);
@@ -7630,45 +8708,44 @@ void WasmBytecodeGenerator::InitSlotsForFunctionArgs(const FunctionSig* sig,
           k_s2s_CopySlot_ll, k_s2s_CopySlot_lq, k_s2s_CopySlot_ql,
           k_s2s_CopySlot_qq};
 
-      EmitFnId(kCopySlot32TwoArgFuncs[copyslot32_two_args_func_id]);
-      EmitI32Const(slots_[to].slot_offset);
-      EmitI32Const(slots_[stack_[stack_index]].slot_offset);
-      stack_index++;
-      EmitI32Const(slots_[stack_[stack_index]].slot_offset);
-      stack_index++;
-    } else {
-      EMIT_INSTR_HANDLER(s2s_CopySlotMulti);
-      EmitI32Const(static_cast<uint32_t>(sig->parameter_count()));
-
-      uint32_t to = 0;
-      for (size_t index = 0; index < sig->parameter_count(); index++) {
-        const ValueType value_type = sig->GetParam(index);
-        const ValueKind kind = value_type.kind();
-        to = CreateSlot(value_type);
-        if (index == 0) {
-          EmitI32Const(slots_[to].slot_offset);
-        }
-
-        uint32_t flag_64 = 0;
-        switch (kind) {
-          case kI32:
-          case kF32:
-            break;
-          case kI64:
-          case kF64:
-            flag_64 = kCopySlotMultiIs64Flag;
-            break;
-          case kRef:
-          case kRefNull:
-          default:
-            UNREACHABLE();
-        }
-
-        EmitI32Const(flag_64 | slots_[stack_[stack_index]].slot_offset);
+      START_EMIT_INSTR_HANDLER() {
+        EmitFnId(kCopySlot32TwoArgFuncs[copyslot32_two_args_func_id]);
+        EmitSlotOffset(slots_[to].slot_offset);
+        EmitSlotOffset(slots_[stack_[stack_index]].slot_offset);
+        stack_index++;
+        EmitSlotOffset(slots_[stack_[stack_index]].slot_offset);
         stack_index++;
       }
+      END_EMIT_INSTR_HANDLER()
+    } else {
+      START_EMIT_INSTR_HANDLER_WITH_ID(s2s_CopySlotMulti) {
+        EmitI32Const(static_cast<uint32_t>(sig->parameter_count()));
+
+        uint32_t arg_size_mask = 0;
+        for (size_t index = 0; index < sig->parameter_count(); index++) {
+          const ValueType value_type = sig->GetParam(index);
+          const ValueKind kind = value_type.kind();
+          if (kind == kI64 || kind == kF64) {
+            arg_size_mask |= (1 << index);
+          }
+        }
+        EmitI32Const(arg_size_mask);
+
+        uint32_t to = 0;
+        for (size_t index = 0; index < sig->parameter_count(); index++) {
+          const ValueType value_type = sig->GetParam(index);
+          to = CreateSlot(value_type);
+          if (index == 0) {
+            EmitSlotOffset(slots_[to].slot_offset);
+          }
+          EmitSlotOffset(slots_[stack_[stack_index]].slot_offset);
+          stack_index++;
+        }
+      }
+      END_EMIT_INSTR_HANDLER()
     }
   } else {
+    // Slow path.
     for (size_t index = 0; index < sig->parameter_count(); index++) {
       ValueType value_type = sig->GetParam(index);
       uint32_t to = CreateSlot(value_type);
@@ -7714,9 +8791,546 @@ bool WasmBytecodeGenerator::TypeCheckAlwaysFails(ValueType obj_type,
            expected_type.representation() == HeapType::kNoExtern));
 }
 
+#ifdef DEBUG
+// static
+bool WasmBytecodeGenerator::HasSideEffects(WasmOpcode opcode) {
+  switch (opcode) {
+    case kExprBlock:
+    case kExprLoop:
+    case kExprTry:
+    case kExprIf:
+    case kExprElse:
+    case kExprCatch:
+    case kExprCatchAll:
+    case kExprDelegate:
+    case kExprEnd:
+    case kExprBr:
+    case kExprBrIf:
+    case kExprBrOnNull:
+    case kExprBrOnNonNull:
+    case kExprBrOnCast:
+    case kExprBrOnCastFail:
+    case kExprBrTable:
+    case kExprReturn:
+    case kExprCallFunction:
+    case kExprReturnCall:
+    case kExprCallIndirect:
+    case kExprReturnCallIndirect:
+    case kExprCallRef:
+    case kExprReturnCallRef:
+    case kExprLocalSet:
+    case kExprLocalTee:
+    case kExprI32Const:
+    case kExprI64Const:
+    case kExprF32Const:
+    case kExprF64Const:
+    case kExprS128Const:
+    case kExprI8x16Shuffle:
+      return true;
+
+    case kExprUnreachable:
+    case kExprNop:
+    case kExprThrow:
+    case kExprRethrow:
+    case kExprDrop:
+    case kExprSelect:
+    case kExprSelectWithType:
+    case kExprLocalGet:
+    case kExprGlobalGet:
+    case kExprGlobalSet:
+    case kExprTableGet:
+    case kExprTableSet:
+    case kExprI32LoadMem:
+    case kExprI32LoadMem8S:
+    case kExprI32LoadMem8U:
+    case kExprI32LoadMem16S:
+    case kExprI32LoadMem16U:
+    case kExprI64LoadMem:
+    case kExprI64LoadMem8S:
+    case kExprI64LoadMem8U:
+    case kExprI64LoadMem16S:
+    case kExprI64LoadMem16U:
+    case kExprI64LoadMem32S:
+    case kExprI64LoadMem32U:  // 0x28 - 0x35
+    case kExprI32StoreMem:
+    case kExprI32StoreMem8:
+    case kExprI32StoreMem16:
+    case kExprI64StoreMem:
+    case kExprI64StoreMem8:
+    case kExprI64StoreMem16:
+    case kExprI64StoreMem32:  // 0x36 - 0x3e
+    case kExprMemoryGrow:
+    case kExprMemorySize:
+    case kExprI32Eqz:
+    case kExprI32Eq:
+    case kExprI32Ne:
+    case kExprI32LtS:
+    case kExprI32LtU:
+    case kExprI32GtS:
+    case kExprI32GtU:
+    case kExprI32LeS:
+    case kExprI32LeU:
+    case kExprI32GeS:
+    case kExprI32GeU:
+    case kExprI32Clz:
+    case kExprI32Ctz:
+    case kExprI32Popcnt:  // 0x45 - 0x69
+    case kExprI32Add:
+    case kExprI32Sub:
+    case kExprI32Mul:  // 0x6a - 0x6c
+    case kExprI32DivS:
+    case kExprI32DivU:
+    case kExprI32RemS:
+    case kExprI32RemU:
+    case kExprI32And:
+    case kExprI32Ior:
+    case kExprI32Xor:
+    case kExprI32Shl:
+    case kExprI32ShrS:
+    case kExprI32ShrU:
+    case kExprI32Rol:
+    case kExprI32Ror:  // 0x6d - 0x78
+    case kExprI64Clz:
+    case kExprI64Ctz:
+    case kExprI64Popcnt:  // 0x79 - 0x7b
+    case kExprI64Add:
+    case kExprI64Sub:
+    case kExprI64Mul:  // 0x7c - 0x7e
+    case kExprI64DivS:
+    case kExprI64DivU:
+    case kExprI64RemS:
+    case kExprI64RemU:
+    case kExprI64And:
+    case kExprI64Ior:
+    case kExprI64Xor:
+    case kExprI64Shl:
+    case kExprI64ShrS:
+    case kExprI64ShrU:
+    case kExprI64Rol:
+    case kExprI64Ror:  // 0x7f - 0x8a
+    case kExprF32Abs:
+    case kExprF32Neg:
+    case kExprF32Ceil:
+    case kExprF32Floor:
+    case kExprF32Trunc:
+    case kExprF32NearestInt:
+    case kExprF32Sqrt:  // 0x8b - 0x91
+    case kExprF32Add:
+    case kExprF32Sub:
+    case kExprF32Mul:
+    case kExprF32Div:
+    case kExprF32Min:
+    case kExprF32Max:
+    case kExprF32CopySign:  // 0x92 - 0x98
+    case kExprF64Abs:
+    case kExprF64Neg:
+    case kExprF64Ceil:
+    case kExprF64Floor:
+    case kExprF64Trunc:
+    case kExprF64NearestInt:
+    case kExprF64Sqrt:  // 0x99 - 0x9f
+    case kExprF64Add:
+    case kExprF64Sub:
+    case kExprF64Mul:
+    case kExprF64Div:
+    case kExprF64Min:
+    case kExprF64Max:
+    case kExprF64CopySign:  // 0xa0 - 0xa6
+    case kExprI32ConvertI64:
+    case kExprI32SConvertF32:
+    case kExprI32UConvertF32:
+    case kExprI32SConvertF64:
+    case kExprI32UConvertF64:
+    case kExprI64SConvertI32:
+    case kExprI64UConvertI32:
+    case kExprI64SConvertF32:
+    case kExprI64UConvertF32:
+    case kExprI64SConvertF64:
+    case kExprI64UConvertF64:
+    case kExprF32SConvertI32:
+    case kExprF32UConvertI32:
+    case kExprF32SConvertI64:
+    case kExprF32UConvertI64:
+    case kExprF32ConvertF64:
+    case kExprF64SConvertI32:
+    case kExprF64UConvertI32:
+    case kExprF64SConvertI64:
+    case kExprF64UConvertI64:
+    case kExprF64ConvertF32:
+    case kExprI32ReinterpretF32:
+    case kExprI64ReinterpretF64:
+    case kExprF32ReinterpretI32:
+    case kExprF64ReinterpretI64:
+    case kExprI32SExtendI8:
+    case kExprI32SExtendI16:
+    case kExprI64SExtendI8:
+    case kExprI64SExtendI16:
+    case kExprI64SExtendI32:  // 0xa7 - 0xc4
+    case kExprRefNull:
+    case kExprRefIsNull:
+    case kExprRefFunc:
+    case kExprRefEq:
+    case kExprRefAsNonNull:  // 0xd0 - 0xd4
+    // WasmGC
+    case kGCPrefix:
+    case kExprStructNew:
+    case kExprStructNewDefault:
+    case kExprStructGet:
+    case kExprStructGetS:
+    case kExprStructGetU:
+    case kExprStructSet:
+    case kExprArrayNew:
+    case kExprArrayNewDefault:
+    case kExprArrayGet:
+    case kExprArrayGetS:
+    case kExprArrayGetU:
+    case kExprArraySet:
+    case kExprArrayFill:
+    case kExprRefI31:
+    case kExprI31GetS:
+    case kExprI31GetU:
+    case kExprRefCast:
+    case kExprRefCastNull:
+    case kExprAnyConvertExtern:
+    case kExprExternConvertAny:
+    case kExprArrayLen:
+    case kExprRefTest:
+    case kExprRefTestNull:
+    // Numeric
+    case kNumericPrefix:
+    case kExprI32SConvertSatF32:
+    case kExprI32UConvertSatF32:
+    case kExprI32SConvertSatF64:
+    case kExprI32UConvertSatF64:
+    case kExprI64SConvertSatF32:
+    case kExprI64UConvertSatF32:
+    case kExprI64SConvertSatF64:
+    case kExprI64UConvertSatF64:
+    case kExprMemoryInit:
+    case kExprDataDrop:
+    case kExprMemoryCopy:
+    case kExprMemoryFill:
+    case kExprTableInit:
+    case kExprElemDrop:
+    case kExprTableCopy:
+    case kExprTableGrow:
+    case kExprTableSize:
+    case kExprTableFill:
+    // Atomics
+    case kAtomicPrefix:
+    case kExprAtomicNotify:
+    case kExprI32AtomicWait:
+    case kExprI64AtomicWait:
+    case kExprAtomicFence:  // 0xfe00 - 0xfe03
+    case kExprI32AtomicLoad:
+    case kExprI64AtomicLoad:
+    case kExprI32AtomicStore:
+    case kExprI64AtomicStore:
+    case kExprI32AtomicAdd:
+    case kExprI64AtomicAdd:
+    case kExprI32AtomicSub:
+    case kExprI64AtomicSub:
+    case kExprI32AtomicAnd:
+    case kExprI64AtomicAnd:
+    case kExprI32AtomicOr:
+    case kExprI64AtomicOr:
+    case kExprI32AtomicXor:
+    case kExprI64AtomicXor:
+    case kExprI32AtomicExchange:
+    case kExprI64AtomicExchange:
+    case kExprI32AtomicCompareExchange:
+    case kExprI64AtomicCompareExchange:  // 0xfe10 - 0xfe4e
+
+    // SIMD
+    case kSimdPrefix:
+    case kExprS128LoadMem:
+    case kExprS128Load8Splat:
+    case kExprS128Load16Splat:
+    case kExprS128Load32Splat:
+    case kExprS128Load64Splat:
+    case kExprS128StoreMem:
+    case kExprI8x16Swizzle:
+    case kExprI8x16Splat:
+    case kExprI16x8Splat:
+    case kExprI32x4Splat:
+    case kExprI64x2Splat:
+    case kExprF32x4Splat:
+    case kExprF64x2Splat:
+    case kExprI8x16ExtractLaneS:
+    case kExprI8x16ExtractLaneU:
+    case kExprI16x8ExtractLaneS:
+    case kExprI16x8ExtractLaneU:
+    case kExprI32x4ExtractLane:
+    case kExprI64x2ExtractLane:
+    case kExprF32x4ExtractLane:
+    case kExprF64x2ExtractLane:
+    case kExprI8x16ReplaceLane:
+    case kExprI16x8ReplaceLane:
+    case kExprI32x4ReplaceLane:
+    case kExprI64x2ReplaceLane:
+    case kExprF32x4ReplaceLane:
+    case kExprF64x2ReplaceLane:
+    case kExprI8x16Eq:
+    case kExprI8x16Ne:
+    case kExprI8x16LtS:
+    case kExprI8x16LtU:
+    case kExprI8x16GtS:
+    case kExprI8x16GtU:
+    case kExprI8x16LeS:
+    case kExprI8x16LeU:
+    case kExprI8x16GeS:
+    case kExprI8x16GeU:
+    case kExprI16x8Eq:
+    case kExprI16x8Ne:
+    case kExprI16x8LtS:
+    case kExprI16x8LtU:
+    case kExprI16x8GtS:
+    case kExprI16x8GtU:
+    case kExprI16x8LeS:
+    case kExprI16x8LeU:
+    case kExprI16x8GeS:
+    case kExprI16x8GeU:
+    case kExprI32x4Eq:
+    case kExprI32x4Ne:
+    case kExprI32x4LtS:
+    case kExprI32x4LtU:
+    case kExprI32x4GtS:
+    case kExprI32x4GtU:
+    case kExprI32x4LeS:
+    case kExprI32x4LeU:
+    case kExprI32x4GeS:
+    case kExprI32x4GeU:
+    case kExprI64x2Eq:
+    case kExprI64x2Ne:
+    case kExprI64x2LtS:
+    case kExprI64x2GtS:
+    case kExprI64x2LeS:
+    case kExprI64x2GeS:
+    case kExprF32x4Eq:
+    case kExprF32x4Ne:
+    case kExprF32x4Lt:
+    case kExprF32x4Gt:
+    case kExprF32x4Le:
+    case kExprF32x4Ge:
+    case kExprF64x2Eq:
+    case kExprF64x2Ne:
+    case kExprF64x2Lt:
+    case kExprF64x2Gt:
+    case kExprF64x2Le:
+    case kExprF64x2Ge:
+    case kExprS128Not:
+    case kExprS128And:
+    case kExprS128AndNot:
+    case kExprS128Or:
+    case kExprS128Xor:
+    case kExprS128Select:
+    case kExprV128AnyTrue:
+    case kExprS128Load8Lane:           // 0xfd54
+    case kExprS128Load16Lane:          // 0xfd55
+    case kExprS128Load32Lane:          // 0xfd56
+    case kExprS128Load64Lane:          // 0xfd57
+    case kExprS128Store8Lane:          // 0xfd58
+    case kExprS128Store16Lane:         // 0xfd59
+    case kExprS128Store32Lane:         // 0xfd5a
+    case kExprS128Store64Lane:         // 0xfd5b
+    case kExprS128Load32Zero:          // 0xfd5c
+    case kExprS128Load64Zero:          // 0xfd5d
+    case kExprF32x4DemoteF64x2Zero:    // 0xfd5e
+    case kExprI32x4Neg:                // 0xfda1
+    case kExprI32x4AllTrue:            // 0xfda3
+    case kExprI32x4BitMask:            // 0xfda4
+    case kExprI32x4SConvertI16x8Low:   // 0xfda7
+    case kExprI32x4Add:                // 0xfdae
+    case kExprI32x4Sub:                // 0xfdb1
+    case kExprI32x4Mul:                // 0xfdb5
+    case kExprI32x4ExtMulLowI16x8S:    // 0xfdbc
+    case kExprI32x4ExtMulHighI16x8S:   // 0xfdbd
+    case kExprI32x4ExtMulLowI16x8U:    // 0xfdbe
+    case kExprI32x4ExtMulHighI16x8U:   // 0xfdbf
+    case kExprI64x2Neg:                // 0xfdc1
+    case kExprI64x2AllTrue:            // 0xfdc3
+    case kExprI64x2BitMask:            // 0xfdc4
+    case kExprI64x2SConvertI32x4Low:   // 0xfdc7
+    case kExprI64x2SConvertI32x4High:  // 0xfdc8
+    case kExprI64x2UConvertI32x4Low:   // 0xfdc9
+    case kExprI64x2UConvertI32x4High:  // 0xfdca
+    case kExprI64x2Add:                // 0xfdce
+    case kExprI64x2Sub:                // 0xfdd1
+    case kExprI64x2Mul:                // 0xfdd5
+    case kExprF32x4Neg:                // 0xfde1
+    case kExprF32x4Sqrt:               // 0xfde3                     // 0xfde5
+    case kExprF64x2ConvertLowI32x4S:   // 0xfde6
+    case kExprF64x2ConvertLowI32x4U:   // 0xfde7
+
+    // Relaxed SIMD
+    case kExprI8x16RelaxedSwizzle:
+    case kExprI32x4RelaxedTruncF32x4S:
+    case kExprI32x4RelaxedTruncF32x4U:
+    case kExprI32x4RelaxedTruncF64x2SZero:
+    case kExprI32x4RelaxedTruncF64x2UZero:
+    case kExprF32x4Qfma:
+    case kExprF32x4Qfms:
+    case kExprF64x2Qfma:
+    case kExprF64x2Qfms:
+    case kExprI8x16RelaxedLaneSelect:
+    case kExprI16x8RelaxedLaneSelect:
+    case kExprI32x4RelaxedLaneSelect:
+    case kExprI64x2RelaxedLaneSelect:
+    case kExprF32x4RelaxedMin:
+    case kExprF32x4RelaxedMax:
+    case kExprF64x2RelaxedMin:
+    case kExprF64x2RelaxedMax:
+    case kExprI16x8RelaxedQ15MulRS:
+    case kExprI16x8DotI8x16I7x16S:
+    case kExprI32x4DotI8x16I7x16AddS:
+
+    // FP16 SIMD
+    case kExprF16x8Splat:
+    case kExprF16x8ExtractLane:
+    case kExprF16x8ReplaceLane:
+    case kExprF16x8Abs:
+    case kExprF16x8Neg:
+    case kExprF16x8Sqrt:
+    case kExprF16x8Ceil:
+    case kExprF16x8Floor:
+    case kExprF16x8Trunc:
+    case kExprF16x8NearestInt:
+    case kExprF16x8Eq:
+    case kExprF16x8Ne:
+    case kExprF16x8Lt:
+    case kExprF16x8Gt:
+    case kExprF16x8Le:
+    case kExprF16x8Ge:
+    case kExprF16x8Add:
+    case kExprF16x8Sub:
+    case kExprF16x8Mul:
+    case kExprF16x8Div:
+    case kExprF16x8Min:
+    case kExprF16x8Max:
+    case kExprF16x8Pmin:
+    case kExprF16x8Pmax:
+    case kExprI16x8SConvertF16x8:
+    case kExprI16x8UConvertF16x8:
+    case kExprF16x8SConvertI16x8:
+    case kExprF16x8UConvertI16x8:
+    case kExprF16x8DemoteF32x4Zero:
+    case kExprF16x8DemoteF64x2Zero:
+    case kExprF32x4PromoteLowF16x8:
+    case kExprF16x8Qfma:
+    case kExprF16x8Qfms:  // 0xfd100 - 0xfd14f
+
+      // Not handled by DrumBrake
+
+    case kExprNopForTestingUnsupportedInLiftoff:
+    case kExprTryTable:
+    case kExprThrowRef:
+    case kExprF64Acos:
+    case kExprF64Asin:
+    case kExprF64Atan:
+    case kExprF64Atan2:
+    case kExprF64Cos:
+    case kExprF64Sin:
+    case kExprF64Tan:
+    case kExprF64Exp:
+    case kExprF64Log:
+    case kExprF64Pow:  // 0xdc - 0xe6
+    case kExprI32AsmjsDivS:
+    case kExprI32AsmjsDivU:
+    case kExprI32AsmjsRemS:
+    case kExprI32AsmjsRemU:
+    case kExprI32AsmjsSConvertF32:
+    case kExprI32AsmjsUConvertF32:
+    case kExprI32AsmjsSConvertF64:
+    case kExprI32AsmjsUConvertF64:  // 0xe7 - 0xfa
+    case kExprRefCastNop:
+
+    // StringRef
+    case kExprStringNewUtf8:
+    case kExprStringNewWtf16:
+    case kExprStringConst:
+    case kExprStringMeasureUtf8:
+    case kExprStringMeasureWtf8:
+    case kExprStringMeasureWtf16:
+    case kExprStringEncodeUtf8:
+    case kExprStringEncodeWtf16:
+    case kExprStringConcat:
+    case kExprStringEq:
+    case kExprStringIsUSVSequence:
+    case kExprStringNewLossyUtf8:
+    case kExprStringNewWtf8:
+    case kExprStringEncodeLossyUtf8:
+    case kExprStringEncodeWtf8:
+    case kExprStringNewUtf8Try:
+    case kExprStringAsWtf8:
+    case kExprStringViewWtf8Advance:
+    case kExprStringViewWtf8EncodeUtf8:
+    case kExprStringViewWtf8Slice:
+    case kExprStringViewWtf8EncodeLossyUtf8:
+    case kExprStringViewWtf8EncodeWtf8:  // 0xfb80 - 0xfb95
+    case kExprStringAsWtf16:
+    case kExprStringViewWtf16Length:
+    case kExprStringViewWtf16GetCodeunit:
+    case kExprStringViewWtf16Encode:
+    case kExprStringViewWtf16Slice:
+    case kExprStringAsIter:
+    case kExprStringViewIterNext:
+    case kExprStringViewIterAdvance:
+    case kExprStringViewIterRewind:
+    case kExprStringViewIterSlice:
+    case kExprStringCompare:
+    case kExprStringFromCodePoint:
+    case kExprStringHash:
+    case kExprStringNewUtf8Array:
+    case kExprStringNewWtf16Array:
+    case kExprStringEncodeUtf8Array:
+    case kExprStringEncodeWtf16Array:
+    case kExprStringNewLossyUtf8Array:
+    case kExprStringNewWtf8Array:
+    case kExprStringEncodeLossyUtf8Array:
+    case kExprStringEncodeWtf8Array:
+    case kExprStringNewUtf8ArrayTry:
+
+    // FP16
+    case kExprF32LoadMemF16:
+    case kExprF32StoreMemF16:
+    default:
+      return false;
+  }
+}
+#endif  // DEBUG
+
 RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
                                                  RegMode curr_reg_mode,
                                                  RegMode next_reg_mode) {
+  if (!v8_flags.drumbrake_compact_bytecode) {
+    DCHECK_EQ(handler_size_, InstrHandlerSize::Large);
+    return DoEncodeInstruction(instr, curr_reg_mode, next_reg_mode);
+  }
+
+  size_t current_instr_code_offset = code_.size();
+  size_t current_slots_size = slots_.size();
+  current_instr_encoding_failed_ = false;
+  handler_size_ = InstrHandlerSize::Small;
+  stack_.clear_history();
+
+  RegMode reg_mode = DoEncodeInstruction(instr, curr_reg_mode, next_reg_mode);
+  if (current_instr_encoding_failed_) {
+    DCHECK(!HasSideEffects(instr.opcode));
+    code_.resize(current_instr_code_offset);
+    slots_.resize(current_slots_size);
+    stack_.rollback();
+    current_instr_encoding_failed_ = false;
+    handler_size_ = InstrHandlerSize::Large;
+    reg_mode = DoEncodeInstruction(instr, curr_reg_mode, next_reg_mode);
+    DCHECK(!current_instr_encoding_failed_);
+  }
+
+  return reg_mode;
+}
+
+RegMode WasmBytecodeGenerator::DoEncodeInstruction(const WasmInstruction& instr,
+                                                   RegMode curr_reg_mode,
+                                                   RegMode next_reg_mode) {
   DCHECK(curr_reg_mode != RegMode::kAnyReg);
 
 #ifdef DEBUG
@@ -7935,8 +9549,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
           case kF32:
           case kF64:
           case kS128: {
-            uint32_t slot_offset = slots_[stack_[stack_index]].slot_offset;
-            Emit(&slot_offset, sizeof(uint32_t));
+            EmitSlotOffset(slots_[stack_[stack_index]].slot_offset);
             break;
           }
           case kRef:
@@ -8043,7 +9656,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       if (HasVoidSignature(target_block_data)) {
         EMIT_INSTR_HANDLER(s2s_BranchOnNull);
         ValueType value_type = RefPop();  // pop condition
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         // Remove nullability.
         if (value_type.kind() == kRefNull) {
           value_type = ValueType::Ref(value_type.heap_type());
@@ -8054,7 +9667,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       } else {
         EMIT_INSTR_HANDLER(s2s_BranchOnNullWithParams);
         ValueType value_type = RefPop();  // pop condition
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         // Remove nullability.
         if (value_type.kind() == kRefNull) {
           value_type = ValueType::Ref(value_type.heap_type());
@@ -8091,14 +9704,16 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       if (HasVoidSignature(target_block_data)) {
         EMIT_INSTR_HANDLER(s2s_BranchOnNonNull);
         ValueType value_type = RefPop();  // pop condition
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         RefPush(value_type);  // re-push condition value
         // Emit code offset to branch to if the condition is true.
         EmitBranchOffset(instr.optional.depth);
+
+        RefPop(false);  // Drop the null reference.
       } else {
         EMIT_INSTR_HANDLER(s2s_BranchOnNonNullWithParams);
         ValueType value_type = RefPop();  // pop condition
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         RefPush(value_type);  // re-push condition value
 
         // Emit code offset to branch to if the condition is not true.
@@ -8125,9 +9740,9 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       const int32_t target_branch_index =
           GetTargetBranch(br_on_cast_data.label_depth);
       bool null_succeeds = br_on_cast_data.res_is_null;
-      const ValueType target_type =
-          ValueType::RefMaybeNull(br_on_cast_data.target_type,
-                                  null_succeeds ? kNullable : kNonNullable);
+      const ValueType target_type = ValueType::RefMaybeNull(
+          ModuleTypeIndex({br_on_cast_data.target_type}),
+          null_succeeds ? kNullable : kNonNullable);
 
       const ValueType obj_type = slots_[stack_.back()].value_type;
       DCHECK(obj_type.is_object_reference());
@@ -8141,7 +9756,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         if (obj_type.is_nullable() && !null_succeeds) {
           EMIT_INSTR_HANDLER(s2s_BranchOnNull);
           RefPop();  // pop condition
-          EmitI32Const(obj_type.raw_bit_field());
+          EmitRefValueType(obj_type.raw_bit_field());
           RefPush(target_type);  // re-push condition value with a new HeapType.
           EmitBranchOffset(br_on_cast_data.label_depth);
         } else {
@@ -8152,12 +9767,13 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
                      obj_type, target_type.heap_type(), null_succeeds))) {
         EMIT_INSTR_HANDLER(s2s_BranchOnCast);
         EmitI32Const(null_succeeds);
-        HeapType br_on_cast_data_target_type(br_on_cast_data.target_type);
+        HeapType br_on_cast_data_target_type(
+            ModuleTypeIndex({br_on_cast_data.target_type}));
         EmitI32Const(br_on_cast_data_target_type.is_index()
                          ? br_on_cast_data_target_type.representation()
                          : target_type.heap_type().representation());
         ValueType value_type = RefPop();
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         RefPush(value_type);
         // Emit code offset to branch to if the condition is not true.
         const uint32_t no_branch_code_offset = CurrentCodePos();
@@ -8178,7 +9794,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       int32_t target_branch_index =
           GetTargetBranch(br_on_cast_data.label_depth);
       bool null_succeeds = br_on_cast_data.res_is_null;
-      HeapType br_on_cast_data_target_type(br_on_cast_data.target_type);
+      HeapType br_on_cast_data_target_type(
+          ModuleTypeIndex({br_on_cast_data.target_type}));
       const ValueType target_type =
           ValueType::RefMaybeNull(br_on_cast_data_target_type,
                                   null_succeeds ? kNullable : kNonNullable);
@@ -8201,7 +9818,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
                                               kExprBrOnCast);
           EMIT_INSTR_HANDLER(s2s_BranchOnNull);
           RefPop();  // pop condition
-          EmitI32Const(obj_type.raw_bit_field());
+          EmitRefValueType(obj_type.raw_bit_field());
           RefPush(target_type);  // re-push condition value with a new HeapType.
           EmitBranchOffset(br_on_cast_data.label_depth);
         } else {
@@ -8214,7 +9831,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
                          ? br_on_cast_data_target_type.representation()
                          : target_type.heap_type().representation());
         ValueType value_type = RefPop();
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         RefPush(value_type);
         // Emit code offset to branch to if the condition is not true.
         const uint32_t no_branch_code_offset = CurrentCodePos();
@@ -8333,8 +9950,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       if (is_imported) {
         if (is_tail_call) {
           EMIT_INSTR_HANDLER_WITH_PC(s2s_ReturnCallImportedFunction, instr.pc);
-          EmitI32Const(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
-          EmitI32Const(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
+          EmitSlotOffset(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
+          EmitSlotOffset(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
           EmitI32Const(WasmBytecode::RefRetsCount(sig));
           EmitI32Const(WasmBytecode::RefArgsCount(sig));
         } else {
@@ -8343,8 +9960,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       } else {
         if (is_tail_call) {
           EMIT_INSTR_HANDLER_WITH_PC(s2s_ReturnCall, instr.pc);
-          EmitI32Const(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
-          EmitI32Const(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
+          EmitSlotOffset(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
+          EmitSlotOffset(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
           EmitI32Const(WasmBytecode::RefRetsCount(sig));
           EmitI32Const(WasmBytecode::RefArgsCount(sig));
         } else {
@@ -8352,9 +9969,9 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         }
       }
       EmitI32Const(function_index);
-      EmitI32Const(static_cast<uint32_t>(stack_.size()));
-      EmitI32Const(slot_offset);
-      EmitI32Const(ref_stack_fp_offset);
+      EmitStackIndex(static_cast<uint32_t>(stack_.size()));
+      EmitSlotOffset(slot_offset);
+      EmitRefStackIndex(ref_stack_fp_offset);
 
       // Function arguments are popped from the stack.
       for (size_t index = sig->parameter_count(); index > 0; index--) {
@@ -8363,9 +9980,9 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
       if (v8_flags.trace_drumbrake_execution) {
-        EmitI32Const(rets_slots.empty()
-                         ? 0
-                         : slots_[rets_slots[0]].slot_offset * kSlotSize);
+        EmitSlotOffset(rets_slots.empty()
+                           ? 0
+                           : slots_[rets_slots[0]].slot_offset * kSlotSize);
       }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
@@ -8404,8 +10021,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     }
     case kExprCallIndirect:
     case kExprReturnCallIndirect: {
-      const FunctionSig* sig =
-          module_->signature(instr.optional.indirect_call.sig_index);
+      const FunctionSig* sig = module_->signature(
+          ModuleTypeIndex({instr.optional.indirect_call.sig_index}));
 
       const bool is_tail_call = (instr.opcode == kExprReturnCallIndirect);
       uint32_t slot_offset = GetStackFrameSize() * kSlotSize;
@@ -8421,25 +10038,32 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
       InitSlotsForFunctionArgs(sig, true);
 
+      bool is_table64 =
+          module_->tables[instr.optional.indirect_call.table_index]
+              .is_table64();
+
       if (is_tail_call) {
-        EMIT_INSTR_HANDLER_WITH_PC(s2s_ReturnCallIndirect, instr.pc);
-        EmitI32Const(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
-        EmitI32Const(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_ReturnCallIndirect,
+                                         s2s_ReturnCallIndirect64, is_table64,
+                                         instr.pc);
+        EmitSlotOffset(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
+        EmitSlotOffset(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
         EmitI32Const(WasmBytecode::RefRetsCount(sig));
         EmitI32Const(WasmBytecode::RefArgsCount(sig));
       } else {
-        EMIT_INSTR_HANDLER_WITH_PC(s2s_CallIndirect, instr.pc);
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_CallIndirect, s2s_CallIndirect64,
+                                         is_table64, instr.pc);
       }
 
       // Pops the index of the function to call.
-      I32Pop();
+      is_table64 ? I64Pop() : I32Pop();
 
       EmitI32Const(instr.optional.indirect_call.table_index);
       EmitI32Const(instr.optional.indirect_call.sig_index);
 
-      EmitI32Const(stack_size());
-      EmitI32Const(slot_offset);
-      EmitI32Const(ref_stack_fp_offset);
+      EmitStackIndex(stack_size());
+      EmitSlotOffset(slot_offset);
+      EmitRefStackIndex(ref_stack_fp_offset);
 
       // Function arguments are popped from the stack.
       for (size_t index = sig->parameter_count(); index > 0; index--) {
@@ -8448,9 +10072,9 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
       if (v8_flags.trace_drumbrake_execution) {
-        EmitI32Const(rets_slots.empty()
-                         ? 0
-                         : slots_[rets_slots[0]].slot_offset * kSlotSize);
+        EmitSlotOffset(rets_slots.empty()
+                           ? 0
+                           : slots_[rets_slots[0]].slot_offset * kSlotSize);
       }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
@@ -8489,7 +10113,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
     case kExprCallRef:
     case kExprReturnCallRef: {
-      const FunctionSig* sig = module_->signature(instr.optional.index);
+      const FunctionSig* sig =
+          module_->signature(ModuleTypeIndex({instr.optional.index}));
       const bool is_tail_call = (instr.opcode == kExprReturnCallRef);
       uint32_t slot_offset = GetStackFrameSize() * kSlotSize;
       uint32_t ref_stack_fp_offset = ref_slots_count_;
@@ -8506,8 +10131,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
       if (is_tail_call) {
         EMIT_INSTR_HANDLER_WITH_PC(s2s_ReturnCallRef, instr.pc);
-        EmitI32Const(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
-        EmitI32Const(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
+        EmitSlotOffset(WasmBytecode::RetsSizeInSlots(sig) * kSlotSize);
+        EmitSlotOffset(WasmBytecode::ArgsSizeInSlots(sig) * kSlotSize);
         EmitI32Const(WasmBytecode::RefRetsCount(sig));
         EmitI32Const(WasmBytecode::RefArgsCount(sig));
       } else {
@@ -8518,9 +10143,9 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       RefPop();
 
       EmitI32Const(instr.optional.index);  // Signature index.
-      EmitI32Const(stack_size());
-      EmitI32Const(slot_offset);
-      EmitI32Const(ref_stack_fp_offset);
+      EmitStackIndex(stack_size());
+      EmitSlotOffset(slot_offset);
+      EmitRefStackIndex(ref_stack_fp_offset);
 
       // Function arguments are popped from the stack.
       for (size_t index = sig->parameter_count(); index > 0; index--) {
@@ -8529,9 +10154,9 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
 #ifdef V8_ENABLE_DRUMBRAKE_TRACING
       if (v8_flags.trace_drumbrake_execution) {
-        EmitI32Const(rets_slots.empty()
-                         ? 0
-                         : slots_[rets_slots[0]].slot_offset * kSlotSize);
+        EmitSlotOffset(rets_slots.empty()
+                           ? 0
+                           : slots_[rets_slots[0]].slot_offset * kSlotSize);
       }
 #endif  // V8_ENABLE_DRUMBRAKE_TRACING
 
@@ -9155,46 +10780,54 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     }
 
     case kExprTableGet: {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_TableGet, instr.pc);
+      bool is_table64 = module_->tables[instr.optional.index].is_table64();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_TableGet, s2s_Table64Get, is_table64,
+                                       instr.pc);
       EmitI32Const(instr.optional.index);
-      I32Pop();
+      is_table64 ? I64Pop() : I32Pop();
       RefPush(module_->tables[instr.optional.index].type);
       break;
     }
 
     case kExprTableSet: {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_TableSet, instr.pc);
+      bool is_table64 = module_->tables[instr.optional.index].is_table64();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_TableSet, s2s_Table64Set, is_table64,
+                                       instr.pc);
       EmitI32Const(instr.optional.index);
       RefPop();
-      I32Pop();
+      is_table64 ? I64Pop() : I32Pop();
       break;
     }
 
-#define LOAD_CASE(name, ctype, mtype, rep, type)          \
-  case kExpr##name: {                                     \
-    switch (mode) {                                       \
-      case kR2R:                                          \
-        EMIT_INSTR_HANDLER_WITH_PC(r2r_##name, instr.pc); \
-        EmitI64Const(instr.optional.offset);              \
-        return RegMode::k##type##Reg;                     \
-      case kR2S:                                          \
-        EMIT_INSTR_HANDLER_WITH_PC(r2s_##name, instr.pc); \
-        EmitI64Const(instr.optional.offset);              \
-        type##Push();                                     \
-        return RegMode::kNoReg;                           \
-      case kS2R:                                          \
-        EMIT_INSTR_HANDLER_WITH_PC(s2r_##name, instr.pc); \
-        EmitI64Const(instr.optional.offset);              \
-        I32Pop();                                         \
-        return RegMode::k##type##Reg;                     \
-      case kS2S:                                          \
-        EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, instr.pc); \
-        EmitI64Const(instr.optional.offset);              \
-        I32Pop();                                         \
-        type##Push();                                     \
-        return RegMode::kNoReg;                           \
-    }                                                     \
-    break;                                                \
+#define LOAD_CASE(name, ctype, mtype, rep, type)                         \
+  case kExpr##name: {                                                    \
+    switch (mode) {                                                      \
+      case kR2R:                                                         \
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2r_##name, r2r_##name##_Idx64, \
+                                         is_memory64_, instr.pc);        \
+        EmitMemoryOffset(instr.optional.offset);                         \
+        return RegMode::k##type##Reg;                                    \
+      case kR2S:                                                         \
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_##name, r2s_##name##_Idx64, \
+                                         is_memory64_, instr.pc);        \
+        EmitMemoryOffset(instr.optional.offset);                         \
+        type##Push();                                                    \
+        return RegMode::kNoReg;                                          \
+      case kS2R:                                                         \
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2r_##name, s2r_##name##_Idx64, \
+                                         is_memory64_, instr.pc);        \
+        EmitMemoryOffset(instr.optional.offset);                         \
+        MemIndexPop();                                                   \
+        return RegMode::k##type##Reg;                                    \
+      case kS2S:                                                         \
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64, \
+                                         is_memory64_, instr.pc);        \
+        EmitMemoryOffset(instr.optional.offset);                         \
+        MemIndexPop();                                                   \
+        type##Push();                                                    \
+        return RegMode::kNoReg;                                          \
+    }                                                                    \
+    break;                                                               \
   }
       LOAD_CASE(I32LoadMem8S, int32_t, int8_t, kWord8, I32);
       LOAD_CASE(I32LoadMem8U, int32_t, uint8_t, kWord8, I32);
@@ -9212,26 +10845,28 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       LOAD_CASE(F64LoadMem, Float64, uint64_t, kFloat64, F64);
 #undef LOAD_CASE
 
-#define STORE_CASE(name, ctype, mtype, rep, type)         \
-  case kExpr##name: {                                     \
-    switch (mode) {                                       \
-      case kR2R:                                          \
-      case kS2R:                                          \
-        UNREACHABLE();                                    \
-        break;                                            \
-      case kR2S:                                          \
-        EMIT_INSTR_HANDLER_WITH_PC(r2s_##name, instr.pc); \
-        EmitI64Const(instr.optional.offset);              \
-        I32Pop();                                         \
-        return RegMode::kNoReg;                           \
-      case kS2S:                                          \
-        EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, instr.pc); \
-        type##Pop();                                      \
-        EmitI64Const(instr.optional.offset);              \
-        I32Pop();                                         \
-        return RegMode::kNoReg;                           \
-    }                                                     \
-    break;                                                \
+#define STORE_CASE(name, ctype, mtype, rep, type)                        \
+  case kExpr##name: {                                                    \
+    switch (mode) {                                                      \
+      case kR2R:                                                         \
+      case kS2R:                                                         \
+        UNREACHABLE();                                                   \
+        break;                                                           \
+      case kR2S:                                                         \
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_##name, r2s_##name##_Idx64, \
+                                         is_memory64_, instr.pc);        \
+        EmitMemoryOffset(instr.optional.offset);                         \
+        MemIndexPop();                                                   \
+        return RegMode::kNoReg;                                          \
+      case kS2S:                                                         \
+        EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64, \
+                                         is_memory64_, instr.pc);        \
+        type##Pop();                                                     \
+        EmitMemoryOffset(instr.optional.offset);                         \
+        MemIndexPop();                                                   \
+        return RegMode::kNoReg;                                          \
+    }                                                                    \
+    break;                                                               \
   }
       STORE_CASE(I32StoreMem8, int32_t, int8_t, kWord8, I32);
       STORE_CASE(I32StoreMem16, int32_t, int16_t, kWord16, I32);
@@ -9245,18 +10880,14 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 #undef STORE_CASE
 
     case kExprMemoryGrow: {
-      EMIT_INSTR_HANDLER(s2s_MemoryGrow);
-      I32Pop();
-      I32Push();
+      EMIT_MEM64_INSTR_HANDLER(s2s_MemoryGrow, s2s_Memory64Grow, is_memory64_);
+      MemIndexPop();
+      MemIndexPush();
       break;
     }
     case kExprMemorySize:
-      EMIT_INSTR_HANDLER(s2s_MemorySize);
-      if (IsMemory64()) {
-        I64Push();
-      } else {
-        I32Push();
-      }
+      EMIT_MEM64_INSTR_HANDLER(s2s_MemorySize, s2s_Memory64Size, is_memory64_);
+      MemIndexPush();
       break;
 
     case kExprI32Const: {
@@ -9531,7 +11162,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       EMIT_INSTR_HANDLER(s2s_RefNull);
       ValueType value_type =
           ValueType::RefNull(HeapType(instr.optional.ref_type));
-      EmitI32Const(value_type.raw_bit_field());
+      EmitRefValueType(value_type.raw_bit_field());
       RefPush(value_type);
       break;
     }
@@ -9569,22 +11200,22 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       EMIT_INSTR_HANDLER(s2s_StructNew);
       EmitI32Const(instr.optional.index);
       // Pops args
-      const StructType* struct_type =
-          module_->struct_type(instr.optional.gc_field_immediate.struct_index);
+      const StructType* struct_type = module_->struct_type(
+          ModuleTypeIndex({instr.optional.gc_field_immediate.struct_index}));
       for (uint32_t i = struct_type->field_count(); i > 0;) {
         i--;
         ValueKind kind = struct_type->field(i).kind();
         Pop(kind);
       }
 
-      RefPush(ValueType::Ref(instr.optional.index));
+      RefPush(ValueType::Ref(ModuleTypeIndex({instr.optional.index})));
       break;
     }
 
     case kExprStructNewDefault: {
       EMIT_INSTR_HANDLER(s2s_StructNewDefault);
       EmitI32Const(instr.optional.index);
-      RefPush(ValueType::Ref(instr.optional.index));
+      RefPush(ValueType::Ref(ModuleTypeIndex({instr.optional.index})));
       break;
     }
 
@@ -9592,8 +11223,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     case kExprStructGetS:
     case kExprStructGetU: {
       bool is_signed = (instr.opcode == wasm::kExprStructGetS);
-      const StructType* struct_type =
-          module_->struct_type(instr.optional.gc_field_immediate.struct_index);
+      const StructType* struct_type = module_->struct_type(
+          ModuleTypeIndex({instr.optional.gc_field_immediate.struct_index}));
       uint32_t field_index = instr.optional.gc_field_immediate.field_index;
       ValueType value_type = struct_type->field(field_index);
       ValueKind kind = value_type.kind();
@@ -9606,7 +11237,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
             EMIT_INSTR_HANDLER_WITH_PC(s2s_I8UStructGet, instr.pc);
           }
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I32Push();
           break;
         case kI16:
@@ -9616,44 +11247,44 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
             EMIT_INSTR_HANDLER_WITH_PC(s2s_I16UStructGet, instr.pc);
           }
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I32Push();
           break;
         case kI32:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_I32StructGet, instr.pc);
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I32Push();
           break;
         case kI64:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_I64StructGet, instr.pc);
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I64Push();
           break;
         case kF32:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_F32StructGet, instr.pc);
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           F32Push();
           break;
         case kF64:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_F64StructGet, instr.pc);
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           F64Push();
           break;
         case kS128:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_S128StructGet, instr.pc);
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           S128Push();
           break;
         case kRef:
         case kRefNull:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_RefStructGet, instr.pc);
           RefPop();
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           RefPush(value_type);
           break;
         default:
@@ -9663,51 +11294,51 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     }
 
     case kExprStructSet: {
-      const StructType* struct_type =
-          module_->struct_type(instr.optional.gc_field_immediate.struct_index);
+      const StructType* struct_type = module_->struct_type(
+          ModuleTypeIndex({instr.optional.gc_field_immediate.struct_index}));
       uint32_t field_index = instr.optional.gc_field_immediate.field_index;
       int offset = StructFieldOffset(struct_type, field_index);
       ValueKind kind = struct_type->field(field_index).kind();
       switch (kind) {
         case kI8:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_I8StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I32Pop();
           break;
         case kI16:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_I16StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I32Pop();
           break;
         case kI32:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_I32StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I32Pop();
           break;
         case kI64:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_I64StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           I64Pop();
           break;
         case kF32:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_F32StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           F32Pop();
           break;
         case kF64:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_F64StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           F64Pop();
           break;
         case kS128:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_S128StructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           S128Pop();
           break;
         case kRef:
         case kRefNull:
           EMIT_INSTR_HANDLER_WITH_PC(s2s_RefStructSet, instr.pc);
-          EmitI32Const(offset);
+          EmitStructFieldOffset(offset);
           RefPop();
           break;
         default:
@@ -9719,7 +11350,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
     case kExprArrayNew: {
       uint32_t array_index = instr.optional.gc_array_new_fixed.array_index;
-      const ArrayType* array_type = module_->array_type(array_index);
+      const ArrayType* array_type =
+          module_->array_type(ModuleTypeIndex({array_index}));
       ValueType element_type = array_type->element_type();
       ValueKind kind = element_type.kind();
 
@@ -9777,7 +11409,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         default:
           UNREACHABLE();
       }
-      RefPush(ValueType::Ref(array_index));  // Push the new array.
+      // Push the new array.
+      RefPush(ValueType::Ref(ModuleTypeIndex({array_index})));
       break;
     }
 
@@ -9787,7 +11420,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       uint32_t array_index = instr.optional.gc_array_new_fixed.array_index;
       EmitI32Const(array_index);
       EmitI32Const(length);
-      const ArrayType* array_type = module_->array_type(array_index);
+      const ArrayType* array_type =
+          module_->array_type(ModuleTypeIndex({array_index}));
       ValueType element_type = array_type->element_type();
       ValueKind kind = element_type.kind();
       // Pop values to initialize the array.
@@ -9818,7 +11452,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
             UNREACHABLE();
         }
       }
-      RefPush(ValueType::Ref(array_index));  // Push the new array.
+      // Push the new array.
+      RefPush(ValueType::Ref(ModuleTypeIndex({array_index})));
       break;
     }
 
@@ -9826,7 +11461,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       EMIT_INSTR_HANDLER_WITH_PC(s2s_ArrayNewDefault, instr.pc);
       EmitI32Const(instr.optional.index);
       I32Pop();
-      RefPush(ValueType::Ref(instr.optional.index));  // Push the new array.
+      // Push the new array.
+      RefPush(ValueType::Ref(ModuleTypeIndex({instr.optional.index})));
       break;
     }
 
@@ -9839,7 +11475,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       EmitI32Const(data_index);
       I32Pop();
       I32Pop();
-      RefPush(ValueType::Ref(array_index));  // Push the new array.
+      // Push the new array.
+      RefPush(ValueType::Ref(ModuleTypeIndex({array_index})));
       break;
     }
 
@@ -9852,7 +11489,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       EmitI32Const(data_index);
       I32Pop();
       I32Pop();
-      RefPush(ValueType::Ref(array_index));  // Push the new array.
+      // Push the new array.
+      RefPush(ValueType::Ref(ModuleTypeIndex({array_index})));
       break;
     }
 
@@ -9907,7 +11545,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     case kExprArrayGetS:
     case kExprArrayGetU: {
       bool is_signed = (instr.opcode == wasm::kExprArrayGetS);
-      const ArrayType* array_type = module_->array_type(instr.optional.index);
+      const ArrayType* array_type =
+          module_->array_type(ModuleTypeIndex({instr.optional.index}));
       ValueType element_type = array_type->element_type();
       ValueKind kind = element_type.kind();
       switch (kind) {
@@ -9975,7 +11614,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     }
 
     case kExprArraySet: {
-      const ArrayType* array_type = module_->array_type(instr.optional.index);
+      const ArrayType* array_type =
+          module_->array_type(ModuleTypeIndex({instr.optional.index}));
       ValueKind kind = array_type->element_type().kind();
       switch (kind) {
         case kI8:
@@ -10034,7 +11674,8 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     }
 
     case kExprArrayFill: {
-      const ArrayType* array_type = module_->array_type(instr.optional.index);
+      const ArrayType* array_type =
+          module_->array_type(ModuleTypeIndex({instr.optional.index}));
       ValueKind kind = array_type->element_type().kind();
       switch (kind) {
         case kI8:
@@ -10137,7 +11778,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         if (obj_type.is_nullable() && !null_succeeds) {
           EMIT_INSTR_HANDLER_WITH_PC(s2s_AssertNotNullTypecheck, instr.pc);
           ValueType value_type = RefPop();
-          EmitI32Const(value_type.raw_bit_field());
+          EmitRefValueType(value_type.raw_bit_field());
           RefPush(resulting_value_type);
         } else {
           // Just forward the ref object.
@@ -10149,7 +11790,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         if (obj_type.is_nullable() && null_succeeds) {
           EMIT_INSTR_HANDLER_WITH_PC(s2s_AssertNullTypecheck, instr.pc);
           ValueType value_type = RefPop();
-          EmitI32Const(value_type.raw_bit_field());
+          EmitRefValueType(value_type.raw_bit_field());
           RefPush(resulting_value_type);
         } else {
           // In this case we just trap.
@@ -10163,7 +11804,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         }
         EmitI32Const(instr.optional.gc_heap_type_immediate.type_representation);
         ValueType value_type = RefPop();
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         RefPush(resulting_value_type);
       }
       break;
@@ -10203,7 +11844,7 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
         }
         EmitI32Const(instr.optional.gc_heap_type_immediate.type_representation);
         ValueType value_type = RefPop();
-        EmitI32Const(value_type.raw_bit_field());
+        EmitRefValueType(value_type.raw_bit_field());
         I32Push();  // bool
       }
       break;
@@ -10228,11 +11869,12 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
     }
 
     case kExprMemoryInit:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_MemoryInit, instr.pc);
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_MemoryInit, s2s_Memory64Init,
+                                       is_memory64_, instr.pc);
       EmitI32Const(instr.optional.index);
       I32Pop();
       I32Pop();
-      I32Pop();
+      MemIndexPop();
       break;
 
     case kExprDataDrop:
@@ -10241,87 +11883,139 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       break;
 
     case kExprMemoryCopy:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_MemoryCopy, instr.pc);
-      I32Pop();
-      I32Pop();
-      I32Pop();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_MemoryCopy, s2s_Memory64Copy,
+                                       is_memory64_, instr.pc);
+      MemIndexPop();
+      MemIndexPop();
+      MemIndexPop();
       break;
 
     case kExprMemoryFill:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_MemoryFill, instr.pc);
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_MemoryFill, s2s_Memory64Fill,
+                                       is_memory64_, instr.pc);
+      MemIndexPop();
       I32Pop();
-      I32Pop();
-      I32Pop();
+      MemIndexPop();
       break;
 
-    case kExprTableInit:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_TableInit, instr.pc);
+    case kExprTableInit: {
+      bool is_table64 = module_->tables[instr.optional.index].is_table64();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_TableInit, s2s_Table64Init,
+                                       is_table64, instr.pc);
+
       EmitI32Const(instr.optional.table_init.table_index);
       EmitI32Const(instr.optional.table_init.element_segment_index);
       I32Pop();
       I32Pop();
-      I32Pop();
-      break;
+      is_table64 ? I64Pop() : I32Pop();
+    } break;
 
     case kExprElemDrop:
       EMIT_INSTR_HANDLER(s2s_ElemDrop);
       EmitI32Const(instr.optional.index);
       break;
 
-    case kExprTableCopy:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_TableCopy, instr.pc);
+    case kExprTableCopy: {
+      bool is_src_table64 =
+          module_->tables[instr.optional.table_copy.src_table_index]
+              .is_table64();
+      bool is_dst_table64 =
+          module_->tables[instr.optional.table_copy.dst_table_index]
+              .is_table64();
+
+      if (is_src_table64) {
+        if (is_dst_table64) {
+          EMIT_INSTR_HANDLER_WITH_PC(s2s_Table64Copy_64_64_64, instr.pc);
+        } else {
+          EMIT_INSTR_HANDLER_WITH_PC(s2s_Table64Copy_32_64_32, instr.pc);
+        }
+      } else {
+        if (is_dst_table64) {
+          EMIT_INSTR_HANDLER_WITH_PC(s2s_Table64Copy_64_32_32, instr.pc);
+        } else {
+          EMIT_INSTR_HANDLER_WITH_PC(s2s_TableCopy, instr.pc);
+        }
+      }
       EmitI32Const(instr.optional.table_copy.dst_table_index);
       EmitI32Const(instr.optional.table_copy.src_table_index);
-      I32Pop();
-      I32Pop();
-      I32Pop();
-      break;
+      is_dst_table64&& is_src_table64 ? I64Pop() : I32Pop();
+      is_src_table64 ? I64Pop() : I32Pop();
+      is_dst_table64 ? I64Pop() : I32Pop();
+    } break;
 
-    case kExprTableGrow:
-      EMIT_INSTR_HANDLER(s2s_TableGrow);
-      EmitI32Const(instr.optional.index);
-      I32Pop();
-      RefPop();
-      I32Push();
-      break;
+    case kExprTableGrow: {
+      bool is_table64 = module_->tables[instr.optional.index].is_table64();
+      if (is_table64) {
+        EMIT_INSTR_HANDLER(s2s_Table64Grow);
+        EmitI32Const(instr.optional.index);
+        I64Pop();
+        RefPop();
+        I64Push();
+      } else {
+        EMIT_INSTR_HANDLER(s2s_TableGrow);
+        EmitI32Const(instr.optional.index);
+        I32Pop();
+        RefPop();
+        I32Push();
+      }
+    } break;
 
-    case kExprTableSize:
-      EMIT_INSTR_HANDLER(s2s_TableSize);
-      EmitI32Const(instr.optional.index);
-      I32Push();
-      break;
+    case kExprTableSize: {
+      bool is_table64 = module_->tables[instr.optional.index].is_table64();
+      if (is_table64) {
+        EMIT_INSTR_HANDLER(s2s_Table64Size);
+        EmitI32Const(instr.optional.index);
+        I64Push();
+      } else {
+        EMIT_INSTR_HANDLER(s2s_TableSize);
+        EmitI32Const(instr.optional.index);
+        I32Push();
+      }
+    } break;
 
-    case kExprTableFill:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_TableFill, instr.pc);
-      EmitI32Const(instr.optional.index);
-      I32Pop();
-      RefPop();
-      I32Pop();
-      break;
+    case kExprTableFill: {
+      bool is_table64 = module_->tables[instr.optional.index].is_table64();
+      if (is_table64) {
+        EMIT_INSTR_HANDLER_WITH_PC(s2s_Table64Fill, instr.pc);
+        EmitI32Const(instr.optional.index);
+        I64Pop();
+        RefPop();
+        I64Pop();
+      } else {
+        EMIT_INSTR_HANDLER_WITH_PC(s2s_TableFill, instr.pc);
+        EmitI32Const(instr.optional.index);
+        I32Pop();
+        RefPop();
+        I32Pop();
+      }
+    } break;
 
     case kExprAtomicNotify:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_AtomicNotify, instr.pc);
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_AtomicNotify, s2s_AtomicNotify_Idx64,
+                                       is_memory64_, instr.pc);
       I32Pop();  // val
-      EmitI64Const(instr.optional.offset);
-      I32Pop();  // memory index
+      EmitMemoryOffset(instr.optional.offset);
+      MemIndexPop();  // memory index
       I32Push();
       break;
 
     case kExprI32AtomicWait:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_I32AtomicWait, instr.pc);
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(
+          s2s_I32AtomicWait, s2s_I32AtomicWait_Idx64, is_memory64_, instr.pc);
       I64Pop();  // timeout
       I32Pop();  // val
-      EmitI64Const(instr.optional.offset);
-      I32Pop();  // memory index
+      EmitMemoryOffset(instr.optional.offset);
+      MemIndexPop();  // memory index
       I32Push();
       break;
 
     case kExprI64AtomicWait:
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_I64AtomicWait, instr.pc);
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(
+          s2s_I64AtomicWait, s2s_I64AtomicWait_Idx64, is_memory64_, instr.pc);
       I64Pop();  // timeout
       I64Pop();  // val
-      EmitI64Const(instr.optional.offset);
-      I32Pop();  // memory index
+      EmitMemoryOffset(instr.optional.offset);
+      MemIndexPop();  // memory index
       I32Push();
       break;
 
@@ -10331,10 +12025,11 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
 #define ATOMIC_BINOP(name, Type, ctype, type, op_ctype, op_type, operation) \
   case kExpr##name: {                                                       \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, instr.pc);                       \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64,        \
+                                     is_memory64_, instr.pc);               \
     op_type##Pop();                                                         \
-    EmitI64Const(instr.optional.offset);                                    \
-    I32Pop();                                                               \
+    EmitMemoryOffset(instr.optional.offset);                                \
+    MemIndexPop();                                                          \
     op_type##Push();                                                        \
     return RegMode::kNoReg;                                                 \
   }
@@ -10343,35 +12038,38 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 
 #define ATOMIC_COMPARE_EXCHANGE_OP(name, Type, ctype, type, op_ctype, op_type) \
   case kExpr##name: {                                                          \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, instr.pc);                          \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64,           \
+                                     is_memory64_, instr.pc);                  \
     op_type##Pop();                                                            \
     op_type##Pop();                                                            \
-    EmitI64Const(instr.optional.offset);                                       \
-    I32Pop();                                                                  \
+    EmitMemoryOffset(instr.optional.offset);                                   \
+    MemIndexPop();                                                             \
     op_type##Push();                                                           \
     return RegMode::kNoReg;                                                    \
   }
       FOREACH_ATOMIC_COMPARE_EXCHANGE_OP(ATOMIC_COMPARE_EXCHANGE_OP)
 #undef ATOMIC_COMPARE_EXCHANGE_OP
 
-#define ATOMIC_LOAD_OP(name, Type, ctype, type, op_ctype, op_type) \
-  case kExpr##name: {                                              \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, instr.pc);              \
-    EmitI64Const(instr.optional.offset);                           \
-    I32Pop();                                                      \
-    op_type##Push();                                               \
-    return RegMode::kNoReg;                                        \
+#define ATOMIC_LOAD_OP(name, Type, ctype, type, op_ctype, op_type)   \
+  case kExpr##name: {                                                \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64, \
+                                     is_memory64_, instr.pc);        \
+    EmitMemoryOffset(instr.optional.offset);                         \
+    MemIndexPop();                                                   \
+    op_type##Push();                                                 \
+    return RegMode::kNoReg;                                          \
   }
       FOREACH_ATOMIC_LOAD_OP(ATOMIC_LOAD_OP)
 #undef ATOMIC_LOAD_OP
 
-#define ATOMIC_STORE_OP(name, Type, ctype, type, op_ctype, op_type) \
-  case kExpr##name: {                                               \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, instr.pc);               \
-    op_type##Pop();                                                 \
-    EmitI64Const(instr.optional.offset);                            \
-    I32Pop();                                                       \
-    return RegMode::kNoReg;                                         \
+#define ATOMIC_STORE_OP(name, Type, ctype, type, op_ctype, op_type)  \
+  case kExpr##name: {                                                \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64, \
+                                     is_memory64_, instr.pc);        \
+    op_type##Pop();                                                  \
+    EmitMemoryOffset(instr.optional.offset);                         \
+    MemIndexPop();                                                   \
+    return RegMode::kNoReg;                                          \
   }
       FOREACH_ATOMIC_STORE_OP(ATOMIC_STORE_OP)
 #undef ATOMIC_STORE_OP
@@ -10645,18 +12343,22 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 #undef REPLACE_LANE_CASE
 
     case kExprS128LoadMem: {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128LoadMem, instr.pc);
-      EmitI64Const(instr.optional.offset);
-      I32Pop();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_SimdS128LoadMem,
+                                       s2s_SimdS128LoadMem_Idx64, is_memory64_,
+                                       instr.pc);
+      EmitMemoryOffset(instr.optional.offset);
+      MemIndexPop();
       S128Push();
       return RegMode::kNoReg;
     }
 
     case kExprS128StoreMem: {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128StoreMem, instr.pc);
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_SimdS128StoreMem,
+                                       s2s_SimdS128StoreMem_Idx64, is_memory64_,
+                                       instr.pc);
       S128Pop();
-      EmitI64Const(instr.optional.offset);
-      I32Pop();
+      EmitMemoryOffset(instr.optional.offset);
+      MemIndexPop();
       return RegMode::kNoReg;
     }
 
@@ -10901,13 +12603,14 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       QFM_CASE(F64x2Qfms, f64x2, float64x2, 2, -)
 #undef QFM_CASE
 
-#define LOAD_SPLAT_CASE(op)                                 \
-  case kExprS128##op: {                                     \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128##op, instr.pc); \
-    EmitI64Const(instr.optional.offset);                    \
-    I32Pop();                                               \
-    S128Push();                                             \
-    return RegMode::kNoReg;                                 \
+#define LOAD_SPLAT_CASE(op)                                                  \
+  case kExprS128##op: {                                                      \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(                                        \
+        s2s_SimdS128##op, s2s_SimdS128##op##_Idx64, is_memory64_, instr.pc); \
+    EmitMemoryOffset(instr.optional.offset);                                 \
+    MemIndexPop();                                                           \
+    S128Push();                                                              \
+    return RegMode::kNoReg;                                                  \
   }
       LOAD_SPLAT_CASE(Load8Splat)
       LOAD_SPLAT_CASE(Load16Splat)
@@ -10915,13 +12618,14 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       LOAD_SPLAT_CASE(Load64Splat)
 #undef LOAD_SPLAT_CASE
 
-#define LOAD_EXTEND_CASE(op)                                \
-  case kExprS128##op: {                                     \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128##op, instr.pc); \
-    EmitI64Const(instr.optional.offset);                    \
-    I32Pop();                                               \
-    S128Push();                                             \
-    return RegMode::kNoReg;                                 \
+#define LOAD_EXTEND_CASE(op)                                                 \
+  case kExprS128##op: {                                                      \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(                                        \
+        s2s_SimdS128##op, s2s_SimdS128##op##_Idx64, is_memory64_, instr.pc); \
+    EmitMemoryOffset(instr.optional.offset);                                 \
+    MemIndexPop();                                                           \
+    S128Push();                                                              \
+    return RegMode::kNoReg;                                                  \
   }
       LOAD_EXTEND_CASE(Load8x8S)
       LOAD_EXTEND_CASE(Load8x8U)
@@ -10931,28 +12635,30 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       LOAD_EXTEND_CASE(Load32x2U)
 #undef LOAD_EXTEND_CASE
 
-#define LOAD_ZERO_EXTEND_CASE(op, load_type)                \
-  case kExprS128##op: {                                     \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128##op, instr.pc); \
-    EmitI64Const(instr.optional.offset);                    \
-    I32Pop();                                               \
-    S128Push();                                             \
-    return RegMode::kNoReg;                                 \
+#define LOAD_ZERO_EXTEND_CASE(op, load_type)                                 \
+  case kExprS128##op: {                                                      \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(                                        \
+        s2s_SimdS128##op, s2s_SimdS128##op##_Idx64, is_memory64_, instr.pc); \
+    EmitMemoryOffset(instr.optional.offset);                                 \
+    MemIndexPop();                                                           \
+    S128Push();                                                              \
+    return RegMode::kNoReg;                                                  \
   }
       LOAD_ZERO_EXTEND_CASE(Load32Zero, I32)
       LOAD_ZERO_EXTEND_CASE(Load64Zero, I64)
 #undef LOAD_ZERO_EXTEND_CASE
 
-#define LOAD_LANE_CASE(op)                                   \
-  case kExprS128##op: {                                      \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128##op, instr.pc);  \
-    S128Pop();                                               \
-    EmitI64Const(instr.optional.simd_loadstore_lane.offset); \
-    I32Pop();                                                \
-    /* emit 8 bits ? */                                      \
-    EmitI16Const(instr.optional.simd_loadstore_lane.lane);   \
-    S128Push();                                              \
-    return RegMode::kNoReg;                                  \
+#define LOAD_LANE_CASE(op)                                                   \
+  case kExprS128##op: {                                                      \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(                                        \
+        s2s_SimdS128##op, s2s_SimdS128##op##_Idx64, is_memory64_, instr.pc); \
+    S128Pop();                                                               \
+    EmitMemoryOffset(instr.optional.simd_loadstore_lane.offset);             \
+    MemIndexPop();                                                           \
+    /* emit 8 bits ? */                                                      \
+    EmitI16Const(instr.optional.simd_loadstore_lane.lane);                   \
+    S128Push();                                                              \
+    return RegMode::kNoReg;                                                  \
   }
       LOAD_LANE_CASE(Load8Lane)
       LOAD_LANE_CASE(Load16Lane)
@@ -10960,15 +12666,16 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
       LOAD_LANE_CASE(Load64Lane)
 #undef LOAD_LANE_CASE
 
-#define STORE_LANE_CASE(op)                                  \
-  case kExprS128##op: {                                      \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_SimdS128##op, instr.pc);  \
-    S128Pop();                                               \
-    EmitI64Const(instr.optional.simd_loadstore_lane.offset); \
-    I32Pop();                                                \
-    /* emit 8 bits ? */                                      \
-    EmitI16Const(instr.optional.simd_loadstore_lane.lane);   \
-    return RegMode::kNoReg;                                  \
+#define STORE_LANE_CASE(op)                                                  \
+  case kExprS128##op: {                                                      \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(                                        \
+        s2s_SimdS128##op, s2s_SimdS128##op##_Idx64, is_memory64_, instr.pc); \
+    S128Pop();                                                               \
+    EmitMemoryOffset(instr.optional.simd_loadstore_lane.offset);             \
+    MemIndexPop();                                                           \
+    /* emit 8 bits ? */                                                      \
+    EmitI16Const(instr.optional.simd_loadstore_lane.lane);                   \
+    return RegMode::kNoReg;                                                  \
   }
       STORE_LANE_CASE(Store8Lane)
       STORE_LANE_CASE(Store16Lane)
@@ -11003,6 +12710,34 @@ RegMode WasmBytecodeGenerator::EncodeInstruction(const WasmInstruction& instr,
 bool WasmBytecodeGenerator::EncodeSuperInstruction(
     RegMode& reg_mode, const WasmInstruction& curr_instr,
     const WasmInstruction& next_instr) {
+  if (!v8_flags.drumbrake_compact_bytecode) {
+    DCHECK_EQ(handler_size_, InstrHandlerSize::Large);
+    return DoEncodeSuperInstruction(reg_mode, curr_instr, next_instr);
+  }
+
+  size_t current_instr_code_offset = code_.size();
+  size_t current_slots_size = slots_.size();
+  current_instr_encoding_failed_ = false;
+  handler_size_ = InstrHandlerSize::Small;
+  stack_.clear_history();
+
+  bool result = DoEncodeSuperInstruction(reg_mode, curr_instr, next_instr);
+  if (result && current_instr_encoding_failed_) {
+    code_.resize(current_instr_code_offset);
+    slots_.resize(current_slots_size);
+    stack_.rollback();
+    current_instr_encoding_failed_ = false;
+    handler_size_ = InstrHandlerSize::Large;
+    result = DoEncodeSuperInstruction(reg_mode, curr_instr, next_instr);
+    DCHECK(!current_instr_encoding_failed_);
+  }
+
+  return result;
+}
+
+bool WasmBytecodeGenerator::DoEncodeSuperInstruction(
+    RegMode& reg_mode, const WasmInstruction& curr_instr,
+    const WasmInstruction& next_instr) {
   if (curr_instr.orig >= kExprI32LoadMem &&
       curr_instr.orig <= kExprI64LoadMem32U &&
       next_instr.orig == kExprLocalSet) {
@@ -11013,21 +12748,24 @@ bool WasmBytecodeGenerator::EncodeSuperInstruction(
     switch (curr_instr.orig) {
 // The implementation of r2s_LoadMem_LocalSet is identical to the
 // implementation of r2s_LoadMem, so we can reuse the same builtin.
-#define LOAD_CASE(name, ctype, mtype, rep, type)                        \
-  case kExpr##name: {                                                   \
-    if (reg_mode == RegMode::kNoReg) {                                  \
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_##name##_LocalSet, curr_instr.pc); \
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));  \
-      I32Pop();                                                         \
-      EmitI32Const(slots_[stack_[to_stack_index]].slot_offset);         \
-      reg_mode = RegMode::kNoReg;                                       \
-    } else {                                                            \
-      EMIT_INSTR_HANDLER_WITH_PC(r2s_##name, curr_instr.pc);            \
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));  \
-      EmitI32Const(slots_[stack_[to_stack_index]].slot_offset);         \
-      reg_mode = RegMode::kNoReg;                                       \
-    }                                                                   \
-    return true;                                                        \
+#define LOAD_CASE(name, ctype, mtype, rep, type)                           \
+  case kExpr##name: {                                                      \
+    if (reg_mode == RegMode::kNoReg) {                                     \
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name##_LocalSet,              \
+                                       s2s_##name##_LocalSet_Idx64,        \
+                                       is_memory64_, curr_instr.pc);       \
+      EmitMemoryOffset(curr_instr.optional.offset);                        \
+      MemIndexPop();                                                       \
+      EmitSlotOffset(slots_[stack_[to_stack_index]].slot_offset);          \
+      reg_mode = RegMode::kNoReg;                                          \
+    } else {                                                               \
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_##name, r2s_##name##_Idx64,     \
+                                       is_memory64_, curr_instr.pc);       \
+      EmitMemoryOffset(static_cast<uint64_t>(curr_instr.optional.offset)); \
+      EmitSlotOffset(slots_[stack_[to_stack_index]].slot_offset);          \
+      reg_mode = RegMode::kNoReg;                                          \
+    }                                                                      \
+    return true;                                                           \
   }
       LOAD_CASE(I32LoadMem8S, int32_t, int8_t, kWord8, I32);
       LOAD_CASE(I32LoadMem8U, int32_t, uint8_t, kWord8, I32);
@@ -11051,60 +12789,73 @@ bool WasmBytecodeGenerator::EncodeSuperInstruction(
   } else if (curr_instr.orig == kExprI32LoadMem &&
              next_instr.orig == kExprI32StoreMem) {
     if (reg_mode == RegMode::kNoReg) {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_I32LoadStoreMem, curr_instr.pc);
-      EmitI64Const(
-          static_cast<uint64_t>(curr_instr.optional.offset));  // load_offset
-      I32Pop();                                                // load_index
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_I32LoadStoreMem,
+                                       s2s_I32LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);  // load_offset
+      MemIndexPop();                                 // load_index
     } else {
-      EMIT_INSTR_HANDLER_WITH_PC(r2s_I32LoadStoreMem, curr_instr.pc);
-      EmitI64Const(
-          static_cast<uint64_t>(curr_instr.optional.offset));  // load_offset
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_I32LoadStoreMem,
+                                       r2s_I32LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);  // load_offset
     }
-    EmitI64Const(
-        static_cast<uint64_t>(next_instr.optional.offset));  // store_offset
-    I32Pop();                                                // store_index
+    EmitMemoryOffset(next_instr.optional.offset);  // store_offset
+    MemIndexPop();                                 // store_index
     reg_mode = RegMode::kNoReg;
     return true;
   } else if (curr_instr.orig == kExprI64LoadMem &&
              next_instr.orig == kExprI64StoreMem) {
     if (reg_mode == RegMode::kNoReg) {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_I64LoadStoreMem, curr_instr.pc);
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));
-      I32Pop();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_I64LoadStoreMem,
+                                       s2s_I64LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);
+      MemIndexPop();
     } else {
-      EMIT_INSTR_HANDLER_WITH_PC(r2s_I64LoadStoreMem, curr_instr.pc);
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_I64LoadStoreMem,
+                                       r2s_I64LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);
     }
-    EmitI64Const(static_cast<uint64_t>(next_instr.optional.offset));
-    I32Pop();
+    EmitMemoryOffset(next_instr.optional.offset);
+    MemIndexPop();
     reg_mode = RegMode::kNoReg;
     return true;
   } else if (curr_instr.orig == kExprF32LoadMem &&
              next_instr.orig == kExprF32StoreMem) {
     if (reg_mode == RegMode::kNoReg) {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_F32LoadStoreMem, curr_instr.pc);
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));
-      I32Pop();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_F32LoadStoreMem,
+                                       s2s_F32LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);
+      MemIndexPop();
     } else {
-      EMIT_INSTR_HANDLER_WITH_PC(r2s_F32LoadStoreMem, curr_instr.pc);
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_F32LoadStoreMem,
+                                       r2s_F32LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);
     }
-    EmitI64Const(static_cast<uint64_t>(next_instr.optional.offset));
-    I32Pop();
+    EmitMemoryOffset(next_instr.optional.offset);
+    MemIndexPop();
     reg_mode = RegMode::kNoReg;
     return true;
   } else if (curr_instr.orig == kExprF64LoadMem &&
              next_instr.orig == kExprF64StoreMem) {
     if (reg_mode == RegMode::kNoReg) {
-      EMIT_INSTR_HANDLER_WITH_PC(s2s_F64LoadStoreMem, curr_instr.pc);
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));
-      I32Pop();
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_F64LoadStoreMem,
+                                       s2s_F64LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);
+      MemIndexPop();
     } else {
-      EMIT_INSTR_HANDLER_WITH_PC(r2s_F64LoadStoreMem, curr_instr.pc);
-      EmitI64Const(static_cast<uint64_t>(curr_instr.optional.offset));
+      EMIT_MEM64_INSTR_HANDLER_WITH_PC(r2s_F64LoadStoreMem,
+                                       r2s_F64LoadStoreMem_Idx64, is_memory64_,
+                                       curr_instr.pc);
+      EmitMemoryOffset(curr_instr.optional.offset);
     }
-    EmitI64Const(static_cast<uint64_t>(next_instr.optional.offset));
-    I32Pop();
+    EmitMemoryOffset(next_instr.optional.offset);
+    MemIndexPop();
     reg_mode = RegMode::kNoReg;
     return true;
   } else if (curr_instr.orig >= kExprI32Const &&
@@ -11149,14 +12900,15 @@ bool WasmBytecodeGenerator::EncodeSuperInstruction(
     switch (next_instr.orig) {
 // The implementation of r2s_LocalGet_StoreMem is identical to the
 // implementation of r2s_StoreMem, so we can reuse the same builtin.
-#define STORE_CASE(name, ctype, mtype, rep, type)                        \
-  case kExpr##name: {                                                    \
-    EMIT_INSTR_HANDLER_WITH_PC(s2s_##name, curr_instr.pc);               \
-    EmitI32Const(slots_[stack_[curr_instr.optional.index]].slot_offset); \
-    EmitI64Const(static_cast<uint64_t>(next_instr.optional.offset));     \
-    I32Pop();                                                            \
-    reg_mode = RegMode::kNoReg;                                          \
-    return true;                                                         \
+#define STORE_CASE(name, ctype, mtype, rep, type)                          \
+  case kExpr##name: {                                                      \
+    EMIT_MEM64_INSTR_HANDLER_WITH_PC(s2s_##name, s2s_##name##_Idx64,       \
+                                     is_memory64_, curr_instr.pc);         \
+    EmitSlotOffset(slots_[stack_[curr_instr.optional.index]].slot_offset); \
+    EmitMemoryOffset(next_instr.optional.offset);                          \
+    MemIndexPop();                                                         \
+    reg_mode = RegMode::kNoReg;                                            \
+    return true;                                                           \
   }
       STORE_CASE(I32StoreMem8, int32_t, int8_t, kWord8, I32);
       STORE_CASE(I32StoreMem16, int32_t, int16_t, kWord16, I32);
@@ -11251,8 +13003,10 @@ std::unique_ptr<WasmBytecode> WasmBytecodeGenerator::GenerateBytecode() {
     }
   }
 
-  PatchLoopJumpInstructions();
+  PatchLoopBeginInstructions();
   PatchBranchOffsets();
+
+  total_bytecode_size_ += code_.size();
 
   return std::make_unique<WasmBytecode>(
       function_index_, code_.data(), code_.size(), slot_offset_,
@@ -11263,10 +13017,6 @@ std::unique_ptr<WasmBytecode> WasmBytecodeGenerator::GenerateBytecode() {
 
 int32_t WasmBytecodeGenerator::BeginBlock(
     WasmOpcode opcode, const WasmInstruction::Optional::Block signature) {
-  if (opcode == kExprLoop) {
-    last_instr_offset_ = kInvalidCodeOffset;
-  }
-
   int32_t block_index = static_cast<int32_t>(blocks_.size());
   uint32_t stack_size = this->stack_size();
 
@@ -11298,8 +13048,12 @@ int32_t WasmBytecodeGenerator::BeginBlock(
 
   if (opcode == kExprLoop) {
     StoreBlockParamsIntoSlots(current_block_index_, true);
+    loop_begin_code_offsets_.push_back(CurrentCodePos());
     blocks_[current_block_index_].begin_code_offset_ = CurrentCodePos();
     last_instr_offset_ = kInvalidCodeOffset;
+
+    START_EMIT_INSTR_HANDLER_WITH_ID(s2s_OnLoopBegin) {}
+    END_EMIT_INSTR_HANDLER()
   }
   return current_block_index_;
 }
@@ -11320,12 +13074,12 @@ int WasmBytecodeGenerator::GetCurrentTryBlockIndex(
   return -1;
 }
 
-void WasmBytecodeGenerator::PatchLoopJumpInstructions() {
+void WasmBytecodeGenerator::PatchLoopBeginInstructions() {
   if (ref_slots_count_ == 0) {
-    for (size_t i = 0; i < loop_end_code_offsets_.size(); i++) {
+    for (size_t i = 0; i < loop_begin_code_offsets_.size(); i++) {
       base::WriteUnalignedValue<InstructionHandler>(
-          reinterpret_cast<Address>(code_.data() + loop_end_code_offsets_[i]),
-          k_s2s_Nop);
+          reinterpret_cast<Address>(code_.data() + loop_begin_code_offsets_[i]),
+          k_s2s_OnLoopBeginNoRefSlots);
     }
   }
 }
@@ -11371,14 +13125,19 @@ bool WasmBytecodeGenerator::TryCompactInstructionHandler(
   InstructionHandler prev_instr_handler = *prev_instr_addr;
   if (func_id == k_s2s_CopySlot32 && prev_instr_handler == k_s2s_CopySlot32) {
     // Tranforms:
-    //  [CopySlot32: InstrId][from: u32][to: u32]
+    //  [CopySlot32: InstrId][from: slot_offset_t][to: slot_offset_t]
     // into:
-    //  [CopySlot32x2: InstrId][from0: u32][to0: u32][from1: u32][to1: u32]
+    //  [CopySlot32x2: InstrId][from0: slot_offset_t][to0: slot_offset_t][from1:
+    //  slot_offset_t][to1: slot_offset_t]
+    DCHECK(handler_size_ == InstrHandlerSize::Large ||
+           v8_flags.drumbrake_compact_bytecode);
     base::WriteUnalignedValue<InstructionHandler>(
         reinterpret_cast<Address>(prev_instr_addr), k_s2s_CopySlot32x2);
     return true;
   } else if (func_id == k_s2s_CopySlot64 &&
              prev_instr_handler == k_s2s_CopySlot64) {
+    DCHECK(handler_size_ == InstrHandlerSize::Large ||
+           v8_flags.drumbrake_compact_bytecode);
     base::WriteUnalignedValue<InstructionHandler>(
         reinterpret_cast<Address>(prev_instr_addr), k_s2s_CopySlot64x2);
     return true;

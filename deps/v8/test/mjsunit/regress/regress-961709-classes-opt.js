@@ -23,11 +23,10 @@ assertOptimized(foo);
 
 // Change prototype
 o.__proto__.__proto__ = new Int32Array(3);
-
+assertUnoptimized(foo);
 
 // Check it still works
 assertEquals(undefined, foo(o, 3));
-assertUnoptimized(foo);
 %PrepareFunctionForOptimization(foo);
 assertEquals(undefined, foo(o, 3));
 %OptimizeFunctionOnNextCall(foo);

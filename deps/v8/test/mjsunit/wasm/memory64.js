@@ -2,7 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --experimental-wasm-memory64
 
 d8.file.execute('test/mjsunit/wasm/wasm-module-builder.js');
 
@@ -435,10 +434,70 @@ function allowOOM(fn) {
   assertEquals(0, instance.exports.load(0n));
 })();
 
+(function TestMemory64Constructor() {
+  print(arguments.callee.name);
+  let is_bigint = n => typeof n == "bigint";
+  let is_number = n => typeof n == "number";
+  let is_undefined = n => typeof n == "undefined";
+  let is_string = n => typeof n == "string";
+  // Printing support.
+  let Print = n => is_bigint(n) ? `${n}n` : is_string(n) ? `"${n}"` : `${n}`;
+
+  for (let initial of [undefined, 1, 1n, "1", true]) {
+    for (let maximum of [undefined, 1, 1n, "1", true]) {
+      for (let shared of [undefined, true, false, 1, "1"]) {
+        for (let address of [undefined, 'i32', 'i64', "1", true]) {
+          let is_i32 = is_undefined(address) || address === 'i32';
+          let valid_address = is_i32 || address === 'i64';
+          let valid_initial = !is_undefined(initial) &&
+              (is_i32 ? !is_bigint(initial) : !is_number(initial));
+          let valid_maximum =
+              is_i32 ? !is_bigint(maximum) : !is_number(maximum);
+          let valid = valid_address && valid_initial && valid_maximum &&
+              (!shared || maximum);  // shared implies maximum
+          let desc = `${Print(initial)} / ${Print(maximum)} / ${
+              Print(shared)} / ${Print(address)} -> ${valid}`;
+          let code = () => new WebAssembly.Memory({
+            initial: initial,
+            maximum: maximum,
+            shared: shared,
+            address: address
+          });
+          try {
+            code();
+            if (!valid) {
+              assertUnreachable(`Should have failed with TypeError: ${desc}`);
+            }
+          } catch (e) {
+            if (e instanceof TypeError && !valid) continue;
+            print(desc);
+            throw e;
+          }
+        }
+      }
+    }
+  }
+})();
+
+(function TestMemory64GrowViaJSApi() {
+  print(arguments.callee.name);
+  let memory = new WebAssembly.Memory({initial: 1n, maximum: 5n, address: 'i64'});
+  assertEquals(1n, memory.grow(2n));
+  assertThrows(
+      () => memory.grow(3n), RangeError,
+      'WebAssembly.Memory.grow(): Maximum memory size exceeded');
+  assertEquals(3n, memory.grow(2n));
+  assertThrows(
+      () => memory.grow(1n), RangeError,
+      'WebAssembly.Memory.grow(): Maximum memory size exceeded');
+  assertEquals(5n, memory.grow(0n));
+  assertThrows(() => memory.grow(0), TypeError, 'Cannot convert 0 to a BigInt');
+})();
+
 (function TestMemory64SharedBetweenWorkers() {
   print(arguments.callee.name);
   let shared_mem64 = new WebAssembly.Memory(
-      {initial: 1, maximum: 10, shared: true, index: 'i64'});
+      {initial: 1n, maximum: 10n, shared: true, address: 'i64'});
 
   let builder = new WasmModuleBuilder();
   builder.addImportedMemory('imp', 'mem', 1, 10, true, true);
@@ -491,7 +550,7 @@ function allowOOM(fn) {
       const kValue = 21;
       workerAssert(mem instanceof WebAssembly.Memory, 'Wasm memory');
       workerAssert(mem.buffer instanceof SharedArrayBuffer);
-      workerAssertEquals(4, mem.grow(1), 'grow');
+      workerAssertEquals(4, mem.grow(1n), 'grow');
       let instance = new WebAssembly.Instance(module, {imp: {mem: mem}});
       let exports = instance.exports;
       workerAssertEquals(kValue, exports.load(kOffset1), 'load 1');
@@ -584,7 +643,7 @@ function allowOOM(fn) {
   builder2.addImportedMemory('imp', 'mem');
   assertThrows(
       () => builder2.instantiate({imp: {mem: mem64}}), WebAssembly.LinkError,
-      'WebAssembly.Instance(): cannot import memory64 as memory32');
+      'WebAssembly.Instance(): cannot import i64 memory as i32');
 })();
 
 (function TestImportMemory32AsMemory64() {
@@ -600,7 +659,7 @@ function allowOOM(fn) {
       'imp', 'mem', 1, 1, /* shared */ false, /* memory64 */ true);
   assertThrows(
       () => builder2.instantiate({imp: {mem: mem32}}), WebAssembly.LinkError,
-      'WebAssembly.Instance(): cannot import memory32 as memory64');
+      'WebAssembly.Instance(): cannot import i32 memory as i64');
 })();
 
 function InstantiatingWorkerCode() {
@@ -636,7 +695,7 @@ function InstantiatingWorkerCode() {
   worker.postMessage([mem64, module2]);
   assertEquals(
       'Exception: LinkError: WebAssembly.Instance(): ' +
-          'cannot import memory64 as memory32',
+          'cannot import i64 memory as i32',
       worker.getMessage());
 })();
 
@@ -657,7 +716,7 @@ function InstantiatingWorkerCode() {
   worker.postMessage([mem32, module2]);
   assertEquals(
       'Exception: LinkError: WebAssembly.Instance(): ' +
-          'cannot import memory32 as memory64',
+          'cannot import i32 memory as i64',
       worker.getMessage());
 })();
 

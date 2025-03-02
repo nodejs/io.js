@@ -9,6 +9,7 @@
 #include "src/compiler/js-heap-broker.h"
 #include "src/compiler/node-matchers.h"
 #include "src/compiler/simplified-operator.h"
+#include "src/numbers/conversions.h"
 
 namespace v8 {
 namespace internal {
@@ -790,20 +791,33 @@ Reduction JSInliningHeuristic::InlineCandidate(Candidate const& candidate,
 
 bool JSInliningHeuristic::CandidateCompare::operator()(
     const Candidate& left, const Candidate& right) const {
+  constexpr bool kInlineLeftFirst = true, kInlineRightFirst = false;
   if (right.frequency.IsUnknown()) {
     if (left.frequency.IsUnknown()) {
       // If left and right are both unknown then the ordering is indeterminate,
       // which breaks strict weak ordering requirements, so we fall back to the
       // node id as a tie breaker.
-      return left.node->id() > right.node->id();
+      if (left.total_size < right.total_size) {
+        return kInlineLeftFirst;
+      } else if (left.total_size > right.total_size) {
+        return kInlineRightFirst;
+      } else {
+        return left.node->id() > right.node->id();
+      }
+    } else {
+      return kInlineLeftFirst;
     }
-    return true;
   } else if (left.frequency.IsUnknown()) {
-    return false;
-  } else if (left.frequency.value() > right.frequency.value()) {
-    return true;
-  } else if (left.frequency.value() < right.frequency.value()) {
-    return false;
+    return kInlineRightFirst;
+  }
+
+  int left_score = FastD2IChecked(left.frequency.value() / left.total_size);
+  int right_score = FastD2IChecked(right.frequency.value() / right.total_size);
+
+  if (left_score > right_score) {
+    return kInlineLeftFirst;
+  } else if (left_score < right_score) {
+    return kInlineRightFirst;
   } else {
     return left.node->id() > right.node->id();
   }

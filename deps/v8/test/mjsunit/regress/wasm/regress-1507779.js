@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --turboshaft-wasm --no-liftoff --no-wasm-lazy-compilation
+// Flags: --no-liftoff --no-wasm-lazy-compilation
 
 // This tests an issue where we created phis for rtts in Turboshaft, but then
 // assumed every rtt is an RttCanonOp. This is fixed by resolving Phis to

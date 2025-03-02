@@ -19,6 +19,8 @@ class FieldType;
 class HeapObject;
 class HeapNumber;
 class HeapObjectLayout;
+class TrustedObject;
+class TrustedObjectLayout;
 class Object;
 class TaggedIndex;
 class Smi;
@@ -85,6 +87,9 @@ template <typename T>
 struct is_maybe_weak : public std::false_type {};
 template <typename T>
 struct is_maybe_weak<MaybeWeak<T>> : public std::true_type {};
+template <typename... T>
+struct is_maybe_weak<Union<T...>>
+    : public std::disjunction<is_maybe_weak<T>...> {};
 template <typename T>
 static constexpr bool is_maybe_weak_v = is_maybe_weak<T>::value;
 
@@ -144,6 +149,7 @@ class OrderedHashSet;
 class OrderedNameDictionary;
 class ScriptContextTable;
 class ArrayList;
+class SloppyArgumentsElements;
 
 namespace detail {
 // `is_simple_subtype<Derived, Base>::value` is true when Derived is a simple
@@ -215,6 +221,7 @@ DEF_FIXED_ARRAY_SUBTYPE(OrderedHashSet)
 DEF_FIXED_ARRAY_SUBTYPE(OrderedNameDictionary)
 DEF_FIXED_ARRAY_SUBTYPE(ScriptContextTable)
 DEF_FIXED_ARRAY_SUBTYPE(ArrayList)
+DEF_FIXED_ARRAY_SUBTYPE(SloppyArgumentsElements)
 #undef DEF_FIXED_ARRAY_SUBTYPE
 
 // `is_complex_subtype<Derived, Base>::value` is true when Derived is a
@@ -241,6 +248,13 @@ struct is_complex_subtype<Derived, HeapObject,
                           std::enable_if_t<std::disjunction_v<
                               std::is_base_of<HeapObject, Derived>,
                               std::is_base_of<HeapObjectLayout, Derived>>>>
+    : public std::true_type {};
+
+template <typename Derived>
+struct is_complex_subtype<Derived, TrustedObject,
+                          std::enable_if_t<std::disjunction_v<
+                              std::is_base_of<TrustedObject, Derived>,
+                              std::is_base_of<TrustedObjectLayout, Derived>>>>
     : public std::true_type {};
 
 template <typename Derived, typename... BaseTs>
@@ -439,17 +453,19 @@ class Tagged<HeapObject> : public StrongTaggedBase {
       : Tagged(reinterpret_cast<Address>(ptr) + kHeapObjectTag) {}
 
   // Implicit conversion for subclasses.
-  template <typename U,
-            typename = std::enable_if_t<is_subtype_v<U, HeapObject>>>
-  V8_INLINE constexpr Tagged& operator=(Tagged<U> other) {
+  template <typename U>
+  V8_INLINE constexpr Tagged& operator=(Tagged<U> other)
+    requires(is_subtype_v<U, HeapObject>)
+  {
     return *this = Tagged(other);
   }
 
   // Implicit conversion for subclasses.
-  template <typename U,
-            typename = std::enable_if_t<is_subtype_v<U, HeapObject>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(Tagged<U> other) : Base(other) {}
+  V8_INLINE constexpr Tagged(Tagged<U> other)
+    requires(is_subtype_v<U, HeapObject>)
+      : Base(other) {}
 
   V8_INLINE constexpr HeapObject operator*() const;
   V8_INLINE constexpr detail::TaggedOperatorArrowRef<HeapObject> operator->()
@@ -465,10 +481,11 @@ class Tagged<HeapObject> : public StrongTaggedBase {
 
   // Implicit conversions and explicit casts to/from raw pointers
   // TODO(leszeks): Remove once we're using Tagged everywhere.
-  template <typename U,
-            typename = std::enable_if_t<is_subtype_v<U, HeapObject>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  constexpr Tagged(U raw) : Base(raw.ptr()) {
+  constexpr Tagged(U raw)
+    requires(std::is_base_of_v<HeapObject, U>)
+      : Base(raw.ptr()) {
     static_assert(kTaggedCanConvertToRawObjects);
   }
   template <typename U>
@@ -556,22 +573,24 @@ class Tagged<MaybeWeak<HeapObject>> : public WeakTaggedBase {
       : Tagged(reinterpret_cast<Address>(ptr) + kHeapObjectTag) {}
 
   // Implicit conversion for subclasses.
-  template <typename U,
-            typename = std::enable_if_t<is_subtype_v<U, MaybeWeak<HeapObject>>>>
-  V8_INLINE constexpr Tagged& operator=(Tagged<U> other) {
+  template <typename U>
+  V8_INLINE constexpr Tagged& operator=(Tagged<U> other)
+    requires(is_subtype_v<U, MaybeWeak<HeapObject>>)
+  {
     return *this = Tagged(other);
   }
 
   // Implicit conversion for subclasses.
-  template <typename U,
-            typename = std::enable_if_t<is_subtype_v<U, MaybeWeak<HeapObject>>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(Tagged<U> other) : Base(other.ptr()) {}
+  V8_INLINE constexpr Tagged(Tagged<U> other)
+    requires(is_subtype_v<U, MaybeWeak<HeapObject>>)
+      : Base(other.ptr()) {}
 
-  template <typename U,
-            typename = std::enable_if_t<is_subtype_v<U, MaybeWeak<HeapObject>>>>
+  template <typename U>
   V8_INLINE explicit constexpr Tagged(Tagged<U> other,
                                       HeapObjectReferenceType type)
+    requires(is_subtype_v<U, MaybeWeak<HeapObject>>)
       : Base(type == HeapObjectReferenceType::WEAK ? MakeWeak(other)
                                                    : MakeStrong(other)) {}
 
@@ -610,22 +629,28 @@ class Tagged<Union<Ts...>> : public detail::BaseForTagged<Union<Ts...>>::type {
   V8_INLINE constexpr Tagged() = default;
 
   // Implicit conversion for subclasses.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, This>>>
-  V8_INLINE constexpr Tagged& operator=(Tagged<U> other) {
+  template <typename U>
+  V8_INLINE constexpr Tagged& operator=(Tagged<U> other)
+    requires(is_subtype_v<U, This>)
+  {
     *this = Tagged(other);
     return *this;
   }
 
   // Implicit conversion for subclasses.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, This>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(Tagged<U> other) : Base(other.ptr()) {}
+  V8_INLINE constexpr Tagged(Tagged<U> other)
+    requires(is_subtype_v<U, This>)
+      : Base(other.ptr()) {}
 
   // Implicit conversions and explicit casts to/from raw pointers
   // TODO(leszeks): Remove once we're using Tagged everywhere.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, This>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(U raw) : Base(raw.ptr()) {
+  V8_INLINE constexpr Tagged(U raw)
+    requires(is_subtype_v<U, This> && std::is_base_of_v<HeapObject, U>)
+      : Base(raw.ptr()) {
     static_assert(kTaggedCanConvertToRawObjects);
   }
 
@@ -665,44 +690,54 @@ class Tagged : public detail::BaseForTagged<T>::type {
   }
 
   // Implicit conversion for subclasses.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, T>>>
-  V8_INLINE constexpr Tagged& operator=(Tagged<U> other) {
+  template <typename U>
+  V8_INLINE constexpr Tagged& operator=(Tagged<U> other)
+    requires(is_subtype_v<U, T>)
+  {
     *this = Tagged(other);
     return *this;
   }
 
   // Implicit conversion for subclasses.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, T>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(Tagged<U> other) : Base(other) {}
+  V8_INLINE constexpr Tagged(Tagged<U> other)
+    requires(is_subtype_v<U, T>)
+      : Base(other) {}
 
-  template <typename U = T,
-            typename = std::enable_if_t<std::is_base_of_v<HeapObjectLayout, U>>>
-  V8_INLINE T& operator*() const {
+  template <typename U = T>
+  V8_INLINE T& operator*() const
+    requires(std::is_base_of_v<HeapObjectLayout, U>)
+  {
     return *ToRawPtr();
   }
-  template <typename U = T,
-            typename = std::enable_if_t<std::is_base_of_v<HeapObjectLayout, U>>>
-  V8_INLINE T* operator->() const {
+  template <typename U = T>
+  V8_INLINE T* operator->() const
+    requires(std::is_base_of_v<HeapObjectLayout, U>)
+  {
     return ToRawPtr();
   }
 
-  template <typename U = T, typename = std::enable_if_t<
-                                !std::is_base_of_v<HeapObjectLayout, U>>>
-  V8_INLINE constexpr T operator*() const {
+  template <typename U = T>
+  V8_INLINE constexpr T operator*() const
+    requires(!std::is_base_of_v<HeapObjectLayout, U>)
+  {
     return ToRawPtr();
   }
-  template <typename U = T, typename = std::enable_if_t<
-                                !std::is_base_of_v<HeapObjectLayout, U>>>
-  V8_INLINE constexpr detail::TaggedOperatorArrowRef<T> operator->() const {
+  template <typename U = T>
+  V8_INLINE constexpr detail::TaggedOperatorArrowRef<T> operator->() const
+    requires(!std::is_base_of_v<HeapObjectLayout, U>)
+  {
     return detail::TaggedOperatorArrowRef<T>{ToRawPtr()};
   }
 
   // Implicit conversions and explicit casts to/from raw pointers
   // TODO(leszeks): Remove once we're using Tagged everywhere.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, T>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(U raw) : Base(raw.ptr()) {
+  V8_INLINE constexpr Tagged(U raw)
+    requires(is_subtype_v<U, T>)
+      : Base(raw.ptr()) {
     static_assert(kTaggedCanConvertToRawObjects);
   }
   template <typename U>
@@ -730,18 +765,20 @@ class Tagged : public detail::BaseForTagged<T>::type {
 
   V8_INLINE constexpr explicit Tagged(Address ptr) : Base(ptr) {}
 
-  template <typename U = T,
-            typename = std::enable_if_t<std::is_base_of_v<HeapObjectLayout, U>>>
-  V8_INLINE T* ToRawPtr() const {
+  template <typename U = T>
+  V8_INLINE T* ToRawPtr() const
+    requires(std::is_base_of_v<HeapObjectLayout, U>)
+  {
     // Check whether T is taggable on raw ptr access rather than top-level, to
     // allow forward declarations.
     static_assert(is_taggable_v<T>);
     return reinterpret_cast<T*>(this->ptr() - kHeapObjectTag);
   }
 
-  template <typename U = T, typename = std::enable_if_t<
-                                !std::is_base_of_v<HeapObjectLayout, U>>>
-  V8_INLINE constexpr T ToRawPtr() const {
+  template <typename U = T>
+  V8_INLINE constexpr T ToRawPtr() const
+    requires(!std::is_base_of_v<HeapObjectLayout, U>)
+  {
     // Check whether T is taggable on raw ptr access rather than top-level, to
     // allow forward declarations.
     static_assert(is_taggable_v<T>);
@@ -779,16 +816,20 @@ class Tagged<MaybeWeak<T>> : public detail::BaseForTagged<MaybeWeak<T>>::type {
   }
 
   // Implicit conversion for subclasses.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, T>>>
-  V8_INLINE constexpr Tagged& operator=(Tagged<U> other) {
+  template <typename U>
+  V8_INLINE constexpr Tagged& operator=(Tagged<U> other)
+    requires(is_subtype_v<U, T>)
+  {
     *this = Tagged(other);
     return *this;
   }
 
   // Implicit conversion for subclasses.
-  template <typename U, typename = std::enable_if_t<is_subtype_v<U, T>>>
+  template <typename U>
   // NOLINTNEXTLINE
-  V8_INLINE constexpr Tagged(Tagged<U> other) : Base(other) {}
+  V8_INLINE constexpr Tagged(Tagged<U> other)
+    requires(is_subtype_v<U, T>)
+      : Base(other) {}
 
  private:
   V8_INLINE constexpr explicit Tagged(Address ptr) : Base(ptr) {}

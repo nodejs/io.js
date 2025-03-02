@@ -5,6 +5,7 @@
 #ifndef V8_CCTEST_DISASM_REGEX_HELPER_H_
 #define V8_CCTEST_DISASM_REGEX_HELPER_H_
 
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <regex>  // NOLINT(build/c++11)

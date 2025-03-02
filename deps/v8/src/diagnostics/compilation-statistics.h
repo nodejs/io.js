@@ -20,7 +20,7 @@ class CompilationStatistics;
 
 struct AsPrintableStatistics {
   const char* compiler;
-  const CompilationStatistics& s;
+  CompilationStatistics& s;
   const bool machine_output;
 };
 
@@ -84,7 +84,7 @@ class CompilationStatistics final : public Malloced {
   TotalStats total_stats_;
   PhaseKindMap phase_kind_map_;
   PhaseMap phase_map_;
-  base::Mutex record_mutex_;
+  base::SpinningMutex access_mutex_;
 };
 
 std::ostream& operator<<(std::ostream& os, const AsPrintableStatistics& s);

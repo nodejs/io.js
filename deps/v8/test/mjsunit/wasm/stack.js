@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm --no-force-slow-path
+// Flags: --no-force-slow-path
 
 d8.file.execute("test/mjsunit/wasm/wasm-module-builder.js");
 
@@ -69,7 +69,7 @@ var module = builder.instantiate({mod: {func: STACK}});
   var expected_string = 'Error\n' +
       // The line numbers below will change as this test gains / loses lines..
       '    at STACK (stack.js:38:11)\n' +                            // --
-      '    at main (wasm://wasm/862e1cf6:wasm-function[1]:0x72)\n' + // --
+      '    at main (wasm://wasm/16d24f76:wasm-function[1]:0x72)\n' + // --
       '    at testSimpleStack (stack.js:76:18)\n' +                  // --
       '    at stack.js:78:3';                                        // --
 
@@ -89,7 +89,7 @@ Error.prepareStackTrace = function(error, frames) {
   verifyStack(stack, [
       // isWasm           function   line   pos                    file  offset funcIndex
       [   false,           "STACK",    38,    0,             "stack.js"],
-      [    true,            "main",     1, 0x72, "wasm://wasm/862e1cf6", '0x72',        1],
+      [    true,            "main",     1, 0x72, "wasm://wasm/16d24f76", '0x72',        1],
       [   false, "testStackFrames",    87,    0,             "stack.js"],
       [   false,              null,    96,    0,             "stack.js"]
   ]);
@@ -103,7 +103,7 @@ Error.prepareStackTrace = function(error, frames) {
     assertContains("unreachable", e.message);
     verifyStack(e.stack, [
         // isWasm               function   line  pos                    file  offset funcIndex
-        [    true,    "exec_unreachable",    1, 0x77, "wasm://wasm/862e1cf6", '0x77',        2],
+        [    true,    "exec_unreachable",    1, 0x77, "wasm://wasm/16d24f76", '0x77',        2],
         [   false, "testWasmUnreachable",  100,    0,             "stack.js"],
         [   false,                  null,  111,    0,             "stack.js"]
     ]);
@@ -118,8 +118,8 @@ Error.prepareStackTrace = function(error, frames) {
     assertContains("out of bounds", e.message);
     verifyStack(e.stack, [
         // isWasm                  function   line   pos                    file  offset funcIndex
-        [    true,                     null,     1, 0x7d, "wasm://wasm/862e1cf6", '0x7d',        3],
-        [    true, "call_mem_out_of_bounds",     1, 0x83, "wasm://wasm/862e1cf6", '0x83',        4],
+        [    true,                     null,     1, 0x7d, "wasm://wasm/16d24f76", '0x7d',        3],
+        [    true, "call_mem_out_of_bounds",     1, 0x83, "wasm://wasm/16d24f76", '0x83',        4],
         [   false, "testWasmMemOutOfBounds",   115,    0,             "stack.js"],
         [   false,                     null,   127,    0,             "stack.js"]
     ]);
@@ -147,10 +147,10 @@ Error.prepareStackTrace = function(error, frames) {
     assertTrue(e.stack.length >= 4, "expected at least 4 stack entries");
     verifyStack(e.stack.splice(0, 4), [
         // isWasm     function  line   pos                    file  offset funcIndex
-        [    true, "recursion",    1, 0x34, "wasm://wasm/80a35e5a", '0x34',        0],
-        [    true, "recursion",    1, 0x37, "wasm://wasm/80a35e5a", '0x37',        0],
-        [    true, "recursion",    1, 0x37, "wasm://wasm/80a35e5a", '0x37',        0],
-        [    true, "recursion",    1, 0x37, "wasm://wasm/80a35e5a", '0x37',        0]
+        [    true, "recursion",    1, 0x34, "wasm://wasm/ad7a0826", '0x34',        0],
+        [    true, "recursion",    1, 0x37, "wasm://wasm/ad7a0826", '0x37',        0],
+        [    true, "recursion",    1, 0x37, "wasm://wasm/ad7a0826", '0x37',        0],
+        [    true, "recursion",    1, 0x37, "wasm://wasm/ad7a0826", '0x37',        0]
     ]);
   }
 })();

@@ -53,7 +53,7 @@ class WasmCodePointerTableTest : public TestWithPlatform {
   }
 
   void CreateHoleySegments() {
-    std::vector<uint32_t> to_free_handles;
+    std::vector<WasmCodePointer> to_free_handles;
 
     for (size_t i = 0; i < 3 * WasmCodePointerTable::kEntriesPerSegment + 1337;
          i++) {
@@ -86,7 +86,7 @@ class WasmCodePointerTableTest : public TestWithPlatform {
   }
 
   WasmCodePointerTable* code_pointer_table_;
-  std::vector<uint32_t> handles_;
+  std::vector<WasmCodePointer> handles_;
 };
 
 TEST_F(WasmCodePointerTableTest, ConcurrentSweep) {

@@ -56,7 +56,7 @@ bool CallOptimization::IsCrossContextLazyAccessorPair(
 
 template <class IsolateT>
 Handle<JSObject> CallOptimization::LookupHolderOfExpectedType(
-    IsolateT* isolate, Handle<Map> object_map,
+    IsolateT* isolate, DirectHandle<Map> object_map,
     HolderLookup* holder_lookup) const {
   DCHECK(is_simple_api_call());
   if (!IsJSObjectMap(*object_map)) {
@@ -71,7 +71,7 @@ Handle<JSObject> CallOptimization::LookupHolderOfExpectedType(
   if (IsJSGlobalProxyMap(*object_map) && !IsNull(object_map->prototype())) {
     Tagged<JSObject> raw_prototype = Cast<JSObject>(object_map->prototype());
     Handle<JSObject> prototype(raw_prototype, isolate);
-    object_map = handle(prototype->map(), isolate);
+    object_map = direct_handle(prototype->map(), isolate);
     if (expected_receiver_type_->IsTemplateFor(*object_map)) {
       *holder_lookup = kHolderFound;
       return prototype;
@@ -83,14 +83,14 @@ Handle<JSObject> CallOptimization::LookupHolderOfExpectedType(
 
 // Instantiations.
 template Handle<JSObject> CallOptimization::LookupHolderOfExpectedType(
-    Isolate* isolate, Handle<Map> object_map,
+    Isolate* isolate, DirectHandle<Map> object_map,
     HolderLookup* holder_lookup) const;
 template Handle<JSObject> CallOptimization::LookupHolderOfExpectedType(
-    LocalIsolate* isolate, Handle<Map> object_map,
+    LocalIsolate* isolate, DirectHandle<Map> object_map,
     HolderLookup* holder_lookup) const;
 
 bool CallOptimization::IsCompatibleReceiverMap(
-    Handle<JSObject> api_holder, Handle<JSObject> holder,
+    DirectHandle<JSObject> api_holder, Handle<JSObject> holder,
     HolderLookup holder_lookup) const {
   DCHECK(is_simple_api_call());
   switch (holder_lookup) {

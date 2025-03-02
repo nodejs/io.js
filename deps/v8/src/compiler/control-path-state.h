@@ -7,11 +7,11 @@
 
 #include "src/compiler/functional-list.h"
 #include "src/compiler/graph-reducer.h"
-#include "src/compiler/graph.h"
 #include "src/compiler/node-aux-data.h"
 #include "src/compiler/node-properties.h"
 #include "src/compiler/node.h"
 #include "src/compiler/persistent-map.h"
+#include "src/compiler/turbofan-graph.h"
 #include "src/zone/zone.h"
 
 namespace v8 {
