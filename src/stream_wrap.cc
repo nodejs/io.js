@@ -128,7 +128,8 @@ LibuvStreamWrap::LibuvStreamWrap(Environment* env,
                  reinterpret_cast<uv_handle_t*>(stream),
                  provider),
       StreamBase(env),
-      stream_(stream) {
+      stream_(stream),
+      recvq_size_(STREAM_WRAP_RECVQ_INITIAL) {
   StreamBase::AttachToObject(object);
 }
 
@@ -224,7 +225,7 @@ void LibuvStreamWrap::OnUvAlloc(size_t suggested_size, uv_buf_t* buf) {
   HandleScope scope(env()->isolate());
   Context::Scope context_scope(env()->context());
 
-  *buf = EmitAlloc(suggested_size);
+  *buf = EmitAlloc(recvq_size_);
 }
 
 template <class WrapType>
@@ -266,6 +267,13 @@ Maybe<void> LibuvStreamWrap::OnUvRead(ssize_t nread, const uv_buf_t* buf) {
   CHECK_EQ(persistent().IsEmpty(), false);
 
   if (nread > 0) {
+    // Adjust the dynamic receive buffer
+    if (nread == recvq_size_ && recvq_size_ < STREAM_WRAP_RECVQ_MAX) {
+      recvq_size_ *= 2;
+    } else if (nread < recvq_size_ / 4 && recvq_size_ > STREAM_WRAP_RECVQ_MIN) {
+      recvq_size_ /= 2;
+    }
+
     MaybeLocal<Object> pending_obj;
 
     if (type == UV_TCP) {
