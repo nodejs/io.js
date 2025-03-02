@@ -2,8 +2,6 @@
 #define SRC_JS_NATIVE_API_H_
 
 // This file needs to be compatible with C compilers.
-#include <stdbool.h>  // NOLINT(modernize-deprecated-headers)
-#include <stddef.h>   // NOLINT(modernize-deprecated-headers)
 
 // Use INT_MAX, this should only be consumed by the pre-processor anyway.
 #define NAPI_VERSION_EXPERIMENTAL 2147483647
@@ -13,7 +11,7 @@
 #else
 // The baseline version for N-API.
 // The NAPI_VERSION controls which version will be used by default when
-// compilling a native addon. If the addon developer specifically wants to use
+// compiling a native addon. If the addon developer specifically wants to use
 // functions available in a new version of N-API that is not yet ported in all
 // LTS versions, they can set NAPI_VERSION knowing that they have specifically
 // depended on that version.

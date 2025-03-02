@@ -16,7 +16,7 @@
 * [Buffer](buffer.md)
 * [C++ addons](addons.md)
 * [C/C++ addons with Node-API](n-api.md)
-* [C++ embedder API](embedding.md)
+* [C/C++ embedder API](embedding.md)
 * [Child processes](child_process.md)
 * [Cluster](cluster.md)
 * [Command-line options](cli.md)
