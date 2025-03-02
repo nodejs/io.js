@@ -197,6 +197,14 @@ There are constraints you need to know before using this system:
 * Using existing file descriptors via the `node:fs` module bypasses the
   Permission Model.
 
+#### Allowing all write operations
+
+When `--allow-fs-write=*` is permitted, it may inadvertently lead to invalidating
+the permission model because of unintended file access
+to files that have side effects when written to, like
+service configuration files or internal file interfaces like
+linux's `/proc`.
+
 #### Limitations and Known Issues
 
 * Symbolic links will be followed even to locations outside of the set of paths
