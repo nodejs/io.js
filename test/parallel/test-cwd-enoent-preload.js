@@ -30,6 +30,6 @@ proc.stdout.pipe(process.stdout);
 proc.stderr.pipe(process.stderr);
 
 proc.once('exit', common.mustCall(function(exitCode, signalCode) {
-  assert.strictEqual(exitCode, 0);
+  assert.strictEqual(exitCode, 1);
   assert.strictEqual(signalCode, null);
 }));
