@@ -23,7 +23,6 @@
 const common = require('../common');
 const net = require('net');
 
-const server = net.createServer(function(socket) {
-});
+const server = net.createServer(common.mustNotCall());
 server.listen(1, '1.1.1.1', common.mustNotCall()); // EACCES or EADDRNOTAVAIL
 server.on('error', common.mustCall());
