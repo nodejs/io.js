@@ -182,7 +182,7 @@ async function prepareKeys() {
         },
         keys.X448.privateKey,
         8 * keys.X448.size),
-      { message: 'The public and private keys must be of the same type' });
+      { message: 'algorithm.public must be an X448 key' });
   }
 
   {

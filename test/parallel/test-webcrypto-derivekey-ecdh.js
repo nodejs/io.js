@@ -174,7 +174,7 @@ async function prepareKeys() {
         },
         keys['P-521'].privateKey,
         ...otherArgs),
-      { message: /Keys must be ECDH, X25519, or X448 keys/ });
+      { message: 'algorithm.public must be an ECDH key' });
   }
 
   {

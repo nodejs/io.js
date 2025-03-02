@@ -345,6 +345,14 @@ const vectors = {
           { code: 'ERR_INVALID_ARG_TYPE' });
       }));
 
+    await assert.rejects(
+      subtle.generateKey(
+        { name, modulusLength, publicExponent: new Uint8Array([1, 1, 1, 1, 1]), hash }, true, usages),
+      {
+        message: /The publicExponent must be equivalent to an unsigned 32-bit value/,
+        name: 'OperationError',
+      });
+
     await Promise.all([true, 1].map((hash) => {
       return assert.rejects(subtle.generateKey({
         name,
@@ -493,8 +501,6 @@ const vectors = {
   ];
 
   const tests = kTests.map((args) => test(...args));
-
-  // Test bad parameters
 
   Promise.all(tests).then(common.mustCall());
 }
@@ -674,8 +680,6 @@ assert.throws(() => new CryptoKey(), { code: 'ERR_ILLEGAL_CONSTRUCTOR' });
   ];
 
   const tests = kTests.map((args) => test(...args));
-
-  // Test bad parameters
 
   Promise.all(tests).then(common.mustCall());
 }

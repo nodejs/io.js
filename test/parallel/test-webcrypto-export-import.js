@@ -39,6 +39,15 @@ const { subtle } = globalThis.crypto;
     await assert.rejects(
       subtle.importKey('raw', keyData, {
         name: 'HMAC',
+        hash: 'SHA-256',
+        length: 384,
+      }, false, ['sign', 'verify']), {
+        name: 'DataError',
+        message: 'Invalid key length'
+      });
+    await assert.rejects(
+      subtle.importKey('raw', keyData, {
+        name: 'HMAC',
         hash: 'SHA-256'
       }, false, ['deriveBits']), {
         name: 'SyntaxError',

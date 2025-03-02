@@ -37,6 +37,20 @@ const { subtle } = globalThis.crypto;
     assert.strictEqual(
       Buffer.from(plaintext).toString('hex'),
       Buffer.from(buf).toString('hex'));
+
+    await assert.rejects(() => subtle.encrypt({
+      name: 'RSA-OAEP',
+    }, privateKey, buf), {
+      name: 'InvalidAccessError',
+      message: 'The requested operation is not valid for the provided key'
+    });
+
+    await assert.rejects(() => subtle.decrypt({
+      name: 'RSA-OAEP',
+    }, publicKey, ciphertext), {
+      name: 'InvalidAccessError',
+      message: 'The requested operation is not valid for the provided key'
+    });
   }
 
   test().then(common.mustCall());
