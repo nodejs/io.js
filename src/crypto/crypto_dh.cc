@@ -477,41 +477,6 @@ WebCryptoKeyExportStatus DHKeyExportTraits::DoExport(
   }
 }
 
-namespace {
-ByteSource StatelessDiffieHellmanThreadsafe(const EVPKeyPointer& our_key,
-                                            const EVPKeyPointer& their_key) {
-  auto dp = DHPointer::stateless(our_key, their_key);
-  if (!dp) return {};
-
-  return ByteSource::Allocated(dp.release());
-}
-
-void Stateless(const FunctionCallbackInfo<Value>& args) {
-  Environment* env = Environment::GetCurrent(args);
-
-  CHECK(args[0]->IsObject() && args[1]->IsObject());
-  KeyObjectHandle* our_key_object;
-  ASSIGN_OR_RETURN_UNWRAP(&our_key_object, args[0].As<Object>());
-  CHECK_EQ(our_key_object->Data().GetKeyType(), kKeyTypePrivate);
-  KeyObjectHandle* their_key_object;
-  ASSIGN_OR_RETURN_UNWRAP(&their_key_object, args[1].As<Object>());
-  CHECK_NE(their_key_object->Data().GetKeyType(), kKeyTypeSecret);
-
-  const auto& our_key = our_key_object->Data().GetAsymmetricKey();
-  const auto& their_key = their_key_object->Data().GetAsymmetricKey();
-
-  Local<Value> out;
-  if (!StatelessDiffieHellmanThreadsafe(our_key, their_key)
-          .ToBuffer(env)
-              .ToLocal(&out)) return;
-
-  if (Buffer::Length(out) == 0)
-    return ThrowCryptoError(env, ERR_get_error(), "diffieHellman failed");
-
-  args.GetReturnValue().Set(out);
-}
-}  // namespace
-
 Maybe<void> DHBitsTraits::AdditionalConfig(
     CryptoJobMode mode,
     const FunctionCallbackInfo<Value>& args,
@@ -529,7 +494,7 @@ Maybe<void> DHBitsTraits::AdditionalConfig(
   ASSIGN_OR_RETURN_UNWRAP(&private_key, args[offset + 1], Nothing<void>());
 
   if (private_key->Data().GetKeyType() != kKeyTypePrivate ||
-      public_key->Data().GetKeyType() != kKeyTypePublic) {
+      public_key->Data().GetKeyType() == kKeyTypeSecret) {
     THROW_ERR_CRYPTO_INVALID_KEYTYPE(env);
     return Nothing<void>();
   }
@@ -550,8 +515,20 @@ bool DHBitsTraits::DeriveBits(
     Environment* env,
     const DHBitsConfig& params,
     ByteSource* out) {
-  *out = StatelessDiffieHellmanThreadsafe(params.private_key.GetAsymmetricKey(),
-                                          params.public_key.GetAsymmetricKey());
+  auto dp = DHPointer::stateless(params.private_key.GetAsymmetricKey(),
+                                 params.public_key.GetAsymmetricKey());
+  if (!dp) {
+    bool can_throw =
+        per_process::v8_initialized && Isolate::TryGetCurrent() != nullptr;
+    if (can_throw) {
+      unsigned long err = ERR_get_error();  // NOLINT(runtime/int)
+      if (err) ThrowCryptoError(env, err, "diffieHellman failed");
+    }
+    return false;
+  }
+
+  *out = ByteSource::Allocated(dp.release());
+  CHECK(!out->empty());
   return true;
 }
 
@@ -604,7 +581,6 @@ void DiffieHellman::Initialize(Environment* env, Local<Object> target) {
   make(FIXED_ONE_BYTE_STRING(env->isolate(), "DiffieHellmanGroup"),
        DiffieHellmanGroup);
 
-  SetMethodNoSideEffect(context, target, "statelessDH", Stateless);
   DHKeyPairGenJob::Initialize(env, target);
   DHKeyExportJob::Initialize(env, target);
   DHBitsJob::Initialize(env, target);
@@ -625,7 +601,6 @@ void DiffieHellman::RegisterExternalReferences(
   registry->Register(SetPrivateKey);
 
   registry->Register(Check);
-  registry->Register(Stateless);
 
   DHKeyPairGenJob::RegisterExternalReferences(registry);
   DHKeyExportJob::RegisterExternalReferences(registry);
