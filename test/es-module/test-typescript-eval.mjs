@@ -242,3 +242,23 @@ test('check syntax error is thrown when passing invalid syntax with --input-type
   match(result.stderr, /ERR_INVALID_TYPESCRIPT_SYNTAX/);
   strictEqual(result.code, 1);
 });
+
+test('should not allow module keyword', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--input-type=module-typescript',
+    '--eval',
+    'module F { export type x = number }']);
+  strictEqual(result.stdout, '');
+  match(result.stderr, /ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX/);
+  strictEqual(result.code, 1);
+});
+
+test('should not allow declare module keyword', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--input-type=module-typescript',
+    '--eval',
+    'declare module F { export type x = number }']);
+  strictEqual(result.stdout, '');
+  match(result.stderr, /ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX/);
+  strictEqual(result.code, 1);
+});

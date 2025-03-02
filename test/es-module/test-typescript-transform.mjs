@@ -85,9 +85,10 @@ test('execute a TypeScript file with legacy-module', async () => {
     fixtures.path('typescript/ts/transformation/test-legacy-module.ts'),
   ]);
 
-  strictEqual(result.stderr, '');
-  match(result.stdout, /Hello, TypeScript!/);
-  strictEqual(result.code, 0);
+  match(result.stderr, /ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX/);
+  match(result.stderr, /`module` keyword is not supported\. Use `namespace` instead/);
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 1);
 });
 
 test('execute a TypeScript file with modern typescript syntax', async () => {
