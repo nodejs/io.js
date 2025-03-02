@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <variant>
+#include "node_internals.h"
 #include "simdjson.h"
 #include "util-inl.h"
 
