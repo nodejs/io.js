@@ -86,7 +86,7 @@ jobs:
       - name: Environment Information
         run: npx envinfo
       - name: Download tarball
-        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16  # v4.1.8
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806  # v4.1.9
         with:
           name: tarballs
           path: tarballs
