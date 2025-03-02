@@ -2098,6 +2098,12 @@ void TLSWrap::GetProtocol(const FunctionCallbackInfo<Value>& args) {
   Environment* env = Environment::GetCurrent(args);
   TLSWrap* w;
   ASSIGN_OR_RETURN_UNWRAP(&w, args.This());
+
+  if (w->kind_ == Kind::kServer) {
+    args.GetReturnValue().SetNull();
+    return;
+  }
+
   args.GetReturnValue().Set(
       OneByteString(env->isolate(), SSL_get_version(w->ssl_.get())));
 }
