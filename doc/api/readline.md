@@ -272,6 +272,14 @@ the `'close'` event will be emitted.
 Calling `rl.close()` does not immediately stop other events (including `'line'`)
 from being emitted by the `InterfaceConstructor` instance.
 
+### `rl[Symbol.dispose]()`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+Alias for `rl.close()`.
+
 ### `rl.pause()`
 
 <!-- YAML
