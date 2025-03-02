@@ -140,5 +140,8 @@ throws(() => {
   })
 );
 
-// Invalid encoding is allowed
-Buffer.from('asd', 1);
+throws(() => {
+  Buffer.from('asd', 1);
+}, {
+  code: 'ERR_UNKNOWN_ENCODING'
+});
