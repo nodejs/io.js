@@ -1,0 +1,5 @@
+{
+  "nodeOptions": {
+    "disable-warning": "ExperimentalWarning"
+  }
+}

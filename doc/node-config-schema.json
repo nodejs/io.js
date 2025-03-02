@@ -80,9 +80,6 @@
         "debug-arraybuffer-allocations": {
           "type": "boolean"
         },
-        "deprecation": {
-          "type": "boolean"
-        },
         "diagnostic-dir": {
           "type": "string"
         },
@@ -91,20 +88,6 @@
         },
         "disable-sigusr1": {
           "type": "boolean"
-        },
-        "disable-warning": {
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "items": {
-                "type": "string",
-                "minItems": 1
-              },
-              "type": "array"
-            }
-          ]
         },
         "disable-wasm-trap-handler": {
           "type": "boolean"
@@ -295,9 +278,6 @@
         },
         "preserve-symlinks-main": {
           "type": "boolean"
-        },
-        "redirect-warnings": {
-          "type": "string"
         },
         "report-compact": {
           "type": "boolean"
@@ -548,9 +528,6 @@
           "type": "number"
         },
         "verify-base-objects": {
-          "type": "boolean"
-        },
-        "warnings": {
           "type": "boolean"
         },
         "watch": {

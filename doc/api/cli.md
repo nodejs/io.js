@@ -958,6 +958,10 @@ the following command-line arguments:
 node --import amaro/strip --watch-path=src --watch-preserve-output
 ```
 
+> \[!NOTE]
+> Flags to silence warnings and deprecations are not supported in the configuration file.
+> `warnings`, `deprecation`, `disable-warning` and `redirect-warnings` are not supported.
+
 The priority in configuration is as follows:
 
 1. NODE\_OPTIONS and command-line options

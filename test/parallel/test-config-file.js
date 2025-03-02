@@ -350,3 +350,27 @@ test('should throw an error when the file is non readable', { skip: common.isWin
   chmodSync(fixtures.path('rc/non-readable/node.config.json'),
             constants.S_IRWXU | constants.S_IRWXG | constants.S_IRWXO);
 });
+
+test('should throw when trying to silence wrning', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-config-file',
+    fixtures.path('rc/disable-warnings.json'),
+    '-p', '"Hello, World!"',
+  ]);
+  match(result.stderr, /Warning or deprecation silencing flag disable-warning is not allowed/);
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 9);
+});
+
+test('should throw when trying to silence deprecation', async () => {
+  const result = await spawnPromisified(process.execPath, [
+    '--no-warnings',
+    '--experimental-config-file',
+    fixtures.path('rc/deprecation.json'),
+    '-p', '"Hello, World!"',
+  ]);
+  match(result.stderr, /Warning or deprecation silencing flag deprecation is not allowed/);
+  strictEqual(result.stdout, '');
+  strictEqual(result.code, 9);
+});

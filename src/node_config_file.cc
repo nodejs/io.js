@@ -47,6 +47,14 @@ ParseResult ConfigReader::ParseNodeOptions(
     if (field.unescaped_key().get(key) || field.value().get(ondemand_value)) {
       return ParseResult::InvalidContent;
     }
+    // Do not allow deprecation or warnings flags
+    if (key == "deprecation" || key == "warnings" || key == "disable-warning" ||
+        key == "redirect-warnings") {
+      FPrintF(stderr,
+              "Warning or deprecation silencing flag %s is not allowed\n",
+              key);
+      return ParseResult::InvalidContent;
+    }
 
     // The key needs to match the CLI option
     std::string prefix = "--";
